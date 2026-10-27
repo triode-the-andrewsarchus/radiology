@@ -11,10 +11,12 @@ pub enum SupportedGrammar {
     Python,
     /// Go language grammar.
     Go,
-    /// JavaScript and JSX language grammar.
+    /// JavaScript language grammar.
     JavaScript,
-    /// TypeScript and TSX language grammar.
+    /// TypeScript language grammar.
     TypeScript,
+    /// TSX and JSX language grammar with React element support.
+    Tsx,
     /// C and C++ language grammar.
     C,
 }
@@ -59,17 +61,24 @@ impl LanguageRegistry {
             .unwrap_or("")
             .to_lowercase();
 
-        if filename == "makefile" {
+        if filename == "dockerfile" {
+            return LanguageInfo {
+                id: "dockerfile",
+                display_name: "Dockerfile",
+                grammar: None,
+            };
+        }
+        if filename == "makefile" || filename == "gnumakefile" {
             return LanguageInfo {
                 id: "makefile",
                 display_name: "Makefile",
                 grammar: None,
             };
         }
-        if filename == "dockerfile" {
+        if filename == "cmakelists.txt" {
             return LanguageInfo {
-                id: "dockerfile",
-                display_name: "Dockerfile",
+                id: "cmake",
+                display_name: "CMake",
                 grammar: None,
             };
         }
@@ -80,46 +89,43 @@ impl LanguageRegistry {
                 display_name: "Rust",
                 grammar: Some(SupportedGrammar::Rust),
             },
+            "go" => LanguageInfo {
+                id: "go",
+                display_name: "Go",
+                grammar: Some(SupportedGrammar::Go),
+            },
             "py" | "pyi" => LanguageInfo {
                 id: "python",
                 display_name: "Python",
                 grammar: Some(SupportedGrammar::Python),
             },
-            "go" => LanguageInfo {
-                id: "go",
-                display_name: "Go",
-                grammar: Some(SupportedGrammar::Go),
+            "ts" | "mts" | "cts" => LanguageInfo {
+                id: "typescript",
+                display_name: "TypeScript",
+                grammar: Some(SupportedGrammar::TypeScript),
+            },
+            "tsx" | "jsx" => LanguageInfo {
+                id: "tsx",
+                display_name: "TSX",
+                grammar: Some(SupportedGrammar::Tsx),
             },
             "js" | "mjs" | "cjs" => LanguageInfo {
                 id: "javascript",
                 display_name: "JavaScript",
                 grammar: Some(SupportedGrammar::JavaScript),
             },
-            "jsx" => LanguageInfo {
-                id: "jsx",
-                display_name: "JavaScript (JSX)",
-                grammar: Some(SupportedGrammar::JavaScript),
-            },
-            "ts" => LanguageInfo {
-                id: "typescript",
-                display_name: "TypeScript",
-                grammar: Some(SupportedGrammar::TypeScript),
-            },
-            "tsx" => LanguageInfo {
-                id: "tsx",
-                display_name: "TypeScript (TSX)",
-                grammar: Some(SupportedGrammar::TypeScript),
-            },
             "c" | "h" => LanguageInfo {
                 id: "c",
                 display_name: "C",
                 grammar: Some(SupportedGrammar::C),
             },
-            "cpp" | "cc" | "cxx" | "hpp" | "hh" => LanguageInfo {
-                id: "cpp",
-                display_name: "C++",
-                grammar: Some(SupportedGrammar::C),
-            },
+            "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" | "inl" | "ipp" => {
+                LanguageInfo {
+                    id: "cpp",
+                    display_name: "C++",
+                    grammar: Some(SupportedGrammar::C),
+                }
+            }
             "swift" => LanguageInfo {
                 id: "swift",
                 display_name: "Swift",
@@ -133,6 +139,16 @@ impl LanguageRegistry {
             "java" => LanguageInfo {
                 id: "java",
                 display_name: "Java",
+                grammar: None,
+            },
+            "scala" | "sc" => LanguageInfo {
+                id: "scala",
+                display_name: "Scala",
+                grammar: None,
+            },
+            "rb" => LanguageInfo {
+                id: "ruby",
+                display_name: "Ruby",
                 grammar: None,
             },
             "json" => LanguageInfo {
@@ -155,7 +171,7 @@ impl LanguageRegistry {
                 display_name: "Markdown",
                 grammar: None,
             },
-            "sh" | "bash" | "zsh" => LanguageInfo {
+            "sh" | "bash" | "zsh" | "fish" => LanguageInfo {
                 id: "shell",
                 display_name: "Shell",
                 grammar: None,
@@ -170,7 +186,7 @@ impl LanguageRegistry {
                 display_name: "HTML",
                 grammar: None,
             },
-            "css" | "scss" | "sass" => LanguageInfo {
+            "css" | "scss" | "sass" | "less" => LanguageInfo {
                 id: "css",
                 display_name: "CSS",
                 grammar: None,
@@ -200,6 +216,10 @@ mod tests {
         );
         assert_eq!(
             LanguageRegistry::for_path("index.tsx").grammar,
+            Some(SupportedGrammar::Tsx)
+        );
+        assert_eq!(
+            LanguageRegistry::for_path("app.ts").grammar,
             Some(SupportedGrammar::TypeScript)
         );
         assert_eq!(

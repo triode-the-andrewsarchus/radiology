@@ -6,7 +6,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
 /// Maximum number of search matches collected per query to prevent runaway resource consumption.
@@ -115,6 +115,7 @@ pub struct SearchRunner;
 impl SearchRunner {
     /// Executes a search within `root`, streaming batches of [`SearchMatch`] into `on_batch`.
     ///
+    /// Stderr is drained asynchronously to prevent pipe deadlocks.
     /// Returns `true` if search was capped at [`SEARCH_RESULT_LIMIT`].
     ///
     /// # Errors
@@ -146,6 +147,15 @@ impl SearchRunner {
             })?;
 
         let stdout = child.stdout.take().expect("stdout piped");
+        let mut stderr = child.stderr.take().expect("stderr piped");
+
+        // Concurrently drain stderr to prevent pipe buffer deadlock
+        let stderr_task = tokio::spawn(async move {
+            let mut err_str = String::new();
+            let _ = stderr.read_to_string(&mut err_str).await;
+            err_str
+        });
+
         let mut reader = BufReader::new(stdout).lines();
 
         let mut batch = Vec::with_capacity(64);
@@ -155,6 +165,7 @@ impl SearchRunner {
         while let Some(line) = reader.next_line().await? {
             if cancel.load(Ordering::Relaxed) {
                 let _ = child.kill().await;
+                let _ = stderr_task.await;
                 return Ok(false);
             }
 
@@ -169,7 +180,7 @@ impl SearchRunner {
                 }
             }
 
-            if batch.len() >= 50 {
+            if batch.len() >= 40 {
                 on_batch(std::mem::take(&mut batch));
             }
 
@@ -183,14 +194,19 @@ impl SearchRunner {
         }
 
         let status = child.wait().await?;
+        let stderr_output = stderr_task.await.unwrap_or_default();
+
         if !limited
             && !cancel.load(Ordering::Relaxed)
             && !matches!(status.code(), Some(0) | Some(1))
         {
-            return Err(SearchError::Process(format!(
-                "ripgrep exited with code {:?}",
-                status.code()
-            )));
+            let trimmed = stderr_output.trim();
+            let msg = if trimmed.is_empty() {
+                format!("ripgrep exited with code {:?}", status.code())
+            } else {
+                trimmed.to_string()
+            };
+            return Err(SearchError::Process(msg));
         }
 
         Ok(limited)

@@ -4,6 +4,7 @@
 
 use crate::repository::file_node::RepositoryFile;
 use crate::repository::quick_search::QuickFileSearch;
+use crate::semantic::index::SemanticIndex;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{Context, Key, TextEdit, Window};
@@ -17,6 +18,15 @@ pub enum ModalAction {
     JumpToLine(usize),
     /// Jumps the editor caret to the symbol starting at the given byte offset.
     JumpToSymbol(usize),
+    /// Jumps the editor caret to a specific file, line number, and byte offset.
+    JumpToLocation {
+        /// Target file path relative to repository root.
+        path: String,
+        /// 1-based line number.
+        line: usize,
+        /// 0-based byte offset.
+        byte_offset: usize,
+    },
     /// Fetches and opens the GitHub pull request with the given number.
     OpenPullRequest(usize),
     /// Dismisses the modal dialog without performing an action.
@@ -68,7 +78,7 @@ impl QuickFilePickerModal {
                 let results = QuickFileSearch::search(files, &self.query, 12);
 
                 if ctx.input(|i| i.key_pressed(Key::ArrowDown))
-                    && self.selected_idx + 1 < results.len()
+                    && self.selected_idx + 1 < results.files.len()
                 {
                     self.selected_idx += 1;
                 }
@@ -76,20 +86,20 @@ impl QuickFilePickerModal {
                     self.selected_idx -= 1;
                 }
                 if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                    if let Some(res) = results.get(self.selected_idx) {
-                        action = Some(ModalAction::OpenFile(res.file.path.clone()));
+                    if let Some(res) = results.files.get(self.selected_idx) {
+                        action = Some(ModalAction::OpenFile(res.path.clone()));
                     }
                 }
                 if ctx.input(|i| i.key_pressed(Key::Escape)) {
                     action = Some(ModalAction::Close);
                 }
 
-                if self.selected_idx >= results.len() && !results.is_empty() {
+                if self.selected_idx >= results.files.len() && !results.files.is_empty() {
                     self.selected_idx = 0;
                 }
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (idx, res) in results.iter().enumerate() {
+                    for (idx, res) in results.files.iter().enumerate() {
                         let is_selected = idx == self.selected_idx;
                         let bg = if is_selected {
                             theme.accent.linear_multiply(0.2)
@@ -103,13 +113,13 @@ impl QuickFilePickerModal {
                             .rounding(4.0)
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new(&res.file.path).monospace());
+                                    ui.label(egui::RichText::new(&res.path).monospace());
                                 });
                             })
                             .response;
 
                         if item_resp.interact(egui::Sense::click()).clicked() {
-                            action = Some(ModalAction::OpenFile(res.file.path.clone()));
+                            action = Some(ModalAction::OpenFile(res.path.clone()));
                         }
                     }
                 });
@@ -192,18 +202,107 @@ pub struct GoToSymbolModal {
 impl GoToSymbolModal {
     /// Renders the symbol filter dialog.
     ///
+    /// Searches workspace-wide semantic symbols if `semantic_index` is provided,
+    /// or falls back to current file outline `symbols`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - EGUI context for global window rendering and keyboard input.
     /// * `theme` - Visual color palette.
+    /// * `semantic_index` - Optional workspace semantic symbol index.
     /// * `symbols` - Document outline symbols discovered in the active source buffer.
     pub fn show(
         &mut self,
         ctx: &Context,
         theme: &AppTheme,
+        semantic_index: Option<&SemanticIndex>,
         symbols: &[DocumentSymbol],
     ) -> Option<ModalAction> {
         let mut action = None;
+
+        if let Some(index) = semantic_index {
+            let matches = index.search_symbols(&self.query, 100);
+
+            Window::new("Go to Symbol (Workspace)")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
+                .fixed_size(egui::vec2(540.0, 380.0))
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("🔣");
+                        let edit = TextEdit::singleline(&mut self.query)
+                            .hint_text("Search symbols in workspace...")
+                            .desired_width(ui.available_width() - 20.0);
+                        let resp = ui.add(edit);
+                        resp.request_focus();
+                    });
+
+                    ui.separator();
+
+                    if ctx.input(|i| i.key_pressed(Key::ArrowDown))
+                        && self.selected_idx + 1 < matches.len()
+                    {
+                        self.selected_idx += 1;
+                    }
+                    if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
+                        self.selected_idx -= 1;
+                    }
+                    if ctx.input(|i| i.key_pressed(Key::Enter)) {
+                        if let Some(m) = matches.get(self.selected_idx) {
+                            action = Some(ModalAction::JumpToLocation {
+                                path: m.path.clone(),
+                                line: m.line,
+                                byte_offset: 0,
+                            });
+                        }
+                    }
+                    if ctx.input(|i| i.key_pressed(Key::Escape)) {
+                        action = Some(ModalAction::Close);
+                    }
+
+                    if self.selected_idx >= matches.len() && !matches.is_empty() {
+                        self.selected_idx = 0;
+                    }
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (idx, m) in matches.iter().enumerate() {
+                            let is_selected = idx == self.selected_idx;
+                            let bg = if is_selected {
+                                theme.accent.linear_multiply(0.2)
+                            } else {
+                                egui::Color32::TRANSPARENT
+                            };
+
+                            let item_resp = egui::Frame::none()
+                                .fill(bg)
+                                .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                .rounding(4.0)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.colored_label(theme.accent, "sym");
+                                        ui.label(egui::RichText::new(&m.name).strong());
+                                        ui.colored_label(
+                                            theme.text_muted,
+                                            format!("{}:{}", m.path, m.line),
+                                        );
+                                    });
+                                })
+                                .response;
+
+                            if item_resp.interact(egui::Sense::click()).clicked() {
+                                action = Some(ModalAction::JumpToLocation {
+                                    path: m.path.clone(),
+                                    line: m.line,
+                                    byte_offset: 0,
+                                });
+                            }
+                        }
+                    });
+                });
+
+            return action;
+        }
 
         let mut flattened = Vec::new();
         fn flatten_syms(syms: &[DocumentSymbol], out: &mut Vec<DocumentSymbol>) {

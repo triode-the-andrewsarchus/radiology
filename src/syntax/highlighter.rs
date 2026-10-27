@@ -68,7 +68,22 @@ impl SyntaxHighlighter {
     /// Looks up a [`SyntaxReference`] matching the given file path or extension.
     #[must_use]
     pub fn find_syntax_for_path(&self, path: &str) -> Option<&SyntaxReference> {
-        self.syntax_set.find_syntax_for_file(path).ok().flatten()
+        if let Some(syntax) = self.syntax_set.find_syntax_for_file(path).ok().flatten() {
+            return Some(syntax);
+        }
+        let ext = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        match ext.as_str() {
+            "ts" | "tsx" | "mts" | "cts" => self.syntax_set.find_syntax_by_extension("js"),
+            "toml" => self
+                .syntax_set
+                .find_syntax_by_extension("ini")
+                .or_else(|| self.syntax_set.find_syntax_by_extension("yaml")),
+            _ => None,
+        }
     }
 
     /// Returns the theme corresponding to the current light or dark appearance mode.

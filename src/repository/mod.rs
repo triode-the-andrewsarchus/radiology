@@ -16,4 +16,4 @@ pub use classifier::{SourceFileClassifier, TestPathClassifier};
 pub use discovery::RepositoryDiscovery;
 pub use file_node::{FileNode, RepositoryFile};
 pub use filters::SourceFilters;
-pub use quick_search::{QuickFileSearch, QuickSearchResult};
+pub use quick_search::{QuickFileSearch, QuickFileSearchResponse};

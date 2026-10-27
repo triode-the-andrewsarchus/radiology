@@ -107,6 +107,18 @@ impl ContextInspector {
                             ui.label(RichText::new(&sym.display_name).heading().strong());
                             ui.colored_label(theme.text_secondary, &sym.symbol);
 
+                            if !sym.signature.is_empty() {
+                                ui.separator();
+                                ui.label(RichText::new("Signature:").strong());
+                                egui::Frame::none()
+                                    .fill(theme.bg_surface)
+                                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+                                    .rounding(4.0)
+                                    .show(ui, |ui| {
+                                        ui.monospace(&sym.signature);
+                                    });
+                            }
+
                             if let Some((def_path, def_line)) = definition_location {
                                 ui.separator();
                                 ui.label(RichText::new("Defined at:").strong());

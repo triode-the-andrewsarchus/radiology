@@ -31,10 +31,10 @@ pub struct SearchMatch {
 }
 
 impl SearchMatch {
-    /// Returns a unique string identifier formatted as `path:line:column`.
+    /// Returns a unique string identifier formatted as `path:byte_offset`.
     #[must_use]
     pub fn id(&self) -> String {
-        format!("{}:{}:{}", self.path, self.line, self.column)
+        format!("{}:{}", self.path, self.byte_offset)
     }
 
     /// Converts this match into a canonical [`SourceLocation`].
@@ -91,6 +91,18 @@ impl SearchMatch {
             .and_then(|t| t.as_str())
         {
             l.trim_end_matches(['\r', '\n']).to_string()
+        } else if let Some(bytes_b64) = data
+            .get("lines")
+            .and_then(|l| l.get("bytes"))
+            .and_then(|b| b.as_str())
+        {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD
+                .decode(bytes_b64)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .map(|s| s.trim_end_matches(['\r', '\n']).to_string())
+                .unwrap_or_default()
         } else {
             String::new()
         };
@@ -116,16 +128,6 @@ impl SearchMatch {
                     preview: preview.clone(),
                 });
             }
-        }
-
-        if matches.is_empty() {
-            matches.push(SearchMatch {
-                path: clean_path,
-                line: line_number,
-                column: 1,
-                byte_offset: abs_offset,
-                preview,
-            });
         }
 
         matches

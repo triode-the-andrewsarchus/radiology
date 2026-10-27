@@ -1,6 +1,7 @@
 //! Git and filesystem directory discovery for repository files.
 
 use crate::repository::file_node::RepositoryFile;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
@@ -26,15 +27,16 @@ impl RepositoryDiscovery {
     /// Directory names excluded from repository browsing and file enumeration.
     pub const EXCLUDED_DIRS: &'static [&'static str] = &[
         ".git",
-        "node_modules",
-        "target",
+        ".build",
         "build",
         "dist",
-        ".build",
-        ".cargo",
+        "node_modules",
         "vendor",
-        ".gemini",
         "DerivedData",
+        "target",
+        ".DS_Store",
+        ".cargo",
+        ".gemini",
         ".idea",
         ".vscode",
     ];
@@ -43,10 +45,12 @@ impl RepositoryDiscovery {
     /// or looking for a parent `.git` directory, falling back to the canonicalized path.
     #[must_use]
     pub fn find_root(path: &Path) -> PathBuf {
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
         if let Ok(output) = Command::new("git")
             .arg("rev-parse")
             .arg("--show-toplevel")
-            .current_dir(path)
+            .current_dir(&canonical)
             .output()
         {
             if output.status.success() {
@@ -59,7 +63,7 @@ impl RepositoryDiscovery {
             }
         }
 
-        let mut curr = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let mut curr = canonical.clone();
         loop {
             if curr.join(".git").exists() {
                 return curr;
@@ -69,7 +73,7 @@ impl RepositoryDiscovery {
             }
         }
 
-        path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+        canonical
     }
 
     /// Discovers candidate repository files using `git ls-files -z` when available,
@@ -79,10 +83,15 @@ impl RepositoryDiscovery {
     ///
     /// Returns an [`std::io::Error`] if filesystem enumeration fails.
     pub fn discover_files(root: &Path) -> Result<Vec<RepositoryFile>, std::io::Error> {
+        if !root.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Choose a folder to browse.",
+            ));
+        }
+
         if let Ok(files) = Self::discover_git_files(root) {
-            if !files.is_empty() {
-                return Ok(files);
-            }
+            return Ok(files);
         }
 
         Self::discover_walkdir(root)
@@ -104,7 +113,9 @@ impl RepositoryDiscovery {
             return Err(std::io::Error::other("git ls-files failed"));
         }
 
-        let mut files = Vec::new();
+        let mut seen = HashSet::new();
+        let mut paths = Vec::new();
+
         for slice in output.stdout.split(|&b| b == 0) {
             if slice.is_empty() {
                 continue;
@@ -113,15 +124,19 @@ impl RepositoryDiscovery {
                 if Self::is_excluded_path(path_str) {
                     continue;
                 }
-                files.push(RepositoryFile::new(path_str));
+                // Verify the file actually exists in the working tree (drops unstaged deleted files)
+                if root.join(path_str).exists() && seen.insert(path_str.to_string()) {
+                    paths.push(path_str.to_string());
+                }
             }
         }
 
-        Ok(files)
+        paths.sort_by_key(|a| a.to_lowercase());
+        Ok(paths.into_iter().map(RepositoryFile::new).collect())
     }
 
     fn discover_walkdir(root: &Path) -> Result<Vec<RepositoryFile>, std::io::Error> {
-        let mut files = Vec::new();
+        let mut paths = Vec::new();
 
         let walker = WalkDir::new(root).follow_links(false).into_iter();
         for entry in walker.filter_entry(|e| !Self::is_excluded_dir_entry(e)) {
@@ -130,18 +145,24 @@ impl RepositoryDiscovery {
                 Err(_) => continue,
             };
 
+            // Skip symbolic links (matches Swift enumerator.skipDescendants())
+            if entry.file_type().is_symlink() {
+                continue;
+            }
+
             if entry.file_type().is_file() {
                 if let Ok(rel) = entry.path().strip_prefix(root) {
                     if let Some(rel_str) = rel.to_str() {
                         if !Self::is_excluded_path(rel_str) {
-                            files.push(RepositoryFile::new(rel_str));
+                            paths.push(rel_str.to_string());
                         }
                     }
                 }
             }
         }
 
-        Ok(files)
+        paths.sort_by_key(|a| a.to_lowercase());
+        Ok(paths.into_iter().map(RepositoryFile::new).collect())
     }
 
     fn is_excluded_dir_entry(entry: &walkdir::DirEntry) -> bool {

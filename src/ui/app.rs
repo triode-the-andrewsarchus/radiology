@@ -112,6 +112,9 @@ pub struct RadiologyApp {
     pub is_searching: bool,
     /// Cancellation flag for the background search process.
     pub search_cancel: Arc<AtomicBool>,
+    /// Background receiver for streaming search results.
+    #[allow(clippy::type_complexity)]
+    pub search_rx: Option<std::sync::mpsc::Receiver<Vec<SearchMatch>>>,
     /// Repository and PR bookmarks.
     pub bookmarks: BookmarkStore,
     /// Active modal dialog sheet.
@@ -155,12 +158,25 @@ impl RadiologyApp {
             search_matches: Vec::new(),
             is_searching: false,
             search_cancel: Arc::new(AtomicBool::new(false)),
+            search_rx: None,
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
         };
 
-        let initial_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        app.open_repository(&initial_dir);
+        if app.session.is_valid() {
+            if let Some(repo_str) = &app.session.last_repository {
+                let path = PathBuf::from(repo_str);
+                app.open_repository(&path);
+                if let Some(pr_num) = app.session.active_pr {
+                    if let Ok(pr) = GitHubClient::view_pull_request(&path, pr_num) {
+                        app.active_pr = Some(pr);
+                        if let Ok(diff) = GitHubClient::get_pr_diff(&path, pr_num) {
+                            app.line_changes = Some(UnifiedDiffParser::parse(&diff));
+                        }
+                    }
+                }
+            }
+        }
 
         app
     }
@@ -228,6 +244,10 @@ impl RadiologyApp {
 
     /// Reads and displays the file at `rel_path`.
     pub fn open_file(&mut self, rel_path: &str) {
+        self.open_file_internal(rel_path, true);
+    }
+
+    fn open_file_internal(&mut self, rel_path: &str, record_history: bool) {
         let Some(root) = &self.repository_root else {
             return;
         };
@@ -243,7 +263,9 @@ impl RadiologyApp {
                 self.fold_ranges = FoldDetector::detect_folds(&buffer);
                 self.fold_store.unfold_all();
 
-                self.history.visit(buffer.location_at_byte(0));
+                if record_history {
+                    self.history.visit(buffer.location_at_byte(0));
+                }
                 self.open_buffer = Some(buffer);
 
                 self.refresh_symbol_context();
@@ -253,18 +275,35 @@ impl RadiologyApp {
 
     /// Navigates directly to a file, line number, and byte offset.
     pub fn jump_to_location(&mut self, rel_path: &str, line: usize, byte_offset: usize) {
+        self.navigate_to_location(rel_path, line, byte_offset, true);
+    }
+
+    fn navigate_to_location(
+        &mut self,
+        rel_path: &str,
+        line: usize,
+        byte_offset: usize,
+        record_history: bool,
+    ) {
         if self.selected_path.as_deref() != Some(rel_path) {
-            self.open_file(rel_path);
+            self.open_file_internal(rel_path, record_history);
         }
         if let Some(buf) = &self.open_buffer {
-            self.caret_line = line.clamp(1, buf.line_count());
+            let target_line = if byte_offset > 0 {
+                buf.line_at_byte(byte_offset)
+            } else {
+                line.clamp(1, buf.line_count())
+            };
+            self.caret_line = target_line;
             self.caret_col = 0;
             let offset = if byte_offset > 0 {
                 byte_offset
             } else {
                 buf.byte_offset(self.caret_line, 0)
             };
-            self.history.visit(buf.location_at_byte(offset));
+            if record_history {
+                self.history.visit(buf.location_at_byte(offset));
+            }
             self.refresh_symbol_context();
         }
     }
@@ -316,14 +355,14 @@ impl RadiologyApp {
             (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::OpenBracket)
         }) {
             if let Some(loc) = self.history.back() {
-                self.jump_to_location(&loc.path, 1, loc.byte_offset);
+                self.navigate_to_location(&loc.path, 1, loc.byte_offset, false);
             }
         }
         if ctx.input(|i| {
             (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::CloseBracket)
         }) {
             if let Some(loc) = self.history.forward() {
-                self.jump_to_location(&loc.path, 1, loc.byte_offset);
+                self.navigate_to_location(&loc.path, 1, loc.byte_offset, false);
             }
         }
         for idx in 0..10 {
@@ -353,6 +392,18 @@ impl RadiologyApp {
 
 impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        if let Some(rx) = &self.search_rx {
+            while let Ok(batch) = rx.try_recv() {
+                self.search_matches.extend(batch);
+            }
+            if let Err(std::sync::mpsc::TryRecvError::Disconnected) = rx.try_recv() {
+                self.is_searching = false;
+                self.search_rx = None;
+            } else if self.is_searching {
+                ctx.request_repaint();
+            }
+        }
+
         self.handle_shortcuts(ctx);
 
         let mut close_modal = false;
@@ -392,8 +443,21 @@ impl eframe::App for RadiologyApp {
                 }
             }
             ActiveModal::GoToSymbol(modal) => {
-                if let Some(action) = modal.show(ctx, &self.theme, &self.outline_symbols) {
+                if let Some(action) = modal.show(
+                    ctx,
+                    &self.theme,
+                    self.semantic_index.as_ref(),
+                    &self.outline_symbols,
+                ) {
                     match action {
+                        ModalAction::JumpToLocation {
+                            path,
+                            line,
+                            byte_offset,
+                        } => {
+                            self.jump_to_location(&path, line, byte_offset);
+                            close_modal = true;
+                        }
                         ModalAction::JumpToSymbol(byte) => {
                             if let Some(buf) = &self.open_buffer {
                                 let line = buf.line_at_byte(byte);
@@ -450,17 +514,18 @@ impl eframe::App for RadiologyApp {
             ) {
                 match action {
                     ToolbarAction::OpenRepositoryDialog => {
-                        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
-                        self.open_repository(&home);
+                        if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                            self.open_repository(&folder);
+                        }
                     }
                     ToolbarAction::NavigateBack => {
                         if let Some(loc) = self.history.back() {
-                            self.jump_to_location(&loc.path, 1, loc.byte_offset);
+                            self.navigate_to_location(&loc.path, 1, loc.byte_offset, false);
                         }
                     }
                     ToolbarAction::NavigateForward => {
                         if let Some(loc) = self.history.forward() {
-                            self.jump_to_location(&loc.path, 1, loc.byte_offset);
+                            self.navigate_to_location(&loc.path, 1, loc.byte_offset, false);
                         }
                     }
                     ToolbarAction::ToggleBookmark => {
@@ -537,30 +602,35 @@ impl eframe::App for RadiologyApp {
                         }
                         SidebarAction::StartSearch => {
                             if let Some(root) = self.repository_root.clone() {
+                                self.search_cancel
+                                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                                let cancel = Arc::new(AtomicBool::new(false));
+                                self.search_cancel = cancel.clone();
                                 self.is_searching = true;
                                 self.search_matches.clear();
                                 let opts = self.search_options.clone();
-                                let cancel = self.search_cancel.clone();
 
-                                let mut matches = Vec::new();
-                                let _ = tokio::runtime::Builder::new_current_thread()
-                                    .enable_all()
-                                    .build()
-                                    .map(|rt| {
-                                        rt.block_on(async {
+                                let (tx, rx) = std::sync::mpsc::channel();
+                                self.search_rx = Some(rx);
+
+                                std::thread::spawn(move || {
+                                    if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                                        .enable_all()
+                                        .build()
+                                    {
+                                        rt.block_on(async move {
                                             let _ = SearchRunner::search(
                                                 &root,
                                                 &opts,
                                                 cancel,
                                                 |batch| {
-                                                    matches.extend(batch);
+                                                    let _ = tx.send(batch);
                                                 },
                                             )
                                             .await;
                                         });
-                                    });
-                                self.search_matches = matches;
-                                self.is_searching = false;
+                                    }
+                                });
                             }
                         }
                         SidebarAction::ClearSearch => {

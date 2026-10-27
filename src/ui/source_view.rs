@@ -67,7 +67,7 @@ impl SourceView {
     /// * `fold_ranges` - Detected foldable AST syntax nodes in the document.
     /// * `fold_store` - Set of currently collapsed fold start lines.
     /// * `line_changes` - Pull request line change markers for before/after diff overlays.
-    /// * `_pin_store` - Highlighted symbol occurrence pins.
+    /// * `pin_store` - Highlighted symbol occurrence pins.
     /// * `enclosing_symbols` - Hierarchical list of symbols enclosing the current caret position.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
@@ -81,7 +81,7 @@ impl SourceView {
         fold_ranges: &[FoldRange],
         fold_store: &mut FoldStore,
         line_changes: Option<&FileLineChanges>,
-        _pin_store: &mut OccurrencePinStore,
+        pin_store: &mut OccurrencePinStore,
         enclosing_symbols: &[DocumentSymbol],
     ) -> Option<SourceViewAction> {
         let mut action = None;
@@ -136,7 +136,11 @@ impl SourceView {
             // Keyboard navigation (Arrow keys & Enter)
             let max_lines = buffer.line_count();
             if ui.ctx().input(|i| i.key_pressed(Key::ArrowDown)) && *caret_line < max_lines {
-                *caret_line += 1;
+                let mut next_line = *caret_line + 1;
+                while next_line < max_lines && fold_store.is_line_hidden(next_line, fold_ranges) {
+                    next_line += 1;
+                }
+                *caret_line = next_line;
                 let offset = buffer.byte_offset(*caret_line, *caret_col);
                 action = Some(SourceViewAction::CaretMoved {
                     line: *caret_line,
@@ -145,7 +149,11 @@ impl SourceView {
                 });
             }
             if ui.ctx().input(|i| i.key_pressed(Key::ArrowUp)) && *caret_line > 1 {
-                *caret_line -= 1;
+                let mut prev_line = *caret_line - 1;
+                while prev_line > 1 && fold_store.is_line_hidden(prev_line, fold_ranges) {
+                    prev_line -= 1;
+                }
+                *caret_line = prev_line;
                 let offset = buffer.byte_offset(*caret_line, *caret_col);
                 action = Some(SourceViewAction::CaretMoved {
                     line: *caret_line,
@@ -173,6 +181,8 @@ impl SourceView {
                         .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
                         .unwrap_or_default();
 
+                    let clip_rect = ui.clip_rect();
+
                     for line_num in 1..=buffer.line_count() {
                         // Skip line if hidden inside a collapsed fold
                         if fold_store.is_line_hidden(line_num, fold_ranges) {
@@ -187,12 +197,56 @@ impl SourceView {
                             egui::Sense::click_and_drag(),
                         );
 
-                        if line_response.clicked() {
+                        // Draw Gutter
+                        let gutter_rect = Rect::from_min_size(
+                            rect.min,
+                            Vec2::new(Self::GUTTER_WIDTH, row_height),
+                        );
+                        ui.painter().rect_filled(gutter_rect, 0.0, theme.bg_gutter);
+
+                        // Fold Chevron in Gutter
+                        let mut chevron_clicked = false;
+                        if let Some(_fold) = fold_ranges.iter().find(|f| f.start_line == line_num) {
+                            let is_folded = fold_store.is_folded(line_num);
+                            let chevron = if is_folded { "▶" } else { "▼" };
+                            let chevron_pos = gutter_rect.left_center() + Vec2::new(6.0, 0.0);
+                            ui.painter().text(
+                                chevron_pos,
+                                egui::Align2::LEFT_CENTER,
+                                chevron,
+                                TextStyle::Small.resolve(ui.style()),
+                                theme.text_secondary,
+                            );
+
+                            let chevron_rect =
+                                Rect::from_center_size(chevron_pos, Vec2::new(16.0, 16.0));
+                            if ui.rect_contains_pointer(chevron_rect)
+                                && ui.input(|i| i.pointer.primary_clicked())
+                            {
+                                fold_store.toggle(line_num);
+                                action = Some(SourceViewAction::ToggleFold(line_num));
+                                chevron_clicked = true;
+                            }
+                        }
+
+                        // Caret click: calculate actual character column from mouse position
+                        if line_response.clicked() && !chevron_clicked {
                             *caret_line = line_num;
-                            let offset = buffer.byte_offset(line_num, 0);
+                            let mut col = 0;
+                            if let Some(pos) = line_response.interact_pointer_pos() {
+                                let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 8.0;
+                                if pos.x > code_start_x {
+                                    // Approximate monospace column position
+                                    let char_width = 8.5;
+                                    col = ((pos.x - code_start_x) / char_width).floor() as usize;
+                                    col = col.min(line_text.chars().count());
+                                }
+                            }
+                            *caret_col = col;
+                            let offset = buffer.byte_offset(line_num, col);
                             action = Some(SourceViewAction::CaretMoved {
                                 line: line_num,
-                                column: 0,
+                                column: col,
                                 byte_offset: offset,
                             });
                         }
@@ -213,13 +267,6 @@ impl SourceView {
                             ui.painter().rect_filled(rect, 0.0, diff_bg);
                         }
 
-                        // Draw Gutter
-                        let gutter_rect = Rect::from_min_size(
-                            rect.min,
-                            Vec2::new(Self::GUTTER_WIDTH, row_height),
-                        );
-                        ui.painter().rect_filled(gutter_rect, 0.0, theme.bg_gutter);
-
                         // Line number rule: print every 5th line or active caret line
                         let should_print_number = line_num % 5 == 0 || is_caret_line;
                         if should_print_number {
@@ -237,55 +284,38 @@ impl SourceView {
                             );
                         }
 
-                        // Fold Chevron in Gutter
-                        if let Some(_fold) = fold_ranges.iter().find(|f| f.start_line == line_num) {
-                            let is_folded = fold_store.is_folded(line_num);
-                            let chevron = if is_folded { "▶" } else { "▼" };
-                            let chevron_pos = gutter_rect.left_center() + Vec2::new(6.0, 0.0);
-                            ui.painter().text(
-                                chevron_pos,
-                                egui::Align2::LEFT_CENTER,
-                                chevron,
-                                TextStyle::Small.resolve(ui.style()),
-                                theme.text_secondary,
-                            );
-
-                            let chevron_rect =
-                                Rect::from_center_size(chevron_pos, Vec2::new(16.0, 16.0));
-                            if ui.rect_contains_pointer(chevron_rect)
-                                && ui.input(|i| i.pointer.primary_clicked())
-                            {
-                                fold_store.toggle(line_num);
-                                action = Some(SourceViewAction::ToggleFold(line_num));
-                            }
-                        }
-
                         // Gutter right border
                         ui.painter().line_segment(
                             [gutter_rect.right_top(), gutter_rect.right_bottom()],
                             Stroke::new(1.0, theme.border),
                         );
 
+                        // Only layout and paint code text if within or near viewport
+                        let is_visible = rect.max.y >= clip_rect.min.y - 40.0
+                            && rect.min.y <= clip_rect.max.y + 40.0;
+
                         // Draw Code text
                         let code_pos =
                             rect.left_center() + Vec2::new(Self::GUTTER_WIDTH + 8.0, 0.0);
                         if let Some(hl) = &mut syn_highlighter {
                             let spans = highlighter.highlight_line(hl, line_text);
-                            let mut x_offset = 0.0;
-                            for span in spans {
-                                let span_text = span.text;
-                                let font_id = TextStyle::Monospace.resolve(ui.style());
-                                let galley =
-                                    ui.painter().layout_no_wrap(span_text, font_id, span.color);
-                                let span_pos = code_pos + Vec2::new(x_offset, 0.0);
-                                ui.painter().galley(
-                                    span_pos - Vec2::new(0.0, galley.size().y / 2.0),
-                                    galley.clone(),
-                                    span.color,
-                                );
-                                x_offset += galley.size().x;
+                            if is_visible {
+                                let mut x_offset = 0.0;
+                                for span in spans {
+                                    let span_text = span.text;
+                                    let font_id = TextStyle::Monospace.resolve(ui.style());
+                                    let galley =
+                                        ui.painter().layout_no_wrap(span_text, font_id, span.color);
+                                    let span_pos = code_pos + Vec2::new(x_offset, 0.0);
+                                    ui.painter().galley(
+                                        span_pos - Vec2::new(0.0, galley.size().y / 2.0),
+                                        galley.clone(),
+                                        span.color,
+                                    );
+                                    x_offset += galley.size().x;
+                                }
                             }
-                        } else {
+                        } else if is_visible {
                             ui.painter().text(
                                 code_pos,
                                 egui::Align2::LEFT_CENTER,
@@ -293,6 +323,32 @@ impl SourceView {
                                 TextStyle::Monospace.resolve(ui.style()),
                                 theme.text_primary,
                             );
+                        }
+
+                        // Draw occurrence pins if any exist on this line
+                        if is_visible && !pin_store.is_empty() {
+                            let line_start_byte = buffer.byte_offset(line_num, 0);
+                            let line_end_byte = buffer.byte_offset(line_num + 1, 0);
+                            for group in &pin_store.groups {
+                                for range in &group.ranges {
+                                    if range.start < line_end_byte && range.end > line_start_byte {
+                                        let col_start = range.start.saturating_sub(line_start_byte);
+                                        let char_w = 8.5;
+                                        let pin_x = code_pos.x + col_start as f32 * char_w;
+                                        let pin_w = (range.end - range.start) as f32 * char_w;
+                                        let pin_rect = Rect::from_min_size(
+                                            egui::pos2(pin_x, rect.min.y + 2.0),
+                                            egui::vec2(pin_w.max(char_w), row_height - 4.0),
+                                        );
+                                        let color = theme.accent.linear_multiply(0.3);
+                                        ui.painter().rect_stroke(
+                                            pin_rect,
+                                            2.0,
+                                            Stroke::new(1.0, color),
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 });

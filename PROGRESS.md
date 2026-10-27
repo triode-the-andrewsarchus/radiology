@@ -1,5 +1,54 @@
 # Progress
 
+## 2026-10-27 — Swift Parity Audit & Defect Remediation (Subsystems 1–3) Completed (Antigravity)
+
+Conducted exhaustive line-by-line feature audit and defect remediation comparing
+the Rust + EGUI port against the original Swift implementation across Subsystems 1–3:
+- **Subsystem 1 (AppModel, Repo Discovery, Filters & Search):**
+  - Refactored `SourceFileClassifier` and `TestPathClassifier` to exact parity with
+    Swift rules (including Gradle source sets, language-specific stems, config script
+    exclusions, and 80+ extensions).
+  - Implemented Swift's exact 5-tier candidate ranking for `QuickFileSearch` (exact name,
+    prefix, substring, filename subsequence, path subsequence) with Unicode NFD diacritic
+    mark stripping and case folding.
+  - Eliminated UI-thread blocking during ripgrep search by streaming batches via
+    `mpsc::channel` from a background thread with cancellation token support.
+  - Replaced hardcoded `$HOME` directory opening in toolbar with native
+    `rfd::FileDialog::new().pick_folder()` modal.
+  - Validated repository discovery, deduplicating paths, dropping deleted working-tree files,
+    and avoiding symlink cycles.
+  - Capped recent repository history at 8 entries and added repository directory validation.
+- **Subsystem 2 (Source, Syntax, Folds, Virtualized SourceView):**
+  - Added TSX grammar support (`SupportedGrammar::Tsx`) for `.tsx`/`.jsx` files.
+  - Registered `.mts`/`.cts` and added fallback syntax mapping for TypeScript and TOML.
+  - Fixed fold deduplication to retain outer enclosing folds when sharing `start_line`.
+  - Implemented `TestRegionDetector` discovering test blocks across Rust, Python, and JS/TS.
+  - Virtualized `SourceView` rendering so only visible lines within the viewport are laid out.
+  - Fixed character column click hit-testing, arrow key traversal across folded lines, and
+    occurrence pin indicators.
+- **Subsystem 3 (SCIP Wire Protobuf, Semantics, Caller Trees & Context Inspector):**
+  - Fixed SCIP protobuf wire field tags: mapped field 7 to `Occurrence.enclosing_range`
+    (with typed range precedence from fields 8–11); mapped field 6 to `display_name`;
+    decoded embedded `Document` message on field 7 to extract symbol `signature`.
+  - Defined `SemanticSymbolID` with document scoping for `local N` symbols, preventing
+    cross-document identifier collisions.
+  - Implemented `SCIPSymbolString::fallback_name` matching Swift descriptor grammar parsing.
+  - Built 4-tier workspace symbol ranking engine in `SymbolSearch` (exact, prefix,
+    camelCase/component initials, fuzzy subsequence) and wired it into `GoToSymbolModal` (Ctrl+T).
+  - Fixed caller pill slot calculation using fallback names to ensure deterministic 12-color
+    palette matches Swift across application launches.
+  - Fixed navigation history corruption during Back/Forward operations.
+  - Implemented CLI arguments `--repository`, `--pull-request`, `--file`, and `--verify-resources`.
+- **Quality Gates & Preservation:**
+  - 33/33 unit tests passing (`cargo test --all-targets`).
+  - 28/28 doctests passing (`cargo test --doc`).
+  - `cargo run -- --verify-resources` passed with all 13 syntax grammars verified.
+  - `cargo clippy --all-targets` clean with zero warnings.
+  - `cargo fmt --all -- --check` clean with zero diffs.
+  - Swift source code remains 100% intact as instructed.
+  - Index updated in master `PLAN.md`; details in `plans/swift-parity-and-defect-remediation.md`.
+
+
 ## 2026-10-27 — RFC 1574 Documentation Formatting & Doctests Completed (Antigravity)
 
 Applied strict RFC 1574 Appendix A documentation styling across all 45 crate modules,
