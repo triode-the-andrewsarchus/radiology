@@ -351,6 +351,31 @@ impl ContextInspector {
                                     ui.ctx().animate_bool(row_id, true);
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
+                                row_click.context_menu(|ui| {
+                                    if ui.button("Go to Bookmark").clicked() {
+                                        action = Some(InspectorAction::JumpToLocation {
+                                            path: b.path.clone(),
+                                            line: b.line,
+                                            byte_offset: b.byte_offset,
+                                        });
+                                        ui.close_menu();
+                                    }
+                                    if idx > 0 && ui.button("Move Up").clicked() {
+                                        action = Some(InspectorAction::MoveBookmarkUp(idx));
+                                        ui.close_menu();
+                                    }
+                                    if idx + 1 < bookmarks.bookmarks.len()
+                                        && ui.button("Move Down").clicked()
+                                    {
+                                        action = Some(InspectorAction::MoveBookmarkDown(idx));
+                                        ui.close_menu();
+                                    }
+                                    ui.separator();
+                                    if ui.button("Remove Bookmark").clicked() {
+                                        action = Some(InspectorAction::RemoveBookmark(b.id));
+                                        ui.close_menu();
+                                    }
+                                });
                                 if action.is_none() && row_click.clicked() {
                                     action = Some(InspectorAction::JumpToLocation {
                                         path: b.path.clone(),

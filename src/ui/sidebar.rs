@@ -120,6 +120,8 @@ impl Sidebar {
 
             match active_tab {
                 SidebarTab::Files => {
+                    let changed_paths: HashSet<&str> =
+                        pr_changes.iter().map(|c| c.path.as_str()).collect();
                     ScrollArea::vertical()
                         .max_height(scroll_area_height)
                         .show(ui, |ui| {
@@ -130,6 +132,7 @@ impl Sidebar {
                                     node,
                                     expanded_dirs,
                                     selected_path,
+                                    &changed_paths,
                                     0,
                                 ) {
                                     action = Some(act);
@@ -412,6 +415,7 @@ impl Sidebar {
         node: &FileNode,
         expanded_dirs: &mut HashSet<String>,
         selected_path: Option<&str>,
+        changed_paths: &HashSet<&str>,
         indent_level: usize,
     ) -> Option<SidebarAction> {
         let mut action = None;
@@ -455,6 +459,7 @@ impl Sidebar {
                         child,
                         expanded_dirs,
                         selected_path,
+                        changed_paths,
                         indent_level + 1,
                     ) {
                         action = Some(act);
@@ -463,6 +468,7 @@ impl Sidebar {
             }
         } else {
             let is_selected = selected_path == Some(&node.path);
+            let is_changed = changed_paths.contains(node.path.as_str());
             let bg = if is_selected {
                 theme.accent.linear_multiply(0.25)
             } else {
@@ -479,11 +485,25 @@ impl Sidebar {
                         Icon::Code.ui(ui, 11.0, theme.text_muted);
                         ui.add_space(2.0);
                         ui.label(RichText::new(&node.name).monospace());
+                        let (name_rect, _) =
+                            ui.allocate_exact_size(egui::vec2(6.0, 6.0), egui::Sense::hover());
+                        if is_changed {
+                            ui.painter()
+                                .circle_filled(name_rect.center(), 2.5, theme.accent);
+                        }
                     });
                 })
                 .response;
 
-            if resp.interact(egui::Sense::click()).clicked() {
+            let interact_resp = resp.interact(egui::Sense::click());
+            interact_resp.context_menu(|ui| {
+                if ui.button("Copy Relative Path").clicked() {
+                    ui.output_mut(|o| o.copied_text = node.path.clone());
+                    ui.close_menu();
+                }
+            });
+
+            if interact_resp.clicked() {
                 action = Some(SidebarAction::OpenFile(node.path.clone()));
             }
         }

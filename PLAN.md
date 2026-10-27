@@ -4,6 +4,20 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Full Swift Parity Audit, Toolbar Menus, Collapsible Panels & Interaction Parity (2026-10-27):**
+Completed full-coverage audit of original macOS Swift code against the Rust + EGUI port and implemented parity across all missing UI controls, menus, and click actions:
+- Collapsible Side Panels: Added `show_sidebar` and `show_inspector` with native toolbar toggle buttons and keyboard shortcuts (`Ctrl+Alt+S` / `⌃⌘S` and `Ctrl+Alt+I` / `⌥⌘I`).
+- Repository Menu: Replicated `RepositoryMenu.swift` with native dropdown menu showing "Open Repository… (⌘O)", "Open Recent" submenu with interactive history list, and "Copy Repository Path".
+- Pull Request Menu: Replicated `PullRequestMenu.swift` with native dropdown menu showing `#num · Title`, "Refresh PR (⌘R)", "Open Pull Request… (⌘P)", and "Exit PR Review".
+- Source Search Menu: Replicated `SourceSearchMenu.swift` with native toolbar dropdown for "Go to File… (⌘K)", "Go to Symbol… (⌘T)", "Go to Line… (⌘L)", and "Search Repository (⇧⌘F)".
+- Interactive Symbol Breadcrumbs: Made enclosing symbol breadcrumb segments interactive clickable links that scroll and center the editor viewport on the clicked declaration.
+- File Tree Context Menu & Changed Dot: Replicated `FileTreeLabel.swift` with 5px accent dot on modified PR files and right-click context menu ("Copy Relative Path").
+- Bookmarks Pane Context Menu: Replicated `BookmarkContextMenu.swift` with right-click context menu ("Go to Bookmark", "Move Up", "Move Down", "Remove Bookmark").
+- Editor Interaction: Replicated `ReaderTextView.swift` with double-click word occurrence pinning, Return/Enter definition navigation, and right-click context menu ("Go to Definition", "Copy Line").
+- Full Keyboard Shortcut Suite: Bound `Ctrl+O`, `Ctrl+P`, `Ctrl+R`, `Ctrl+Alt+S`, `Ctrl+Alt+I`, `Ctrl+Alt+1`, `Ctrl+Alt+2`, `Ctrl+Shift+F`, and `Return`.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean, zero emojis. Swift code intact.
+[Full parity audit and defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Full Gutter Line Number Rendering (2026-10-27):**
 Restored continuous line number rendering across all lines in the editor gutter:
 - Removed `is_multiple_of(5)` filter in [`SourceView::show`](file:///home/vcarlson/radiology/src/ui/source_view.rs) so every line displays its line number.

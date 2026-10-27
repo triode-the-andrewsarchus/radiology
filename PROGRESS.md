@@ -1,5 +1,55 @@
 # Progress
 
+## 2026-10-27 — Full Swift Parity Audit & Missing UI Elements Remediation (Antigravity)
+
+Completed full-coverage audit of original macOS Swift code against the Rust + EGUI port and implemented parity across all missing UI controls, menus, and click actions:
+- **Audit Coverage:**
+  - Audited all ~120 Swift files across `Sources/Radiology/` and corresponding test suites in `Tests/RadiologyTests/`.
+  - Compiled exhaustive parity and defect matrix in [`plans/swift-parity-and-defect-remediation.md`](file:///home/vcarlson/radiology/plans/swift-parity-and-defect-remediation.md).
+- **Collapsible Side Panels (`src/ui/app.rs`, `src/ui/toolbar.rs`):**
+  - Added `show_sidebar` and `show_inspector` boolean toggles with default visibility.
+  - Added dedicated Sidebar toggle button on the left of the toolbar and Inspector toggle button on the right.
+  - Bound keyboard shortcuts `Ctrl+Alt+S` (`⌃⌘S`) to toggle sidebar and `Ctrl+Alt+I` (`⌥⌘I`) to toggle inspector.
+- **Repository Menu (`src/ui/toolbar.rs`, `src/ui/app.rs`):**
+  - Replicated macOS `RepositoryMenu.swift` with a native dropdown menu:
+    - "Open Repository… (⌘O)" opening native directory chooser.
+    - "Copy Repository Path" copying canonical root to clipboard.
+    - "Open Recent" dynamic submenu displaying recent repositories from session store with direct click-to-open.
+- **Pull Request Menu (`src/ui/toolbar.rs`, `src/ui/app.rs`):**
+  - Replicated macOS `PullRequestMenu.swift` with a native dropdown menu:
+    - When reviewing: displays `#num · Title` with "Refresh PR (⌘R)", "Open Another PR… (⌘P)", and "Exit PR Review".
+    - In local checkout: provides "Pull Request" dropdown to open review.
+    - Inline previous/next change block jump controls.
+- **Search Menu in Toolbar (`src/ui/toolbar.rs`):**
+  - Replicated macOS `SourceSearchMenu.swift` toolbar menu offering:
+    - "Go to File… (⌘K)"
+    - "Go to Symbol… (⌘T)"
+    - "Go to Line… (⌘L)"
+    - "Search Repository (⇧⌘F)"
+- **Breadcrumb Interactive Symbol Links (`src/ui/source_view.rs`):**
+  - Replicated macOS `SourceBreadcrumbTrail.swift` clickable symbols.
+  - Made each enclosing declaration in the breadcrumbs bar a clickable button that jumps to and centers the declaration in the editor viewport.
+- **File Tree Parity (`src/ui/sidebar.rs`):**
+  - Replicated macOS `FileTreeLabel.swift` change indicator: renders a 5px accent dot beside files modified in the active diff.
+  - Added right-click context menu ("Copy Relative Path").
+- **Bookmarks Pane Parity (`src/ui/context_inspector.rs`):**
+  - Replicated macOS `BookmarkContextMenu.swift`: right-clicking a bookmark offers "Go to Bookmark", "Move Up", "Move Down", and "Remove Bookmark".
+- **Editor Interaction Parity (`src/ui/source_view.rs`, `src/ui/app.rs`):**
+  - Replicated macOS `ReaderTextView.swift` Return/Enter definition navigation: pressing Return/Enter on an identifier jumps directly to its definition.
+  - Replicated double-click occurrence pinning: double-clicking a token pins all occurrences in the buffer.
+  - Added editor right-click context menu: "Go to Definition (F12 / Return)" and "Copy Line".
+- **Keyboard Shortcuts Expansion (`src/ui/app.rs`):**
+  - Wired `Ctrl+O` / `Cmd+O` (Open Repo), `Ctrl+P` / `Cmd+P` (Open PR), `Ctrl+R` / `Cmd+R` (Refresh), `Ctrl+Alt+S` (Toggle Sidebar), `Ctrl+Alt+I` (Toggle Inspector), `Ctrl+Alt+1` (Normal Mode), `Ctrl+Alt+2` (Critical Mode), `Ctrl+Shift+F` (Search Tab), and `Return` (Go to definition).
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - `cargo run -- --verify-resources` passing all 13 syntax grammars.
+  - Zero emojis in `src/`.
+  - Swift code preserved 100% intact.
+
+
 ## 2026-10-27 — Full Gutter Line Number Rendering (Antigravity)
 
 Restored continuous line number rendering across all lines in the editor gutter:

@@ -40,6 +40,8 @@ pub enum SourceViewAction {
     ToggleRevision(ReviewRevision),
     /// Requests collapsing or expanding all function bodies in the current file.
     CollapseFunctions,
+    /// Requests jumping to the byte offset of a document symbol.
+    JumpToSymbol(usize),
     /// Requests pinning all occurrences of a symbol for visual highlighting.
     PinOccurrence {
         /// Symbol text name.
@@ -112,10 +114,16 @@ impl SourceView {
                     }
                 }
 
-                // Enclosing symbol breadcrumbs (full hierarchy)
+                // Enclosing symbol breadcrumbs (interactive links)
                 for sym in enclosing_symbols {
                     Icon::ChevronRight.ui(ui, 10.0, theme.text_muted);
-                    ui.colored_label(theme.accent, RichText::new(&sym.name).strong());
+                    let btn = ui.add(
+                        egui::Button::new(RichText::new(&sym.name).strong().color(theme.accent))
+                            .frame(false),
+                    );
+                    if btn.on_hover_text(format!("Jump to {}", sym.name)).clicked() {
+                        action = Some(SourceViewAction::JumpToSymbol(sym.selection_range.start));
+                    }
                 }
 
                 // PR Diff block jump controls if in review
@@ -430,6 +438,60 @@ impl SourceView {
                             byte_offset: offset,
                         });
                     }
+
+                    if line_response.double_clicked() && !chevron_clicked {
+                        let mut col = 0;
+                        if let Some(pos) = line_response.interact_pointer_pos() {
+                            if pos.x > code_start_x {
+                                col = ((pos.x - code_start_x) / char_width).floor() as usize;
+                                col = col.min(line_text.chars().count());
+                            }
+                        }
+                        let chars: Vec<char> = line_text.chars().collect();
+                        if !chars.is_empty() {
+                            let mut start_idx = col.min(chars.len() - 1);
+                            while start_idx > 0
+                                && (chars[start_idx - 1].is_alphanumeric()
+                                    || chars[start_idx - 1] == '_')
+                            {
+                                start_idx -= 1;
+                            }
+                            let mut end_idx = col.min(chars.len());
+                            while end_idx < chars.len()
+                                && (chars[end_idx].is_alphanumeric() || chars[end_idx] == '_')
+                            {
+                                end_idx += 1;
+                            }
+                            if end_idx > start_idx {
+                                let word: String = chars[start_idx..end_idx].iter().collect();
+                                if !word.trim().is_empty() {
+                                    let mut ranges = Vec::new();
+                                    let mut search_from = 0;
+                                    while let Some(found) = buffer.text[search_from..].find(&word) {
+                                        let start = search_from + found;
+                                        let end = start + word.len();
+                                        ranges.push(start..end);
+                                        search_from = end;
+                                    }
+                                    action = Some(SourceViewAction::PinOccurrence {
+                                        symbol: word,
+                                        ranges,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    line_response.context_menu(|ui| {
+                        if ui.button("Go to Definition (F12 / Return)").clicked() {
+                            action = Some(SourceViewAction::JumpToDefinition);
+                            ui.close_menu();
+                        }
+                        if ui.button("Copy Line").clicked() {
+                            ui.output_mut(|o| o.copied_text = line_text.to_string());
+                            ui.close_menu();
+                        }
+                    });
 
                     // Assemble unified line LayoutJob so all tokens share the exact same typographic baseline
                     let font_id = TextStyle::Monospace.resolve(ui.style());

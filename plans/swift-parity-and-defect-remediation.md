@@ -1,137 +1,78 @@
-# Swift Parity and Defect Remediation Report (Subsystems 1–4, Horizontal Scrolling & SVG System)
+# Full-Coverage Swift vs. Rust Parity Audit & Implementation Plan
 
-## Overview
-Comprehensive feature audit and defect remediation pass porting Radiology from Swift to standalone Linux-native Rust + EGUI (`eframe` 0.27 / `egui` 0.27). Covers Subsystems 1, 2, 3, and 4, long-line horizontal scroll / line-wrap parity, and full vector SVG icon migration, ensuring zero UI-thread blocking, exact behavioral parity with the original macOS Swift implementation, and complete validation with unit tests, doctests, and linter gates.
+## 1. Overview & Context
 
-Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`, and `Package.swift` for follow-up review passes.
+This document records the exhaustive audit of all original Swift source files (`Sources/Radiology/` ~120 files) and tests (`Tests/RadiologyTests/`) against the Rust + EGUI implementation in `src/`.
 
-### Subsystem 5: Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback
-- **Sidebar Changes Tab & Working Tree Discovery (`src/ui/sidebar.rs`, `src/ui/app.rs`):**
-  - Made `SidebarTab::Changes` permanently available in the sidebar header alongside `Files` and `Search`.
-  - Added `refresh_git_changes(&mut self)` discovering working tree changes via `git diff HEAD` (capturing both staged and unstaged tracked modifications) and `git status --porcelain` (capturing untracked files with line counts).
-  - Displays PR header when reviewing a pull request, or Working Tree header with branch name and `+total_add −total_del` counts when browsing the local repository.
-  - Replaced unicode symbols (`⊕`, `⊘`, `⊖`, `⤹`) with clean status badges (`M` in amber, `A` in green, `D` in red, `R` in blue) with background tint.
-  - Added bottom sidebar footer matching macOS `RepositorySidebar.swift` (`{visible} of {total} files` + `Icon::Diff`).
-- **Clickable Outline Navigation & Viewport Centering (`src/ui/context_inspector.rs`, `src/ui/source_view.rs`):**
-  - Made outline node rows interactive with `Sense::click()`, hover tint, pointing hand cursor, and left accent border.
-  - Added `scroll_to_line: &mut Option<usize>` to `SourceView::show`.
-  - When target line is set, calculates `line_y = target_idx * row_height` and configures `scroll_area.vertical_scroll_offset(scroll_y)` so virtualized rows center directly around `target_line`. Calls `line_response.scroll_to_me(Some(Align::Center))` inside the row loop.
-- **Caller List Population & Declaration Wiring (`src/ui/app.rs`, `src/ui/context_inspector.rs`):**
-  - Declaration region card displays enclosing declaration name, signature detail card, line link (`filename:line`), and reference count.
-  - Implemented `find_callers_fallback` executing `rg --json -w <symbol> .` (~5ms) across repository files to locate all call sites, extracting caller functions and mapping deterministic 12-color pills via `caller_pill_slot`.
-  - Caller rows are interactive with pointing hand cursor, navigating and scrolling to the call site on click.
-- **Bottom Status Bar Parity (`src/ui/app.rs`):**
-  - Replicated macOS `ReaderDetail.swift` status bar via `TopBottomPanel::bottom("status_bar")`: language, line count, index status, Line N button (opens Go To Line modal), UTF-8 · Read Only.
+The purpose of this audit is to identify:
+1. Every full UI element, view, or panel that was missing or inaccessible.
+2. Every click action, context menu, keyboard shortcut, or navigation behavior that was missing or incorrectly wired.
+3. Every functional gap in search, filters, bookmarks, diffs, and context inspection.
 
 ---
 
-## Remediated Subsystems
+## 2. Audit Findings by Subsystem
 
-### Subsystem 1: AppModel, Repository Discovery & Search
-- **Source & Test File Classifiers:**
-  - `SourceFileClassifier`: Refactored to achieve 100% parity with Swift `SourceFileClassifier`. Correctly includes 80+ programming language extensions while strictly excluding manifests, documentation, data files, build scripts (`*.config.js`, `vite.config.ts`), and minified bundles (`*.min.js`).
-  - `TestPathClassifier`: Replicated exact directory match set (`test`, `tests`, `spec`, `specs`, `__tests__`, `testing`), Gradle/Kotlin source sets (`src/*Test`), and language-specific stem rules (`*_test.go`, `*.test.tsx`, `*Tests.swift`, `test_*.py`).
-- **Quick File Search (Ctrl+K):**
-  - Upgraded from simple substring search to Swift's 5-tier fuzzy ranking:
-    1. Tier 0: Exact filename match.
-    2. Tier 1: Filename prefix match.
-    3. Tier 2: Contiguous substring match in filename.
-    4. Tier 3: Subsequence fuzzy match in filename.
-    5. Tier 4: Subsequence fuzzy match in full path.
-  - Case-folded and diacritic-insensitive normalization via Unicode NFD mark stripping.
-- **Repository Discovery & Sessions:**
-  - Validates repository root, filters deleted working-tree files, skips directory symlinks to prevent infinite loops, sorts and deduplicates paths.
-  - Capped recent repository history at 8 entries, validated directory existence, and restored active PR sessions.
-- **Ripgrep Runner & Background Channels:**
-  - Fixed pipe deadlocks by reading stderr in a background drain task.
-  - Replaced synchronous UI-thread `tokio::runtime::Builder::build().block_on()` blocking in `SidebarAction::StartSearch` with non-blocking `mpsc::channel` streaming, cancellation token propagation, and continuous `ctx.request_repaint()` updates.
+### Subsystem 1: Application, Toolbar, Menus & Navigation
+- **Swift Reference**: `RadiologyApp.swift`, `ReaderToolbar.swift`, `RepositoryMenu.swift`, `PullRequestMenu.swift`, `SourceSearchMenu.swift`, `SourceModePicker.swift`, `SourceRevisionPicker.swift`, `ReaderCommands.swift`, `BookmarkCommands.swift`, `RootView.swift`.
+- **Gaps Identified**:
+  1. *Collapsible Side Panels*: Swift's `NavigationSplitView` and `.inspector` allow toggling the left sidebar (⌃⌘S) and right context inspector (⌥⌘I) independently. The Rust app had hardcoded panels with no toggle state, buttons, or shortcuts.
+  2. *Repository Menu*: In Swift, clicking the repository title in the toolbar opens a menu with "Open Repository… (⌘O)", "Open Recent" (dynamic submenu of recent repositories), and path information. Rust had only a plain "Open…" button.
+  3. *Pull Request Menu*: In Swift, `PullRequestMenu` allows switching between Local Checkout and recent PRs, opening the PR number prompt (⌘P), and refreshing the active PR (⌘R). Rust had only a button opening a prompt.
+  4. *Source Search Menu*: Swift groups search actions in a toolbar menu ("Go to File… ⌘K", "Go to Symbol… ⌘T", "Search Repository ⇧⌘F").
+  5. *Keyboard Shortcuts*: Missing shortcuts for `⌘O` (Open Repo), `⌘P` (Open PR), `⌘R` (Refresh), `⌃⌘S` / `⌥⌘S` (Toggle Sidebar), `⌥⌘I` (Toggle Inspector), `⌥⌘1` / `⌥⌘2` (Normal / Critical Mode), `⌥⌘B` (Toggle Before / After), `⇧⌘F` (Search Repository).
 
-### Subsystem 2: Source, Syntax, Folding & Virtualized View
-- **Language Registry & Tree-Sitter:**
-  - Added TSX grammar support (`SupportedGrammar::Tsx`) mapped to `.tsx` and `.jsx` extensions.
-  - Registered `.mts` and `.cts` extensions.
-  - Added syntect fallback mapping for TypeScript and TOML files so syntax highlighting works without external packages.
-- **Code Folds & Test Region Detector:**
-  - Fixed fold deduplication to preserve outer enclosing folds when multiple syntax blocks share `start_line`.
-  - Created `TestRegionDetector` discovering test modules across Rust (`#[cfg(test)]`, `#[test]`, `#[tokio::test]`), Python (`def test_*`, `class Test*`), and JavaScript/TypeScript (`describe`, `test`, `it`).
-- **Virtualized SourceView & Typography Remediation:**
-  - Implemented viewport virtualization: only visible line rows inside the clip rectangle are formatted and drawn.
-  - Character column calculations from X coordinate clicks now account for font character metrics.
-  - Arrow key navigation skips over collapsed folded line spans.
-  - Occurrence pin indicators render cleanly on both the gutter and inline source tokens.
-  - Fixed Line 1 ascender clipping by increasing row height to 22.0 px (`Theme.sourceLineHeight: 22`), centering text relative to row top rather than vertical galley midpoint, and adding 4px vertical clearance to `code_clip_rect.min.y`.
-  - Eliminated gutter box/cell artifacts by setting `ui.spacing_mut().item_spacing = Vec2::ZERO` and painting a unified background column and continuous vertical divider.
+### Subsystem 2: Left Sidebar & Repository Changes
+- **Swift Reference**: `RepositorySidebar.swift`, `SidebarModeTabs.swift`, `ReviewChangesView.swift`, `ReviewChangeRow.swift`, `FileTreeRow.swift`, `FileTreeLabel.swift`.
+- **Gaps Identified**:
+  1. *Changed File Indicator in Tree*: Swift displays a 6px accent dot next to files that are modified in the active PR diff. Rust tree nodes had no changed indicator.
+  2. *File Context Menu*: Right-clicking a file in the tree in Swift offers "Reveal in Finder" and path copy actions.
+  3. *Change Selection Synchronization*: Selecting a modified file in the Changes tab synchronizes with the active buffer and selection indicator.
 
-### Subsystem 3: SCIP Protobuf, Semantics, Caller Trees & Modals
-- **SCIP Protobuf Wire Decoding:**
-  - Fixed wire tag field mapping: `Occurrence.enclosing_range` is decoded from field 7 (not field 5); `Occurrence` typed single/multi-line ranges decoded from fields 8–11 with precedence over packed field 1.
-  - Fixed `SymbolInformation`: decoded `display_name` from field 6, and parsed field 7 signature documentation embedded `Document` message (extracting field 5 text). Added `relationships` (field 4) and `enclosing_symbol` (field 8).
-- **Document-Scoped Local Symbols (`SemanticSymbolID`):**
-  - Addressed SCIP specification requirement where `local N` symbols are unique only within their enclosing document. `SemanticSymbolID` scopes local symbols by document path while keeping global symbols repository-wide.
-  - Implemented `SCIPSymbolString::fallback_name` matching Swift's descriptor grammar parser with backtick escapes, method disambiguator skipping, and type parameter handling.
-- **Symbol Search Modal (Ctrl+T):**
-  - Implemented 4-tier symbol ranking engine: exact name (tier 0), prefix (tier 1), camelCase/snake_case initials and component prefix (tier 2), and subsequence fuzzy match (tier 3).
-  - Wired `GoToSymbolModal` to workspace-wide `SemanticIndex::search_symbols` when indexed, jumping directly to target file and line coordinates.
-- **Caller Tree & Palette Determinism:**
-  - Caller name extraction uses `SCIPSymbolString::fallback_name`, ensuring deterministic FNV-1a 12-color caller identity pills and palette slots match the Swift original across launches.
-- **Navigation History & Dialogs:**
-  - Fixed history corruption bug: navigating back/forward now preserves navigation stacks without clearing forward entries or inserting duplicate history visits.
-  - Replaced hardcoded `$HOME` directory open with native `rfd::FileDialog::new().pick_folder()`.
-  - Replaced unconditional default startup directory with valid persisted session restoration.
-  - Implemented CLI argument flags: `--repository`, `--pull-request`, `--file`, and `--verify-resources`.
+### Subsystem 3: Source Viewer & Breadcrumbs
+- **Swift Reference**: `SourceBreadcrumbs.swift`, `SourceBreadcrumbPath.swift`, `SourceBreadcrumbTrail.swift`, `ChangeBlockControls.swift`, `ReaderTextView.swift`, `SourceViewer.swift`.
+- **Gaps Identified**:
+  1. *Interactive Symbol Breadcrumbs*: In Swift, symbol breadcrumbs in the header are clickable buttons (`Button(symbol.name) { select(symbol) }`) that scroll the editor to that declaration. Rust rendered them as static text.
+  2. *Change Block Controls in Breadcrumbs*: `^` and `v` buttons in the breadcrumb bar allow jumping across modified diff hunks directly within the editor header.
+  3. *Collapse Functions in Breadcrumbs*: Collapse functions button in the breadcrumb header.
+  4. *Return / Enter Definition Navigation*: In `ReaderTextView.swift`, pressing plain Return/Enter when the caret is on a semantic symbol follows it directly to its definition.
+  5. *Double-Click Occurrence Pinning*: In `ReaderTextView.swift`, double-clicking an identifier word pins/unpins its occurrences in the file.
+  6. *Editor Context Menu*: Right-clicking in the editor provides "Go to Definition" and "Find References".
 
-### Subsystem 4: Critical Lens, Pull Requests, Bookmarks, and UI/Appearance
-- **Critical Lens Subsystem:**
-  - `SCIPSymbolHeader`: Implemented 4-field SCIP header parser (`scheme manager package version`), supporting double-space escapes, package name extraction (`.` placeholder handling), and `scheme manager name` package keys.
-  - `CriticalityProfiles`: Added verified scheme (`rust-analyzer`), standard runtime plumbing package set (`core`, `alloc`, `std`), explicit native FFI package list (22 crates), FFI descriptor rules (`ffi/`, `os/`), and system API descriptor prefixes/exclusions (`std::fs`, `std::net`, `std::process`, `std::env`, `std::os`, `std::thread`, `std::io`, `tokio`).
-  - `CriticalityOverrides`: Built persistent symbol and package manual overrides rejecting `local N` bindings.
-  - `CriticalityPolicy`: Implemented strict deterministic precedence table matching Swift: `local N` -> user symbol override -> user package override -> profiled FFI package/descriptor -> `extern "` signature -> system API -> repository package/definition -> runtime plumbing -> unknown.
-  - `SourceProjection`: Disjoint, sorted byte range normalization and receded rendering.
-  - Gutter count annotations with `CountAnnotation` and `CountCompleteness` (`0`, `3+`, `—`).
-- **Pull Requests Subsystem:**
-  - `UnifiedDiffParser::parse_file_changes`: Converts unified diffs (`git diff` or `gh pr diff`) into structured `FileChange` items capturing path, old path, additions, deletions, binary status, and change status (`Added`, `Modified`, `Deleted`, `Renamed { similarity }`).
-  - `ReviewChangesPresentation`: Filters file changes against active `SourceFilters` (`sourceFilesOnly`, `hidesTests`), calculates visible additions/deletions totals, and computes `file_count_label`.
-  - Sidebar integration: Automatically populates `self.pr_changes` and switches to the `Changes` tab upon opening or restoring pull requests.
-  - Change block navigation: Implemented `previous_change_line` and `next_change_line` in `FileLineChanges` for navigating between changed hunks via `Alt+Up` / `Alt+Down`.
-- **Bookmarks Subsystem:**
-  - `BookmarkScope`: Added repository-level scoping isolating local checkouts (`<canonical_repo>\0checkout`) from pull request reviews (`<canonical_repo>\0pr:<number>`).
-  - `ContextInspector` Click Conflict Fix: Fixed event handling in bookmark rows so clicking delete (`✕`), move-up (`▲`), or move-down (`▼`) is never clobbered by row jump click interactions. Added row hover highlighting.
-  - Kept keyboard shortcuts `Ctrl+D` (toggle bookmark at caret) and `Ctrl+0`..`Ctrl+9` (jump to first 10 bookmarks).
-- **UI, Appearance & Horizontal Scrolling Parity:**
-  - Swift Overflow Parity Investigation: Swift disabled text container width tracking (`widthTracksTextView = false`) and enabled horizontal scrolling (`hasHorizontalScroller = true`) alongside a separate fixed gutter (`SourceContainerView.swift`).
-  - EGUI Horizontal Scrolling & Inspector Clipping: Computes line width via `SourceBuffer::max_line_len()`, activating egui's horizontal scrollbar. Pinned the gutter to the viewport's left edge (`viewport_clip.min.x`) and strictly clipped code rendering to `[viewport_clip.min.x + GUTTER_WIDTH, viewport_clip.max.x]`, mathematically preventing any text from bleeding into `SidePanel::right`.
-  - Configurable Line Wrapping: Added `wrap_lines: bool` to `SessionStore`, accessible via `View -> Wrap Lines`, toolbar menu, and `Ctrl+Alt+W` global shortcut.
-  - Dark/Light Theme Switching: Added toolbar `Icon::Sun` / `Icon::Moon` button, `View -> Switch to Light/Dark Mode` menu item, and `Ctrl+Alt+T` shortcut. Dynamically swaps `AppTheme`, updates `egui::Visuals`, and re-highlights open buffers.
-  - Zero Emojis & Curated Vector SVG Icon System: Embedded 18 curated SVG assets in `assets/icons/` (`arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`, `chevron_down`, `chevron_right`, `check`, `x`, `code`, `text`, `contrast`, `sun`, `moon`, `folder`, `diff`, `pin`, `search`, `wrap`) with all 93 unused files pruned. Created `src/ui/icons.rs` with `Icon` enum supporting theme-adaptive tinting, button hover feedback, and painter rasterization. Replaced all emojis across toolbar, modals, sidebar, welcome view, context inspector, and source view.
-  - Virtualized SourceView: Pre-cached Syntect highlighting and `ScrollArea::show_rows` virtualization to maintain 144 FPS.
-  - Welcome Landing View: Displays "Read the Code", folder picker button, recent repositories history, and keyboard shortcut legends.
-  - Breadcrumbs: Renders full enclosing symbol hierarchy with vector chevrons.
-  - Revision Toggle: Added `Ctrl+Alt+B` shortcut to swap between Before and After revisions.
-
-### Subsystem 5: Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback
-- **Sidebar Changes Tab & Working Tree Discovery (`src/ui/sidebar.rs`, `src/ui/app.rs`):**
-  - Made `SidebarTab::Changes` permanently available in the sidebar header alongside `Files` and `Search`.
-  - Added `refresh_git_changes(&mut self)` discovering working tree changes via `git diff HEAD` (capturing both staged and unstaged tracked modifications) and `git status --porcelain` (capturing untracked files with line counts).
-  - Displays PR header when reviewing a pull request, or Working Tree header with branch name and `+total_add −total_del` counts when browsing the local repository.
-  - Replaced unicode symbols (`⊕`, `⊘`, `⊖`, `⤹`) with clean status badges (`M` in amber, `A` in green, `D` in red, `R` in blue) with background tint.
-  - Added bottom sidebar footer matching macOS `RepositorySidebar.swift` (`{visible} of {total} files` + `Icon::Diff`).
-- **Clickable Outline Navigation & Viewport Centering (`src/ui/context_inspector.rs`, `src/ui/source_view.rs`):**
-  - Made outline node rows interactive with `Sense::click()`, hover tint, pointing hand cursor, and left accent border.
-  - Added `scroll_to_line: &mut Option<usize>` to `SourceView::show`.
-  - When target line is set, calculates `line_y = target_idx * row_height` and configures `scroll_area.vertical_scroll_offset(scroll_y)` so virtualized rows center directly around `target_line`. Calls `line_response.scroll_to_me(Some(Align::Center))` inside the row loop.
-- **Caller List Population & Declaration Wiring (`src/ui/app.rs`, `src/ui/context_inspector.rs`):**
-  - Declaration region card displays enclosing declaration name, signature detail card, line link (`filename:line`), and reference count.
-  - Implemented `find_callers_fallback` executing `rg --json -w <symbol> .` (~5ms) across repository files to locate all call sites, extracting caller functions and mapping deterministic 12-color pills via `caller_pill_slot`.
-  - Caller rows are interactive with pointing hand cursor, navigating and scrolling to the call site on click.
-- **Bottom Status Bar Parity (`src/ui/app.rs`):**
-  - Replicated macOS `ReaderDetail.swift` status bar via `TopBottomPanel::bottom("status_bar")`: language, line count, index status, Line N button (opens Go To Line modal), UTF-8 · Read Only.
+### Subsystem 4: Context Inspector & Bookmarks
+- **Swift Reference**: `ContextInspectorView.swift`, `DeclarationRegionView.swift`, `UnderCaretRegionView.swift`, `BookmarksPane.swift`, `BookmarkContextMenu.swift`, `BookmarkRow.swift`.
+- **Gaps Identified**:
+  1. *Bookmark Context Menu*: Right-clicking a bookmark in Swift opens a menu with "Go to Bookmark", "Move Up", "Move Down", and "Remove Bookmark".
+  2. *Shortcut Badges*: Displaying `[⌘0]` through `[⌘9]` on the first 10 bookmarks.
+  3. *Scope Indicator*: Bookmarks pane header shows "Checkout" or "PR #num".
 
 ---
 
-## Verification & Test Results
-- **Unit Tests:** 38/38 passed (`cargo test --all-targets`).
-- **Documentation Tests:** 30/30 passed (`cargo test --doc`).
-- **Resource Verification:** `cargo run -- --verify-resources` exited 0 with all 13 grammars verified.
-- **Clippy Linting:** `cargo clippy --all-targets -- -D warnings` passed with 0 warnings.
-- **Code Formatting:** `cargo fmt --all -- --check` passed with 0 diffs.
-- **Zero Emojis:** Verified 0 emoji matches and 0 geometric arrow symbols in `src/`.
+## 3. Implementation Plan
+
+1. **Toolbar & Shell Parity (`src/ui/toolbar.rs`, `src/ui/app.rs`)**:
+   - Add `show_sidebar: bool` and `show_inspector: bool` to `RadiologyApp`.
+   - Add left sidebar toggle button and right inspector toggle button to `Toolbar`.
+   - Transform Repository title into a native dropdown menu: "Open Repository… (⌘O)", "Open Recent" submenu, "Copy Path".
+   - Transform PR control into a native dropdown menu: "Exit PR", "Refresh PR (⌘R)", "Open Pull Request… (⌘P)", and recent PR list.
+   - Add `SourceSearchMenu` dropdown button in toolbar.
+   - Wire all keyboard shortcuts: `Ctrl+O`, `Ctrl+P`, `Ctrl+R`, `Ctrl+Alt+S`, `Ctrl+Alt+I`, `Ctrl+Alt+1`, `Ctrl+Alt+2`, `Ctrl+Alt+B`, `Ctrl+Shift+F`.
+
+2. **Breadcrumbs & Source View Interactivity (`src/ui/source_view.rs`, `src/ui/app.rs`)**:
+   - Make symbol breadcrumbs interactive clickable links that scroll and center the target symbol.
+   - Embed Change Block `^` and `v` controls and Collapse Functions button in the breadcrumbs bar.
+   - Implement Return/Enter on identifier to jump to definition.
+   - Implement double-click on identifier to toggle pinned occurrence group.
+   - Add right-click context menu in editor: "Go to Definition", "Find References", "Copy".
+
+3. **Sidebar Tree & Bookmarks Parity (`src/ui/sidebar.rs`, `src/ui/context_inspector.rs`)**:
+   - Add changed file accent dot in file tree.
+   - Add right-click context menu in file tree: "Copy Relative Path", "Copy Full Path".
+   - Add right-click context menu in Bookmarks pane: "Go to Bookmark", "Move Up", "Move Down", "Remove Bookmark".
+
+4. **Verification & Testing**:
+   - Verify `cargo test --all-targets` and `cargo test --doc`.
+   - Verify `cargo clippy --all-targets -- -D warnings`.
+   - Verify `cargo fmt --all -- --check`.
+   - Verify `cargo run -- --verify-resources`.
+   - Zero emoji check across all files.

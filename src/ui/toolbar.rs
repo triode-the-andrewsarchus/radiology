@@ -17,6 +17,14 @@ use egui::{RichText, Ui};
 pub enum ToolbarAction {
     /// Opens the native directory chooser dialog to select a repository root.
     OpenRepositoryDialog,
+    /// Opens a recent repository path.
+    OpenRecentRepo(String),
+    /// Copies the repository root canonical path to clipboard.
+    CopyRepoPath,
+    /// Toggles visibility of the left navigation sidebar.
+    ToggleSidebar,
+    /// Toggles visibility of the right context inspector.
+    ToggleInspector,
     /// Navigates backwards in the file and caret navigation history.
     NavigateBack,
     /// Navigates forward in the file and caret navigation history.
@@ -33,8 +41,12 @@ pub enum ToolbarAction {
     OpenGoToLine,
     /// Opens the jump-to-symbol outline search dialog (Ctrl/Cmd+T).
     OpenGoToSymbol,
+    /// Switches to the search tab in the sidebar.
+    OpenSearch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Refreshes the currently reviewed pull request from GitHub.
+    RefreshPR,
     /// Exits the active pull request review session and clears diff overlays.
     ExitPRReview,
     /// Changes the active [`SourceMode`] (e.g. Normal vs Critical lens).
@@ -61,8 +73,11 @@ impl Toolbar {
     ///
     /// * `ui` - EGUI user interface context for rendering the strip.
     /// * `theme` - Active visual color palette.
+    /// * `show_sidebar` - Whether the left navigation sidebar is visible.
+    /// * `show_inspector` - Whether the right context inspector is visible.
     /// * `repo_name` - Optional name of the currently opened repository.
     /// * `branch_name` - Optional name of the current Git HEAD branch.
+    /// * `recent_repos` - Slice of recent repository paths.
     /// * `active_pr` - Metadata of the currently reviewed pull request, if any.
     /// * `revision` - Active revision view (`Before` or `After`).
     /// * `mode` - Active inspection mode (`Normal` or `Critical`).
@@ -73,8 +88,11 @@ impl Toolbar {
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
+        show_sidebar: bool,
+        show_inspector: bool,
         repo_name: Option<&str>,
         branch_name: Option<&str>,
+        recent_repos: &[String],
         active_pr: Option<&PullRequestSummary>,
         _revision: Option<ReviewRevision>,
         mode: SourceMode,
@@ -86,6 +104,16 @@ impl Toolbar {
 
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
+
+            // Toggle Navigation Sidebar (⌃⌘S / Ctrl+Alt+S)
+            let sidebar_btn = ui
+                .selectable_label(show_sidebar, "Sidebar")
+                .on_hover_text("Show or Hide Navigation Sidebar (Ctrl+Alt+S)");
+            if sidebar_btn.clicked() {
+                action = Some(ToolbarAction::ToggleSidebar);
+            }
+
+            ui.separator();
 
             // Navigation Back/Forward (macOS style chevron icons)
             ui.add_enabled_ui(history.can_go_back(), |ui| {
@@ -107,9 +135,62 @@ impl Toolbar {
                 }
             });
 
-            // Change Navigation Up/Down & Exit PR (visible when reviewing PR)
-            if active_pr.is_some() {
-                ui.separator();
+            ui.separator();
+
+            // Repository Menu (macOS Swift RepositoryMenu parity)
+            if let Some(name) = repo_name {
+                ui.menu_button(RichText::new(name).strong().size(13.0), |ui| {
+                    if ui.button("Open Repository… (⌘O)").clicked() {
+                        action = Some(ToolbarAction::OpenRepositoryDialog);
+                        ui.close_menu();
+                    }
+                    if ui.button("Copy Repository Path").clicked() {
+                        action = Some(ToolbarAction::CopyRepoPath);
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    ui.menu_button("Open Recent", |ui| {
+                        if recent_repos.is_empty() {
+                            ui.colored_label(theme.text_muted, "No recent repositories");
+                        } else {
+                            for r in recent_repos {
+                                if ui.button(r).clicked() {
+                                    action = Some(ToolbarAction::OpenRecentRepo(r.clone()));
+                                    ui.close_menu();
+                                }
+                            }
+                        }
+                    });
+                });
+                if let Some(branch) = branch_name {
+                    ui.colored_label(theme.text_secondary, RichText::new(branch).size(10.5));
+                }
+            } else if ui.button("Open Repository… (⌘O)").clicked() {
+                action = Some(ToolbarAction::OpenRepositoryDialog);
+            }
+
+            ui.separator();
+
+            // Pull Request Menu (macOS Swift PullRequestMenu parity)
+            if let Some(pr) = active_pr {
+                let pr_title = format!("#{} · {}", pr.number, pr.title);
+                ui.menu_button(RichText::new(&pr_title).size(12.0), |ui| {
+                    if ui.button("Refresh PR (⌘R)").clicked() {
+                        action = Some(ToolbarAction::RefreshPR);
+                        ui.close_menu();
+                    }
+                    if ui.button("Open Another PR… (⌘P)").clicked() {
+                        action = Some(ToolbarAction::OpenPRDialog);
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Exit PR Review").clicked() {
+                        action = Some(ToolbarAction::ExitPRReview);
+                        ui.close_menu();
+                    }
+                });
+
+                // Change navigation buttons
                 if Icon::ArrowUp
                     .button(ui, 11.0, theme.text_primary)
                     .on_hover_text("Previous Change Block (⌥↑)")
@@ -124,32 +205,11 @@ impl Toolbar {
                 {
                     action = Some(ToolbarAction::NextChangeBlock);
                 }
-                if ui
-                    .button("↶ Exit PR")
-                    .on_hover_text("Exit PR Review session")
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::ExitPRReview);
-                }
-            }
-
-            ui.separator();
-
-            // Open Repository
-            if ui.button("Open…").clicked() {
-                action = Some(ToolbarAction::OpenRepositoryDialog);
-            }
-
-            // Repository Name & Branch / PR Title (Center)
-            if let Some(name) = repo_name {
-                ui.separator();
-                ui.vertical(|ui| {
-                    ui.label(RichText::new(name).strong().size(13.0));
-                    if let Some(pr) = active_pr {
-                        let subtitle = format!("#{} · {}", pr.number, pr.title);
-                        ui.colored_label(theme.text_secondary, RichText::new(subtitle).size(10.5));
-                    } else if let Some(branch) = branch_name {
-                        ui.colored_label(theme.text_secondary, RichText::new(branch).size(10.5));
+            } else {
+                ui.menu_button("Pull Request", |ui| {
+                    if ui.button("Open Pull Request… (⌘P)").clicked() {
+                        action = Some(ToolbarAction::OpenPRDialog);
+                        ui.close_menu();
                     }
                 });
             }
@@ -203,14 +263,43 @@ impl Toolbar {
                     action = Some(ToolbarAction::ToggleHideTests);
                 }
                 ui.separator();
-                if ui.button("Bookmark (Ctrl+D)").clicked() {
+                if ui.button("Bookmark Location (Ctrl+D)").clicked() {
                     action = Some(ToolbarAction::ToggleBookmark);
+                    ui.close_menu();
+                }
+            });
+
+            // Search Menu (macOS Swift SourceSearchMenu parity)
+            ui.menu_button("Search", |ui| {
+                if ui.button("Go to File… (⌘K)").clicked() {
+                    action = Some(ToolbarAction::OpenQuickFilePicker);
+                    ui.close_menu();
+                }
+                if ui.button("Go to Symbol… (⌘T)").clicked() {
+                    action = Some(ToolbarAction::OpenGoToSymbol);
+                    ui.close_menu();
+                }
+                if ui.button("Go to Line… (⌘L)").clicked() {
+                    action = Some(ToolbarAction::OpenGoToLine);
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Search Repository (⇧⌘F)").clicked() {
+                    action = Some(ToolbarAction::OpenSearch);
                     ui.close_menu();
                 }
             });
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Toggle Context Inspector (⌥⌘I / Ctrl+Alt+I)
+                let inspector_btn = ui
+                    .selectable_label(show_inspector, "Inspector")
+                    .on_hover_text("Show or Hide Context Inspector (Ctrl+Alt+I)");
+                if inspector_btn.clicked() {
+                    action = Some(ToolbarAction::ToggleInspector);
+                }
+
                 let theme_icon = if theme.is_dark { Icon::Sun } else { Icon::Moon };
                 if theme_icon
                     .button(ui, 13.0, theme.text_primary)
@@ -219,6 +308,7 @@ impl Toolbar {
                 {
                     action = Some(ToolbarAction::ToggleTheme);
                 }
+
                 if ui.button("Symbol ⌘T").clicked() {
                     action = Some(ToolbarAction::OpenGoToSymbol);
                 }
@@ -227,9 +317,6 @@ impl Toolbar {
                 }
                 if ui.button("File ⌘K").clicked() {
                     action = Some(ToolbarAction::OpenQuickFilePicker);
-                }
-                if active_pr.is_none() && ui.button("Review PR…").clicked() {
-                    action = Some(ToolbarAction::OpenPRDialog);
                 }
             });
         });
