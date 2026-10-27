@@ -1,8 +1,8 @@
-use std::ops::Range;
-use serde::{Deserialize, Serialize};
-use tree_sitter::{Node, Parser};
 use crate::source::buffer::SourceBuffer;
 use crate::syntax::language::{LanguageRegistry, SupportedGrammar};
+use serde::{Deserialize, Serialize};
+use std::ops::Range;
+use tree_sitter::{Node, Parser};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SymbolKind {
@@ -167,9 +167,10 @@ impl SymbolExtractor {
             (SupportedGrammar::Go, "method_declaration") => (SymbolKind::Method, "name"),
             (SupportedGrammar::Go, "type_spec") => (SymbolKind::Struct, "name"),
 
-            (SupportedGrammar::JavaScript | SupportedGrammar::TypeScript, "function_declaration") => {
-                (SymbolKind::Function, "name")
-            }
+            (
+                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript,
+                "function_declaration",
+            ) => (SymbolKind::Function, "name"),
             (SupportedGrammar::JavaScript | SupportedGrammar::TypeScript, "class_declaration") => {
                 (SymbolKind::Class, "name")
             }
@@ -222,7 +223,10 @@ impl SymbolExtractor {
         for line_num in 1..=buffer.line_count() {
             let line = buffer.line_text(line_num);
             let trimmed = line.trim();
-            if trimmed.starts_with("def ") || trimmed.starts_with("fn ") || trimmed.starts_with("func ") {
+            if trimmed.starts_with("def ")
+                || trimmed.starts_with("fn ")
+                || trimmed.starts_with("func ")
+            {
                 let range = buffer.line_byte_range(line_num);
                 let name = trimmed
                     .split_whitespace()
@@ -256,7 +260,11 @@ fn node_text(node: Node, buffer: &SourceBuffer) -> String {
         if let Ok(s) = std::str::from_utf8(&buffer.data[start..end]) {
             // If the declarator has children (e.g. C function_declarator), isolate the identifier name
             let first_word = s.split('(').next().unwrap_or(s).trim();
-            return first_word.split_whitespace().next_back().unwrap_or(first_word).to_string();
+            return first_word
+                .split_whitespace()
+                .next_back()
+                .unwrap_or(first_word)
+                .to_string();
         }
     }
     String::new()

@@ -1,5 +1,5 @@
-use std::ops::Range;
 use crate::source::location::{ReviewRevision, SourceLocation};
+use std::ops::Range;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -27,7 +27,11 @@ impl SourceBuffer {
     pub const MAX_FILE_SIZE: usize = 16 * 1024 * 1024; // 16 MB limit
     pub const DISPLAY_LINE_LIMIT: usize = 2000;
 
-    pub fn from_bytes(path: impl Into<String>, bytes: Vec<u8>, revision: Option<ReviewRevision>) -> Result<Self, SourceBufferError> {
+    pub fn from_bytes(
+        path: impl Into<String>,
+        bytes: Vec<u8>,
+        revision: Option<ReviewRevision>,
+    ) -> Result<Self, SourceBufferError> {
         if bytes.len() > Self::MAX_FILE_SIZE {
             return Err(SourceBufferError::TooLarge);
         }
@@ -125,12 +129,10 @@ impl SourceBuffer {
         }
 
         let slice = &self.text[line_start..line_end];
-        let mut char_count = 0;
-        for (byte_idx, _) in slice.char_indices() {
+        for (char_count, (byte_idx, _)) in slice.char_indices().enumerate() {
             if char_count == column {
                 return line_start + byte_idx;
             }
-            char_count += 1;
         }
         line_end
     }

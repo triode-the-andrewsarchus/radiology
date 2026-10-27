@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PullRequestSummary {
@@ -38,12 +38,18 @@ impl GitHubClient {
             .unwrap_or(false)
     }
 
-    pub fn list_pull_requests(root: &Path, limit: usize) -> Result<Vec<PullRequestSummary>, String> {
+    pub fn list_pull_requests(
+        root: &Path,
+        limit: usize,
+    ) -> Result<Vec<PullRequestSummary>, String> {
         let output = Command::new("gh")
             .args([
-                "pr", "list",
-                "--limit", &limit.to_string(),
-                "--json", "number,title,state,baseRefName,headRefName,updatedAt",
+                "pr",
+                "list",
+                "--limit",
+                &limit.to_string(),
+                "--json",
+                "number,title,state,baseRefName,headRefName,updatedAt",
             ])
             .current_dir(root)
             .output()
@@ -54,14 +60,18 @@ impl GitHubClient {
             return Err(stderr.trim().to_string());
         }
 
-        serde_json::from_slice(&output.stdout).map_err(|e| format!("Failed to parse PR list JSON: {e}"))
+        serde_json::from_slice(&output.stdout)
+            .map_err(|e| format!("Failed to parse PR list JSON: {e}"))
     }
 
     pub fn view_pull_request(root: &Path, number: usize) -> Result<PullRequestSummary, String> {
         let output = Command::new("gh")
             .args([
-                "pr", "view", &number.to_string(),
-                "--json", "number,title,state,baseRefName,headRefName,headRefOid,updatedAt",
+                "pr",
+                "view",
+                &number.to_string(),
+                "--json",
+                "number,title,state,baseRefName,headRefName,headRefOid,updatedAt",
             ])
             .current_dir(root)
             .output()

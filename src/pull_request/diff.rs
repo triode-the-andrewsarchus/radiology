@@ -1,5 +1,5 @@
-use std::ops::Range;
 use crate::source::location::ReviewRevision;
+use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffHunk {

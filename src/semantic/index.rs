@@ -1,6 +1,8 @@
+use crate::semantic::scip_proto::{
+    ProtobufError, ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation,
+};
 use std::collections::HashMap;
 use std::path::Path;
-use crate::semantic::scip_proto::{ProtobufError, ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation};
 
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
@@ -32,7 +34,10 @@ impl SemanticIndex {
                 };
 
                 if occ.is_definition() {
-                    idx.definitions.insert(occ.symbol.clone(), (doc.relative_path.clone(), range.clone()));
+                    idx.definitions.insert(
+                        occ.symbol.clone(),
+                        (doc.relative_path.clone(), range.clone()),
+                    );
                 } else {
                     idx.references
                         .entry(occ.symbol.clone())
@@ -79,12 +84,12 @@ impl SemanticIndex {
                 if r.start_line == line && col >= r.start_col && col <= r.end_col {
                     return Some(occ);
                 }
-                if r.start_line <= line && r.end_line >= line {
-                    if (line > r.start_line || col >= r.start_col)
-                        && (line < r.end_line || col <= r.end_col)
-                    {
-                        return Some(occ);
-                    }
+                if r.start_line <= line
+                    && r.end_line >= line
+                    && (line > r.start_line || col >= r.start_col)
+                    && (line < r.end_line || col <= r.end_col)
+                {
+                    return Some(occ);
                 }
             }
         }
@@ -98,10 +103,17 @@ mod tests {
 
     #[test]
     fn test_index_lookup() {
-        let mut doc = ScipDocument::default();
-        doc.relative_path = "src/main.rs".to_string();
+        let mut doc = ScipDocument {
+            relative_path: "src/main.rs".to_string(),
+            ..Default::default()
+        };
         doc.occurrences.push(ScipOccurrence {
-            range: Some(ScipRange { start_line: 5, start_col: 3, end_line: 5, end_col: 10 }),
+            range: Some(ScipRange {
+                start_line: 5,
+                start_col: 3,
+                end_line: 5,
+                end_col: 10,
+            }),
             symbol: "scip-rust/main".to_string(),
             symbol_roles: 1, // Definition
             enclosing_range: None,

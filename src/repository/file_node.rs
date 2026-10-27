@@ -1,6 +1,6 @@
+use crate::repository::classifier::{SourceFileClassifier, TestPathClassifier};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use crate::repository::classifier::{SourceFileClassifier, TestPathClassifier};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RepositoryFile {

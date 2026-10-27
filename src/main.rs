@@ -1,6 +1,6 @@
-use std::path::PathBuf;
 use eframe::egui::Vec2;
 use radiology::RadiologyApp;
+use std::path::PathBuf;
 
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt::init();
@@ -52,10 +52,15 @@ fn main() -> eframe::Result<()> {
             }
             if let Some(pr_num) = initial_pr {
                 if let Some(root) = &app.repository_root {
-                    if let Ok(pr) = radiology::pull_request::GitHubClient::view_pull_request(root, pr_num) {
+                    if let Ok(pr) =
+                        radiology::pull_request::GitHubClient::view_pull_request(root, pr_num)
+                    {
                         app.active_pr = Some(pr);
-                        if let Ok(diff) = radiology::pull_request::GitHubClient::get_pr_diff(root, pr_num) {
-                            app.line_changes = Some(radiology::pull_request::UnifiedDiffParser::parse(&diff));
+                        if let Ok(diff) =
+                            radiology::pull_request::GitHubClient::get_pr_diff(root, pr_num)
+                        {
+                            app.line_changes =
+                                Some(radiology::pull_request::UnifiedDiffParser::parse(&diff));
                         }
                     }
                 }

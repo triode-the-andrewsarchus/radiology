@@ -1,23 +1,13 @@
-use serde::{Deserialize, Serialize};
 use crate::repository::file_node::RepositoryFile;
+use serde::{Deserialize, Serialize};
 
 /// User preferences for filtering the repository file tree.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SourceFilters {
     pub source_files_only: bool,
     pub hides_tests: bool,
     #[serde(skip)]
     pub path_query: String,
-}
-
-impl Default for SourceFilters {
-    fn default() -> Self {
-        Self {
-            source_files_only: false,
-            hides_tests: false,
-            path_query: String::new(),
-        }
-    }
 }
 
 impl SourceFilters {

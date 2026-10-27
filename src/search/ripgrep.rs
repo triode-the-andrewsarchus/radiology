@@ -1,11 +1,11 @@
+use crate::search::match_item::SearchMatch;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use thiserror::Error;
-use crate::search::match_item::SearchMatch;
 
 pub const SEARCH_RESULT_LIMIT: usize = 5000;
 
@@ -35,14 +35,22 @@ impl SearchOptions {
             "--line-number".to_string(),
             "--column".to_string(),
             "--hidden".to_string(),
-            "--glob".to_string(), "!.git/**".to_string(),
-            "--glob".to_string(), "!.build/**".to_string(),
-            "--glob".to_string(), "!build/**".to_string(),
-            "--glob".to_string(), "!dist/**".to_string(),
-            "--glob".to_string(), "!node_modules/**".to_string(),
-            "--glob".to_string(), "!vendor/**".to_string(),
-            "--glob".to_string(), "!target/**".to_string(),
-            "--glob".to_string(), "!DerivedData/**".to_string(),
+            "--glob".to_string(),
+            "!.git/**".to_string(),
+            "--glob".to_string(),
+            "!.build/**".to_string(),
+            "--glob".to_string(),
+            "!build/**".to_string(),
+            "--glob".to_string(),
+            "!dist/**".to_string(),
+            "--glob".to_string(),
+            "!node_modules/**".to_string(),
+            "--glob".to_string(),
+            "!vendor/**".to_string(),
+            "--glob".to_string(),
+            "!target/**".to_string(),
+            "--glob".to_string(),
+            "!DerivedData/**".to_string(),
         ];
 
         if !self.is_regex {
@@ -139,8 +147,14 @@ impl SearchRunner {
 
         let status = child.wait().await?;
         // Exit code 0 means matches found, 1 means no matches found (both normal for ripgrep)
-        if !limited && !cancel.load(Ordering::Relaxed) && !matches!(status.code(), Some(0) | Some(1)) {
-            return Err(SearchError::Process(format!("ripgrep exited with code {:?}", status.code())));
+        if !limited
+            && !cancel.load(Ordering::Relaxed)
+            && !matches!(status.code(), Some(0) | Some(1))
+        {
+            return Err(SearchError::Process(format!(
+                "ripgrep exited with code {:?}",
+                status.code()
+            )));
         }
 
         Ok(limited)
@@ -153,10 +167,12 @@ mod tests {
 
     #[test]
     fn test_search_options_args() {
-        let mut opt = SearchOptions::default();
-        opt.query = "SourceBuffer".to_string();
-        opt.case_sensitive = true;
-        opt.include_glob = "*.rs".to_string();
+        let opt = SearchOptions {
+            query: "SourceBuffer".to_string(),
+            case_sensitive: true,
+            include_glob: "*.rs".to_string(),
+            ..Default::default()
+        };
 
         let args = opt.build_arguments();
         assert!(args.contains(&"--case-sensitive".to_string()));

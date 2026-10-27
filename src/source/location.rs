@@ -34,7 +34,11 @@ impl SourceLocation {
         }
     }
 
-    pub fn with_revision(path: impl Into<String>, byte_offset: usize, revision: Option<ReviewRevision>) -> Self {
+    pub fn with_revision(
+        path: impl Into<String>,
+        byte_offset: usize,
+        revision: Option<ReviewRevision>,
+    ) -> Self {
         Self {
             path: path.into(),
             byte_offset,

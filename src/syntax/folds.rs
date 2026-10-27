@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 use crate::source::buffer::SourceBuffer;
 use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FoldRange {
@@ -45,7 +45,11 @@ impl FoldStore {
     pub fn collapse_all_functions(&mut self, symbols: &[DocumentSymbol]) {
         fn collect_function_lines(syms: &[DocumentSymbol], out: &mut HashSet<usize>) {
             for sym in syms {
-                if matches!(sym.kind, crate::syntax::outline::SymbolKind::Function | crate::syntax::outline::SymbolKind::Method) {
+                if matches!(
+                    sym.kind,
+                    crate::syntax::outline::SymbolKind::Function
+                        | crate::syntax::outline::SymbolKind::Method
+                ) {
                     out.insert(sym.line);
                 }
                 collect_function_lines(&sym.children, out);
@@ -66,7 +70,11 @@ impl FoldDetector {
         let symbols = SymbolExtractor::extract(buffer);
         let mut folds = Vec::new();
 
-        fn add_symbol_folds(syms: &[DocumentSymbol], buffer: &SourceBuffer, folds: &mut Vec<FoldRange>) {
+        fn add_symbol_folds(
+            syms: &[DocumentSymbol],
+            buffer: &SourceBuffer,
+            folds: &mut Vec<FoldRange>,
+        ) {
             for sym in syms {
                 let start_line = buffer.line_at_byte(sym.range.start);
                 let end_line = buffer.line_at_byte(sym.range.end);

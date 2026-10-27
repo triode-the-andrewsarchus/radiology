@@ -47,7 +47,11 @@ impl SyntaxHighlighter {
             self.light_theme_name
         };
         self.theme_set.themes.get(name).unwrap_or_else(|| {
-            self.theme_set.themes.values().next().expect("syntect theme available")
+            self.theme_set
+                .themes
+                .values()
+                .next()
+                .expect("syntect theme available")
         })
     }
 
@@ -61,9 +65,17 @@ impl SyntaxHighlighter {
             Ok(ranges) => ranges
                 .into_iter()
                 .map(|(style, text)| {
-                    let color = Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
-                    let is_bold = style.font_style.contains(syntect::highlighting::FontStyle::BOLD);
-                    let is_italic = style.font_style.contains(syntect::highlighting::FontStyle::ITALIC);
+                    let color = Color32::from_rgb(
+                        style.foreground.r,
+                        style.foreground.g,
+                        style.foreground.b,
+                    );
+                    let is_bold = style
+                        .font_style
+                        .contains(syntect::highlighting::FontStyle::BOLD);
+                    let is_italic = style
+                        .font_style
+                        .contains(syntect::highlighting::FontStyle::ITALIC);
                     HighlightedSpan {
                         text: text.to_string(),
                         color,
@@ -89,7 +101,9 @@ mod tests {
     #[test]
     fn test_highlighter_rust() {
         let hl = SyntaxHighlighter::new();
-        let syntax = hl.find_syntax_for_path("main.rs").expect("Rust syntax found");
+        let syntax = hl
+            .find_syntax_for_path("main.rs")
+            .expect("Rust syntax found");
         let theme = hl.theme(true);
         let mut highlighter = HighlightLines::new(syntax, theme);
 

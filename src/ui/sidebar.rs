@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
 use crate::pull_request::change::FileChange;
 use crate::repository::file_node::FileNode;
 use crate::search::match_item::SearchMatch;
 use crate::search::ripgrep::SearchOptions;
 use crate::theme::AppTheme;
+use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SidebarTab {
@@ -24,6 +24,7 @@ pub enum SidebarAction {
 pub struct Sidebar;
 
 impl Sidebar {
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,

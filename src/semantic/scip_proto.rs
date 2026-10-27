@@ -215,7 +215,9 @@ impl ScipIndex {
                 }
                 (3, WireType::LengthDelimited) => {
                     let sym_bytes = reader.read_length_delimited()?;
-                    index.external_symbols.push(Self::decode_symbol_info(sym_bytes)?);
+                    index
+                        .external_symbols
+                        .push(Self::decode_symbol_info(sym_bytes)?);
                 }
                 (_, wire) => reader.skip_field(wire)?,
             }

@@ -1,8 +1,8 @@
+use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 
 use crate::bookmarks::store::BookmarkStore;
 use crate::critical::lens::SourceMode;
@@ -25,7 +25,9 @@ use crate::syntax::highlighter::SyntaxHighlighter;
 use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
 use crate::theme::AppTheme;
 use crate::ui::context_inspector::{ContextInspector, InspectorAction, InspectorTab};
-use crate::ui::modals::{GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal};
+use crate::ui::modals::{
+    GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,
+};
 use crate::ui::sidebar::{Sidebar, SidebarAction, SidebarTab};
 use crate::ui::source_view::{SourceView, SourceViewAction};
 use crate::ui::toolbar::{Toolbar, ToolbarAction};
@@ -266,18 +268,25 @@ impl RadiologyApp {
                 let offset = buf.byte_offset(self.caret_line, self.caret_col);
                 self.bookmarks.toggle(buf, offset);
                 if let Some(root) = &self.repository_root {
-                    self.bookmarks.save(&root.to_string_lossy(), self.active_pr.as_ref().map(|p| p.number));
+                    self.bookmarks.save(
+                        &root.to_string_lossy(),
+                        self.active_pr.as_ref().map(|p| p.number),
+                    );
                 }
             }
         }
         // Ctrl+[ -> Back
-        if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::OpenBracket)) {
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::OpenBracket)
+        }) {
             if let Some(loc) = self.history.back() {
                 self.jump_to_location(&loc.path, 1, loc.byte_offset);
             }
         }
         // Ctrl+] -> Forward
-        if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::CloseBracket)) {
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::CloseBracket)
+        }) {
             if let Some(loc) = self.history.forward() {
                 self.jump_to_location(&loc.path, 1, loc.byte_offset);
             }
@@ -375,7 +384,8 @@ impl eframe::App for RadiologyApp {
                                 if let Ok(pr) = GitHubClient::view_pull_request(root, num) {
                                     self.active_pr = Some(pr);
                                     if let Ok(diff_text) = GitHubClient::get_pr_diff(root, num) {
-                                        self.line_changes = Some(UnifiedDiffParser::parse(&diff_text));
+                                        self.line_changes =
+                                            Some(UnifiedDiffParser::parse(&diff_text));
                                     }
                                 }
                             }
@@ -455,11 +465,13 @@ impl eframe::App for RadiologyApp {
                         }
                     }
                     ToolbarAction::ToggleSourceFilesOnly => {
-                        self.session.source_filters.source_files_only = !self.session.source_filters.source_files_only;
+                        self.session.source_filters.source_files_only =
+                            !self.session.source_filters.source_files_only;
                         self.refresh_file_tree();
                     }
                     ToolbarAction::ToggleHideTests => {
-                        self.session.source_filters.hides_tests = !self.session.source_filters.hides_tests;
+                        self.session.source_filters.hides_tests =
+                            !self.session.source_filters.hides_tests;
                         self.refresh_file_tree();
                     }
                 }
@@ -507,9 +519,15 @@ impl eframe::App for RadiologyApp {
                                     .build()
                                     .map(|rt| {
                                         rt.block_on(async {
-                                            let _ = SearchRunner::search(&root, &opts, cancel, |batch| {
-                                                matches.extend(batch);
-                                            }).await;
+                                            let _ = SearchRunner::search(
+                                                &root,
+                                                &opts,
+                                                cancel,
+                                                |batch| {
+                                                    matches.extend(batch);
+                                                },
+                                            )
+                                            .await;
                                         });
                                     });
                                 self.search_matches = matches;
@@ -556,7 +574,11 @@ impl eframe::App for RadiologyApp {
                     &self.bookmarks,
                 ) {
                     match action {
-                        InspectorAction::JumpToLocation { path, line, byte_offset } => {
+                        InspectorAction::JumpToLocation {
+                            path,
+                            line,
+                            byte_offset,
+                        } => {
                             self.jump_to_location(&path, line, byte_offset);
                         }
                         InspectorAction::JumpToSymbol(byte) => {
@@ -605,17 +627,26 @@ impl eframe::App for RadiologyApp {
                     &enclosing,
                 ) {
                     match action {
-                        SourceViewAction::CaretMoved { line, column, byte_offset } => {
+                        SourceViewAction::CaretMoved {
+                            line,
+                            column,
+                            byte_offset,
+                        } => {
                             self.caret_line = line;
                             self.caret_col = column;
-                            self.history.update_current(buf.location_at_byte(byte_offset));
+                            self.history
+                                .update_current(buf.location_at_byte(byte_offset));
                             self.refresh_symbol_context();
                         }
                         SourceViewAction::JumpToDefinition => {
                             if let Some(idx) = &self.semantic_index {
                                 let line_0 = self.caret_line.saturating_sub(1);
-                                if let Some(occ) = idx.occurrence_at(&buf.path, line_0, self.caret_col) {
-                                    if let Some((def_path, def_range)) = idx.find_definition(&occ.symbol) {
+                                if let Some(occ) =
+                                    idx.occurrence_at(&buf.path, line_0, self.caret_col)
+                                {
+                                    if let Some((def_path, def_range)) =
+                                        idx.find_definition(&occ.symbol)
+                                    {
                                         let p = def_path.to_string();
                                         let l = (def_range.start_line + 1) as usize;
                                         self.jump_to_location(&p, l, 0);
@@ -626,16 +657,23 @@ impl eframe::App for RadiologyApp {
                         SourceViewAction::ToggleFold(_) => {}
                         SourceViewAction::NextChangeBlock => {
                             if let Some(diff) = &self.line_changes {
-                                let anchors = diff.change_anchors(self.active_revision.unwrap_or(ReviewRevision::After));
-                                if let Some(&next) = anchors.iter().find(|&&a| a > self.caret_line) {
+                                let anchors = diff.change_anchors(
+                                    self.active_revision.unwrap_or(ReviewRevision::After),
+                                );
+                                if let Some(&next) = anchors.iter().find(|&&a| a > self.caret_line)
+                                {
                                     self.caret_line = next;
                                 }
                             }
                         }
                         SourceViewAction::PrevChangeBlock => {
                             if let Some(diff) = &self.line_changes {
-                                let anchors = diff.change_anchors(self.active_revision.unwrap_or(ReviewRevision::After));
-                                if let Some(&prev) = anchors.iter().rev().find(|&&a| a < self.caret_line) {
+                                let anchors = diff.change_anchors(
+                                    self.active_revision.unwrap_or(ReviewRevision::After),
+                                );
+                                if let Some(&prev) =
+                                    anchors.iter().rev().find(|&&a| a < self.caret_line)
+                                {
                                     self.caret_line = prev;
                                 }
                             }
