@@ -84,6 +84,8 @@ impl ContextInspector {
     ) -> Option<InspectorAction> {
         let mut action = None;
 
+        ui.style_mut().interaction.selectable_labels = false;
+
         ui.vertical(|ui| {
             // Tab Selector
             ui.horizontal(|ui| {
@@ -347,6 +349,7 @@ impl ContextInspector {
                                 let row_click = resp.interact(egui::Sense::click());
                                 if row_click.hovered() {
                                     ui.ctx().animate_bool(row_id, true);
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                                 if action.is_none() && row_click.clicked() {
                                     action = Some(InspectorAction::JumpToLocation {

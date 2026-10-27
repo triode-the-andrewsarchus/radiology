@@ -973,6 +973,7 @@ impl eframe::App for RadiologyApp {
             .min_width(180.0)
             .max_width(500.0)
             .show(ctx, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
                 let prev_tab = self.sidebar_tab;
                 let visible_count = self
                     .session
@@ -1053,6 +1054,7 @@ impl eframe::App for RadiologyApp {
             .min_width(200.0)
             .max_width(600.0)
             .show(ctx, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
                 let current_sym_info = self.open_buffer.as_ref().and_then(|buf| {
                     self.semantic_index.as_ref().and_then(|idx| {
                         let line_0 = self.caret_line.saturating_sub(1);
