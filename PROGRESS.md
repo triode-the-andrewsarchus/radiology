@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-27 — Gutter Viewport Anchor & File Switch Displacement Remediation (Antigravity)
+
+Resolved defect where selecting a new file displaced line numbers and gutter to `x = 0.0`, covering the sidebar file tree:
+- **Root Cause Analysis:**
+  - `viewport_clip` was previously queried inside `ScrollArea::show_rows` as `ui.clip_rect()`.
+  - In EGUI, `CentralPanel` by default inherits the unbounded window clip rect (`0.0 .. window_width`), and `ScrollArea` only updates `content_clip_rect` if `state.content_is_too_large` is evaluated as true.
+  - When switching files, before horizontal overflow was measured, `ui.clip_rect().min.x` fell back to `0.0`.
+  - Consequently, `pos2(viewport_clip.min.x, ...)` placed the gutter column and all line numbers at `x = 0.0` to `x = 72.0`, directly over the left sidebar file tree.
+- **Remediation:**
+  - Explicitly anchored the editor viewport before entering `ScrollArea` by capturing `editor_viewport = ui.available_rect_before_wrap()`.
+  - `editor_viewport.min.x` strictly represents the left edge of the `CentralPanel` (immediately following the sidebar at `x ≈ 260.0`), invariant across file switches and scroll positions.
+  - Pinned the gutter column, row gutters, and clipping boundaries directly to `editor_viewport.min.x`.
+  - Explicitly called `ui.set_clip_rect(ui.max_rect())` at the top of `CentralPanel`.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved intact.
+
 ## 2026-10-27 — Dark Mode Premultiplied Alpha Blending & Contrast Remediation (Antigravity)
 
 Resolved severe active line contrast issue in dark mode (where active line rendered as solid neon blue):

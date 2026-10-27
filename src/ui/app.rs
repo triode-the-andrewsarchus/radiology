@@ -895,6 +895,7 @@ impl eframe::App for RadiologyApp {
         CentralPanel::default()
             .frame(central_frame)
             .show(ctx, |ui| {
+                ui.set_clip_rect(ui.max_rect());
                 if let Some(buf) = &self.open_buffer {
                     let mut enclosing = Vec::new();
                     let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);

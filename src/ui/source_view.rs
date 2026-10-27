@@ -218,23 +218,20 @@ impl SourceView {
                 full_code_width
             };
 
+            // Fixed editor viewport rectangle in window coordinates (captured before ScrollArea child UI)
+            let editor_viewport = ui.available_rect_before_wrap();
+
             ScrollArea::both()
                 .auto_shrink([false, false])
                 .max_height(available_height)
                 .show_rows(ui, row_height, total_rows, |ui, row_range| {
                     ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                    // Viewport clip rect: fixed viewport bounds of the scroll area in screen coordinates.
-                    // Note: do NOT intersect with ui.max_rect(), because in a scrolling child UI,
-                    // max_rect translates horizontally with scroll offset (-state.offset.x), which would
-                    // artificially shrink the clip rect and leave a blank unrendered area when scrolling right.
-                    let viewport_clip = ui.clip_rect();
-
-                    // Fill contiguous gutter column once (prevents per-row box artifacts)
-                    let gutter_painter = ui.painter().with_clip_rect(viewport_clip);
+                    // Pinned gutter column across the full editor viewport height
+                    let gutter_painter = ui.painter().with_clip_rect(editor_viewport);
                     let gutter_column = Rect::from_min_size(
-                        pos2(viewport_clip.min.x, viewport_clip.min.y),
-                        Vec2::new(Self::GUTTER_WIDTH, viewport_clip.height()),
+                        pos2(editor_viewport.min.x, editor_viewport.min.y),
+                        Vec2::new(Self::GUTTER_WIDTH, editor_viewport.height()),
                     );
                     gutter_painter.rect_filled(gutter_column, 0.0, theme.bg_gutter);
                     gutter_painter.line_segment(
@@ -242,12 +239,12 @@ impl SourceView {
                         Stroke::new(1.0, theme.border),
                     );
 
-                    // Code clip rect: area to the right of the pinned gutter up to the viewport edge.
-                    // Include 4px vertical clearance above viewport_clip.min.y to prevent clipping font ascenders on Line 1.
-                    let code_clip_min_x = viewport_clip.min.x + Self::GUTTER_WIDTH;
+                    // Code clip rect: area to the right of the pinned gutter up to the right edge of the viewport.
+                    // Include 4px vertical clearance above editor_viewport.min.y to prevent clipping font ascenders on Line 1.
+                    let code_clip_min_x = editor_viewport.min.x + Self::GUTTER_WIDTH;
                     let code_clip_rect = Rect::from_min_max(
-                        pos2(code_clip_min_x, viewport_clip.min.y - 4.0),
-                        viewport_clip.max,
+                        pos2(code_clip_min_x, editor_viewport.min.y - 4.0),
+                        editor_viewport.max,
                     );
                     let code_painter = ui.painter().with_clip_rect(code_clip_rect);
 
@@ -264,9 +261,9 @@ impl SourceView {
                             egui::Sense::click_and_drag(),
                         );
 
-                        // Pinned Gutter at viewport left edge (Swift parity: gutter does not scroll horizontally)
+                        // Pinned Gutter at editor viewport left edge (pinned: gutter does not scroll horizontally)
                         let gutter_rect = Rect::from_min_size(
-                            pos2(viewport_clip.min.x, rect.min.y),
+                            pos2(editor_viewport.min.x, rect.min.y),
                             Vec2::new(Self::GUTTER_WIDTH, row_height),
                         );
 
