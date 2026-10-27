@@ -4,7 +4,7 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-**Rust & EGUI Linux Native Rewrite (In Progress):** Standalone Linux-native
+**Rust & EGUI Linux Native Rewrite (Completed):** Standalone Linux-native
 rewrite of Radiology in Rust using EGUI (`eframe` 0.27 / `egui` 0.27). Features
 complete architectural parity with the Swift original: fast Git/filesystem
 discovery, `FileNode` tree with "Source Files Only" and "Hide Tests" filters,
@@ -13,7 +13,8 @@ fuzzy subsequence file search (Ctrl+K), multi-language syntax highlighting with
 search, pure-Rust zero-copy SCIP protobuf decoding with definition/reference
 navigation and caller call trees with FNV-1a 12-color identity pills, persistent
 repo/PR bookmarks with line-anchor relocation, and GitHub PR review with unified
-diff parsing and Before/After viewing.
+diff parsing and Before/After viewing. 26 unit tests passing, clean clippy,
+fully standalone, and ready for future integration into `~/little-screen-clip`.
 [Architecture and parity plan](plans/rust-egui-linux-port.md).
 
 **Published to GitHub main (2026-10-11):** all accumulated work merged through
