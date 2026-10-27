@@ -1,7 +1,26 @@
+//! Executable entry point for the Radiology desktop application.
+//!
+//! Handles command-line arguments, native viewport configuration via [`eframe`],
+//! logging initialization, and bootstrapping the [`radiology::RadiologyApp`] state.
+//!
+//! # CLI Usage
+//!
+//! ```bash
+//! # Open current directory
+//! radiology .
+//!
+//! # Open a specific repository path
+//! radiology --open /path/to/repo
+//!
+//! # Open repository and immediately review a GitHub pull request
+//! radiology /path/to/repo --pr 42
+//! ```
+
 use eframe::egui::Vec2;
 use radiology::RadiologyApp;
 use std::path::PathBuf;
 
+/// Application entry point configuring the native window and running the main event loop.
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt::init();
 

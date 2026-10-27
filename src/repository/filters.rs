@@ -1,16 +1,41 @@
+//! File filtering options for the repository browser.
+
 use crate::repository::file_node::RepositoryFile;
 use serde::{Deserialize, Serialize};
 
-/// User preferences for filtering the repository file tree.
+/// Filters applied to the repository file tree.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::file_node::RepositoryFile;
+/// use radiology::repository::filters::SourceFilters;
+///
+/// let files = vec![
+///     RepositoryFile::new("src/main.rs"),
+///     RepositoryFile::new("tests/test_main.rs"),
+/// ];
+/// let mut filters = SourceFilters::default();
+/// filters.hides_tests = true;
+///
+/// let filtered = filters.filter_files(&files);
+/// assert_eq!(filtered.len(), 1);
+/// assert_eq!(filtered[0].path, "src/main.rs");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SourceFilters {
+    /// Hides generated, binary, and media files, showing only source code.
     pub source_files_only: bool,
+    /// Hides test files, test suites, and test fixtures across all languages.
     pub hides_tests: bool,
+    /// Live search query filter applied across file paths.
     #[serde(skip)]
     pub path_query: String,
 }
 
 impl SourceFilters {
+    /// Returns a new vector containing only files matching the active filter criteria.
+    #[must_use]
     pub fn filter_files(&self, files: &[RepositoryFile]) -> Vec<RepositoryFile> {
         let query_lower = self.path_query.trim().to_lowercase();
         files

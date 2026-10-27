@@ -1,9 +1,12 @@
+//! Multi-level caller tree tracing with cycle detection and deterministic identity pills.
+
 use crate::semantic::index::SemanticIndex;
 use egui::Color32;
 use std::collections::HashSet;
 
 /// Deterministic 12-color identity palette for caller capsules.
-/// The same method/file pair keeps its hue across branches and application launches.
+///
+/// The same method and file pair retains its hue across branches and application launches.
 pub const CALLER_PALETTE: [Color32; 12] = [
     Color32::from_rgb(59, 130, 246), // Blue
     Color32::from_rgb(20, 184, 166), // Teal
@@ -21,6 +24,16 @@ pub const CALLER_PALETTE: [Color32; 12] = [
 
 /// Computes the deterministic 0..12 palette slot using FNV-1a hash over
 /// method name, null separator, and repository-relative file path.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::semantic::caller_tree::caller_pill_slot;
+///
+/// let slot = caller_pill_slot("handle_request", "src/server.rs");
+/// assert!(slot < 12);
+/// ```
+#[must_use]
 pub fn caller_pill_slot(method: &str, file: &str) -> usize {
     let mut hash: u64 = 14_695_981_039_346_656_037;
     for byte in method.bytes() {
@@ -33,24 +46,37 @@ pub fn caller_pill_slot(method: &str, file: &str) -> usize {
     (hash % (CALLER_PALETTE.len() as u64)) as usize
 }
 
+/// Returns the deterministic [`Color32`] assigned to the method and file pair.
+#[must_use]
 pub fn caller_pill_color(method: &str, file: &str) -> Color32 {
     CALLER_PALETTE[caller_pill_slot(method, file)]
 }
 
+/// A node in the reverse call graph representing a caller site.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceCallerNode {
+    /// Calling function or method name.
     pub name: String,
+    /// Repository-relative path containing the call.
     pub path: String,
+    /// 1-based line number of the call site.
     pub line: usize,
+    /// Depth within the caller tree (0 is direct caller).
     pub depth: usize,
+    /// Deterministic color slot index (0..12).
     pub color_slot: usize,
+    /// `true` if this caller creates a recursive loop back to an ancestor.
     pub is_recursive: bool,
+    /// Callers of this caller.
     pub children: Vec<ReferenceCallerNode>,
 }
 
+/// Traces incoming callers backward through SCIP references.
 pub struct CallerTreeBuilder;
 
 impl CallerTreeBuilder {
+    /// Recursively traces callers of `symbol` up to `max_depth`, preventing recursion cycles.
+    #[must_use]
     pub fn build(
         index: &SemanticIndex,
         symbol: &str,
@@ -75,7 +101,6 @@ impl CallerTreeBuilder {
         let mut nodes = Vec::new();
 
         for (ref_path, ref_range) in refs {
-            // Find enclosing definition in the caller file
             let caller_sym = Self::find_enclosing_symbol(index, ref_path, ref_range.start_line);
             let caller_name = caller_sym
                 .as_deref()

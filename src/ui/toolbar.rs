@@ -1,3 +1,8 @@
+//! Top application toolbar and quick-navigation control strip.
+//!
+//! Provides the primary repository status display, back/forward history navigation,
+//! pull request review switcher, criticality mode selector, and quick palette shortcuts.
+
 use crate::critical::lens::SourceMode;
 use crate::pull_request::github::PullRequestSummary;
 use crate::repository::filters::SourceFilters;
@@ -6,25 +11,54 @@ use crate::source::location::ReviewRevision;
 use crate::theme::AppTheme;
 use egui::{RichText, Ui};
 
+/// Actions triggered by interacting with controls in the top [`Toolbar`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToolbarAction {
+    /// Opens the native directory chooser dialog to select a repository root.
     OpenRepositoryDialog,
+    /// Navigates backwards in the file and caret navigation history.
     NavigateBack,
+    /// Navigates forward in the file and caret navigation history.
     NavigateForward,
+    /// Toggles a bookmark on the currently focused source line.
     ToggleBookmark,
+    /// Opens the quick file picker modal dialog (Ctrl/Cmd+K).
     OpenQuickFilePicker,
+    /// Opens the jump-to-line modal dialog (Ctrl/Cmd+L).
     OpenGoToLine,
+    /// Opens the jump-to-symbol outline search dialog (Ctrl/Cmd+T).
     OpenGoToSymbol,
+    /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Exits the active pull request review session and clears diff overlays.
     ExitPRReview,
+    /// Changes the active [`SourceMode`] (e.g. Normal vs Critical lens).
     ToggleMode(SourceMode),
+    /// Switches the active review revision (Before vs After).
     ToggleRevision(ReviewRevision),
+    /// Toggles the filter to hide non-source code files.
     ToggleSourceFilesOnly,
+    /// Toggles the filter to hide test directories and test files.
     ToggleHideTests,
 }
 
+/// Renders the top horizontal toolbar in the Radiology desktop interface.
 pub struct Toolbar;
 
 impl Toolbar {
+    /// Renders the horizontal toolbar and returns any user-triggered action.
+    ///
+    /// # Arguments
+    ///
+    /// * `ui` - EGUI user interface context for rendering the strip.
+    /// * `theme` - Active visual color palette.
+    /// * `repo_name` - Optional name of the currently opened repository.
+    /// * `branch_name` - Optional name of the current Git HEAD branch.
+    /// * `active_pr` - Metadata of the currently reviewed pull request, if any.
+    /// * `revision` - Active revision view (`Before` or `After`).
+    /// * `mode` - Active inspection mode (`Normal` or `Critical`).
+    /// * `filters` - Repository file filter settings.
+    /// * `history` - Navigation history tracker used to enable/disable back/forward buttons.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,

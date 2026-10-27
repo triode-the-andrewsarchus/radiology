@@ -1,25 +1,51 @@
+//! Language registry and Tree-sitter grammar associations.
+
 use std::path::Path;
 
+/// Enumerates Tree-sitter grammars supported with native parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SupportedGrammar {
+    /// Rust language grammar.
     Rust,
+    /// Python language grammar.
     Python,
+    /// Go language grammar.
     Go,
+    /// JavaScript and JSX language grammar.
     JavaScript,
+    /// TypeScript and TSX language grammar.
     TypeScript,
+    /// C and C++ language grammar.
     C,
 }
 
+/// Stores display metadata and associated parsing grammar for a language.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanguageInfo {
+    /// Stable language identifier (e.g. `"rust"`).
     pub id: &'static str,
+    /// Human-readable display name (e.g. `"Rust"`).
     pub display_name: &'static str,
+    /// Native Tree-sitter grammar if supported for outline parsing.
     pub grammar: Option<SupportedGrammar>,
 }
 
+/// Maps file paths and extensions to canonical language metadata.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::syntax::language::{LanguageRegistry, SupportedGrammar};
+///
+/// let info = LanguageRegistry::for_path("src/main.rs");
+/// assert_eq!(info.display_name, "Rust");
+/// assert_eq!(info.grammar, Some(SupportedGrammar::Rust));
+/// ```
 pub struct LanguageRegistry;
 
 impl LanguageRegistry {
+    /// Returns the [`LanguageInfo`] corresponding to the given file path.
+    #[must_use]
     pub fn for_path(path: &str) -> LanguageInfo {
         let p = Path::new(path);
         let ext = p

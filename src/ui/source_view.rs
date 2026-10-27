@@ -1,3 +1,8 @@
+//! Central source code viewer with syntax highlighting, diff markers, and gutter controls.
+//!
+//! Handles rendering line numbers, code folding chevrons, Syntect syntax-highlighted spans,
+//! active caret line highlighting, pull request addition/deletion badges, and breadcrumb headers.
+
 use crate::pull_request::diff::FileLineChanges;
 use crate::source::buffer::SourceBuffer;
 use crate::source::location::ReviewRevision;
@@ -10,28 +15,60 @@ use egui::{Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
 use syntect::easy::HighlightLines;
 use syntect::parsing::SyntaxReference;
 
+/// User interactions and navigation events produced within the [`SourceView`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceViewAction {
+    /// Caret position moved to a new line and column.
     CaretMoved {
+        /// 1-based line number.
         line: usize,
+        /// 0-based column offset.
         column: usize,
+        /// 0-based byte offset in the buffer.
         byte_offset: usize,
     },
+    /// Requests jumping to the definition of the symbol under the current caret.
     JumpToDefinition,
+    /// Requests expanding or collapsing the code fold starting at the given line number.
     ToggleFold(usize),
+    /// Requests jumping to the next modified hunk in the active pull request review.
     NextChangeBlock,
+    /// Requests jumping to the previous modified hunk in the active pull request review.
     PrevChangeBlock,
+    /// Switches the active review revision (Before vs After).
     ToggleRevision(ReviewRevision),
+    /// Requests pinning all occurrences of a symbol for visual highlighting.
     PinOccurrence {
+        /// Symbol text name.
         symbol: String,
+        /// Byte ranges where the symbol appears in the current buffer.
         ranges: Vec<std::ops::Range<usize>>,
     },
 }
 
+/// Renders the primary code editor and reading canvas.
 pub struct SourceView;
 
 impl SourceView {
+    /// Width in points reserved for the gutter area (line numbers, fold chevrons, diff stripes).
     pub const GUTTER_WIDTH: f32 = 72.0;
 
+    /// Renders the source view including path breadcrumbs, code lines, gutter, and status bar.
+    ///
+    /// # Arguments
+    ///
+    /// * `ui` - EGUI UI layout context.
+    /// * `theme` - Visual color palette.
+    /// * `highlighter` - Syntect syntax highlighter holding syntax definitions and color themes.
+    /// * `syntax_ref` - Detected syntax definition for the active file.
+    /// * `buffer` - Source buffer containing file text, lines, and revision info.
+    /// * `caret_line` - Mutable 1-based line number of the user caret.
+    /// * `caret_col` - Mutable 0-based column offset of the user caret.
+    /// * `fold_ranges` - Detected foldable AST syntax nodes in the document.
+    /// * `fold_store` - Set of currently collapsed fold start lines.
+    /// * `line_changes` - Pull request line change markers for before/after diff overlays.
+    /// * `_pin_store` - Highlighted symbol occurrence pins.
+    /// * `enclosing_symbols` - Hierarchical list of symbols enclosing the current caret position.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,

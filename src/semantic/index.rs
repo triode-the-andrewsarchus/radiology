@@ -1,18 +1,51 @@
+//! Repository semantic symbol index, definition lookup, and reference discovery.
+
 use crate::semantic::scip_proto::{
     ProtobufError, ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation,
 };
 use std::collections::HashMap;
 use std::path::Path;
 
+/// In-memory indexed database of SCIP symbols, definitions, and references.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::semantic::index::SemanticIndex;
+/// use radiology::semantic::scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
+///
+/// let mut doc = ScipDocument {
+///     relative_path: "src/main.rs".to_string(),
+///     ..Default::default()
+/// };
+/// doc.occurrences.push(ScipOccurrence {
+///     range: Some(ScipRange { start_line: 0, start_col: 3, end_line: 0, end_col: 7 }),
+///     symbol: "my_sym".to_string(),
+///     symbol_roles: 1, // Definition
+///     enclosing_range: None,
+/// });
+///
+/// let mut scip = ScipIndex::default();
+/// scip.documents.push(doc);
+/// let index = SemanticIndex::from_scip(scip);
+///
+/// assert!(index.find_definition("my_sym").is_some());
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
+    /// Documents keyed by repository-relative path.
     pub documents: HashMap<String, ScipDocument>,
+    /// Definition location table: `symbol -> (path, range)`.
     pub definitions: HashMap<String, (String, ScipRange)>,
+    /// Reference locations table: `symbol -> [(path, range)]`.
     pub references: HashMap<String, Vec<(String, ScipRange)>>,
+    /// Symbol documentation and metadata table: `symbol -> info`.
     pub symbol_info: HashMap<String, ScipSymbolInformation>,
 }
 
 impl SemanticIndex {
+    /// Builds an indexed [`SemanticIndex`] from a decoded [`ScipIndex`].
+    #[must_use]
     pub fn from_scip(scip: ScipIndex) -> Self {
         let mut idx = Self::default();
 
@@ -52,16 +85,25 @@ impl SemanticIndex {
         idx
     }
 
+    /// Reads and decodes a `.scip` file from disk into a [`SemanticIndex`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if reading or protobuf decoding fails.
     pub fn load_file(path: &Path) -> Result<Self, ProtobufError> {
         let bytes = std::fs::read(path).map_err(|_| ProtobufError::Truncated)?;
         let scip = ScipIndex::decode(&bytes)?;
         Ok(Self::from_scip(scip))
     }
 
+    /// Resolves the canonical definition file path and coordinate range for `symbol`.
+    #[must_use]
     pub fn find_definition(&self, symbol: &str) -> Option<(&str, &ScipRange)> {
         self.definitions.get(symbol).map(|(p, r)| (p.as_str(), r))
     }
 
+    /// Finds all reference file paths and coordinate ranges targeting `symbol`.
+    #[must_use]
     pub fn find_references(&self, symbol: &str) -> Vec<(&str, &ScipRange)> {
         self.references
             .get(symbol)
@@ -69,11 +111,14 @@ impl SemanticIndex {
             .unwrap_or_default()
     }
 
+    /// Returns documentation and metadata for `symbol` if indexed.
+    #[must_use]
     pub fn symbol_info(&self, symbol: &str) -> Option<&ScipSymbolInformation> {
         self.symbol_info.get(symbol)
     }
 
-    /// Finds occurrence in a document for zero-based line and character column.
+    /// Finds a symbol occurrence in `path` covering the zero-based `(line, col)` position.
+    #[must_use]
     pub fn occurrence_at(&self, path: &str, line: usize, col: usize) -> Option<&ScipOccurrence> {
         let doc = self.documents.get(path)?;
         let line = line as i32;
@@ -115,7 +160,7 @@ mod tests {
                 end_col: 10,
             }),
             symbol: "scip-rust/main".to_string(),
-            symbol_roles: 1, // Definition
+            symbol_roles: 1,
             enclosing_range: None,
         });
 

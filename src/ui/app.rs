@@ -1,3 +1,5 @@
+//! Main application model and EGUI event loop lifecycle.
+
 use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -32,51 +34,93 @@ use crate::ui::sidebar::{Sidebar, SidebarAction, SidebarTab};
 use crate::ui::source_view::{SourceView, SourceViewAction};
 use crate::ui::toolbar::{Toolbar, ToolbarAction};
 
+/// Active modal sheet displayed over the main window.
 pub enum ActiveModal {
+    /// No modal active.
     None,
+    /// Quick file search modal (Ctrl+K).
     QuickFilePicker(QuickFilePickerModal),
+    /// Jump to line modal (Ctrl+L).
     GoToLine(GoToLineModal),
+    /// Symbol search modal (Ctrl+T).
     GoToSymbol(GoToSymbolModal),
+    /// GitHub pull request selector modal (Ctrl+P).
     PullRequest(PullRequestModal),
 }
 
+/// The top-level application state managing all reader panels and subsystems.
 pub struct RadiologyApp {
+    /// Active color theme (dark or light).
     pub theme: AppTheme,
+    /// Persisted session state.
     pub session: SessionStore,
+    /// Canonical filesystem root of the opened repository.
     pub repository_root: Option<PathBuf>,
+    /// Display name of the repository.
     pub repository_name: Option<String>,
+    /// Current Git branch name if inside a repository.
     pub branch_name: Option<String>,
+    /// All discovered candidate files.
     pub all_files: Vec<RepositoryFile>,
+    /// Hierarchical directory tree of filtered files.
     pub file_tree: Vec<FileNode>,
+    /// Set of expanded directory paths.
     pub expanded_dirs: HashSet<String>,
+    /// Relative path of the currently selected file.
     pub selected_path: Option<String>,
+    /// Loaded source buffer for the active file.
     pub open_buffer: Option<SourceBuffer>,
+    /// 1-based line of the active caret.
     pub caret_line: usize,
+    /// 0-based column of the active caret.
     pub caret_col: usize,
+    /// Linear navigation history.
     pub history: NavigationHistory,
+    /// Syntax highlighting engine.
     pub highlighter: SyntaxHighlighter,
+    /// Foldable line ranges in the open file.
     pub fold_ranges: Vec<FoldRange>,
+    /// Fold store tracking collapsed line numbers.
     pub fold_store: FoldStore,
+    /// Tree-sitter document outline symbols.
     pub outline_symbols: Vec<DocumentSymbol>,
+    /// Pinned token occurrence groups.
     pub pin_store: OccurrencePinStore,
+    /// SCIP semantic index if loaded.
     pub semantic_index: Option<SemanticIndex>,
+    /// Backward caller tree nodes for the symbol under caret.
     pub caller_tree: Vec<ReferenceCallerNode>,
+    /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
+    /// Changed files in the pull request under review.
     pub pr_changes: Vec<FileChange>,
+    /// Active revision (Before or After) during PR review.
     pub active_revision: Option<ReviewRevision>,
+    /// Parsed line-level diff hunks for the open document.
     pub line_changes: Option<FileLineChanges>,
+    /// Source presentation mode (Normal or Critical Lens).
     pub mode: SourceMode,
+    /// Selected tab in the left sidebar.
     pub sidebar_tab: SidebarTab,
+    /// Selected tab in the right context inspector.
     pub inspector_tab: InspectorTab,
+    /// Search options for repository ripgrep queries.
     pub search_options: SearchOptions,
+    /// Results of the last repository search.
     pub search_matches: Vec<SearchMatch>,
+    /// Whether an asynchronous search is currently running.
     pub is_searching: bool,
+    /// Cancellation flag for the background search process.
     pub search_cancel: Arc<AtomicBool>,
+    /// Repository and PR bookmarks.
     pub bookmarks: BookmarkStore,
+    /// Active modal dialog sheet.
     pub modal: ActiveModal,
 }
 
 impl RadiologyApp {
+    /// Creates a new [`RadiologyApp`] instance initialized with session defaults.
+    #[must_use]
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let session = SessionStore::load();
         let mut app = Self {
@@ -115,13 +159,13 @@ impl RadiologyApp {
             modal: ActiveModal::None,
         };
 
-        // Automatically open the current directory or last opened repository
         let initial_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         app.open_repository(&initial_dir);
 
         app
     }
 
+    /// Opens the repository located at `path`, discovering files and restoring bookmarks.
     pub fn open_repository(&mut self, path: &Path) {
         let root = RepositoryDiscovery::find_root(path);
         let name = root
@@ -131,10 +175,9 @@ impl RadiologyApp {
             .to_string();
 
         self.repository_root = Some(root.clone());
-        self.repository_name = Some(name.clone());
+        self.repository_name = Some(name);
         self.session.record_repository(root.to_string_lossy());
 
-        // Resolve Git branch
         if let Ok(output) = std::process::Command::new("git")
             .args(["branch", "--show-current"])
             .current_dir(&root)
@@ -148,16 +191,13 @@ impl RadiologyApp {
             }
         }
 
-        // Discover files
         if let Ok(files) = RepositoryDiscovery::discover_files(&root) {
             self.all_files = files;
             self.refresh_file_tree();
         }
 
-        // Load persistent bookmarks for repository
         self.bookmarks = BookmarkStore::load(&root.to_string_lossy(), None);
 
-        // Try loading SCIP index if present (.scip or index.scip)
         for scip_candidate in [root.join("index.scip"), root.join(".scip")] {
             if scip_candidate.exists() {
                 if let Ok(idx) = SemanticIndex::load_file(&scip_candidate) {
@@ -167,7 +207,6 @@ impl RadiologyApp {
             }
         }
 
-        // Open first file if available (e.g. README.md, main.rs, or first source file)
         let first_file = self
             .all_files
             .iter()
@@ -181,11 +220,13 @@ impl RadiologyApp {
         }
     }
 
+    /// Rebuilds the hierarchical file tree applying active filters.
     pub fn refresh_file_tree(&mut self) {
         let filtered = self.session.source_filters.filter_files(&self.all_files);
         self.file_tree = FileNode::build_tree(&filtered);
     }
 
+    /// Reads and displays the file at `rel_path`.
     pub fn open_file(&mut self, rel_path: &str) {
         let Some(root) = &self.repository_root else {
             return;
@@ -198,7 +239,6 @@ impl RadiologyApp {
                 self.caret_line = 1;
                 self.caret_col = 0;
 
-                // Extract syntax outline & folds
                 self.outline_symbols = SymbolExtractor::extract(&buffer);
                 self.fold_ranges = FoldDetector::detect_folds(&buffer);
                 self.fold_store.unfold_all();
@@ -211,6 +251,7 @@ impl RadiologyApp {
         }
     }
 
+    /// Navigates directly to a file, line number, and byte offset.
     pub fn jump_to_location(&mut self, rel_path: &str, line: usize, byte_offset: usize) {
         if self.selected_path.as_deref() != Some(rel_path) {
             self.open_file(rel_path);
@@ -228,6 +269,7 @@ impl RadiologyApp {
         }
     }
 
+    /// Updates semantic caller context for the symbol at the caret.
     pub fn refresh_symbol_context(&mut self) {
         let Some(buf) = &self.open_buffer else {
             return;
@@ -236,7 +278,6 @@ impl RadiologyApp {
             return;
         };
 
-        // Find occurrence at caret
         let line_0 = self.caret_line.saturating_sub(1);
         if let Some(occ) = index.occurrence_at(&buf.path, line_0, self.caret_col) {
             if !occ.symbol.is_empty() {
@@ -245,24 +286,20 @@ impl RadiologyApp {
         }
     }
 
+    /// Handles global keyboard shortcuts.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
-        // Ctrl+K -> Quick File Picker
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::K)) {
             self.modal = ActiveModal::QuickFilePicker(QuickFilePickerModal::default());
         }
-        // Ctrl+L -> Go to Line
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::L)) {
             self.modal = ActiveModal::GoToLine(GoToLineModal::default());
         }
-        // Ctrl+T -> Go to Symbol
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::T)) {
             self.modal = ActiveModal::GoToSymbol(GoToSymbolModal::default());
         }
-        // Ctrl+P -> PR Picker
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::P)) {
             self.modal = ActiveModal::PullRequest(PullRequestModal::default());
         }
-        // Ctrl+D -> Toggle Bookmark
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::D)) {
             if let Some(buf) = &self.open_buffer {
                 let offset = buf.byte_offset(self.caret_line, self.caret_col);
@@ -275,7 +312,6 @@ impl RadiologyApp {
                 }
             }
         }
-        // Ctrl+[ -> Back
         if ctx.input(|i| {
             (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::OpenBracket)
         }) {
@@ -283,7 +319,6 @@ impl RadiologyApp {
                 self.jump_to_location(&loc.path, 1, loc.byte_offset);
             }
         }
-        // Ctrl+] -> Forward
         if ctx.input(|i| {
             (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::CloseBracket)
         }) {
@@ -291,7 +326,6 @@ impl RadiologyApp {
                 self.jump_to_location(&loc.path, 1, loc.byte_offset);
             }
         }
-        // Ctrl+0..9 -> Jump to Bookmark index
         for idx in 0..10 {
             let key = match idx {
                 0 => egui::Key::Num0,
@@ -321,7 +355,6 @@ impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.handle_shortcuts(ctx);
 
-        // Modals
         let mut close_modal = false;
         match &mut self.modal {
             ActiveModal::None => {}
@@ -403,7 +436,6 @@ impl eframe::App for RadiologyApp {
             self.modal = ActiveModal::None;
         }
 
-        // Top Toolbar
         TopBottomPanel::top("top_toolbar").show(ctx, |ui| {
             if let Some(action) = Toolbar::show(
                 ui,
@@ -478,7 +510,6 @@ impl eframe::App for RadiologyApp {
             }
         });
 
-        // Left Sidebar
         SidePanel::left("left_sidebar")
             .resizable(true)
             .default_width(260.0)
@@ -505,14 +536,12 @@ impl eframe::App for RadiologyApp {
                             self.jump_to_location(&m.path, m.line, m.byte_offset);
                         }
                         SidebarAction::StartSearch => {
-                            // Run search in background
                             if let Some(root) = self.repository_root.clone() {
                                 self.is_searching = true;
                                 self.search_matches.clear();
                                 let opts = self.search_options.clone();
                                 let cancel = self.search_cancel.clone();
 
-                                // Synchronous batch for UI
                                 let mut matches = Vec::new();
                                 let _ = tokio::runtime::Builder::new_current_thread()
                                     .enable_all()
@@ -541,7 +570,6 @@ impl eframe::App for RadiologyApp {
                 }
             });
 
-        // Right Sidebar (Context Inspector)
         SidePanel::right("context_inspector")
             .resizable(true)
             .default_width(300.0)
@@ -601,7 +629,6 @@ impl eframe::App for RadiologyApp {
                 }
             });
 
-        // Center Panel (Source View)
         CentralPanel::default().show(ctx, |ui| {
             if let Some(buf) = &self.open_buffer {
                 let syntax_ref = self.highlighter.find_syntax_for_path(&buf.path);

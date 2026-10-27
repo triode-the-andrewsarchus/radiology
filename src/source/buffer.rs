@@ -1,32 +1,75 @@
+//! UTF-8 source text buffer with line-start indexing and coordinate conversion.
+
 use crate::source::location::{ReviewRevision, SourceLocation};
 use std::ops::Range;
 use thiserror::Error;
 
+/// Describes errors that can occur when loading or validating a [`SourceBuffer`].
 #[derive(Error, Debug)]
 pub enum SourceBufferError {
+    /// The file contains null bytes or is not valid UTF-8.
     #[error("File is binary or not valid UTF-8 text")]
     BinaryOrInvalidUtf8,
+    /// An I/O error occurred while reading from disk.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// The file exceeds [`SourceBuffer::MAX_FILE_SIZE`].
     #[error("File exceeds maximum allowed size")]
     TooLarge,
 }
 
-/// UTF-8 source text buffer with indexed line starts and coordinate translations.
-/// Byte offsets are canonical throughout Radiology.
+/// Stores validated UTF-8 text with indexed line starts and coordinate translations.
+///
+/// Byte offsets are canonical across all Radiology subsystems. [`SourceBuffer`]
+/// translates between byte offsets, 1-based line numbers, and 0-based character columns.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::source::SourceBuffer;
+///
+/// let buf = SourceBuffer::from_str("src/lib.rs", "fn hello() {\n    world();\n}\n");
+/// assert_eq!(buf.line_count(), 4);
+/// assert_eq!(buf.line_at_byte(0), 1);
+/// assert_eq!(buf.line_text(1), "fn hello() {");
+/// ```
 #[derive(Debug, Clone)]
 pub struct SourceBuffer {
+    /// Repository-relative file path.
     pub path: String,
+    /// Full UTF-8 document text.
     pub text: String,
+    /// Raw byte representation of [`Self::text`].
     pub data: Vec<u8>,
+    /// Byte offsets of line beginnings; always contains at least index 0.
     pub line_starts: Vec<usize>,
+    /// Pull request review revision, or `None` for standard checkout files.
     pub revision: Option<ReviewRevision>,
 }
 
 impl SourceBuffer {
-    pub const MAX_FILE_SIZE: usize = 16 * 1024 * 1024; // 16 MB limit
+    /// Maximum file size permitted for reading (16 MB).
+    pub const MAX_FILE_SIZE: usize = 16 * 1024 * 1024;
+    /// Maximum line length rendered in inline bookmark anchors.
     pub const DISPLAY_LINE_LIMIT: usize = 2000;
 
+    /// Creates a [`SourceBuffer`] from raw bytes, verifying UTF-8 and size limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceBufferError::TooLarge`] if `bytes` exceeds [`Self::MAX_FILE_SIZE`].
+    /// Returns [`SourceBufferError::BinaryOrInvalidUtf8`] if `bytes` contains null bytes
+    /// or fails UTF-8 decoding.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use radiology::source::SourceBuffer;
+    ///
+    /// let bytes = b"let x = 1;\n".to_vec();
+    /// let buffer = SourceBuffer::from_bytes("test.rs", bytes, None).unwrap();
+    /// assert_eq!(buffer.line_text(1), "let x = 1;");
+    /// ```
     pub fn from_bytes(
         path: impl Into<String>,
         bytes: Vec<u8>,
@@ -57,6 +100,8 @@ impl SourceBuffer {
         })
     }
 
+    /// Creates a [`SourceBuffer`] directly from a valid UTF-8 string slice.
+    #[must_use]
     pub fn from_str(path: impl Into<String>, text: &str) -> Self {
         let bytes = text.as_bytes().to_vec();
         let mut line_starts = vec![0];
@@ -74,32 +119,42 @@ impl SourceBuffer {
         }
     }
 
+    /// Returns the total number of lines in the buffer.
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.line_starts.len()
     }
 
+    /// Returns the total byte length of the buffer.
+    #[must_use]
     pub fn byte_len(&self) -> usize {
         self.data.len()
     }
 
+    /// Returns a [`SourceLocation`] pointing at the given byte offset, clamped to character bounds.
+    #[must_use]
     pub fn location_at_byte(&self, byte: usize) -> SourceLocation {
         SourceLocation::with_revision(&self.path, self.clamp_to_char_boundary(byte), self.revision)
     }
 
+    /// Returns the unique cache position key for this buffer.
+    #[must_use]
     pub fn position_key(&self) -> String {
         SourceLocation::format_position_key(&self.path, self.revision)
     }
 
     /// Returns the 1-based line number containing the given byte offset.
+    #[must_use]
     pub fn line_at_byte(&self, byte_offset: usize) -> usize {
         let clamped = byte_offset.min(self.data.len());
         match self.line_starts.binary_search(&clamped) {
             Ok(idx) => idx + 1,
-            Err(idx) => idx, // line_starts[idx - 1] < clamped < line_starts[idx]
+            Err(idx) => idx,
         }
     }
 
-    /// Returns the 0-based column (in chars) on a 1-based line for the given byte offset.
+    /// Returns the 0-based character column on a 1-based line for the given byte offset.
+    #[must_use]
     pub fn column_at_byte(&self, byte_offset: usize) -> usize {
         let line = self.line_at_byte(byte_offset);
         let start = self.line_starts[line - 1];
@@ -111,7 +166,8 @@ impl SourceBuffer {
         line_prefix.chars().count()
     }
 
-    /// Converts 1-based line and 0-based char column into a byte offset.
+    /// Converts a 1-based line number and 0-based character column into a canonical byte offset.
+    #[must_use]
     pub fn byte_offset(&self, line: usize, column: usize) -> usize {
         if self.line_starts.is_empty() {
             return 0;
@@ -137,7 +193,8 @@ impl SourceBuffer {
         line_end
     }
 
-    /// Byte range for a 1-based line (excluding trailing newline).
+    /// Returns the byte range of a 1-based line, excluding trailing `\n` or `\r\n`.
+    #[must_use]
     pub fn line_byte_range(&self, line: usize) -> Range<usize> {
         if line == 0 || line > self.line_starts.len() {
             return 0..0;
@@ -160,13 +217,15 @@ impl SourceBuffer {
         start..end
     }
 
-    /// Returns the text slice of a 1-based line (trimmed of trailing newline/CR).
+    /// Returns the text slice of a 1-based line, stripped of trailing newline characters.
+    #[must_use]
     pub fn line_text(&self, line: usize) -> &str {
         let range = self.line_byte_range(line);
         &self.text[range]
     }
 
     /// Clamps an arbitrary byte offset to a valid UTF-8 character boundary.
+    #[must_use]
     pub fn clamp_to_char_boundary(&self, mut byte: usize) -> usize {
         if byte >= self.text.len() {
             return self.text.len();
@@ -195,7 +254,7 @@ mod tests {
     fn test_lines_and_coordinates() {
         let text = "alpha\nbravo\r\ncharlie\n";
         let buf = SourceBuffer::from_str("test.txt", text);
-        assert_eq!(buf.line_count(), 4); // ["alpha\n", "bravo\r\n", "charlie\n", ""]
+        assert_eq!(buf.line_count(), 4);
 
         assert_eq!(buf.line_at_byte(0), 1);
         assert_eq!(buf.line_text(1), "alpha");
@@ -220,7 +279,6 @@ mod tests {
         let crab_start = 6;
         assert_eq!(buf.clamp_to_char_boundary(crab_start + 1), crab_start);
         assert_eq!(buf.column_at_byte(crab_start), 6);
-        // After the 4-byte crab:
         let after_crab = crab_start + 4;
         assert_eq!(buf.column_at_byte(after_crab), 7);
     }

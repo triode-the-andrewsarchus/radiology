@@ -1,3 +1,8 @@
+//! Left sidebar pane containing repository file trees, pull request changes, and search results.
+//!
+//! Provides tabs for navigating the hierarchical file tree, viewing pull request modified
+//! files with Git status badges, and performing ripgrep-powered repository-wide text searches.
+
 use crate::pull_request::change::FileChange;
 use crate::repository::file_node::FileNode;
 use crate::search::match_item::SearchMatch;
@@ -6,24 +11,49 @@ use crate::theme::AppTheme;
 use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
 use std::collections::HashSet;
 
+/// Active tab shown in the left [`Sidebar`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SidebarTab {
+    /// Full repository directory tree view.
     #[default]
     Files,
+    /// List of modified files from the active pull request diff.
     Changes,
+    /// Streaming ripgrep search results.
     Search,
 }
 
+/// User interactions and navigation events produced by the [`Sidebar`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SidebarAction {
+    /// Requests opening the file at the specified repository-relative path.
     OpenFile(String),
+    /// Requests opening a file and navigating to the specific line/column of a search hit.
     OpenSearchMatch(SearchMatch),
+    /// Triggers execution of a text search with current query and options.
     StartSearch,
+    /// Clears active search query and results list.
     ClearSearch,
 }
 
+/// Renders the collapsible left sidebar panel in the Radiology desktop UI.
 pub struct Sidebar;
 
 impl Sidebar {
+    /// Renders the sidebar tabs, file tree, changed files, and ripgrep search controls.
+    ///
+    /// # Arguments
+    ///
+    /// * `ui` - EGUI UI layout context.
+    /// * `theme` - Visual color palette.
+    /// * `active_tab` - Mutable reference to the currently selected sidebar tab.
+    /// * `file_tree` - Hierarchical file tree nodes discovered in the repository.
+    /// * `expanded_dirs` - Set of directory paths currently expanded by the user.
+    /// * `selected_path` - Path of the currently focused source file, if any.
+    /// * `pr_changes` - List of modified files in the active pull request review.
+    /// * `search_options` - Mutable search query and regex/case options.
+    /// * `search_matches` - Matches found from previous search execution.
+    /// * `is_searching` - Whether a ripgrep background process is currently streaming hits.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -171,7 +201,9 @@ impl Sidebar {
                                         ui.horizontal(|ui| {
                                             ui.colored_label(
                                                 theme.accent,
-                                                RichText::new(format!("{}:{}", m.path, m.line)).monospace().strong(),
+                                                RichText::new(format!("{}:{}", m.path, m.line))
+                                                    .monospace()
+                                                    .strong(),
                                             );
                                         });
                                         ui.label(
@@ -195,6 +227,7 @@ impl Sidebar {
         action
     }
 
+    /// Recursively renders a single tree node (directory or file).
     fn render_tree_node(
         ui: &mut Ui,
         theme: &AppTheme,

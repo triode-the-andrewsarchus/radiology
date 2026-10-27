@@ -1,3 +1,5 @@
+//! Asynchronous ripgrep process execution and options management.
+
 use crate::search::match_item::SearchMatch;
 use std::path::Path;
 use std::process::Stdio;
@@ -7,28 +9,54 @@ use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+/// Maximum number of search matches collected per query to prevent runaway resource consumption.
 pub const SEARCH_RESULT_LIMIT: usize = 5000;
 
+/// Describes errors encountered during search execution.
 #[derive(Error, Debug)]
 pub enum SearchError {
+    /// The `rg` executable was not found in `PATH`.
     #[error("ripgrep (rg) was not found in PATH")]
     NotFound,
+    /// Ripgrep terminated with an unexpected non-zero exit code.
     #[error("Search execution failed: {0}")]
     Process(String),
+    /// An I/O error occurred while interacting with the process pipes.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
 
+/// Options and filter parameters for a repository search.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::search::ripgrep::SearchOptions;
+///
+/// let mut opts = SearchOptions::default();
+/// opts.query = "SourceBuffer".to_string();
+/// opts.case_sensitive = true;
+///
+/// let args = opts.build_arguments();
+/// assert!(args.contains(&"--case-sensitive".to_string()));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SearchOptions {
+    /// Text or regular expression query string.
     pub query: String,
+    /// Whether `query` should be treated as a regular expression.
     pub is_regex: bool,
+    /// Whether searches should match case exactly.
     pub case_sensitive: bool,
+    /// Optional file inclusion glob pattern (e.g. `"*.rs"`).
     pub include_glob: String,
+    /// Optional file exclusion glob pattern (e.g. `"*.min.js"`).
     pub exclude_glob: String,
 }
 
 impl SearchOptions {
+    /// Constructs the command-line argument list passed to `rg`.
+    #[must_use]
     pub fn build_arguments(&self) -> Vec<String> {
         let mut args = vec![
             "--json".to_string(),
@@ -81,9 +109,18 @@ impl SearchOptions {
     }
 }
 
+/// Runs asynchronous ripgrep streaming searches.
 pub struct SearchRunner;
 
 impl SearchRunner {
+    /// Executes a search within `root`, streaming batches of [`SearchMatch`] into `on_batch`.
+    ///
+    /// Returns `true` if search was capped at [`SEARCH_RESULT_LIMIT`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchError::NotFound`] if `rg` is not installed.
+    /// Returns [`SearchError::Process`] if `rg` terminates with an unexpected error status.
     pub async fn search(
         root: &Path,
         options: &SearchOptions,
@@ -146,7 +183,6 @@ impl SearchRunner {
         }
 
         let status = child.wait().await?;
-        // Exit code 0 means matches found, 1 means no matches found (both normal for ripgrep)
         if !limited
             && !cancel.load(Ordering::Relaxed)
             && !matches!(status.code(), Some(0) | Some(1))

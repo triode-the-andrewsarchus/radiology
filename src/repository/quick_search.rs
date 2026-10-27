@@ -1,16 +1,43 @@
+//! Fuzzy file searcher based on ordered subsequence matching with ergonomic scoring.
+
 use crate::repository::file_node::RepositoryFile;
 
+/// Represents a single search match result from [`QuickFileSearch`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuickSearchResult {
+    /// Matched file metadata.
     pub file: RepositoryFile,
+    /// Computed match score, where higher values indicate stronger relevance.
     pub score: i64,
+    /// Character indices within the file path that matched the search query.
     pub matched_indices: Vec<usize>,
 }
 
-/// Fuzzy file searcher based on ordered subsequence matching with ergonomic scoring.
+/// Provides fuzzy subsequence matching for fast file navigation (Ctrl+K).
+///
+/// Matches are scored with bonuses for:
+/// - Matching within the filename component rather than directory prefix
+/// - Consecutive character sequences
+/// - Word boundaries (after `/`, `_`, `-`, `.`) and CamelCase boundaries
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::file_node::RepositoryFile;
+/// use radiology::repository::quick_search::QuickFileSearch;
+///
+/// let files = vec![
+///     RepositoryFile::new("src/main.rs"),
+///     RepositoryFile::new("engine-foo.rs"),
+/// ];
+/// let results = QuickFileSearch::search(&files, "engrs", 10);
+/// assert_eq!(results[0].file.path, "engine-foo.rs");
+/// ```
 pub struct QuickFileSearch;
 
 impl QuickFileSearch {
+    /// Searches `files` for the ordered subsequence `query`, returning up to `limit` sorted results.
+    #[must_use]
     pub fn search(files: &[RepositoryFile], query: &str, limit: usize) -> Vec<QuickSearchResult> {
         let query = query.trim();
         if query.is_empty() {
@@ -40,7 +67,6 @@ impl QuickFileSearch {
             }
         }
 
-        // Sort descending by score, then ascending by path length, then alphabetical
         results.sort_by(|a, b| {
             b.score
                 .cmp(&a.score)
@@ -56,7 +82,7 @@ impl QuickFileSearch {
         let path_chars: Vec<char> = path.chars().collect();
         let path_lower: Vec<char> = path.to_lowercase().chars().collect();
 
-        let filename_start = path.rfind('/').map(|i| i + 1).unwrap_or(0);
+        let filename_start = path.rfind('/').map_or(0, |i| i + 1);
         let mut matched_indices = Vec::with_capacity(query.len());
 
         let mut query_idx = 0;
@@ -67,29 +93,23 @@ impl QuickFileSearch {
             if query_idx < query.len() && ch == query[query_idx] {
                 matched_indices.push(idx);
 
-                // Base match score
                 let mut match_score = 10;
 
-                // Bonus for matching within the filename rather than directory
                 if idx >= filename_start {
                     match_score += 15;
                 }
 
-                // Bonus for match at start of filename or string
                 if idx == 0 || idx == filename_start {
                     match_score += 30;
                 } else {
-                    // Boundary bonus (after '/', '_', '-', '.')
                     let prev_ch = path_chars[idx - 1];
                     if prev_ch == '/' || prev_ch == '_' || prev_ch == '-' || prev_ch == '.' {
                         match_score += 20;
                     } else if prev_ch.is_lowercase() && path_chars[idx].is_uppercase() {
-                        // CamelCase boundary bonus
                         match_score += 15;
                     }
                 }
 
-                // Consecutive match bonus
                 if let Some(prev) = prev_match_idx {
                     if idx == prev + 1 {
                         match_score += 25;
@@ -103,7 +123,6 @@ impl QuickFileSearch {
         }
 
         if query_idx == query.len() {
-            // Slight penalty for longer paths to prefer concise matches
             score -= (path.len() as i64) / 4;
             Some((score, matched_indices))
         } else {
@@ -125,12 +144,10 @@ mod tests {
             RepositoryFile::new("engine-foo.rs"),
         ];
 
-        // "engrs" should match "engine-foo.rs"
         let matches = QuickFileSearch::search(&files, "engrs", 10);
         assert!(!matches.is_empty());
         assert_eq!(matches[0].file.path, "engine-foo.rs");
 
-        // "buf" should match "src/source/buffer.rs"
         let buf_matches = QuickFileSearch::search(&files, "buf", 10);
         assert_eq!(buf_matches[0].file.path, "src/source/buffer.rs");
     }

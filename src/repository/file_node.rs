@@ -1,15 +1,32 @@
+//! Hierarchical file tree structure and repository file metadata.
+
 use crate::repository::classifier::{SourceFileClassifier, TestPathClassifier};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Stores metadata for a single repository file.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::file_node::RepositoryFile;
+///
+/// let file = RepositoryFile::new("src/main.rs");
+/// assert!(file.is_source);
+/// assert!(!file.is_test);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RepositoryFile {
+    /// Repository-relative file path.
     pub path: String,
+    /// Whether this file contains source code or configuration.
     pub is_source: bool,
+    /// Whether this file represents a test or test fixture.
     pub is_test: bool,
 }
 
 impl RepositoryFile {
+    /// Creates a [`RepositoryFile`], automatically classifying whether it is source or test code.
     pub fn new(path: impl Into<String>) -> Self {
         let path = path.into();
         let is_source = SourceFileClassifier::is_source_file(&path);
@@ -22,17 +39,37 @@ impl RepositoryFile {
     }
 }
 
-/// A node in the hierarchical repository file tree (directory or file).
+/// Represents a directory or leaf file node in the repository tree hierarchy.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::file_node::{FileNode, RepositoryFile};
+///
+/// let files = vec![
+///     RepositoryFile::new("src/main.rs"),
+///     RepositoryFile::new("Cargo.toml"),
+/// ];
+/// let tree = FileNode::build_tree(&files);
+/// assert_eq!(tree.len(), 2);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileNode {
+    /// Directory or file basename.
     pub name: String,
+    /// Repository-relative path to this node.
     pub path: String,
+    /// `true` if this node represents a directory.
     pub is_directory: bool,
+    /// Child directory and file nodes.
     pub children: Vec<FileNode>,
+    /// Associated [`RepositoryFile`] metadata if this is a leaf file.
     pub file: Option<RepositoryFile>,
 }
 
 impl FileNode {
+    /// Creates a leaf file node.
+    #[must_use]
     pub fn new_file(file: RepositoryFile) -> Self {
         let name = file
             .path
@@ -49,6 +86,7 @@ impl FileNode {
         }
     }
 
+    /// Creates a directory node.
     pub fn new_dir(name: impl Into<String>, path: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -59,10 +97,11 @@ impl FileNode {
         }
     }
 
-    /// Builds a sorted tree hierarchy from a slice of files.
-    /// Directories appear first, ordered alphabetically. Files follow, ordered alphabetically.
+    /// Builds a sorted tree hierarchy from a slice of [`RepositoryFile`] records.
+    ///
+    /// Directories appear first in alphabetical order, followed by files in alphabetical order.
+    #[must_use]
     pub fn build_tree(files: &[RepositoryFile]) -> Vec<FileNode> {
-        // Internal builder tree representation
         enum NodeItem {
             File(RepositoryFile),
             Dir(BTreeMap<String, NodeItem>),
@@ -88,7 +127,7 @@ impl FileNode {
                         NodeItem::Dir(sub) => {
                             current = sub;
                         }
-                        NodeItem::File(_) => break, // unexpected conflict
+                        NodeItem::File(_) => break,
                     }
                 }
             }
@@ -125,7 +164,8 @@ impl FileNode {
         convert_map(root_dirs, "")
     }
 
-    /// Recursively counts all files within this node.
+    /// Recursively counts all files within this node and its descendants.
+    #[must_use]
     pub fn file_count(&self) -> usize {
         if !self.is_directory {
             1
@@ -149,10 +189,10 @@ mod tests {
         ];
 
         let tree = FileNode::build_tree(&files);
-        assert_eq!(tree.len(), 3); // src/ (dir), Cargo.toml, README.md
+        assert_eq!(tree.len(), 3);
         assert_eq!(tree[0].name, "src");
         assert!(tree[0].is_directory);
-        assert_eq!(tree[0].children.len(), 2); // source/ (dir), main.rs
+        assert_eq!(tree[0].children.len(), 2);
         assert_eq!(tree[1].name, "Cargo.toml");
         assert_eq!(tree[2].name, "README.md");
     }

@@ -1,3 +1,11 @@
+//! Repository discovery, file classification, hierarchical file trees, and fuzzy searching.
+//!
+//! [`RepositoryDiscovery`] enumerates files using `git ls-files` with NUL delimiters when
+//! available, falling back to directory traversal with standard exclusions (`.git`, `target`,
+//! `node_modules`, etc.). Files are classified by [`SourceFileClassifier`] and [`TestPathClassifier`],
+//! structured into a navigable [`FileNode`] hierarchy, filtered by [`SourceFilters`], and searched
+//! via [`QuickFileSearch`] using ordered subsequence fuzzy matching.
+
 pub mod classifier;
 pub mod discovery;
 pub mod file_node;

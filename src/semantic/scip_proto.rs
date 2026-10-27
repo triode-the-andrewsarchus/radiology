@@ -1,26 +1,43 @@
+//! Protocol Buffers wire-format reader and SCIP wire schema models.
+
 use thiserror::Error;
 
+/// Describes errors encountered while reading Protocol Buffers wire format.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ProtobufError {
+    /// Data buffer ended prematurely.
     #[error("Truncated protobuf data")]
     Truncated,
+    /// Encoded varint exceeded 64 bits.
     #[error("Malformed varint")]
     MalformedVarint,
+    /// Wire type is unrecognized.
     #[error("Unsupported wire type: {0}")]
     UnsupportedWireType(u8),
+    /// String payload was not valid UTF-8.
     #[error("Invalid UTF-8 string")]
     InvalidUtf8,
 }
 
+/// Protobuf wire types supported by the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WireType {
+    /// Varint: int32, int64, uint32, bool, enum.
     Varint = 0,
+    /// 64-bit: fixed64, sfixed64, double.
     Fixed64 = 1,
+    /// Length-delimited: string, bytes, embedded messages, packed repeated fields.
     LengthDelimited = 2,
+    /// 32-bit: fixed32, sfixed32, float.
     Fixed32 = 5,
 }
 
 impl WireType {
+    /// Converts a raw 3-bit wire type integer into [`WireType`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError::UnsupportedWireType`] if `val` is not a known wire type.
     pub fn from_u8(val: u8) -> Result<Self, ProtobufError> {
         match val {
             0 => Ok(Self::Varint),
@@ -32,20 +49,30 @@ impl WireType {
     }
 }
 
+/// A minimal zero-dependency Protocol Buffers reader for decoding SCIP indexes.
 pub struct ProtobufReader<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
 impl<'a> ProtobufReader<'a> {
+    /// Creates a reader over the given byte slice.
+    #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
         Self { data, offset: 0 }
     }
 
+    /// Returns `true` if all bytes have been consumed.
+    #[must_use]
     pub fn is_at_end(&self) -> bool {
         self.offset >= self.data.len()
     }
 
+    /// Reads the next field tag number and associated [`WireType`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if reading fails.
     pub fn read_tag(&mut self) -> Result<Option<(u32, WireType)>, ProtobufError> {
         if self.is_at_end() {
             return Ok(None);
@@ -57,6 +84,12 @@ impl<'a> ProtobufReader<'a> {
         Ok(Some((field, wire)))
     }
 
+    /// Reads a variable-length integer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError::Truncated`] if the stream ends before the varint terminates.
+    /// Returns [`ProtobufError::MalformedVarint`] if shift exceeds 64 bits.
     pub fn read_varint(&mut self) -> Result<u64, ProtobufError> {
         let mut result = 0u64;
         let mut shift = 0u32;
@@ -75,10 +108,20 @@ impl<'a> ProtobufReader<'a> {
         Err(ProtobufError::Truncated)
     }
 
+    /// Reads a 32-bit signed integer encoded as a varint.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if reading the varint fails.
     pub fn read_int32(&mut self) -> Result<i32, ProtobufError> {
         Ok(self.read_varint()? as i32)
     }
 
+    /// Reads a length-delimited byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError::Truncated`] if the slice length extends beyond available data.
     pub fn read_length_delimited(&mut self) -> Result<&'a [u8], ProtobufError> {
         let len = self.read_varint()? as usize;
         if self.offset + len > self.data.len() {
@@ -89,11 +132,21 @@ impl<'a> ProtobufReader<'a> {
         Ok(slice)
     }
 
+    /// Reads a length-delimited UTF-8 string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError::InvalidUtf8`] if bytes are not valid UTF-8.
     pub fn read_string(&mut self) -> Result<String, ProtobufError> {
         let bytes = self.read_length_delimited()?;
         String::from_utf8(bytes.to_vec()).map_err(|_| ProtobufError::InvalidUtf8)
     }
 
+    /// Reads packed repeated 32-bit integer values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if payload fails decoding.
     pub fn read_packed_int32(&mut self) -> Result<Vec<i32>, ProtobufError> {
         let bytes = self.read_length_delimited()?;
         let mut reader = ProtobufReader::new(bytes);
@@ -104,6 +157,11 @@ impl<'a> ProtobufReader<'a> {
         Ok(out)
     }
 
+    /// Skips over an unhandled field matching `wire`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if the field extends past the end of data.
     pub fn skip_field(&mut self, wire: WireType) -> Result<(), ProtobufError> {
         match wire {
             WireType::Varint => {
@@ -133,30 +191,44 @@ impl<'a> ProtobufReader<'a> {
     }
 }
 
-// SCIP schema models
+/// Decoded top-level SCIP index representation.
 #[derive(Debug, Clone, Default)]
 pub struct ScipIndex {
+    /// Documents contained in the index.
     pub documents: Vec<ScipDocument>,
+    /// External package symbol metadata.
     pub external_symbols: Vec<ScipSymbolInformation>,
 }
 
+/// Decoded SCIP document with occurrences and symbols.
 #[derive(Debug, Clone, Default)]
 pub struct ScipDocument {
+    /// Repository-relative path of the indexed file.
     pub relative_path: String,
+    /// Language identifier reported by the indexer.
     pub language: String,
+    /// Occurrences found within the document.
     pub occurrences: Vec<ScipOccurrence>,
+    /// Defined symbols within this document.
     pub symbols: Vec<ScipSymbolInformation>,
 }
 
+/// Half-open character coordinate range `[start_line:start_col, end_line:end_col)`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ScipRange {
+    /// Zero-based starting line.
     pub start_line: i32,
+    /// Zero-based starting character column.
     pub start_col: i32,
+    /// Zero-based ending line.
     pub end_line: i32,
+    /// Zero-based ending character column.
     pub end_col: i32,
 }
 
 impl ScipRange {
+    /// Decodes a packed integer range array (3 or 4 elements).
+    #[must_use]
     pub fn from_packed(vals: &[i32]) -> Option<Self> {
         match vals.len() {
             3 => Some(Self {
@@ -176,33 +248,53 @@ impl ScipRange {
     }
 }
 
+/// Bitflag indicating a symbol definition occurrence.
 pub const SCIP_ROLE_DEFINITION: i32 = 1 << 0;
+/// Bitflag indicating an import occurrence.
 pub const SCIP_ROLE_IMPORT: i32 = 1 << 1;
+/// Bitflag indicating a write access occurrence.
 pub const SCIP_ROLE_WRITE: i32 = 1 << 2;
+/// Bitflag indicating a read access occurrence.
 pub const SCIP_ROLE_READ: i32 = 1 << 3;
 
+/// An occurrence of a symbol at a specific range in a document.
 #[derive(Debug, Clone, Default)]
 pub struct ScipOccurrence {
+    /// Source coordinate range.
     pub range: Option<ScipRange>,
+    /// SCIP symbol string.
     pub symbol: String,
+    /// Symbol role bitflags.
     pub symbol_roles: i32,
+    /// Enclosing declaration range if provided.
     pub enclosing_range: Option<ScipRange>,
 }
 
 impl ScipOccurrence {
+    /// Returns `true` if this occurrence defines the symbol.
+    #[must_use]
     pub fn is_definition(&self) -> bool {
         (self.symbol_roles & SCIP_ROLE_DEFINITION) != 0
     }
 }
 
+/// Metadata and documentation for a semantic symbol.
 #[derive(Debug, Clone, Default)]
 pub struct ScipSymbolInformation {
+    /// Unique SCIP symbol string identifier.
     pub symbol: String,
+    /// Documentation comments associated with the symbol.
     pub documentation: Vec<String>,
+    /// Short display name for tooltips and outlines.
     pub display_name: String,
 }
 
 impl ScipIndex {
+    /// Decodes a [`ScipIndex`] from raw protobuf wire bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if decoding fails.
     pub fn decode(bytes: &[u8]) -> Result<Self, ProtobufError> {
         let mut reader = ProtobufReader::new(bytes);
         let mut index = ScipIndex::default();
@@ -309,7 +401,6 @@ mod tests {
 
     #[test]
     fn test_protobuf_varint() {
-        // Varint 300 = 0xAC 0x02
         let data = [0xAC, 0x02];
         let mut reader = ProtobufReader::new(&data);
         assert_eq!(reader.read_varint().unwrap(), 300);
