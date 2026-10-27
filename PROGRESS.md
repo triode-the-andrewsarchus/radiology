@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-27 — Rust & EGUI Linux Native Rewrite initiated (Antigravity)
+
+Created branch `rust-egui-port` to rewrite Radiology from Swift/macOS to a native
+Linux application using Rust and EGUI (`eframe` 0.27 / `egui` 0.27). Designed
+standalone architecture and parity ledger in `plans/rust-egui-linux-port.md`,
+preserving all core repository exploration features: fast git discovery,
+filtering, fuzzy file jump, multi-language syntax highlighting, AST outline and
+folding, streaming ripgrep search, zero-copy SCIP protobuf decoding, call tree
+with deterministic FNV-1a 12-color caller identity pills, persistent bookmarks,
+and GitHub PR review with Before/After unified diffs. Compatible with future
+integration into `~/little-screen-clip`. Master `PLAN.md` updated.
+
 ## 2026-10-11 — Published all reader work and merged to main (Codex)
 
 User authorized pushing all accumulated work to GitHub. Confirmed authenticated
