@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-27 — RFC 1574 Documentation Formatting & Doctests Completed (Antigravity)
+
+Applied strict RFC 1574 Appendix A documentation styling across all 45 crate modules,
+data structures, algorithms, and UI views in `src/`:
+- Every public type, method, function, and module features third-person present tense
+  summary doc comments, detailed markdown explanations, intra-doc links, and `# Examples`
+  or `# Arguments` sections.
+- 28 doctests implemented and passing (`cargo test --doc`).
+- Verified zero broken intra-doc links or rustdoc warnings via `cargo doc --no-deps`.
+- `cargo fmt --all -- --check` and `cargo clippy --all-targets` clean with zero warnings.
+- All 26 unit tests continue to pass (`cargo test`).
+- Changes committed to `rust-egui-port`.
+
 ## 2026-10-27 — Rust & EGUI Linux Native Rewrite complete (Antigravity)
 
 Completed full rewrite of Radiology from Swift/macOS to a standalone, native
