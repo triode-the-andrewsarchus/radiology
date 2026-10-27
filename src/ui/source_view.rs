@@ -208,8 +208,9 @@ impl SourceView {
                 .unwrap_or_default();
 
             let max_chars = buffer.max_line_len();
-            let full_code_width = (max_chars as f32 * char_width + Self::GUTTER_WIDTH + 64.0)
-                .max(ui.available_width());
+            let full_code_width =
+                (max_chars as f32 * char_width * 1.1 + Self::GUTTER_WIDTH + 120.0)
+                    .max(ui.available_width());
             let row_width = if wrap_lines {
                 ui.available_width()
             } else {
@@ -222,8 +223,11 @@ impl SourceView {
                 .show_rows(ui, row_height, total_rows, |ui, row_range| {
                     ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                    // Strict clip rect intersecting with CentralPanel's max bounds
-                    let viewport_clip = ui.clip_rect().intersect(ui.max_rect());
+                    // Viewport clip rect: fixed viewport bounds of the scroll area in screen coordinates.
+                    // Note: do NOT intersect with ui.max_rect(), because in a scrolling child UI,
+                    // max_rect translates horizontally with scroll offset (-state.offset.x), which would
+                    // artificially shrink the clip rect and leave a blank unrendered area when scrolling right.
+                    let viewport_clip = ui.clip_rect();
 
                     // Fill contiguous gutter column once (prevents per-row box artifacts)
                     let gutter_painter = ui.painter().with_clip_rect(viewport_clip);
