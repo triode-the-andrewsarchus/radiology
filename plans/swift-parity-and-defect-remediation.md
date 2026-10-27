@@ -36,11 +36,13 @@ Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`,
 - **Code Folds & Test Region Detector:**
   - Fixed fold deduplication to preserve outer enclosing folds when multiple syntax blocks share `start_line`.
   - Created `TestRegionDetector` discovering test modules across Rust (`#[cfg(test)]`, `#[test]`, `#[tokio::test]`), Python (`def test_*`, `class Test*`), and JavaScript/TypeScript (`describe`, `test`, `it`).
-- **Virtualized SourceView:**
+- **Virtualized SourceView & Typography Remediation:**
   - Implemented viewport virtualization: only visible line rows inside the clip rectangle are formatted and drawn.
   - Character column calculations from X coordinate clicks now account for font character metrics.
   - Arrow key navigation skips over collapsed folded line spans.
   - Occurrence pin indicators render cleanly on both the gutter and inline source tokens.
+  - Fixed Line 1 ascender clipping by increasing row height to 22.0 px (`Theme.sourceLineHeight: 22`), centering text relative to row top rather than vertical galley midpoint, and adding 4px vertical clearance to `code_clip_rect.min.y`.
+  - Eliminated gutter box/cell artifacts by setting `ui.spacing_mut().item_spacing = Vec2::ZERO` and painting a unified background column and continuous vertical divider.
 
 ### Subsystem 3: SCIP Protobuf, Semantics, Caller Trees & Modals
 - **SCIP Protobuf Wire Decoding:**

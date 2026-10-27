@@ -1,6 +1,27 @@
 # Progress
 
-## 2026-10-27 — macOS High-Fidelity Visual Parity Alignment (Antigravity)
+## 2026-10-27 — Line Rendering & Gutter Alignment Remediation (Antigravity)
+
+Resolved line rendering alignment defects when opening files such as `AGENTS.md`:
+- **Line 1 Ascender Clipping Remediation:**
+  - Increased `row_height` from 20.0 to 22.0 px matching macOS Swift `Theme.sourceLineHeight: 22`.
+  - Replaced center-offset text positioning (`span_pos - Vec2::new(0.0, galley.size().y / 2.0)`) with baseline/top-relative row centering: `text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0)`.
+  - Added 4px vertical clearance to `code_clip_rect.min.y` (`viewport_clip.min.y - 4.0`), preventing font ascenders on Line 1 from being truncated by viewport scissors.
+- **Gutter Row Box Artifact Elimination:**
+  - Identified cause of table-like cell borders in gutter: individual rows were allocated with non-zero vertical item spacing (`item_spacing.y = 4.0`), leaving unpainted gaps where panel fill showed through, coupled with per-row line strokes.
+  - Set `ui.spacing_mut().item_spacing = Vec2::ZERO;` in `ScrollArea::show_rows` to guarantee strictly contiguous row layouts.
+  - Replaced fragmented per-row gutter fills and border strokes with a single contiguous gutter column background fill (`gutter_column.rect_filled`) and a single continuous hairline right divider (`gutter_column.line_segment`).
+  - Configured `CentralPanel` frame with `Frame::none().fill(theme.bg_base).inner_margin(0.0)` to ensure seamless, clean canvas background matching macOS Xcode/Radiology light and dark modes.
+- **Dynamic Monospace Metrics & Horizontal Offset:**
+  - Dynamically resolved character width from font glyph metrics (`ui.fonts(|f| f.glyph_width(&font_id, ' '))`).
+  - Padded code text start by 12.0 px (`Theme.sourceInset = 12`) to prevent initial characters from colliding with the active caret bar.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Verified 0 emojis in `src/`.
+  - Swift code preserved intact.
 
 Refined the Rust + EGUI UI to closely match the original macOS Swift screenshot:
 - **Light Theme Palette Tuning:**

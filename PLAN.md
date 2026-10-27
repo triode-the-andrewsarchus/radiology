@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Line Rendering & Gutter Alignment Remediation (2026-10-27):**
+Resolved line rendering alignment defects when opening files such as `AGENTS.md`:
+- Line 1 Ascender Clipping: Increased `row_height` to 22.0 px (`Theme.sourceLineHeight: 22`). Replaced center-offset text positioning with baseline/top-relative row centering (`text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0)`). Added 4px vertical clearance to `code_clip_rect.min.y` to eliminate top scissor clipping.
+- Gutter Row Box Artifacts: Fixed fragmented gutter cells by zeroing item spacing (`ui.spacing_mut().item_spacing = Vec2::ZERO`) inside `ScrollArea::show_rows` and rendering a single contiguous gutter column background fill and single continuous hairline right divider. Applied seamless canvas frame to `CentralPanel`.
+- Dynamic Font Metrics: Monospace character width is measured dynamically via font metrics. Code text leading inset matches `Theme.sourceInset = 12`.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **macOS High-Fidelity Visual Parity Alignment (2026-10-27):**
 Aligned the Rust + EGUI interface directly against the original macOS Swift screenshot:
 - Theme Palette: Light mode refined to crisp `#FFFFFF` editor & gutter surfaces, `#F6F6F8` macOS sidebar,

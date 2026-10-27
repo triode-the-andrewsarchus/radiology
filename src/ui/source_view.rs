@@ -89,7 +89,9 @@ impl SourceView {
 
         ui.vertical(|ui| {
             // Header / Breadcrumbs Bar
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
+                ui.add_space(10.0);
                 ui.spacing_mut().item_spacing.x = 6.0;
 
                 // Path breadcrumbs
@@ -191,8 +193,9 @@ impl SourceView {
 
             // Central Code Area with Gutter
             let available_height = (ui.available_height() - 28.0).max(100.0);
-            let row_height = 20.0;
-            let char_width = 8.5;
+            let row_height = 22.0; // matching macOS Swift Theme.sourceLineHeight: 22
+            let font_id = TextStyle::Monospace.resolve(ui.style());
+            let char_width = ui.fonts(|f| f.glyph_width(&font_id, ' ')).max(7.0);
 
             // Build visible line numbers skipping collapsed folds
             let visible_lines: Vec<usize> = (1..=buffer.line_count())
@@ -217,15 +220,28 @@ impl SourceView {
                 .auto_shrink([false, false])
                 .max_height(available_height)
                 .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                    // Strict clip rect intersecting with CentralPanel's max bounds
-                    // This mathematically guarantees no drawing overflows into the right inspector
-                    let viewport_clip = ui.clip_rect().intersect(ui.max_rect());
-                    let gutter_painter = ui.painter().with_clip_rect(viewport_clip);
+                    ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                    // Code clip rect: area to the right of the pinned gutter up to the viewport edge
+                    // Strict clip rect intersecting with CentralPanel's max bounds
+                    let viewport_clip = ui.clip_rect().intersect(ui.max_rect());
+
+                    // Fill contiguous gutter column once (prevents per-row box artifacts)
+                    let gutter_painter = ui.painter().with_clip_rect(viewport_clip);
+                    let gutter_column = Rect::from_min_size(
+                        pos2(viewport_clip.min.x, viewport_clip.min.y),
+                        Vec2::new(Self::GUTTER_WIDTH, viewport_clip.height()),
+                    );
+                    gutter_painter.rect_filled(gutter_column, 0.0, theme.bg_gutter);
+                    gutter_painter.line_segment(
+                        [gutter_column.right_top(), gutter_column.right_bottom()],
+                        Stroke::new(1.0, theme.border),
+                    );
+
+                    // Code clip rect: area to the right of the pinned gutter up to the viewport edge.
+                    // Include 4px vertical clearance above viewport_clip.min.y to prevent clipping font ascenders on Line 1.
                     let code_clip_min_x = viewport_clip.min.x + Self::GUTTER_WIDTH;
                     let code_clip_rect = Rect::from_min_max(
-                        pos2(code_clip_min_x, viewport_clip.min.y),
+                        pos2(code_clip_min_x, viewport_clip.min.y - 4.0),
                         viewport_clip.max,
                     );
                     let code_painter = ui.painter().with_clip_rect(code_clip_rect);
@@ -248,7 +264,6 @@ impl SourceView {
                             pos2(viewport_clip.min.x, rect.min.y),
                             Vec2::new(Self::GUTTER_WIDTH, row_height),
                         );
-                        gutter_painter.rect_filled(gutter_rect, 0.0, theme.bg_gutter);
 
                         // Fold Chevron / Count Badge in Gutter
                         let mut chevron_clicked = false;
@@ -314,8 +329,8 @@ impl SourceView {
                         // Background highlighting for active caret line (clipped to code area)
                         if is_caret_line {
                             code_painter.rect_filled(rect, 0.0, theme.bg_active_line);
-                            // 2.5px vertical accent bar on the left edge of the code line (line 564 in screenshot)
-                            let bar_x = rect.min.x + Self::GUTTER_WIDTH + 1.0;
+                            // 2.5px vertical accent bar on the left edge of the code line (matching Swift reference)
+                            let bar_x = rect.min.x + Self::GUTTER_WIDTH + 2.0;
                             let bar_rect = Rect::from_min_size(
                                 pos2(bar_x, rect.min.y + 2.0),
                                 Vec2::new(2.5, row_height - 4.0),
@@ -355,7 +370,7 @@ impl SourceView {
                                 theme.text_muted
                             };
                             gutter_painter.text(
-                                gutter_rect.right_center() - Vec2::new(12.0, 0.0),
+                                gutter_rect.right_center() - Vec2::new(10.0, 0.0),
                                 egui::Align2::RIGHT_CENTER,
                                 line_num.to_string(),
                                 TextStyle::Monospace.resolve(ui.style()),
@@ -363,18 +378,12 @@ impl SourceView {
                             );
                         }
 
-                        // Gutter right border
-                        gutter_painter.line_segment(
-                            [gutter_rect.right_top(), gutter_rect.right_bottom()],
-                            Stroke::new(1.0, theme.border),
-                        );
-
                         // Caret click: calculate actual character column from mouse position
+                        let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 12.0;
                         if line_response.clicked() && !chevron_clicked {
                             *caret_line = line_num;
                             let mut col = 0;
                             if let Some(pos) = line_response.interact_pointer_pos() {
-                                let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 8.0;
                                 if pos.x > code_start_x {
                                     col = ((pos.x - code_start_x) / char_width).floor() as usize;
                                     col = col.min(line_text.chars().count());
@@ -390,11 +399,9 @@ impl SourceView {
                         }
 
                         // Draw pre-highlighted code spans strictly clipped
-                        let code_pos =
-                            rect.left_center() + Vec2::new(Self::GUTTER_WIDTH + 8.0, 0.0);
+                        let font_id = TextStyle::Monospace.resolve(ui.style());
                         if let Some(spans) = highlighted_lines.get(line_num.saturating_sub(1)) {
                             let mut x_offset = 0.0;
-                            let font_id = TextStyle::Monospace.resolve(ui.style());
                             for span in spans {
                                 let mut color = span.color;
                                 if mode == SourceMode::Critical {
@@ -411,7 +418,7 @@ impl SourceView {
                                         span.text.clone(),
                                         font_id.clone(),
                                         color,
-                                        (ui.available_width() - Self::GUTTER_WIDTH - 16.0)
+                                        (ui.available_width() - Self::GUTTER_WIDTH - 24.0)
                                             .max(100.0),
                                     )
                                 } else {
@@ -421,20 +428,32 @@ impl SourceView {
                                         color,
                                     )
                                 };
-                                let span_pos = code_pos + Vec2::new(x_offset, 0.0);
-                                code_painter.galley(
-                                    span_pos - Vec2::new(0.0, galley.size().y / 2.0),
-                                    galley.clone(),
-                                    color,
-                                );
+                                let text_y =
+                                    rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
+                                let span_pos = pos2(code_start_x + x_offset, text_y);
+                                code_painter.galley(span_pos, galley.clone(), color);
                                 x_offset += galley.size().x;
                             }
                         } else {
-                            code_painter.text(
-                                code_pos,
-                                egui::Align2::LEFT_CENTER,
-                                line_text,
-                                TextStyle::Monospace.resolve(ui.style()),
+                            let galley = if wrap_lines {
+                                code_painter.layout(
+                                    line_text.to_string(),
+                                    font_id.clone(),
+                                    theme.text_primary,
+                                    (ui.available_width() - Self::GUTTER_WIDTH - 24.0).max(100.0),
+                                )
+                            } else {
+                                code_painter.layout_no_wrap(
+                                    line_text.to_string(),
+                                    font_id.clone(),
+                                    theme.text_primary,
+                                )
+                            };
+                            let text_y =
+                                rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
+                            code_painter.galley(
+                                pos2(code_start_x, text_y),
+                                galley,
                                 theme.text_primary,
                             );
                         }
@@ -447,7 +466,7 @@ impl SourceView {
                                 for range in &group.ranges {
                                     if range.start < line_end_byte && range.end > line_start_byte {
                                         let col_start = range.start.saturating_sub(line_start_byte);
-                                        let pin_x = code_pos.x + col_start as f32 * char_width;
+                                        let pin_x = code_start_x + col_start as f32 * char_width;
                                         let pin_w = (range.end - range.start) as f32 * char_width;
                                         let pin_rect = Rect::from_min_size(
                                             egui::pos2(pin_x, rect.min.y + 2.0),
@@ -470,6 +489,7 @@ impl SourceView {
             // "ⓘ Index Ready · Line 564 · After · UTF-8 · Read Only" on right)
             ui.separator();
             ui.horizontal(|ui| {
+                ui.add_space(8.0);
                 let ext = std::path::Path::new(&buffer.path)
                     .extension()
                     .and_then(|s| s.to_str())
@@ -493,6 +513,7 @@ impl SourceView {
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(8.0);
                     ui.colored_label(theme.text_muted, "Read Only");
                     ui.colored_label(theme.text_muted, "·");
                     ui.colored_label(theme.text_muted, "UTF-8");
