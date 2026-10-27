@@ -1,16 +1,43 @@
 # Progress
 
-## 2026-10-27 — Rust & EGUI Linux Native Rewrite initiated (Antigravity)
+## 2026-10-27 — Rust & EGUI Linux Native Rewrite complete (Antigravity)
 
-Created branch `rust-egui-port` to rewrite Radiology from Swift/macOS to a native
-Linux application using Rust and EGUI (`eframe` 0.27 / `egui` 0.27). Designed
-standalone architecture and parity ledger in `plans/rust-egui-linux-port.md`,
-preserving all core repository exploration features: fast git discovery,
-filtering, fuzzy file jump, multi-language syntax highlighting, AST outline and
-folding, streaming ripgrep search, zero-copy SCIP protobuf decoding, call tree
-with deterministic FNV-1a 12-color caller identity pills, persistent bookmarks,
-and GitHub PR review with Before/After unified diffs. Compatible with future
-integration into `~/little-screen-clip`. Master `PLAN.md` updated.
+Completed full rewrite of Radiology from Swift/macOS to a standalone, native
+Linux application written in Rust using EGUI (`eframe` 0.27 / `egui` 0.27) on
+branch `rust-egui-port`.
+
+Delivered complete architectural and functional parity:
+1. **Source Subsystem:** `SourceBuffer` with UTF-8 byte canonical indexing,
+   line/col <-> byte translations, scalar safety, and `NavigationHistory` with
+   Back/Forward stacks and visit deduplication.
+2. **Repository Subsystem:** Fast `git ls-files -z` + `walkdir` fallback discovery,
+   `SourceFileClassifier`, `TestPathClassifier`, `SourceFilters` ("Source Files
+   Only", "Hide Tests"), and `QuickFileSearch` with subsequence fuzzy scoring.
+3. **Syntax Subsystem:** Multi-language syntax highlighting with `syntect` (100+
+   syntaxes), Tree-sitter AST queries for document outline (functions, structs,
+   classes, enums, methods, traits) across Rust, Go, Python, JS, TS, C, and
+   code folding (`FoldDetector` & `FoldStore`).
+4. **Search Subsystem:** Asynchronous streaming `ripgrep` runner with JSON decoding,
+   regex/case/glob options, and 5,000 result cap.
+5. **Semantic Subsystem:** Pure Rust zero-dependency SCIP protobuf wire reader
+   (`ScipIndex`), definition/reference queries, and multi-level `CallerTreeBuilder`
+   with recursion cycle detection and deterministic FNV-1a 12-color caller
+   identity capsules.
+6. **Bookmarks & Critical Lens:** `SourceBookmark` with content digest and
+   surrounding line-anchor relocation, persistent JSON `BookmarkStore`, Ctrl+0..9
+   shortcuts, and `CriticalityPolicy` (Normal vs Critical Lens mode).
+7. **PR Review & Diffs:** `GitHubClient` via `gh` CLI, `UnifiedDiffParser` (`git
+   diff -U0`), Before/After document viewing, diff line gutter stripes, and
+   change block navigation.
+8. **EGUI Native Desktop UI:** Resizable 3-pane layout, 72px compact gutter with
+   every-5th line numbers and active line indicator, top toolbar, modals for
+   Go to File (Ctrl+K), Go to Line (Ctrl+L), Go to Symbol (Ctrl+T), and PR Review
+   (Ctrl+P). Clean dark/light theme palette.
+
+Quality gates: 26 unit tests passing across all crates/subsystems, clean `cargo
+clippy --all-targets` with zero warnings, and `cargo fmt` applied. All commits
+recorded on `rust-egui-port`. Master `PLAN.md` and `plans/rust-egui-linux-port.md`
+updated. Ready for standalone use or integration into `~/little-screen-clip`.
 
 ## 2026-10-11 — Published all reader work and merged to main (Codex)
 
