@@ -4,6 +4,15 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Deduplicated Status Bar Remediation (2026-10-27):**
+Eliminated duplicated status bar at the bottom of the application:
+- Removed extraneous window-level `TopBottomPanel::bottom("status_bar")` from [`RadiologyApp::update`](file:///home/vcarlson/radiology/src/ui/app.rs).
+- Retained the single, authentic macOS-parity status bar in [`SourceView::show`](file:///home/vcarlson/radiology/src/ui/source_view.rs) located directly within the central editor beneath the divider (matching `ReaderDetail.swift`).
+- Added clickable borderless `Line N` button to the `SourceView` footer wired to `SourceViewAction::OpenGoToLine` (opening `GoToLineModal` on click, with tooltip `Go to Line (⌘L)`).
+- Omitted revision label when browsing local checkouts (matching macOS Swift, which only renders `Before` or `After` during PR reviews).
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Full parity audit and defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Full Swift Parity Audit, Toolbar Menus, Collapsible Panels & Interaction Parity (2026-10-27):**
 Completed full-coverage audit of original macOS Swift code against the Rust + EGUI port and implemented parity across all missing UI controls, menus, and click actions:
 - Collapsible Side Panels: Added `show_sidebar` and `show_inspector` with native toolbar toggle buttons and keyboard shortcuts (`Ctrl+Alt+S` / `⌃⌘S` and `Ctrl+Alt+I` / `⌥⌘I`).

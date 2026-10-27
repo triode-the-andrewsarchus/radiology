@@ -1,6 +1,6 @@
 //! Main application model and EGUI event loop lifecycle.
 
-use egui::{CentralPanel, Color32, Context, SidePanel, Stroke, TopBottomPanel};
+use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -1254,58 +1254,6 @@ impl eframe::App for RadiologyApp {
                 });
         }
 
-        // Bottom status bar (matching native macOS ReaderDetail)
-        TopBottomPanel::bottom("status_bar")
-            .frame(
-                egui::Frame::none()
-                    .fill(self.theme.bg_base)
-                    .inner_margin(egui::Margin::symmetric(10.0, 4.0))
-                    .stroke(Stroke::new(1.0, self.theme.border)),
-            )
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if let Some(buf) = &self.open_buffer {
-                        let lang = if buf.path.ends_with(".rs") {
-                            "Rust"
-                        } else if buf.path.ends_with(".swift") {
-                            "Swift"
-                        } else if buf.path.ends_with(".md") {
-                            "Markdown"
-                        } else if buf.path.ends_with(".toml") {
-                            "TOML"
-                        } else {
-                            "Text"
-                        };
-                        ui.colored_label(self.theme.text_secondary, lang);
-                        ui.colored_label(self.theme.text_muted, "·");
-                        ui.colored_label(
-                            self.theme.text_secondary,
-                            format!("{} lines", buf.line_count()),
-                        );
-                        ui.colored_label(self.theme.text_muted, "·");
-                        if self.semantic_index.is_some() {
-                            ui.colored_label(Color32::from_rgb(34, 197, 94), "SCIP index active");
-                        } else {
-                            ui.colored_label(self.theme.text_muted, "Ripgrep ready");
-                        }
-                    } else {
-                        ui.colored_label(self.theme.text_muted, "No file open");
-                    }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.colored_label(self.theme.text_secondary, "UTF-8 · Read Only");
-                        ui.colored_label(self.theme.text_muted, "·");
-                        if ui
-                            .button(format!("Line {}", self.caret_line))
-                            .on_hover_text("Go to Line (⌘L)")
-                            .clicked()
-                        {
-                            self.modal = ActiveModal::GoToLine(GoToLineModal::default());
-                        }
-                    });
-                });
-            });
-
         let central_frame = egui::Frame::none()
             .fill(self.theme.bg_base)
             .inner_margin(egui::Margin::symmetric(0.0, 0.0));
@@ -1336,6 +1284,7 @@ impl eframe::App for RadiologyApp {
                         self.session.wrap_lines,
                         &enclosing,
                         &mut self.scroll_to_line,
+                        self.semantic_index.is_some(),
                     ) {
                         match action {
                             SourceViewAction::CaretMoved {
@@ -1406,6 +1355,9 @@ impl eframe::App for RadiologyApp {
                             }
                             SourceViewAction::PinOccurrence { symbol, ranges } => {
                                 self.pin_store.toggle_pin(&symbol, ranges);
+                            }
+                            SourceViewAction::OpenGoToLine => {
+                                self.modal = ActiveModal::GoToLine(GoToLineModal::default());
                             }
                         }
                     }

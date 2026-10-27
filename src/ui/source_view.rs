@@ -49,6 +49,8 @@ pub enum SourceViewAction {
         /// Byte ranges where the symbol appears in the current buffer.
         ranges: Vec<std::ops::Range<usize>>,
     },
+    /// Requests opening the Go To Line modal dialog.
+    OpenGoToLine,
 }
 
 /// Renders the primary code editor and reading canvas.
@@ -75,6 +77,7 @@ impl SourceView {
     /// * `wrap_lines` - Whether long lines wrap at viewport edge instead of scrolling horizontally.
     /// * `enclosing_symbols` - Hierarchical list of symbols enclosing the current caret position.
     /// * `scroll_to_line` - Optional target line number to programmatically scroll and center into view.
+    /// * `has_semantic_index` - Whether a SCIP semantic index is actively loaded for the repository.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -91,6 +94,7 @@ impl SourceView {
         wrap_lines: bool,
         enclosing_symbols: &[DocumentSymbol],
         scroll_to_line: &mut Option<usize>,
+        has_semantic_index: bool,
     ) -> Option<SourceViewAction> {
         let mut action = None;
 
@@ -603,13 +607,31 @@ impl SourceView {
                     ui.colored_label(theme.text_muted, "Read Only");
                     ui.colored_label(theme.text_muted, "·");
                     ui.colored_label(theme.text_muted, "UTF-8");
+
+                    if let Some(rev) = buffer.revision {
+                        ui.colored_label(theme.text_muted, "·");
+                        ui.colored_label(theme.accent, rev.title());
+                    }
+
                     ui.colored_label(theme.text_muted, "·");
-                    let rev_name = buffer.revision.map_or("Main", |r| r.title());
-                    ui.colored_label(theme.accent, rev_name);
+                    let line_btn = ui.add(
+                        egui::Button::new(
+                            RichText::new(format!("Line {}", *caret_line))
+                                .size(11.5)
+                                .color(theme.text_secondary),
+                        )
+                        .frame(false),
+                    );
+                    if line_btn.on_hover_text("Go to Line (⌘L)").clicked() {
+                        action = Some(SourceViewAction::OpenGoToLine);
+                    }
+
                     ui.colored_label(theme.text_muted, "·");
-                    ui.colored_label(theme.text_secondary, format!("Line {}", *caret_line));
-                    ui.colored_label(theme.text_muted, "·");
-                    ui.colored_label(theme.text_muted, "ⓘ Index Ready");
+                    if has_semantic_index {
+                        ui.colored_label(Color32::from_rgb(34, 197, 94), "Index Ready");
+                    } else {
+                        ui.colored_label(theme.text_muted, "Ripgrep ready");
+                    }
                 });
             });
         });
