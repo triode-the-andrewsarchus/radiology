@@ -1,0 +1,272 @@
+use egui::{Color32, RichText, ScrollArea, Ui};
+use uuid::Uuid;
+use crate::bookmarks::store::BookmarkStore;
+use crate::semantic::caller_tree::{caller_pill_color, ReferenceCallerNode};
+use crate::semantic::scip_proto::ScipSymbolInformation;
+use crate::syntax::outline::DocumentSymbol;
+use crate::theme::AppTheme;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InspectorTab {
+    #[default]
+    Symbol,
+    References,
+    Outline,
+    Bookmarks,
+}
+
+pub enum InspectorAction {
+    JumpToLocation { path: String, line: usize, byte_offset: usize },
+    JumpToSymbol(usize), // byte offset
+    RemoveBookmark(Uuid),
+    MoveBookmarkUp(usize),
+    MoveBookmarkDown(usize),
+}
+
+pub struct ContextInspector;
+
+impl ContextInspector {
+    pub fn show(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        active_tab: &mut InspectorTab,
+        current_symbol: Option<&ScipSymbolInformation>,
+        definition_location: Option<(&str, usize)>, // path, line
+        caller_tree: &[ReferenceCallerNode],
+        outline: &[DocumentSymbol],
+        bookmarks: &BookmarkStore,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
+
+        ui.vertical(|ui| {
+            // Tab Selector
+            ui.horizontal(|ui| {
+                ui.selectable_value(active_tab, InspectorTab::Symbol, "Symbol");
+                ui.selectable_value(
+                    active_tab,
+                    InspectorTab::References,
+                    if caller_tree.is_empty() {
+                        "Callers".to_string()
+                    } else {
+                        format!("Callers ({})", caller_tree.len())
+                    },
+                );
+                ui.selectable_value(active_tab, InspectorTab::Outline, "Outline");
+                ui.selectable_value(
+                    active_tab,
+                    InspectorTab::Bookmarks,
+                    format!("Bookmarks ({})", bookmarks.bookmarks.len()),
+                );
+            });
+
+            ui.separator();
+
+            match active_tab {
+                InspectorTab::Symbol => {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        if let Some(sym) = current_symbol {
+                            ui.label(RichText::new(&sym.display_name).heading().strong());
+                            ui.colored_label(theme.text_secondary, &sym.symbol);
+
+                            if let Some((def_path, def_line)) = definition_location {
+                                ui.separator();
+                                ui.label(RichText::new("Defined at:").strong());
+                                if ui
+                                    .link(format!("{def_path}:{def_line}"))
+                                    .clicked()
+                                {
+                                    action = Some(InspectorAction::JumpToLocation {
+                                        path: def_path.to_string(),
+                                        line: def_line,
+                                        byte_offset: 0,
+                                    });
+                                }
+                            }
+
+                            if !sym.documentation.is_empty() {
+                                ui.separator();
+                                ui.label(RichText::new("Documentation:").strong());
+                                for doc in &sym.documentation {
+                                    ui.label(RichText::new(doc).color(theme.text_secondary));
+                                }
+                            }
+                        } else {
+                            ui.colored_label(
+                                theme.text_muted,
+                                "Place caret on a symbol to inspect definition and documentation.",
+                            );
+                        }
+                    });
+                }
+                InspectorTab::References => {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        if caller_tree.is_empty() {
+                            ui.colored_label(
+                                theme.text_muted,
+                                "No callers or incoming references found for active symbol.",
+                            );
+                        } else {
+                            for node in caller_tree {
+                                if let Some(act) = Self::render_caller_node(ui, theme, node, 0) {
+                                    action = Some(act);
+                                }
+                            }
+                        }
+                    });
+                }
+                InspectorTab::Outline => {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        if outline.is_empty() {
+                            ui.colored_label(theme.text_muted, "No document symbols in this file.");
+                        } else {
+                            for sym in outline {
+                                if let Some(act) = Self::render_outline_node(ui, theme, sym, 0) {
+                                    action = Some(act);
+                                }
+                            }
+                        }
+                    });
+                }
+                InspectorTab::Bookmarks => {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        if bookmarks.bookmarks.is_empty() {
+                            ui.colored_label(
+                                theme.text_muted,
+                                "No bookmarks set. Press Ctrl+D to bookmark the caret line.",
+                            );
+                        } else {
+                            for (idx, b) in bookmarks.bookmarks.iter().enumerate() {
+                                let resp = egui::Frame::none()
+                                    .inner_margin(egui::Margin::symmetric(6.0, 4.0))
+                                    .rounding(3.0)
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            if idx < 10 {
+                                                ui.colored_label(theme.accent, format!("[⌘{idx}]"));
+                                            }
+                                            ui.label(RichText::new(&b.label).strong());
+
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    if ui.small_button("✕").clicked() {
+                                                        action = Some(InspectorAction::RemoveBookmark(b.id));
+                                                    }
+                                                    if idx > 0 && ui.small_button("▲").clicked() {
+                                                        action = Some(InspectorAction::MoveBookmarkUp(idx));
+                                                    }
+                                                    if idx + 1 < bookmarks.bookmarks.len() && ui.small_button("▼").clicked() {
+                                                        action = Some(InspectorAction::MoveBookmarkDown(idx));
+                                                    }
+                                                },
+                                            );
+                                        });
+
+                                        if let Some(anchor) = &b.anchor {
+                                            ui.colored_label(
+                                                theme.text_secondary,
+                                                RichText::new(anchor).monospace(),
+                                            );
+                                        }
+                                    })
+                                    .response;
+
+                                if resp.interact(egui::Sense::click()).clicked() {
+                                    action = Some(InspectorAction::JumpToLocation {
+                                        path: b.path.clone(),
+                                        line: b.line,
+                                        byte_offset: b.byte_offset,
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        action
+    }
+
+    fn render_caller_node(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        node: &ReferenceCallerNode,
+        indent: usize,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
+        let indent_px = indent as f32 * 14.0;
+
+        ui.horizontal(|ui| {
+            ui.add_space(indent_px);
+
+            // Deterministic 12-color capsule identity pill
+            let pill_color = caller_pill_color(&node.name, &node.path);
+            let pill_resp = egui::Frame::none()
+                .fill(pill_color.linear_multiply(0.2))
+                .stroke(egui::Stroke::new(1.0, pill_color))
+                .inner_margin(egui::Margin::symmetric(6.0, 2.0))
+                .rounding(10.0)
+                .show(ui, |ui| {
+                    ui.label(RichText::new(&node.name).color(pill_color).strong());
+                })
+                .response;
+
+            if pill_resp.interact(egui::Sense::click()).clicked() {
+                action = Some(InspectorAction::JumpToLocation {
+                    path: node.path.clone(),
+                    line: node.line,
+                    byte_offset: 0,
+                });
+            }
+
+            ui.colored_label(theme.text_muted, format!("{}:{}", node.path, node.line));
+
+            if node.is_recursive {
+                ui.colored_label(Color32::from_rgb(234, 179, 8), "(recursion loop)");
+            }
+        });
+
+        for child in &node.children {
+            if let Some(act) = Self::render_caller_node(ui, theme, child, indent + 1) {
+                action = Some(act);
+            }
+        }
+
+        action
+    }
+
+    fn render_outline_node(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        sym: &DocumentSymbol,
+        indent: usize,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
+        let indent_px = indent as f32 * 14.0;
+
+        let resp = egui::Frame::none()
+            .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(indent_px);
+                    ui.colored_label(theme.accent, sym.kind.icon());
+                    ui.label(RichText::new(&sym.name).strong());
+                    ui.colored_label(theme.text_muted, format!(":{}", sym.line));
+                });
+            })
+            .response;
+
+        if resp.interact(egui::Sense::click()).clicked() {
+            action = Some(InspectorAction::JumpToSymbol(sym.selection_range.start));
+        }
+
+        for child in &sym.children {
+            if let Some(act) = Self::render_outline_node(ui, theme, child, indent + 1) {
+                action = Some(act);
+            }
+        }
+
+        action
+    }
+}
