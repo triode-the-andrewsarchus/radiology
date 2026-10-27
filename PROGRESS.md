@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-10-27 — SourceView Virtualization, Performance & Clipping Resolved (Antigravity)
+
+Addressed user-reported performance degradation and text overflow in `SourceView`:
+- **Root Cause 1 (Performance):** The central code view was running syntect syntax
+  highlighting across *every* line of the open file on *every* frame (180,000+ passes/sec
+  on large files) and allocating widgets for thousands of invisible lines.
+  - *Fix:* Added `highlight_document` to precompute highlighted token spans once when a
+    file buffer loads, storing `highlighted_lines: Vec<Vec<HighlightedSpan>>` in `RadiologyApp`.
+  - Upgraded `SourceView` to `ScrollArea::show_rows` virtualization, calculating row
+    offsets mathematically and laying out only the ~30–50 rows visible in the viewport.
+- **Root Cause 2 (Text Overflow):** Code lines forced a min width of 800px and painted
+  with unconstrained layer painters (`ui.painter().layout_no_wrap`), causing text to draw
+  directly over `SidePanel::right`.
+  - *Fix:* Enforced strict clipping with `ui.painter().with_clip_rect(clip_rect)` so that
+    rendered text and tokens are physically clipped at the boundary of `CentralPanel`.
+- **UI Enhancements (Subsystem 4):**
+  - Added full `WelcomeView` state in `CentralPanel` when no repository is open: displays
+    "Read the Code", an "Open Repository…" folder picker button, clickable recent repository
+    history list from `SessionStore`, and shortcut legends.
+  - Added global shortcuts: `Ctrl+O` (Open repository), `Ctrl+Shift+F` (focus Search tab),
+    `Ctrl+1` / `Ctrl+2` (Normal vs Critical mode), and `F12` (Jump to Definition).
+- Quality gates: All 33 unit tests and 28 doctests passing, clean clippy and fmt.
+
+
 ## 2026-10-27 — Swift Parity Audit & Defect Remediation (Subsystems 1–3) Completed (Antigravity)
 
 Conducted exhaustive line-by-line feature audit and defect remediation comparing

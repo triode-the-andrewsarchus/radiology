@@ -4,6 +4,16 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**SourceView Virtualization & Rendering Performance Fix (2026-10-27):**
+Fixed severe UI performance degradation and text overflow bleeding into the right
+context inspector. Replaced per-frame syntax highlighting and widget allocation over
+all document lines with pre-cached syntax highlighting and row virtualization
+(`ScrollArea::show_rows`), reducing render cost from hundreds of thousands of syntect
+calls per second to $O(1)$ visible slice draws (~40 lines). Added strict painter
+viewport clipping (`ui.painter().with_clip_rect`) preventing code lines from ever
+overflowing into `SidePanel::right`. Implemented Welcome View with recent repository
+links and keyboard shortcut hints.
+
 **Swift Parity & Defect Remediation (Subsystems 1–3 Completed, 2026-10-27):**
 Exhaustive feature audit and defect remediation pass validating every feature
 from the original Swift codebase against the Rust + EGUI port.
