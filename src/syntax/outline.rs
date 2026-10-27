@@ -139,6 +139,14 @@ impl DocumentSymbol {
             }
         }
     }
+
+    /// Returns the total number of lines spanned by this declaration.
+    #[must_use]
+    pub fn line_count(&self, buffer: &SourceBuffer) -> usize {
+        let start = buffer.line_at_byte(self.range.start);
+        let end = buffer.line_at_byte(self.range.end.saturating_sub(1));
+        end.saturating_sub(start) + 1
+    }
 }
 
 /// Extracts hierarchical document symbols using Tree-sitter parsers.

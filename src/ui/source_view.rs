@@ -13,7 +13,7 @@ use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
-use egui::{pos2, Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
+use egui::{pos2, Color32, Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
 
 /// User interactions and navigation events produced within the [`SourceView`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,14 +117,14 @@ impl SourceView {
                         ui.separator();
                         if Icon::ArrowUp
                             .button(ui, 11.0, theme.text_primary)
-                            .on_hover_text("Previous change block")
+                            .on_hover_text("Previous change block (⌥↑)")
                             .clicked()
                         {
                             action = Some(SourceViewAction::PrevChangeBlock);
                         }
                         if Icon::ArrowDown
                             .button(ui, 11.0, theme.text_primary)
-                            .on_hover_text("Next change block")
+                            .on_hover_text("Next change block (⌥↓)")
                             .clicked()
                         {
                             action = Some(SourceViewAction::NextChangeBlock);
@@ -132,12 +132,27 @@ impl SourceView {
                     }
                 }
 
-                // Revision indicator (Before / After)
-                if let Some(rev) = buffer.revision {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.colored_label(theme.accent, format!("[{}]", rev.title()));
-                    });
-                }
+                // Right side: Modified status + Revision [ Before | After ] segmented pill
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(rev) = buffer.revision {
+                        let is_after = rev == ReviewRevision::After;
+                        let is_before = rev == ReviewRevision::Before;
+                        ui.horizontal(|ui| {
+                            if ui.selectable_label(is_after, "After").clicked() && !is_after {
+                                action =
+                                    Some(SourceViewAction::ToggleRevision(ReviewRevision::After));
+                            }
+                            if ui.selectable_label(is_before, "Before").clicked() && !is_before {
+                                action =
+                                    Some(SourceViewAction::ToggleRevision(ReviewRevision::Before));
+                            }
+                            ui.colored_label(theme.text_secondary, "Revision");
+                            if line_changes.is_some() {
+                                ui.colored_label(Color32::from_rgb(234, 179, 8), "Modified");
+                            }
+                        });
+                    }
+                });
             });
 
             ui.separator();
@@ -235,32 +250,77 @@ impl SourceView {
                         );
                         gutter_painter.rect_filled(gutter_rect, 0.0, theme.bg_gutter);
 
-                        // Fold Chevron in Gutter
+                        // Fold Chevron / Count Badge in Gutter
                         let mut chevron_clicked = false;
-                        if let Some(_fold) = fold_ranges.iter().find(|f| f.start_line == line_num) {
+                        if let Some(fold) = fold_ranges.iter().find(|f| f.start_line == line_num) {
                             let is_folded = fold_store.is_folded(line_num);
-                            let chevron_icon = if is_folded {
-                                Icon::ChevronRight
-                            } else {
-                                Icon::ChevronDown
-                            };
-                            let chevron_pos = gutter_rect.left_center() + Vec2::new(10.0, 0.0);
-                            let chevron_rect =
-                                Rect::from_center_size(chevron_pos, Vec2::new(12.0, 12.0));
-                            chevron_icon.paint(&gutter_painter, chevron_rect, theme.text_secondary);
+                            if is_folded {
+                                // Draw fold count badge capsule (matching lines 571 and 586 in screenshot: ▶ 8, ▶ 5)
+                                let hidden_count = fold.end_line.saturating_sub(fold.start_line);
+                                let badge_rect = Rect::from_min_size(
+                                    gutter_rect.left_center() + Vec2::new(4.0, -8.0),
+                                    Vec2::new(26.0, 16.0),
+                                );
+                                let badge_bg = if theme.is_dark {
+                                    Color32::from_rgb(50, 50, 54)
+                                } else {
+                                    Color32::from_rgb(225, 225, 230)
+                                };
+                                gutter_painter.rect_filled(badge_rect, 8.0, badge_bg);
+                                let chevron_rect = Rect::from_min_size(
+                                    badge_rect.min + Vec2::new(3.0, 3.5),
+                                    Vec2::new(9.0, 9.0),
+                                );
+                                Icon::ChevronRight.paint(
+                                    &gutter_painter,
+                                    chevron_rect,
+                                    theme.text_secondary,
+                                );
+                                gutter_painter.text(
+                                    badge_rect.left_center() + Vec2::new(13.0, 0.0),
+                                    egui::Align2::LEFT_CENTER,
+                                    hidden_count.to_string(),
+                                    TextStyle::Small.resolve(ui.style()),
+                                    theme.text_secondary,
+                                );
 
-                            if ui.rect_contains_pointer(chevron_rect)
-                                && ui.input(|i| i.pointer.primary_clicked())
-                            {
-                                fold_store.toggle(line_num);
-                                action = Some(SourceViewAction::ToggleFold(line_num));
-                                chevron_clicked = true;
+                                if ui.rect_contains_pointer(badge_rect)
+                                    && ui.input(|i| i.pointer.primary_clicked())
+                                {
+                                    fold_store.toggle(line_num);
+                                    action = Some(SourceViewAction::ToggleFold(line_num));
+                                    chevron_clicked = true;
+                                }
+                            } else {
+                                let chevron_pos = gutter_rect.left_center() + Vec2::new(8.0, 0.0);
+                                let chevron_rect =
+                                    Rect::from_center_size(chevron_pos, Vec2::new(12.0, 12.0));
+                                Icon::ChevronDown.paint(
+                                    &gutter_painter,
+                                    chevron_rect,
+                                    theme.text_muted,
+                                );
+
+                                if ui.rect_contains_pointer(chevron_rect)
+                                    && ui.input(|i| i.pointer.primary_clicked())
+                                {
+                                    fold_store.toggle(line_num);
+                                    action = Some(SourceViewAction::ToggleFold(line_num));
+                                    chevron_clicked = true;
+                                }
                             }
                         }
 
                         // Background highlighting for active caret line (clipped to code area)
                         if is_caret_line {
                             code_painter.rect_filled(rect, 0.0, theme.bg_active_line);
+                            // 2.5px vertical accent bar on the left edge of the code line (line 564 in screenshot)
+                            let bar_x = rect.min.x + Self::GUTTER_WIDTH + 1.0;
+                            let bar_rect = Rect::from_min_size(
+                                pos2(bar_x, rect.min.y + 2.0),
+                                Vec2::new(2.5, row_height - 4.0),
+                            );
+                            code_painter.rect_filled(bar_rect, 1.0, theme.accent);
                         }
 
                         // Diff line highlighting (clipped to code area)
@@ -272,6 +332,18 @@ impl SourceView {
                                 theme.diff_add
                             };
                             code_painter.rect_filled(rect, 0.0, diff_bg);
+
+                            // 3px vertical color bar on the right edge of the gutter (Swift LineNumberGutter parity)
+                            let bar_color = if buffer.revision == Some(ReviewRevision::Before) {
+                                Color32::from_rgb(255, 59, 48)
+                            } else {
+                                Color32::from_rgb(52, 199, 89)
+                            };
+                            let bar_rect = Rect::from_min_size(
+                                gutter_rect.right_top() - Vec2::new(3.0, 0.0),
+                                Vec2::new(3.0, row_height),
+                            );
+                            gutter_painter.rect_filled(bar_rect, 0.0, bar_color);
                         }
 
                         // Line number in pinned gutter: print every 5th line or active caret line
@@ -394,22 +466,44 @@ impl SourceView {
                     }
                 });
 
-            // Status Bar at bottom
+            // Status Bar at bottom (matching screenshot: "Rust · 815 lines" on left,
+            // "ⓘ Index Ready · Line 564 · After · UTF-8 · Read Only" on right)
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label(RichText::new(&buffer.path).monospace());
-                ui.separator();
-                ui.colored_label(
-                    theme.text_secondary,
-                    format!("Line {}, Col {}", *caret_line, *caret_col),
-                );
-                ui.separator();
+                let ext = std::path::Path::new(&buffer.path)
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Text");
+                let lang_label = match ext {
+                    "rs" => "Rust",
+                    "py" => "Python",
+                    "js" => "JavaScript",
+                    "ts" | "tsx" => "TypeScript",
+                    "go" => "Go",
+                    "c" => "C",
+                    "cpp" => "C++",
+                    "swift" => "Swift",
+                    _ => ext,
+                };
+                ui.colored_label(theme.text_secondary, lang_label);
+                ui.colored_label(theme.text_muted, "·");
                 ui.colored_label(
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
-                ui.separator();
-                ui.colored_label(theme.accent, "UTF-8");
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.colored_label(theme.text_muted, "Read Only");
+                    ui.colored_label(theme.text_muted, "·");
+                    ui.colored_label(theme.text_muted, "UTF-8");
+                    ui.colored_label(theme.text_muted, "·");
+                    let rev_name = buffer.revision.map_or("Main", |r| r.title());
+                    ui.colored_label(theme.accent, rev_name);
+                    ui.colored_label(theme.text_muted, "·");
+                    ui.colored_label(theme.text_secondary, format!("Line {}", *caret_line));
+                    ui.colored_label(theme.text_muted, "·");
+                    ui.colored_label(theme.text_muted, "ⓘ Index Ready");
+                });
             });
         });
 

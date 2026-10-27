@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-10-27 — macOS High-Fidelity Visual Parity Alignment (Antigravity)
+
+Refined the Rust + EGUI UI to closely match the original macOS Swift screenshot:
+- **Light Theme Palette Tuning:**
+  - Configured editor canvas and line number gutter to pure `#FFFFFF` background.
+  - Set sidebar background to `#F6F6F8` macOS sidebar tone with `#E5E5EA` hairline borders.
+  - Added soft teal active caret line wash with a 2.5px vertical accent indicator bar on the left edge.
+  - Added 3px vertical color bars on the right edge of the gutter for added/modified diff lines.
+- **Changes Sidebar (`ReviewChangeRow` Parity):**
+  - Added top PR summary header with PR title, `#<num> · Open · <count> files`, and `+<total_add> −<total_del>`.
+  - Converted changed files into two-line items: line 1 displays filename in bold and right-aligned diff counts
+    (`+4 −0`); line 2 displays repository directory path in muted secondary caption.
+  - Added status glyphs (`⊕` added, `⊘` modified, `⊖` deleted, `⤹` renamed).
+- **Toolbar Layout Alignment:**
+  - Grouped navigation on left: `< >` history, `↑ ↓` change block navigation, and `↶ Exit PR` pill button.
+  - Centered repository title in bold with subtitle showing PR number and title.
+  - Implemented segmented capsule control for `[Normal | Critical]` mode switching.
+- **Breadcrumbs & Revision Controls:**
+  - Integrated `Modified` status indicator and `Revision [Before | After]` segmented pill into breadcrumbs bar.
+- **Gutter Fold Badges:**
+  - Implemented inline capsule badges for collapsed fold regions showing the fold chevron and hidden line count
+    (`▶ 8`, `▶ 5`), matching lines 571 and 586 in the screenshot.
+- **Context Inspector (Declaration & Outline Stack):**
+  - Configured Symbol view to display the Declaration card at the top (with line number link `:547` and signature)
+    and Document Outline below, matching the macOS app's `VSplitView`.
+  - Added active dot indicator `●` and line span counts (`187 L`, `67 L`) to outline symbols.
+- **Bottom Status Bar:**
+  - Aligned status bar segments: `Rust · 815 lines` on the left; `ⓘ Index Ready · Line 564 · After · UTF-8 · Read Only`
+    on the right.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Verified 0 emojis and 0 geometric arrows across the codebase.
+  - Swift code remains 100% intact.
+
+
 ## 2026-10-27 — Horizontal Scrolling, Line Wrap Toggle & Vector SVG Icon System (Antigravity)
 
 Resolved middle text box overflow on long lines and eliminated all emojis in favor of vector SVGs:

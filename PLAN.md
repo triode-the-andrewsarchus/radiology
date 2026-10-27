@@ -4,6 +4,25 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**macOS High-Fidelity Visual Parity Alignment (2026-10-27):**
+Aligned the Rust + EGUI interface directly against the original macOS Swift screenshot:
+- Theme Palette: Light mode refined to crisp `#FFFFFF` editor & gutter surfaces, `#F6F6F8` macOS sidebar,
+  `#E5E5EA` hairline dividers, soft teal active line wash (`rgba(0, 122, 255, 0.05)`), and 2.5px vertical
+  accent indicator bar at the caret line.
+- Changes Sidebar: Replicated `ReviewChangeRow` two-line presentation (bold filename + muted directory +
+  colored `+add −del` counters), status badges (`⊕`, `⊘`, `⊖`, `⤹`), and top PR summary card (`#num · Open · X files`
+  with overall `+A −D` totals).
+- Top Toolbar: Reorganized into grouped navigation (`< >` history, `↑ ↓` change block jump, `↶ Exit PR`),
+  centered repository title & PR subtitle, segmented `[Normal | Critical]` pill, and right-aligned modal buttons.
+- Breadcrumbs & Revision: Added `Modified` status indicator and segmented `Revision [Before | After]` pill.
+- Gutter Folds & Diffs: Rendered collapsed folds as inline capsule badges with hidden line count (`▶ 8`, `▶ 5`),
+  and 3px vertical color bars on the right edge of the gutter for modified lines.
+- Context Inspector: Replicated macOS stacked view displaying Declaration (symbol, line link, signature) and
+  Document Outline (with `ƒ(x)` icon, active dot `●`, and line span `X L`) together.
+- Status Bar: Replicated left (`Rust · 815 lines`) and right (`ⓘ Index Ready · Line 564 · After · UTF-8 · Read Only`).
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Horizontal Scrolling, Line Wrap Toggle & SVG Vector System (2026-10-27):**
 Resolved long-line overflow bleeding into the right inspector and completed 100% vector SVG
 migration with zero emoji usage:
