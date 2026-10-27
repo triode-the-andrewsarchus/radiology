@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-27 — Typographic Baseline & Token Layout Alignment Remediation (Antigravity)
+
+Resolved inconsistent vertical token jumping and text baseline misalignment within rendered source lines:
+- **Root Cause Analysis:**
+  - In `uploaded_media_0` and `uploaded_media_1`, tokens on the same line (such as `-`, `` `ripgrep` ``, `(`, `.`,
+    `hidden**`, and `The PR head is`) rendered at different vertical heights.
+  - Previously, each syntax-highlighted token (`span`) was laid out as an independent text galley and individually
+    centered vertically within the row using `text_y = rect.min.y + ((row_height - galley.size().y) / 2.0)`.
+  - Because each token's `galley.size().y` depended on its specific glyph geometry (e.g. lowercase letters without
+    ascenders, periods, hyphens vs. parentheses and uppercase letters), each token received a different `text_y` offset,
+    causing glyphs to jitter vertically up and down and breaking the typographic baseline.
+- **Remediation:**
+  - Migrated code line formatting to `egui::text::LayoutJob` with section-based `TextFormat`.
+  - For each line, all syntax-highlighted spans and fallback text are appended into a single unified `LayoutJob`.
+  - The entire line is laid out as a single `Galley` via `code_painter.layout_job(job)`.
+  - All tokens, punctuation, code keywords, identifiers, and brackets now share the exact same font baseline across
+    the entire line, eliminating all vertical jitter and token jumping.
+  - Performance is also improved by reducing layout passes from $O(\text{spans})$ to exactly 1 per visible line.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved intact.
+
 ## 2026-10-27 — Horizontal Scroll Viewport Clipping Remediation (Antigravity)
 
 Resolved horizontal scroll blank area / cut-off text defect when scrolling right on long lines:
