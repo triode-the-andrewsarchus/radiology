@@ -160,6 +160,7 @@ impl SymbolExtractor {
             SupportedGrammar::Go => tree_sitter_go::LANGUAGE.into(),
             SupportedGrammar::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
             SupportedGrammar::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            SupportedGrammar::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             SupportedGrammar::C => tree_sitter_c::LANGUAGE.into(),
         };
 

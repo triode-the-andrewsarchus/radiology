@@ -4,6 +4,20 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Swift Parity & Defect Remediation (Subsystems 1–3 Completed, 2026-10-27):**
+Exhaustive feature audit and defect remediation pass validating every feature
+from the original Swift codebase against the Rust + EGUI port.
+Eliminated UI thread blocking (streaming ripgrep search via `mpsc::channel`),
+fixed SCIP wire field tags (occurrence enclosing range field 7, symbol display name
+field 6, signature doc extraction from field 7), added document-scoped local
+symbols (`SemanticSymbolID`), 5-tier fuzzy file search with diacritic normalization,
+4-tier workspace symbol ranking (Ctrl+T), native folder selection dialog (`rfd`),
+viewport virtualization in `SourceView`, fold deduplication, test region detector,
+and command-line arguments (`--repository`, `--pull-request`, `--file`, `--verify-resources`).
+33 unit tests and 28 doctests passing, clean clippy with zero warnings, rustfmt clean.
+Original Swift source code is 100% preserved in place as requested.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Rust & EGUI Linux Native Rewrite (Completed):** Standalone Linux-native
 rewrite of Radiology in Rust using EGUI (`eframe` 0.27 / `egui` 0.27) on branch
 `rust-egui-port`. Features complete architectural parity with the Swift original:

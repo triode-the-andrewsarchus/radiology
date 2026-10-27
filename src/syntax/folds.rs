@@ -126,7 +126,11 @@ impl FoldDetector {
         add_symbol_folds(&symbols, buffer, &mut folds);
         Self::detect_comment_folds(buffer, &mut folds);
 
-        folds.sort_by_key(|f| (f.start_line, f.end_line));
+        folds.sort_by(|a, b| {
+            a.start_line
+                .cmp(&b.start_line)
+                .then_with(|| b.end_line.cmp(&a.end_line))
+        });
         folds.dedup_by_key(|f| f.start_line);
         folds
     }

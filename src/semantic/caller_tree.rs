@@ -1,6 +1,6 @@
 //! Multi-level caller tree tracing with cycle detection and deterministic identity pills.
 
-use crate::semantic::index::SemanticIndex;
+use crate::semantic::index::{SCIPSymbolString, SemanticIndex};
 use egui::Color32;
 use std::collections::HashSet;
 
@@ -104,10 +104,10 @@ impl CallerTreeBuilder {
             let caller_sym = Self::find_enclosing_symbol(index, ref_path, ref_range.start_line);
             let caller_name = caller_sym
                 .as_deref()
-                .map(|s| s.rsplit('/').next().unwrap_or(s))
-                .unwrap_or(ref_path);
+                .map(SCIPSymbolString::fallback_name)
+                .unwrap_or_else(|| ref_path.to_string());
 
-            let slot = caller_pill_slot(caller_name, ref_path);
+            let slot = caller_pill_slot(&caller_name, ref_path);
             let is_recursive = caller_sym
                 .as_deref()
                 .is_some_and(|s| active_path.contains(s));

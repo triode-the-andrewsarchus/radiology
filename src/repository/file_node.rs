@@ -37,6 +37,16 @@ impl RepositoryFile {
             is_test,
         }
     }
+
+    /// Returns the file name (last path component).
+    #[must_use]
+    pub fn name(&self) -> String {
+        std::path::Path::new(&self.path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&self.path)
+            .to_string()
+    }
 }
 
 /// Represents a directory or leaf file node in the repository tree hierarchy.
@@ -157,6 +167,8 @@ impl FileNode {
                 }
             }
 
+            dirs.sort_by_key(|a| a.name.to_lowercase());
+            leaf_files.sort_by_key(|a| a.name.to_lowercase());
             dirs.extend(leaf_files);
             dirs
         }

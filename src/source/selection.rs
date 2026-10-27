@@ -70,6 +70,12 @@ impl OccurrencePinStore {
         Self::default()
     }
 
+    /// Returns `true` if no symbols are pinned and no ephemeral highlight is active.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.groups.is_empty() && self.ephemeral.is_none()
+    }
+
     /// Returns `true` if the given symbol name is already pinned.
     #[must_use]
     pub fn is_pinned(&self, symbol: &str) -> bool {

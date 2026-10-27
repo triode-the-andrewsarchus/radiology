@@ -157,6 +157,29 @@ impl<'a> ProtobufReader<'a> {
         Ok(out)
     }
 
+    /// Reads repeated 32-bit integers, whether packed (length-delimited) or unpacked (varint).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtobufError`] if payload fails decoding.
+    pub fn read_repeated_int32(
+        &mut self,
+        wire: WireType,
+        out: &mut Vec<i32>,
+    ) -> Result<(), ProtobufError> {
+        match wire {
+            WireType::LengthDelimited => {
+                let vals = self.read_packed_int32()?;
+                out.extend(vals);
+            }
+            WireType::Varint => {
+                out.push(self.read_int32()?);
+            }
+            other => self.skip_field(other)?,
+        }
+        Ok(())
+    }
+
     /// Skips over an unhandled field matching `wire`.
     ///
     /// # Errors
@@ -278,6 +301,21 @@ impl ScipOccurrence {
     }
 }
 
+/// Describes a relationship between two symbols (e.g. implementation, reference).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScipRelationship {
+    /// Related symbol string identifier.
+    pub symbol: String,
+    /// Whether this is a reference relationship.
+    pub is_reference: bool,
+    /// Whether this is an implementation relationship.
+    pub is_implementation: bool,
+    /// Whether this defines a type.
+    pub is_type_definition: bool,
+    /// Whether this is a definition relationship.
+    pub is_definition: bool,
+}
+
 /// Metadata and documentation for a semantic symbol.
 #[derive(Debug, Clone, Default)]
 pub struct ScipSymbolInformation {
@@ -285,8 +323,16 @@ pub struct ScipSymbolInformation {
     pub symbol: String,
     /// Documentation comments associated with the symbol.
     pub documentation: Vec<String>,
+    /// Relationships to other symbols.
+    pub relationships: Vec<ScipRelationship>,
+    /// SCIP symbol kind integer code.
+    pub kind: i32,
     /// Short display name for tooltips and outlines.
     pub display_name: String,
+    /// Signature documentation if available.
+    pub signature: String,
+    /// Enclosing symbol identifier if available.
+    pub enclosing_symbol: String,
 }
 
 impl ScipIndex {
@@ -348,12 +394,15 @@ impl ScipIndex {
     fn decode_occurrence(bytes: &[u8]) -> Result<ScipOccurrence, ProtobufError> {
         let mut reader = ProtobufReader::new(bytes);
         let mut occ = ScipOccurrence::default();
+        let mut packed_range: Vec<i32> = Vec::new();
+        let mut packed_enclosing: Vec<i32> = Vec::new();
+        let mut typed_range: Option<ScipRange> = None;
+        let mut typed_enclosing: Option<ScipRange> = None;
 
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
-                (1, WireType::LengthDelimited) => {
-                    let vals = reader.read_packed_int32()?;
-                    occ.range = ScipRange::from_packed(&vals);
+                (1, _) => {
+                    reader.read_repeated_int32(wire, &mut packed_range)?;
                 }
                 (2, WireType::LengthDelimited) => {
                     occ.symbol = reader.read_string()?;
@@ -361,15 +410,78 @@ impl ScipIndex {
                 (3, WireType::Varint) => {
                     occ.symbol_roles = reader.read_int32()?;
                 }
-                (5, WireType::LengthDelimited) => {
-                    let vals = reader.read_packed_int32()?;
-                    occ.enclosing_range = ScipRange::from_packed(&vals);
+                (7, _) => {
+                    reader.read_repeated_int32(wire, &mut packed_enclosing)?;
+                }
+                (8, WireType::LengthDelimited) => {
+                    let msg = reader.read_length_delimited()?;
+                    typed_range = Self::decode_single_line_range(msg)?;
+                }
+                (9, WireType::LengthDelimited) => {
+                    let msg = reader.read_length_delimited()?;
+                    typed_range = Self::decode_multi_line_range(msg)?;
+                }
+                (10, WireType::LengthDelimited) => {
+                    let msg = reader.read_length_delimited()?;
+                    typed_enclosing = Self::decode_single_line_range(msg)?;
+                }
+                (11, WireType::LengthDelimited) => {
+                    let msg = reader.read_length_delimited()?;
+                    typed_enclosing = Self::decode_multi_line_range(msg)?;
                 }
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
 
+        // Typed ranges take precedence over the packed form.
+        occ.range = typed_range.or_else(|| ScipRange::from_packed(&packed_range));
+        occ.enclosing_range = typed_enclosing.or_else(|| ScipRange::from_packed(&packed_enclosing));
+
         Ok(occ)
+    }
+
+    fn decode_single_line_range(bytes: &[u8]) -> Result<Option<ScipRange>, ProtobufError> {
+        let mut reader = ProtobufReader::new(bytes);
+        let mut line = 0;
+        let mut start = 0;
+        let mut end = 0;
+        while let Some((field, wire)) = reader.read_tag()? {
+            match (field, wire) {
+                (1, WireType::Varint) => line = reader.read_int32()?,
+                (2, WireType::Varint) => start = reader.read_int32()?,
+                (3, WireType::Varint) => end = reader.read_int32()?,
+                (_, wire) => reader.skip_field(wire)?,
+            }
+        }
+        Ok(Some(ScipRange {
+            start_line: line,
+            start_col: start,
+            end_line: line,
+            end_col: end,
+        }))
+    }
+
+    fn decode_multi_line_range(bytes: &[u8]) -> Result<Option<ScipRange>, ProtobufError> {
+        let mut reader = ProtobufReader::new(bytes);
+        let mut start_line = 0;
+        let mut start_col = 0;
+        let mut end_line = 0;
+        let mut end_col = 0;
+        while let Some((field, wire)) = reader.read_tag()? {
+            match (field, wire) {
+                (1, WireType::Varint) => start_line = reader.read_int32()?,
+                (2, WireType::Varint) => start_col = reader.read_int32()?,
+                (3, WireType::Varint) => end_line = reader.read_int32()?,
+                (4, WireType::Varint) => end_col = reader.read_int32()?,
+                (_, wire) => reader.skip_field(wire)?,
+            }
+        }
+        Ok(Some(ScipRange {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }))
     }
 
     fn decode_symbol_info(bytes: &[u8]) -> Result<ScipSymbolInformation, ProtobufError> {
@@ -384,14 +496,53 @@ impl ScipIndex {
                 (3, WireType::LengthDelimited) => {
                     sym.documentation.push(reader.read_string()?);
                 }
-                (7, WireType::LengthDelimited) => {
+                (4, WireType::LengthDelimited) => {
+                    let rel_bytes = reader.read_length_delimited()?;
+                    sym.relationships
+                        .push(Self::decode_relationship(rel_bytes)?);
+                }
+                (5, WireType::Varint) => {
+                    sym.kind = reader.read_int32()?;
+                }
+                (6, WireType::LengthDelimited) => {
                     sym.display_name = reader.read_string()?;
+                }
+                (7, WireType::LengthDelimited) => {
+                    // `Signature` (historically a `Document`): only `text` (field 5) is used.
+                    let sig_bytes = reader.read_length_delimited()?;
+                    let mut sig_reader = ProtobufReader::new(sig_bytes);
+                    while let Some((sig_field, sig_wire)) = sig_reader.read_tag()? {
+                        if sig_field == 5 && sig_wire == WireType::LengthDelimited {
+                            sym.signature = sig_reader.read_string()?;
+                        } else {
+                            sig_reader.skip_field(sig_wire)?;
+                        }
+                    }
+                }
+                (8, WireType::LengthDelimited) => {
+                    sym.enclosing_symbol = reader.read_string()?;
                 }
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
 
         Ok(sym)
+    }
+
+    fn decode_relationship(bytes: &[u8]) -> Result<ScipRelationship, ProtobufError> {
+        let mut reader = ProtobufReader::new(bytes);
+        let mut rel = ScipRelationship::default();
+        while let Some((field, wire)) = reader.read_tag()? {
+            match (field, wire) {
+                (1, WireType::LengthDelimited) => rel.symbol = reader.read_string()?,
+                (2, WireType::Varint) => rel.is_reference = reader.read_varint()? != 0,
+                (3, WireType::Varint) => rel.is_implementation = reader.read_varint()? != 0,
+                (4, WireType::Varint) => rel.is_type_definition = reader.read_varint()? != 0,
+                (5, WireType::Varint) => rel.is_definition = reader.read_varint()? != 0,
+                (_, wire) => reader.skip_field(wire)?,
+            }
+        }
+        Ok(rel)
     }
 }
 
@@ -427,5 +578,106 @@ mod tests {
                 end_col: 8
             })
         );
+    }
+
+    #[test]
+    fn test_decode_occurrence_and_symbol_info() {
+        // Build Occurrence protobuf:
+        // field 1 (wire 2): packed range [1, 2, 1, 10]
+        // field 2 (wire 2): string "local 1"
+        // field 3 (wire 0): int32 1 (definition)
+        // field 7 (wire 2): packed enclosing [1, 0, 5, 1]
+        let mut occ_bytes = Vec::new();
+        // field 1: tag = (1 << 3) | 2 = 10
+        occ_bytes.push(10);
+        let range_packed = [1, 2, 1, 10];
+        occ_bytes.push(range_packed.len() as u8);
+        occ_bytes.extend_from_slice(&range_packed);
+
+        // field 2: tag = (2 << 3) | 2 = 18
+        occ_bytes.push(18);
+        let sym_str = b"local 1";
+        occ_bytes.push(sym_str.len() as u8);
+        occ_bytes.extend_from_slice(sym_str);
+
+        // field 3: tag = (3 << 3) | 0 = 24
+        occ_bytes.push(24);
+        occ_bytes.push(1);
+
+        // field 7: tag = (7 << 3) | 2 = 58
+        occ_bytes.push(58);
+        let enclosing_packed = [1, 0, 5, 1];
+        occ_bytes.push(enclosing_packed.len() as u8);
+        occ_bytes.extend_from_slice(&enclosing_packed);
+
+        let occ = ScipIndex::decode_occurrence(&occ_bytes).unwrap();
+        assert_eq!(occ.symbol, "local 1");
+        assert_eq!(occ.symbol_roles, 1);
+        assert!(occ.is_definition());
+        assert_eq!(
+            occ.range,
+            Some(ScipRange {
+                start_line: 1,
+                start_col: 2,
+                end_line: 1,
+                end_col: 10
+            })
+        );
+        assert_eq!(
+            occ.enclosing_range,
+            Some(ScipRange {
+                start_line: 1,
+                start_col: 0,
+                end_line: 5,
+                end_col: 1
+            })
+        );
+
+        // Build SymbolInformation protobuf:
+        // field 1 (wire 2): symbol "scip-rust/foo"
+        // field 5 (wire 0): kind 17 (Function)
+        // field 6 (wire 2): display_name "foo"
+        // field 7 (wire 2): signature doc with field 5 (wire 2): "fn foo() -> i32"
+        // field 8 (wire 2): enclosing_symbol "scip-rust/Bar"
+        let mut sym_bytes = Vec::new();
+        // field 1
+        sym_bytes.push(10);
+        let s = b"scip-rust/foo";
+        sym_bytes.push(s.len() as u8);
+        sym_bytes.extend_from_slice(s);
+
+        // field 5
+        sym_bytes.push(5 << 3);
+        sym_bytes.push(17);
+
+        // field 6 (display_name)
+        sym_bytes.push((6 << 3) | 2);
+        let dn = b"foo";
+        sym_bytes.push(dn.len() as u8);
+        sym_bytes.extend_from_slice(dn);
+
+        // field 7 (signature message)
+        let mut sig_msg = Vec::new();
+        sig_msg.push((5 << 3) | 2);
+        let sig_text = b"fn foo() -> i32";
+        sig_msg.push(sig_text.len() as u8);
+        sig_msg.extend_from_slice(sig_text);
+
+        sym_bytes.push((7 << 3) | 2);
+        sym_bytes.push(sig_msg.len() as u8);
+        sym_bytes.extend_from_slice(&sig_msg);
+
+        // field 8 (enclosing_symbol)
+        sym_bytes.push((8 << 3) | 2);
+        let enc = b"scip-rust/Bar";
+        sym_bytes.push(enc.len() as u8);
+        sym_bytes.extend_from_slice(enc);
+
+        let info = ScipIndex::decode_symbol_info(&sym_bytes).unwrap();
+        assert_eq!(info.symbol, "scip-rust/foo");
+        assert_eq!(info.kind, 17);
+        assert_eq!(info.display_name, "foo");
+        assert_eq!(info.signature, "fn foo() -> i32");
+        assert_eq!(info.enclosing_symbol, "scip-rust/Bar");
     }
 }
