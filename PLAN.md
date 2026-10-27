@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Full Gutter Line Number Rendering (2026-10-27):**
+Restored continuous line number rendering across all lines in the editor gutter:
+- Removed `is_multiple_of(5)` filter in [`SourceView::show`](file:///home/vcarlson/radiology/src/ui/source_view.rs) so every line displays its line number.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Non-Selectable Inspector & Sidebar Navigation Labels (2026-10-27):**
 Disabled text selection on navigation labels in the right inspector (Symbols, Callers, Outline, Bookmarks) and left sidebar:
 - Configured `ui.style_mut().interaction.selectable_labels = false;` so label text no longer intercepts mouse clicks for text selection.

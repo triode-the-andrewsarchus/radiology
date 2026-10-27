@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-27 — Full Gutter Line Number Rendering (Antigravity)
+
+Restored continuous line number rendering across all lines in the editor gutter:
+- **Root Cause Analysis:**
+  - In [`SourceView::show`](file:///home/vcarlson/radiology/src/ui/source_view.rs), line numbers were conditionally gated behind `let should_print_number = line_num.is_multiple_of(5) || is_caret_line;`.
+  - This skipped line numbers for 4 out of every 5 lines unless focused by the caret.
+- **Remediation:**
+  - Removed the `is_multiple_of(5)` condition so that every visible line number is consistently rendered in the gutter.
+  - Active caret line maintains high-contrast `theme.accent` coloring, while inactive lines use `theme.text_muted`.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved 100% intact.
+
+
 ## 2026-10-27 — Non-Selectable Inspector & Sidebar Navigation Labels (Antigravity)
 
 Disabled text selection on navigation labels in the Context Inspector (Symbols, Callers, Outline, Bookmarks) and Sidebar:

@@ -397,22 +397,19 @@ impl SourceView {
                         gutter_painter.rect_filled(bar_rect, 0.0, bar_color);
                     }
 
-                    // Line number in pinned gutter: print every 5th line or active caret line
-                    let should_print_number = line_num.is_multiple_of(5) || is_caret_line;
-                    if should_print_number {
-                        let num_color = if is_caret_line {
-                            theme.accent
-                        } else {
-                            theme.text_muted
-                        };
-                        gutter_painter.text(
-                            gutter_rect.right_center() - Vec2::new(10.0, 0.0),
-                            egui::Align2::RIGHT_CENTER,
-                            line_num.to_string(),
-                            TextStyle::Monospace.resolve(ui.style()),
-                            num_color,
-                        );
-                    }
+                    // Line number in pinned gutter
+                    let num_color = if is_caret_line {
+                        theme.accent
+                    } else {
+                        theme.text_muted
+                    };
+                    gutter_painter.text(
+                        gutter_rect.right_center() - Vec2::new(10.0, 0.0),
+                        egui::Align2::RIGHT_CENTER,
+                        line_num.to_string(),
+                        TextStyle::Monospace.resolve(ui.style()),
+                        num_color,
+                    );
 
                     // Caret click: calculate actual character column from mouse position
                     let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 12.0;
