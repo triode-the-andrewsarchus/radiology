@@ -13,6 +13,7 @@ use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
+use egui::text::{LayoutJob, TextFormat};
 use egui::{pos2, Color32, Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
 
 /// User interactions and navigation events produced within the [`SourceView`].
@@ -402,57 +403,53 @@ impl SourceView {
                             });
                         }
 
-                        // Draw pre-highlighted code spans strictly clipped
+                        // Assemble unified line LayoutJob so all tokens share the exact same typographic baseline
                         let font_id = TextStyle::Monospace.resolve(ui.style());
+                        let mut job = LayoutJob {
+                            break_on_newline: false,
+                            ..Default::default()
+                        };
+                        if wrap_lines {
+                            job.wrap.max_width =
+                                (ui.available_width() - Self::GUTTER_WIDTH - 24.0).max(100.0);
+                        }
+
                         if let Some(spans) = highlighted_lines.get(line_num.saturating_sub(1)) {
-                            let mut x_offset = 0.0;
-                            for span in spans {
-                                let mut color = span.color;
-                                if mode == SourceMode::Critical {
-                                    // In Critical Lens mode, recede non-critical tokens (keywords, punctuation, basic runtime plumbing)
-                                    let is_critical = span.color == theme.accent
-                                        || span.color == egui::Color32::from_rgb(224, 108, 117);
-                                    if !is_critical {
-                                        let factor = if theme.is_dark { 0.38 } else { 0.30 };
-                                        color = color.linear_multiply(factor);
+                            if spans.is_empty() {
+                                job.append(
+                                    line_text,
+                                    0.0,
+                                    TextFormat::simple(font_id.clone(), theme.text_primary),
+                                );
+                            } else {
+                                for span in spans {
+                                    let mut color = span.color;
+                                    if mode == SourceMode::Critical {
+                                        // In Critical Lens mode, recede non-critical tokens (keywords, punctuation, basic runtime plumbing)
+                                        let is_critical = span.color == theme.accent
+                                            || span.color == egui::Color32::from_rgb(224, 108, 117);
+                                        if !is_critical {
+                                            let factor = if theme.is_dark { 0.38 } else { 0.30 };
+                                            color = color.linear_multiply(factor);
+                                        }
                                     }
+                                    job.append(
+                                        &span.text,
+                                        0.0,
+                                        TextFormat::simple(font_id.clone(), color),
+                                    );
                                 }
-                                let galley = if wrap_lines {
-                                    code_painter.layout(
-                                        span.text.clone(),
-                                        font_id.clone(),
-                                        color,
-                                        (ui.available_width() - Self::GUTTER_WIDTH - 24.0)
-                                            .max(100.0),
-                                    )
-                                } else {
-                                    code_painter.layout_no_wrap(
-                                        span.text.clone(),
-                                        font_id.clone(),
-                                        color,
-                                    )
-                                };
-                                let text_y =
-                                    rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
-                                let span_pos = pos2(code_start_x + x_offset, text_y);
-                                code_painter.galley(span_pos, galley.clone(), color);
-                                x_offset += galley.size().x;
                             }
                         } else {
-                            let galley = if wrap_lines {
-                                code_painter.layout(
-                                    line_text.to_string(),
-                                    font_id.clone(),
-                                    theme.text_primary,
-                                    (ui.available_width() - Self::GUTTER_WIDTH - 24.0).max(100.0),
-                                )
-                            } else {
-                                code_painter.layout_no_wrap(
-                                    line_text.to_string(),
-                                    font_id.clone(),
-                                    theme.text_primary,
-                                )
-                            };
+                            job.append(
+                                line_text,
+                                0.0,
+                                TextFormat::simple(font_id.clone(), theme.text_primary),
+                            );
+                        }
+
+                        if !job.is_empty() {
+                            let galley = code_painter.layout_job(job);
                             let text_y =
                                 rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
                             code_painter.galley(

@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Typographic Baseline & Unified Line LayoutJob Remediation (2026-10-27):**
+Resolved inconsistent vertical token jumping and text baseline misalignment within rendered source lines:
+- Migrated code line formatting to `egui::text::LayoutJob` with section-based `TextFormat`.
+- Eliminated per-token galley layouts where varying glyph bounding boxes caused individual tokens (`-`, `` `code` ``, `(`, `.`, `**`) to receive differing vertical offsets.
+- Entire line is laid out as a single `Galley` via `code_painter.layout_job(job)`, locking all tokens across the line onto an identical typographic font baseline.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Horizontal Scroll Viewport Clipping Remediation (2026-10-27):**
 Resolved horizontal scroll blank area / cut-off text defect when scrolling right on long lines:
 - Eliminated `.intersect(ui.max_rect())` on `viewport_clip`. In EGUI `ScrollArea`, `ui.max_rect()` translates with scroll offset (`-state.offset.x`), which caused the clip rect's right edge to retract leftwards and blank out newly visible text. Direct `ui.clip_rect()` strictly bounds against `SidePanel::right` while preserving full visible canvas width.
