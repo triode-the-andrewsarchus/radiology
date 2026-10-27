@@ -141,6 +141,38 @@ impl SyntaxHighlighter {
             }],
         }
     }
+
+    /// Highlights all lines of `text` using `syntax_ref` and the current appearance theme.
+    #[must_use]
+    pub fn highlight_document(
+        &self,
+        syntax_ref: Option<&SyntaxReference>,
+        text: &str,
+        dark_mode: bool,
+    ) -> Vec<Vec<HighlightedSpan>> {
+        let mut out = Vec::new();
+        if let Some(syntax) = syntax_ref {
+            let mut hl = HighlightLines::new(syntax, self.theme(dark_mode));
+            for line in syntect::util::LinesWithEndings::from(text) {
+                out.push(self.highlight_line(&mut hl, line));
+            }
+        } else {
+            let default_color = if dark_mode {
+                Color32::from_rgb(220, 220, 220)
+            } else {
+                Color32::from_rgb(30, 30, 30)
+            };
+            for line in text.lines() {
+                out.push(vec![HighlightedSpan {
+                    text: line.to_string(),
+                    color: default_color,
+                    is_bold: false,
+                    is_italic: false,
+                }]);
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]
