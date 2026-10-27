@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Gutter Viewport Anchor & File Switch Displacement Remediation (2026-10-27):**
+Resolved defect where selecting a new file displaced line numbers and gutter to `x = 0.0`, covering the sidebar file tree:
+- Explicitly captured `editor_viewport = ui.available_rect_before_wrap()` outside `ScrollArea`. In EGUI, child `ui.clip_rect().min.x` could fall back to `0.0` when switching files before `content_is_too_large` was computed.
+- Directly anchored gutter column, row line numbers, and code scissor bounds to `editor_viewport.min.x` (fixed at `CentralPanel` left boundary).
+- Set `ui.set_clip_rect(ui.max_rect())` on `CentralPanel`.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Dark Mode Premultiplied Alpha & Contrast Remediation (2026-10-27):**
 Resolved active line and wash contrast issues in dark mode:
 - Migrated translucent color definitions from `from_rgba_premultiplied` to `from_rgba_unmultiplied`. Previously, passing unscaled RGB (`blue = 255`) caused premultiplied blending to add full-intensity blue directly to the dark background, producing an overpowering neon bar.
