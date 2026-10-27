@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Horizontal Scroll Viewport Clipping Remediation (2026-10-27):**
+Resolved horizontal scroll blank area / cut-off text defect when scrolling right on long lines:
+- Eliminated `.intersect(ui.max_rect())` on `viewport_clip`. In EGUI `ScrollArea`, `ui.max_rect()` translates with scroll offset (`-state.offset.x`), which caused the clip rect's right edge to retract leftwards and blank out newly visible text. Direct `ui.clip_rect()` strictly bounds against `SidePanel::right` while preserving full visible canvas width.
+- Expanded `full_code_width` buffer for tab expansion and trailing comments.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Line Rendering & Gutter Alignment Remediation (2026-10-27):**
 Resolved line rendering alignment defects when opening files such as `AGENTS.md`:
 - Line 1 Ascender Clipping: Increased `row_height` to 22.0 px (`Theme.sourceLineHeight: 22`). Replaced center-offset text positioning with baseline/top-relative row centering (`text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0)`). Added 4px vertical clearance to `code_clip_rect.min.y` to eliminate top scissor clipping.

@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-10-27 — Horizontal Scroll Viewport Clipping Remediation (Antigravity)
+
+Resolved horizontal scroll blank area / cut-off text defect when scrolling right on long lines:
+- **Root Cause Analysis:**
+  - `viewport_clip` was previously computed as `ui.clip_rect().intersect(ui.max_rect())`.
+  - In EGUI's `ScrollArea`, `ui.max_rect()` represents the scrolled child layout rectangle, which translates
+    horizontally by `-state.offset.x` when the user scrolls right.
+  - Intersecting `ui.clip_rect()` with `ui.max_rect()` caused the right bound of the clip rectangle to shrink
+    leftward by the exact scroll offset (`viewport_clip.max.x = inner_rect.max.x - offset.x`).
+  - As a result, the right portion of the editor canvas became completely clipped out by the painter, rendering
+    as a blank gap and truncating newly scrolled tokens from appearing.
+- **Remediation:**
+  - Removed `.intersect(ui.max_rect())`, relying directly on `ui.clip_rect()` which accurately defines the fixed
+    window viewport bounds of the `CentralPanel` and strictly bounds the editor before `SidePanel::right`.
+  - Expanded `full_code_width` safety padding (`char_width * 1.1 + GUTTER_WIDTH + 120.0`) to provide comfortable
+    room for tab character expansions and trailing comments.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved intact.
+
 ## 2026-10-27 — Line Rendering & Gutter Alignment Remediation (Antigravity)
 
 Resolved line rendering alignment defects when opening files such as `AGENTS.md`:
