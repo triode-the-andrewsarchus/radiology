@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-27 — Deduplicated Status Bar Remediation (Antigravity)
+
+Resolved defect where the bottom status bar appeared duplicated:
+- **Root Cause**:
+  - `src/ui/app.rs` was rendering a global window-wide bottom bar via `TopBottomPanel::bottom("status_bar")`.
+  - `src/ui/source_view.rs` was also rendering an editor-contained bottom bar below the divider matching macOS `ReaderDetail.swift`.
+  - As a result, both bars were stacked atop one another at the bottom of the interface.
+- **Fix**:
+  - Removed window-level `TopBottomPanel::bottom("status_bar")` from `src/ui/app.rs`.
+  - Polished the single, authentic editor status bar in `src/ui/source_view.rs`:
+    - Language, `·`, and total line count on the left.
+    - Index status (`Index Ready` or `Ripgrep ready`), `·`, clickable `Line N` button (dispatches `SourceViewAction::OpenGoToLine`), `·`, revision title (only when in PR review, omitted in local checkout), `·`, and `UTF-8 · Read Only` on the right.
+  - Wired `SourceViewAction::OpenGoToLine` in `src/ui/app.rs` to open `GoToLineModal`.
+  - Tested: 38 unit tests pass, 30 doctests pass, clippy clean with -D warnings, rustfmt clean, zero emojis. Swift code untouched.
+
 ## 2026-10-27 — Full Swift Parity Audit & Missing UI Elements Remediation (Antigravity)
 
 Completed full-coverage audit of original macOS Swift code against the Rust + EGUI port and implemented parity across all missing UI controls, menus, and click actions:
