@@ -124,6 +124,10 @@ pub struct RadiologyApp {
     pub modal: ActiveModal,
     /// Target line to scroll and center into view in the code editor.
     pub scroll_to_line: Option<usize>,
+    /// Whether the left navigation sidebar is visible.
+    pub show_sidebar: bool,
+    /// Whether the right context inspector is visible.
+    pub show_inspector: bool,
 }
 
 impl RadiologyApp {
@@ -169,6 +173,8 @@ impl RadiologyApp {
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
             scroll_to_line: None,
+            show_sidebar: true,
+            show_inspector: true,
         };
 
         if app.session.is_valid() {
@@ -639,6 +645,84 @@ impl RadiologyApp {
                 }
             }
         }
+        if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::O)) {
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                self.open_repository(&folder);
+            }
+        }
+        if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::R)) {
+            if let Some(pr) = &self.active_pr {
+                let num = pr.number;
+                if let Some(root) = &self.repository_root {
+                    if let Ok(updated) = GitHubClient::view_pull_request(root, num) {
+                        self.active_pr = Some(updated);
+                    }
+                    if let Ok(diff) = GitHubClient::get_pr_diff(root, num) {
+                        self.line_changes = Some(UnifiedDiffParser::parse(&diff));
+                        self.pr_changes = UnifiedDiffParser::parse_file_changes(&diff);
+                    }
+                }
+            } else {
+                self.refresh_git_changes();
+            }
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.shift
+                && i.key_pressed(egui::Key::F)
+        }) {
+            self.sidebar_tab = SidebarTab::Search;
+            self.show_sidebar = true;
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::S)
+        }) {
+            self.show_sidebar = !self.show_sidebar;
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::I)
+        }) {
+            self.show_inspector = !self.show_inspector;
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::Num1)
+        }) {
+            self.mode = SourceMode::Normal;
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::Num2)
+        }) {
+            self.mode = SourceMode::Critical;
+        }
+        if ctx.input(|i| {
+            i.key_pressed(egui::Key::Enter)
+                && !i.modifiers.ctrl
+                && !i.modifiers.command
+                && !i.modifiers.alt
+                && !i.modifiers.shift
+        }) && matches!(self.modal, ActiveModal::None)
+        {
+            if let Some(buf) = &self.open_buffer {
+                if let Some(idx) = &self.semantic_index {
+                    let line_0 = self.caret_line.saturating_sub(1);
+                    if let Some(occ) = idx.occurrence_at(&buf.path, line_0, self.caret_col) {
+                        if let Some((def_path, def_range)) = idx.find_definition(&occ.symbol) {
+                            let p = def_path.to_string();
+                            let l = (def_range.start_line + 1) as usize;
+                            self.jump_to_location(&p, l, 0);
+                        }
+                    }
+                }
+            }
+        }
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::K)) {
             self.modal = ActiveModal::QuickFilePicker(QuickFilePickerModal::default());
         }
@@ -851,8 +935,11 @@ impl eframe::App for RadiologyApp {
             if let Some(action) = Toolbar::show(
                 ui,
                 &self.theme,
+                self.show_sidebar,
+                self.show_inspector,
                 self.repository_name.as_deref(),
                 self.branch_name.as_deref(),
+                &self.session.recent_repositories,
                 self.active_pr.as_ref(),
                 self.active_revision,
                 self.mode,
@@ -861,6 +948,40 @@ impl eframe::App for RadiologyApp {
                 &self.history,
             ) {
                 match action {
+                    ToolbarAction::ToggleSidebar => {
+                        self.show_sidebar = !self.show_sidebar;
+                    }
+                    ToolbarAction::ToggleInspector => {
+                        self.show_inspector = !self.show_inspector;
+                    }
+                    ToolbarAction::OpenRecentRepo(p) => {
+                        self.open_repository(&PathBuf::from(p));
+                    }
+                    ToolbarAction::CopyRepoPath => {
+                        if let Some(root) = &self.repository_root {
+                            ui.output_mut(|o| o.copied_text = root.to_string_lossy().to_string());
+                        }
+                    }
+                    ToolbarAction::RefreshPR => {
+                        if let Some(pr) = &self.active_pr {
+                            let num = pr.number;
+                            if let Some(root) = &self.repository_root {
+                                if let Ok(updated) = GitHubClient::view_pull_request(root, num) {
+                                    self.active_pr = Some(updated);
+                                }
+                                if let Ok(diff) = GitHubClient::get_pr_diff(root, num) {
+                                    self.line_changes = Some(UnifiedDiffParser::parse(&diff));
+                                    self.pr_changes = UnifiedDiffParser::parse_file_changes(&diff);
+                                }
+                            }
+                        } else {
+                            self.refresh_git_changes();
+                        }
+                    }
+                    ToolbarAction::OpenSearch => {
+                        self.sidebar_tab = SidebarTab::Search;
+                        self.show_sidebar = true;
+                    }
                     ToolbarAction::OpenRepositoryDialog => {
                         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                             self.open_repository(&folder);
@@ -967,166 +1088,171 @@ impl eframe::App for RadiologyApp {
             }
         });
 
-        SidePanel::left("left_sidebar")
-            .resizable(true)
-            .default_width(260.0)
-            .min_width(180.0)
-            .max_width(500.0)
-            .show(ctx, |ui| {
-                ui.style_mut().interaction.selectable_labels = false;
-                let prev_tab = self.sidebar_tab;
-                let visible_count = self
-                    .session
-                    .source_filters
-                    .filter_files(&self.all_files)
-                    .len();
-                let total_count = self.all_files.len();
-                if let Some(action) = Sidebar::show(
-                    ui,
-                    &self.theme,
-                    &mut self.sidebar_tab,
-                    &self.file_tree,
-                    &mut self.expanded_dirs,
-                    self.selected_path.as_deref(),
-                    self.active_pr.as_ref(),
-                    &self.pr_changes,
-                    &mut self.search_options,
-                    &self.search_matches,
-                    self.is_searching,
-                    visible_count,
-                    total_count,
-                    self.branch_name.as_deref(),
-                ) {
-                    match action {
-                        SidebarAction::OpenFile(p) => {
-                            self.open_file(&p);
-                        }
-                        SidebarAction::OpenSearchMatch(m) => {
-                            self.jump_to_location(&m.path, m.line, m.byte_offset);
-                        }
-                        SidebarAction::StartSearch => {
-                            if let Some(root) = self.repository_root.clone() {
-                                self.search_cancel
-                                    .store(true, std::sync::atomic::Ordering::Relaxed);
-                                let cancel = Arc::new(AtomicBool::new(false));
-                                self.search_cancel = cancel.clone();
-                                self.is_searching = true;
+        if self.show_sidebar {
+            SidePanel::left("left_sidebar")
+                .resizable(true)
+                .default_width(260.0)
+                .min_width(180.0)
+                .max_width(500.0)
+                .show(ctx, |ui| {
+                    ui.style_mut().interaction.selectable_labels = false;
+                    let prev_tab = self.sidebar_tab;
+                    let visible_count = self
+                        .session
+                        .source_filters
+                        .filter_files(&self.all_files)
+                        .len();
+                    let total_count = self.all_files.len();
+                    if let Some(action) = Sidebar::show(
+                        ui,
+                        &self.theme,
+                        &mut self.sidebar_tab,
+                        &self.file_tree,
+                        &mut self.expanded_dirs,
+                        self.selected_path.as_deref(),
+                        self.active_pr.as_ref(),
+                        &self.pr_changes,
+                        &mut self.search_options,
+                        &self.search_matches,
+                        self.is_searching,
+                        visible_count,
+                        total_count,
+                        self.branch_name.as_deref(),
+                    ) {
+                        match action {
+                            SidebarAction::OpenFile(p) => {
+                                self.open_file(&p);
+                            }
+                            SidebarAction::OpenSearchMatch(m) => {
+                                self.jump_to_location(&m.path, m.line, m.byte_offset);
+                            }
+                            SidebarAction::StartSearch => {
+                                if let Some(root) = self.repository_root.clone() {
+                                    self.search_cancel
+                                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                                    let cancel = Arc::new(AtomicBool::new(false));
+                                    self.search_cancel = cancel.clone();
+                                    self.is_searching = true;
+                                    self.search_matches.clear();
+                                    let opts = self.search_options.clone();
+
+                                    let (tx, rx) = std::sync::mpsc::channel();
+                                    self.search_rx = Some(rx);
+
+                                    std::thread::spawn(move || {
+                                        if let Ok(rt) =
+                                            tokio::runtime::Builder::new_current_thread()
+                                                .enable_all()
+                                                .build()
+                                        {
+                                            rt.block_on(async move {
+                                                let _ = SearchRunner::search(
+                                                    &root,
+                                                    &opts,
+                                                    cancel,
+                                                    |batch| {
+                                                        let _ = tx.send(batch);
+                                                    },
+                                                )
+                                                .await;
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                            SidebarAction::ClearSearch => {
                                 self.search_matches.clear();
-                                let opts = self.search_options.clone();
-
-                                let (tx, rx) = std::sync::mpsc::channel();
-                                self.search_rx = Some(rx);
-
-                                std::thread::spawn(move || {
-                                    if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
-                                        .enable_all()
-                                        .build()
-                                    {
-                                        rt.block_on(async move {
-                                            let _ = SearchRunner::search(
-                                                &root,
-                                                &opts,
-                                                cancel,
-                                                |batch| {
-                                                    let _ = tx.send(batch);
-                                                },
-                                            )
-                                            .await;
-                                        });
-                                    }
-                                });
                             }
                         }
-                        SidebarAction::ClearSearch => {
-                            self.search_matches.clear();
-                        }
                     }
-                }
 
-                if prev_tab != SidebarTab::Changes && self.sidebar_tab == SidebarTab::Changes {
-                    self.refresh_git_changes();
-                }
-            });
-
-        SidePanel::right("context_inspector")
-            .resizable(true)
-            .default_width(300.0)
-            .min_width(200.0)
-            .max_width(600.0)
-            .show(ctx, |ui| {
-                ui.style_mut().interaction.selectable_labels = false;
-                let current_sym_info = self.open_buffer.as_ref().and_then(|buf| {
-                    self.semantic_index.as_ref().and_then(|idx| {
-                        let line_0 = self.caret_line.saturating_sub(1);
-                        idx.occurrence_at(&buf.path, line_0, self.caret_col)
-                            .and_then(|occ| idx.symbol_info(&occ.symbol))
-                    })
-                });
-
-                let def_loc = current_sym_info.and_then(|s| {
-                    self.semantic_index.as_ref().and_then(|idx| {
-                        idx.find_definition(&s.symbol)
-                            .map(|(p, r)| (p, (r.start_line + 1) as usize))
-                    })
-                });
-
-                let (enclosing_sym, enclosing_line) = if let Some(buf) = &self.open_buffer {
-                    let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-                    let mut enclosing = Vec::new();
-                    for sym in &self.outline_symbols {
-                        sym.breadcrumbs(caret_byte, &mut enclosing);
+                    if prev_tab != SidebarTab::Changes && self.sidebar_tab == SidebarTab::Changes {
+                        self.refresh_git_changes();
                     }
-                    let sym = enclosing.last().cloned();
-                    let line = sym
-                        .as_ref()
-                        .map(|s| buf.line_at_byte(s.selection_range.start))
-                        .unwrap_or(self.caret_line);
-                    (sym, line)
-                } else {
-                    (None, 1)
-                };
-                let current_file_path = self.open_buffer.as_ref().map(|b| b.path.as_str());
+                });
+        }
 
-                if let Some(action) = ContextInspector::show(
-                    ui,
-                    &self.theme,
-                    &mut self.inspector_tab,
-                    current_sym_info,
-                    def_loc,
-                    enclosing_sym.as_ref(),
-                    enclosing_line,
-                    current_file_path,
-                    &self.caller_tree,
-                    &self.outline_symbols,
-                    &self.bookmarks,
-                ) {
-                    match action {
-                        InspectorAction::JumpToLocation {
-                            path,
-                            line,
-                            byte_offset,
-                        } => {
-                            self.jump_to_location(&path, line, byte_offset);
+        if self.show_inspector {
+            SidePanel::right("context_inspector")
+                .resizable(true)
+                .default_width(300.0)
+                .min_width(200.0)
+                .max_width(600.0)
+                .show(ctx, |ui| {
+                    ui.style_mut().interaction.selectable_labels = false;
+                    let current_sym_info = self.open_buffer.as_ref().and_then(|buf| {
+                        self.semantic_index.as_ref().and_then(|idx| {
+                            let line_0 = self.caret_line.saturating_sub(1);
+                            idx.occurrence_at(&buf.path, line_0, self.caret_col)
+                                .and_then(|occ| idx.symbol_info(&occ.symbol))
+                        })
+                    });
+
+                    let def_loc = current_sym_info.and_then(|s| {
+                        self.semantic_index.as_ref().and_then(|idx| {
+                            idx.find_definition(&s.symbol)
+                                .map(|(p, r)| (p, (r.start_line + 1) as usize))
+                        })
+                    });
+
+                    let (enclosing_sym, enclosing_line) = if let Some(buf) = &self.open_buffer {
+                        let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
+                        let mut enclosing = Vec::new();
+                        for sym in &self.outline_symbols {
+                            sym.breadcrumbs(caret_byte, &mut enclosing);
                         }
-                        InspectorAction::JumpToSymbol(byte) => {
-                            if let Some(buf) = &self.open_buffer {
-                                let line = buf.line_at_byte(byte);
-                                let p = buf.path.clone();
-                                self.jump_to_location(&p, line, byte);
+                        let sym = enclosing.last().cloned();
+                        let line = sym
+                            .as_ref()
+                            .map(|s| buf.line_at_byte(s.selection_range.start))
+                            .unwrap_or(self.caret_line);
+                        (sym, line)
+                    } else {
+                        (None, 1)
+                    };
+                    let current_file_path = self.open_buffer.as_ref().map(|b| b.path.as_str());
+
+                    if let Some(action) = ContextInspector::show(
+                        ui,
+                        &self.theme,
+                        &mut self.inspector_tab,
+                        current_sym_info,
+                        def_loc,
+                        enclosing_sym.as_ref(),
+                        enclosing_line,
+                        current_file_path,
+                        &self.caller_tree,
+                        &self.outline_symbols,
+                        &self.bookmarks,
+                    ) {
+                        match action {
+                            InspectorAction::JumpToLocation {
+                                path,
+                                line,
+                                byte_offset,
+                            } => {
+                                self.jump_to_location(&path, line, byte_offset);
+                            }
+                            InspectorAction::JumpToSymbol(byte) => {
+                                if let Some(buf) = &self.open_buffer {
+                                    let line = buf.line_at_byte(byte);
+                                    let p = buf.path.clone();
+                                    self.jump_to_location(&p, line, byte);
+                                }
+                            }
+                            InspectorAction::RemoveBookmark(id) => {
+                                self.bookmarks.remove(id);
+                            }
+                            InspectorAction::MoveBookmarkUp(idx) => {
+                                self.bookmarks.move_up(idx);
+                            }
+                            InspectorAction::MoveBookmarkDown(idx) => {
+                                self.bookmarks.move_down(idx);
                             }
                         }
-                        InspectorAction::RemoveBookmark(id) => {
-                            self.bookmarks.remove(id);
-                        }
-                        InspectorAction::MoveBookmarkUp(idx) => {
-                            self.bookmarks.move_up(idx);
-                        }
-                        InspectorAction::MoveBookmarkDown(idx) => {
-                            self.bookmarks.move_down(idx);
-                        }
                     }
-                }
-            });
+                });
+        }
 
         // Bottom status bar (matching native macOS ReaderDetail)
         TopBottomPanel::bottom("status_bar")
@@ -1270,6 +1396,13 @@ impl eframe::App for RadiologyApp {
                             }
                             SourceViewAction::ToggleRevision(r) => {
                                 self.active_revision = Some(r);
+                            }
+                            SourceViewAction::JumpToSymbol(byte) => {
+                                if let Some(buf) = &self.open_buffer {
+                                    let line = buf.line_at_byte(byte);
+                                    let p = buf.path.clone();
+                                    self.jump_to_location(&p, line, byte);
+                                }
                             }
                             SourceViewAction::PinOccurrence { symbol, ranges } => {
                                 self.pin_store.toggle_pin(&symbol, ranges);
