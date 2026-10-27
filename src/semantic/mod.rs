@@ -1,3 +1,10 @@
+//! SCIP semantic code intelligence, symbol resolution, and caller call trees.
+//!
+//! Provides pure-Rust zero-dependency decoding of SCIP Protocol Buffers indexes
+//! ([`ScipIndex`]), repository semantic indexing ([`SemanticIndex`]), and multi-level
+//! caller hierarchy tracing with cycle prevention and deterministic 12-color
+//! caller identity capsules ([`CallerTreeBuilder`]).
+
 pub mod caller_tree;
 pub mod index;
 pub mod scip_proto;

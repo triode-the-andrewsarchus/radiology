@@ -1,24 +1,45 @@
+//! Modal dialog overlays for fuzzy file navigation, line jumping, symbol outlines, and pull request review.
+//!
+//! Provides focused modal popups for keyboard-driven navigation workflows across large codebases.
+
 use crate::repository::file_node::RepositoryFile;
 use crate::repository::quick_search::QuickFileSearch;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{Context, Key, TextEdit, Window};
 
+/// Action triggered by user input inside any modal dialog.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModalAction {
+    /// Opens the specified file path relative to repository root.
     OpenFile(String),
+    /// Jumps the editor caret to the given 1-based line number.
     JumpToLine(usize),
-    JumpToSymbol(usize), // byte offset
+    /// Jumps the editor caret to the symbol starting at the given byte offset.
+    JumpToSymbol(usize),
+    /// Fetches and opens the GitHub pull request with the given number.
     OpenPullRequest(usize),
+    /// Dismisses the modal dialog without performing an action.
     Close,
 }
 
+/// Modal dialog for fuzzy file path search and navigation (Ctrl/Cmd+K).
 #[derive(Debug, Clone, Default)]
 pub struct QuickFilePickerModal {
+    /// Current search query string typed by the user.
     pub query: String,
+    /// Currently highlighted index in the matched results list.
     pub selected_idx: usize,
 }
 
 impl QuickFilePickerModal {
+    /// Renders the quick file picker dialog and handles arrow key and enter selections.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - EGUI context for global window rendering and keyboard input.
+    /// * `theme` - Visual color palette.
+    /// * `files` - List of all repository files available for fuzzy matching.
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -98,12 +119,21 @@ impl QuickFilePickerModal {
     }
 }
 
+/// Modal dialog for directly jumping to a specific line number (Ctrl/Cmd+L).
 #[derive(Debug, Clone, Default)]
 pub struct GoToLineModal {
+    /// String input typed into the line number entry field.
     pub line_str: String,
 }
 
 impl GoToLineModal {
+    /// Renders the jump-to-line dialog.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - EGUI context for global window rendering and input.
+    /// * `_theme` - Visual color palette.
+    /// * `max_lines` - Total number of lines in the active source file buffer.
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -150,13 +180,23 @@ impl GoToLineModal {
     }
 }
 
+/// Modal dialog for filtering and jumping to AST outline symbols in the current file (Ctrl/Cmd+T).
 #[derive(Debug, Clone, Default)]
 pub struct GoToSymbolModal {
+    /// Query string for filtering document symbol names.
     pub query: String,
+    /// Currently highlighted index in the filtered symbol list.
     pub selected_idx: usize,
 }
 
 impl GoToSymbolModal {
+    /// Renders the symbol filter dialog.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - EGUI context for global window rendering and keyboard input.
+    /// * `theme` - Visual color palette.
+    /// * `symbols` - Document outline symbols discovered in the active source buffer.
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -254,12 +294,20 @@ impl GoToSymbolModal {
     }
 }
 
+/// Modal dialog for entering a pull request number to review from GitHub.
 #[derive(Debug, Clone, Default)]
 pub struct PullRequestModal {
+    /// String input typed into the pull request number field.
     pub pr_str: String,
 }
 
 impl PullRequestModal {
+    /// Renders the pull request number prompt dialog.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - EGUI context for global window rendering and input.
+    /// * `_theme` - Visual color palette.
     pub fn show(&mut self, ctx: &Context, _theme: &AppTheme) -> Option<ModalAction> {
         let mut action = None;
 

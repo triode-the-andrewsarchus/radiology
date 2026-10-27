@@ -1,7 +1,19 @@
+//! Classifiers for source files, build artifacts, and test paths across languages.
+
 use std::path::Path;
 
-/// Determines if a file path represents source code, markup, or configuration
+/// Determines whether a file path represents source code, markup, or configuration
 /// rather than binary, media, or build artifacts.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::classifier::SourceFileClassifier;
+///
+/// assert!(SourceFileClassifier::is_source_file("src/main.rs"));
+/// assert!(SourceFileClassifier::is_source_file("Makefile"));
+/// assert!(!SourceFileClassifier::is_source_file("image.png"));
+/// ```
 pub struct SourceFileClassifier;
 
 impl SourceFileClassifier {
@@ -80,6 +92,8 @@ impl SourceFileClassifier {
         "so", "dylib", "dll", "exe", "bin", "wasm", "lock", "min.js", "min.css", "map",
     ];
 
+    /// Returns `true` if the file extension or filename corresponds to source text or configuration.
+    #[must_use]
     pub fn is_source_file(path: &str) -> bool {
         let p = Path::new(path);
         let ext = p
@@ -110,13 +124,24 @@ impl SourceFileClassifier {
 }
 
 /// Identifies whether a file path belongs to tests or test fixtures across languages.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::repository::classifier::TestPathClassifier;
+///
+/// assert!(TestPathClassifier::is_test_path("tests/integration_test.rs"));
+/// assert!(TestPathClassifier::is_test_path("pkg/service_test.go"));
+/// assert!(!TestPathClassifier::is_test_path("src/service.rs"));
+/// ```
 pub struct TestPathClassifier;
 
 impl TestPathClassifier {
+    /// Returns `true` if directory components or filename suffixes match test patterns.
+    #[must_use]
     pub fn is_test_path(path: &str) -> bool {
         let p = Path::new(path);
 
-        // Check path components for common test directory names
         for component in p.components() {
             let comp_str = component.as_os_str().to_string_lossy().to_lowercase();
             if matches!(
@@ -134,7 +159,6 @@ impl TestPathClassifier {
             }
         }
 
-        // Check filename patterns
         let filename = p.file_name().and_then(|f| f.to_str()).unwrap_or("");
         let lower = filename.to_lowercase();
 

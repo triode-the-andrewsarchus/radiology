@@ -1,3 +1,9 @@
+//! Right-hand context inspector panel showing symbol definitions, callers, AST outlines, and bookmarks.
+//!
+//! Provides tabs for inspecting the symbol definition under the caret, viewing recursive
+//! call trees with 12-color caller identity pills, browsing the file AST outline, and managing
+//! persistent code bookmarks.
+
 use crate::bookmarks::store::BookmarkStore;
 use crate::semantic::caller_tree::{caller_pill_color, ReferenceCallerNode};
 use crate::semantic::scip_proto::ScipSymbolInformation;
@@ -6,37 +12,65 @@ use crate::theme::AppTheme;
 use egui::{Color32, RichText, ScrollArea, Ui};
 use uuid::Uuid;
 
+/// Active tab selected in the [`ContextInspector`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InspectorTab {
+    /// Active symbol documentation, type signature, and definition file location.
     #[default]
     Symbol,
+    /// Incoming caller call tree with 12-color identity pills.
     References,
+    /// Tree-sitter AST document outline.
     Outline,
+    /// Bookmarked code locations with auto-relocating textual anchors.
     Bookmarks,
 }
 
+/// Navigation and management events produced by user interaction in the [`ContextInspector`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InspectorAction {
+    /// Requests jumping to a specific file path, line, and byte offset.
     JumpToLocation {
+        /// Target file path relative to repository root.
         path: String,
+        /// 1-based line number.
         line: usize,
+        /// 0-based byte offset.
         byte_offset: usize,
     },
-    JumpToSymbol(usize), // byte offset
+    /// Requests jumping to the byte offset of a document symbol.
+    JumpToSymbol(usize),
+    /// Removes the bookmark matching the given unique identifier.
     RemoveBookmark(Uuid),
+    /// Re-orders a bookmark upwards in the list.
     MoveBookmarkUp(usize),
+    /// Re-orders a bookmark downwards in the list.
     MoveBookmarkDown(usize),
 }
 
+/// Renders the right inspector panel for semantic, structural, and bookmark context.
 pub struct ContextInspector;
 
 impl ContextInspector {
+    /// Renders the inspector tabs and active panel contents.
+    ///
+    /// # Arguments
+    ///
+    /// * `ui` - EGUI UI layout context.
+    /// * `theme` - Visual color palette.
+    /// * `active_tab` - Mutable reference to the currently displayed tab.
+    /// * `current_symbol` - SCIP symbol metadata for the token under the caret.
+    /// * `definition_location` - Optional target file and line where the active symbol is defined.
+    /// * `caller_tree` - Hierarchical caller tree rooted at incoming references.
+    /// * `outline` - Hierarchical AST document symbols for the active file.
+    /// * `bookmarks` - Store containing active bookmarks for the repository.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
         active_tab: &mut InspectorTab,
         current_symbol: Option<&ScipSymbolInformation>,
-        definition_location: Option<(&str, usize)>, // path, line
+        definition_location: Option<(&str, usize)>,
         caller_tree: &[ReferenceCallerNode],
         outline: &[DocumentSymbol],
         bookmarks: &BookmarkStore,
@@ -198,6 +232,7 @@ impl ContextInspector {
         action
     }
 
+    /// Renders a single caller node in the incoming references tree with identity pill.
     fn render_caller_node(
         ui: &mut Ui,
         theme: &AppTheme,
@@ -246,6 +281,7 @@ impl ContextInspector {
         action
     }
 
+    /// Renders a document symbol node and its children in the outline tree.
     fn render_outline_node(
         ui: &mut Ui,
         theme: &AppTheme,

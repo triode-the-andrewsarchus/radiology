@@ -1,11 +1,29 @@
+//! Git and filesystem directory discovery for repository files.
+
 use crate::repository::file_node::RepositoryFile;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 
+/// Enumerates files in a repository using Git commands when available, with a walkdir fallback.
+///
+/// Excludes common build, dependency, and tool directories such as `.git`, `target`,
+/// and `node_modules`.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use std::path::Path;
+/// use radiology::repository::discovery::RepositoryDiscovery;
+///
+/// let root = RepositoryDiscovery::find_root(Path::new("."));
+/// let files = RepositoryDiscovery::discover_files(&root).unwrap();
+/// println!("Discovered {} files", files.len());
+/// ```
 pub struct RepositoryDiscovery;
 
 impl RepositoryDiscovery {
+    /// Directory names excluded from repository browsing and file enumeration.
     pub const EXCLUDED_DIRS: &'static [&'static str] = &[
         ".git",
         "node_modules",
@@ -23,6 +41,7 @@ impl RepositoryDiscovery {
 
     /// Locates the canonical repository root, checking `git rev-parse --show-toplevel`
     /// or looking for a parent `.git` directory, falling back to the canonicalized path.
+    #[must_use]
     pub fn find_root(path: &Path) -> PathBuf {
         if let Ok(output) = Command::new("git")
             .arg("rev-parse")
@@ -40,7 +59,6 @@ impl RepositoryDiscovery {
             }
         }
 
-        // Fallback: look upward for .git
         let mut curr = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         loop {
             if curr.join(".git").exists() {
@@ -54,8 +72,12 @@ impl RepositoryDiscovery {
         path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
     }
 
-    /// Discovers candidate repository files. Uses `git ls-files` with NUL delimiters when
-    /// available to properly handle special characters and ignores, falling back to walkdir.
+    /// Discovers candidate repository files using `git ls-files -z` when available,
+    /// falling back to filesystem traversal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`std::io::Error`] if filesystem enumeration fails.
     pub fn discover_files(root: &Path) -> Result<Vec<RepositoryFile>, std::io::Error> {
         if let Ok(files) = Self::discover_git_files(root) {
             if !files.is_empty() {
@@ -88,7 +110,6 @@ impl RepositoryDiscovery {
                 continue;
             }
             if let Ok(path_str) = std::str::from_utf8(slice) {
-                // Skip files within known generated/build directories
                 if Self::is_excluded_path(path_str) {
                     continue;
                 }
@@ -132,7 +153,9 @@ impl RepositoryDiscovery {
         }
     }
 
-    fn is_excluded_path(path_str: &str) -> bool {
+    /// Checks if a repository-relative path contains any excluded directory components.
+    #[must_use]
+    pub fn is_excluded_path(path_str: &str) -> bool {
         for part in path_str.split('/') {
             if Self::EXCLUDED_DIRS.contains(&part) {
                 return true;

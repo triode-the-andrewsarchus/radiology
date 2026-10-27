@@ -1,7 +1,27 @@
+//! Linear navigation history stack with Back and Forward branch management.
+
 use crate::source::location::SourceLocation;
 
-/// Linear navigation history with Back and Forward stacks.
-/// Navigating to a new location discards the forward branch.
+/// Manages linear navigation history with Back and Forward capabilities.
+///
+/// Navigating to a new location truncates any forward history, matching
+/// standard browser and editor navigation paradigms.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::source::history::NavigationHistory;
+/// use radiology::source::location::SourceLocation;
+///
+/// let mut history = NavigationHistory::new();
+/// history.visit(SourceLocation::new("a.rs", 10));
+/// history.visit(SourceLocation::new("b.rs", 20));
+///
+/// assert!(history.can_go_back());
+/// assert_eq!(history.back().unwrap().path, "a.rs");
+/// assert!(history.can_go_forward());
+/// assert_eq!(history.forward().unwrap().path, "b.rs");
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct NavigationHistory {
     entries: Vec<SourceLocation>,
@@ -9,10 +29,14 @@ pub struct NavigationHistory {
 }
 
 impl NavigationHistory {
+    /// Creates an empty [`NavigationHistory`] stack.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns `true` if there are entries prior to the current location.
+    #[must_use]
     pub fn can_go_back(&self) -> bool {
         match self.index {
             Some(i) => i > 0,
@@ -20,6 +44,8 @@ impl NavigationHistory {
         }
     }
 
+    /// Returns `true` if there are entries ahead of the current location.
+    #[must_use]
     pub fn can_go_forward(&self) -> bool {
         match self.index {
             Some(i) => i + 1 < self.entries.len(),
@@ -27,10 +53,13 @@ impl NavigationHistory {
         }
     }
 
+    /// Returns a reference to the active [`SourceLocation`].
+    #[must_use]
     pub fn current(&self) -> Option<&SourceLocation> {
         self.index.and_then(|i| self.entries.get(i))
     }
 
+    /// Appends a new destination, truncating forward branches and deduplicating identical visits.
     pub fn visit(&mut self, location: SourceLocation) {
         if let Some(i) = self.index {
             if let Some(curr) = self.entries.get(i) {
@@ -47,6 +76,7 @@ impl NavigationHistory {
         self.index = Some(self.entries.len() - 1);
     }
 
+    /// Updates the current entry's coordinates without creating a new history step.
     pub fn update_current(&mut self, location: SourceLocation) {
         if let Some(i) = self.index {
             if i < self.entries.len() {
@@ -55,6 +85,7 @@ impl NavigationHistory {
         }
     }
 
+    /// Steps backward in history, returning the previous [`SourceLocation`].
     pub fn back(&mut self) -> Option<SourceLocation> {
         if !self.can_go_back() {
             return None;
@@ -64,6 +95,7 @@ impl NavigationHistory {
         Some(self.entries[i].clone())
     }
 
+    /// Steps forward in history, returning the next [`SourceLocation`].
     pub fn forward(&mut self) -> Option<SourceLocation> {
         if !self.can_go_forward() {
             return None;
@@ -73,6 +105,7 @@ impl NavigationHistory {
         Some(self.entries[i].clone())
     }
 
+    /// Clears all navigation history.
     pub fn clear(&mut self) {
         self.entries.clear();
         self.index = None;
@@ -97,7 +130,6 @@ mod tests {
         assert!(!history.can_go_back());
         assert_eq!(history.current(), Some(&loc1));
 
-        // Re-visiting exact same location does not duplicate
         history.visit(loc1.clone());
         assert_eq!(history.entries.len(), 1);
 
@@ -106,28 +138,24 @@ mod tests {
         assert!(!history.can_go_forward());
         assert_eq!(history.current(), Some(&loc2));
 
-        history.visit(loc3.clone());
+        history.visit(loc3);
         assert_eq!(history.entries.len(), 3);
 
-        // Back to loc2
         let b = history.back();
         assert_eq!(b, Some(loc2.clone()));
         assert!(history.can_go_forward());
         assert!(history.can_go_back());
 
-        // Back to loc1
         let b2 = history.back();
         assert_eq!(b2, Some(loc1.clone()));
         assert!(!history.can_go_back());
 
-        // Forward to loc2
         let f = history.forward();
         assert_eq!(f, Some(loc2.clone()));
 
-        // Branching: visit loc4 from loc2 discards loc3
         let loc4 = SourceLocation::new("d.rs", 40);
         history.visit(loc4.clone());
-        assert_eq!(history.entries.len(), 3); // loc1, loc2, loc4
+        assert_eq!(history.entries.len(), 3);
         assert!(!history.can_go_forward());
         assert_eq!(history.current(), Some(&loc4));
     }

@@ -1,20 +1,47 @@
+//! Syntax highlighting engine using `syntect` and precompiled themes.
+
 use egui::Color32;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
+/// A styled segment of text within a highlighted line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HighlightedSpan {
+    /// Text content of this token or span.
     pub text: String,
+    /// EGUI text color mapped from the active syntax theme.
     pub color: Color32,
+    /// Whether bold typography should be applied.
     pub is_bold: bool,
+    /// Whether italic typography should be applied.
     pub is_italic: bool,
 }
 
+/// Manages syntax definitions and themes for source text highlighting.
+///
+/// # Examples
+///
+/// ```rust
+/// use syntect::easy::HighlightLines;
+/// use radiology::syntax::highlighter::SyntaxHighlighter;
+///
+/// let hl = SyntaxHighlighter::new();
+/// let syntax = hl.find_syntax_for_path("test.rs").unwrap();
+/// let theme = hl.theme(true);
+/// let mut line_hl = HighlightLines::new(syntax, theme);
+///
+/// let spans = hl.highlight_line(&mut line_hl, "let x = 42;\n");
+/// assert!(!spans.is_empty());
+/// ```
 pub struct SyntaxHighlighter {
+    /// Precompiled syntax set containing 100+ standard syntaxes.
     pub syntax_set: SyntaxSet,
+    /// Bundled syntax themes.
     pub theme_set: ThemeSet,
+    /// Active dark theme key.
     pub dark_theme_name: &'static str,
+    /// Active light theme key.
     pub light_theme_name: &'static str,
 }
 
@@ -25,6 +52,8 @@ impl Default for SyntaxHighlighter {
 }
 
 impl SyntaxHighlighter {
+    /// Creates a new [`SyntaxHighlighter`] with default bundled syntaxes and themes.
+    #[must_use]
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
         let theme_set = ThemeSet::load_defaults();
@@ -36,10 +65,14 @@ impl SyntaxHighlighter {
         }
     }
 
+    /// Looks up a [`SyntaxReference`] matching the given file path or extension.
+    #[must_use]
     pub fn find_syntax_for_path(&self, path: &str) -> Option<&SyntaxReference> {
         self.syntax_set.find_syntax_for_file(path).ok().flatten()
     }
 
+    /// Returns the theme corresponding to the current light or dark appearance mode.
+    #[must_use]
     pub fn theme(&self, dark_mode: bool) -> &Theme {
         let name = if dark_mode {
             self.dark_theme_name
@@ -55,7 +88,8 @@ impl SyntaxHighlighter {
         })
     }
 
-    /// Highlights a single line of text given the syntax and active theme.
+    /// Highlights a single line of source code, returning styled [`HighlightedSpan`] elements.
+    #[must_use]
     pub fn highlight_line(
         &self,
         highlighter: &mut HighlightLines,

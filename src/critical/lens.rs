@@ -1,13 +1,23 @@
+//! Critical Lens mode and symbol criticality policies.
+
 use serde::{Deserialize, Serialize};
 
+/// Mode determining how source text is visually presented to the reader.
+///
+/// In [`SourceMode::Critical`], standard runtime plumbing recedes so repository
+/// definitions, system APIs, and FFI boundaries stand out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum SourceMode {
+    /// Shows source text exactly as written.
     #[default]
     Normal,
+    /// Recedes runtime plumbing and highlights meaningful domain and system operations.
     Critical,
 }
 
 impl SourceMode {
+    /// Returns the user-facing title of this mode.
+    #[must_use]
     pub fn title(&self) -> &'static str {
         match self {
             Self::Normal => "Normal",
@@ -15,6 +25,8 @@ impl SourceMode {
         }
     }
 
+    /// Returns a short description of this mode's behavior.
+    #[must_use]
     pub fn help(&self) -> &'static str {
         match self {
             Self::Normal => "Show the source as written.",
@@ -25,27 +37,43 @@ impl SourceMode {
     }
 }
 
+/// Criticality level of a symbol for skimming unfamiliar code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Criticality {
+    /// Meaningful operation that should be emphasized.
     Critical,
+    /// Non-critical plumbing or boilerplate.
     Ordinary,
+    /// Neutral, unclassified symbol.
     Unknown,
 }
 
+/// Explanatory reason behind a symbol's criticality classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CriticalityReason {
+    /// Manually marked critical by user.
     SymbolOverride,
+    /// Enclosing package marked by user.
     PackageOverride,
+    /// Local variable or binding.
     Local,
+    /// Foreign Function Interface (FFI) boundary.
     FfiPackage,
+    /// Extern C/FFI function signature.
     FfiSignature,
+    /// Operating system API or system call.
     SystemApi,
+    /// Symbol defined within the browsed repository.
     RepositoryDefinition,
+    /// Standard language runtime plumbing (clone, drop, fmt, etc.).
     RuntimePlumbing,
+    /// External package with no specific profile.
     External,
 }
 
 impl CriticalityReason {
+    /// Returns a concise description of the reason.
+    #[must_use]
     pub fn description(&self) -> &'static str {
         match self {
             Self::SymbolOverride => "marked by you",
@@ -61,17 +89,32 @@ impl CriticalityReason {
     }
 }
 
+/// Pair containing a [`Criticality`] level and its explanatory [`CriticalityReason`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CriticalityClassification {
+    /// Assigned criticality level.
     pub criticality: Criticality,
+    /// Evidence or rule responsible for the assignment.
     pub reason: CriticalityReason,
 }
 
+/// Policy evaluator classifying symbols for Critical Lens mode.
+///
+/// # Examples
+///
+/// ```rust
+/// use radiology::critical::lens::{Criticality, CriticalityPolicy, CriticalityReason};
+///
+/// let classification = CriticalityPolicy::classify_symbol("clone", true);
+/// assert_eq!(classification.criticality, Criticality::Ordinary);
+/// assert_eq!(classification.reason, CriticalityReason::RuntimePlumbing);
+/// ```
 pub struct CriticalityPolicy;
 
 impl CriticalityPolicy {
+    /// Classifies a symbol name based on repository ownership and runtime plumbing heuristics.
+    #[must_use]
     pub fn classify_symbol(name: &str, is_repo_defined: bool) -> CriticalityClassification {
-        // Known runtime plumbing methods
         let plumbing = [
             "clone",
             "to_string",
@@ -103,7 +146,6 @@ impl CriticalityPolicy {
             };
         }
 
-        // FFI / Sys call indicators
         if name.starts_with("sys_") || name.starts_with("libc::") || name.starts_with("syscall") {
             return CriticalityClassification {
                 criticality: Criticality::Critical,
