@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::source::buffer::SourceBuffer;
 use crate::source::location::{ReviewRevision, SourceLocation};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// A persistent bookmark tied to an exact canonical location or relocated line anchor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

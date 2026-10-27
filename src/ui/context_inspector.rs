@@ -1,10 +1,10 @@
-use egui::{Color32, RichText, ScrollArea, Ui};
-use uuid::Uuid;
 use crate::bookmarks::store::BookmarkStore;
 use crate::semantic::caller_tree::{caller_pill_color, ReferenceCallerNode};
 use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
+use egui::{Color32, RichText, ScrollArea, Ui};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InspectorTab {
@@ -16,7 +16,11 @@ pub enum InspectorTab {
 }
 
 pub enum InspectorAction {
-    JumpToLocation { path: String, line: usize, byte_offset: usize },
+    JumpToLocation {
+        path: String,
+        line: usize,
+        byte_offset: usize,
+    },
     JumpToSymbol(usize), // byte offset
     RemoveBookmark(Uuid),
     MoveBookmarkUp(usize),
@@ -26,6 +30,7 @@ pub enum InspectorAction {
 pub struct ContextInspector;
 
 impl ContextInspector {
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
@@ -71,10 +76,7 @@ impl ContextInspector {
                             if let Some((def_path, def_line)) = definition_location {
                                 ui.separator();
                                 ui.label(RichText::new("Defined at:").strong());
-                                if ui
-                                    .link(format!("{def_path}:{def_line}"))
-                                    .clicked()
-                                {
+                                if ui.link(format!("{def_path}:{def_line}")).clicked() {
                                     action = Some(InspectorAction::JumpToLocation {
                                         path: def_path.to_string(),
                                         line: def_line,
@@ -150,13 +152,21 @@ impl ContextInspector {
                                                 egui::Layout::right_to_left(egui::Align::Center),
                                                 |ui| {
                                                     if ui.small_button("✕").clicked() {
-                                                        action = Some(InspectorAction::RemoveBookmark(b.id));
+                                                        action = Some(
+                                                            InspectorAction::RemoveBookmark(b.id),
+                                                        );
                                                     }
                                                     if idx > 0 && ui.small_button("▲").clicked() {
-                                                        action = Some(InspectorAction::MoveBookmarkUp(idx));
+                                                        action = Some(
+                                                            InspectorAction::MoveBookmarkUp(idx),
+                                                        );
                                                     }
-                                                    if idx + 1 < bookmarks.bookmarks.len() && ui.small_button("▼").clicked() {
-                                                        action = Some(InspectorAction::MoveBookmarkDown(idx));
+                                                    if idx + 1 < bookmarks.bookmarks.len()
+                                                        && ui.small_button("▼").clicked()
+                                                    {
+                                                        action = Some(
+                                                            InspectorAction::MoveBookmarkDown(idx),
+                                                        );
                                                     }
                                                 },
                                             );

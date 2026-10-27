@@ -18,7 +18,9 @@ impl SourceMode {
     pub fn help(&self) -> &'static str {
         match self {
             Self::Normal => "Show the source as written.",
-            Self::Critical => "Recede runtime plumbing so repository, system, and FFI operations stand out.",
+            Self::Critical => {
+                "Recede runtime plumbing so repository, system, and FFI operations stand out."
+            }
         }
     }
 }
@@ -71,8 +73,20 @@ impl CriticalityPolicy {
     pub fn classify_symbol(name: &str, is_repo_defined: bool) -> CriticalityClassification {
         // Known runtime plumbing methods
         let plumbing = [
-            "clone", "to_string", "into", "from", "as_ref", "borrow", "deref",
-            "default", "fmt", "display", "debug", "drop", "hash", "eq",
+            "clone",
+            "to_string",
+            "into",
+            "from",
+            "as_ref",
+            "borrow",
+            "deref",
+            "default",
+            "fmt",
+            "display",
+            "debug",
+            "drop",
+            "hash",
+            "eq",
         ];
 
         if plumbing.contains(&name.to_lowercase().as_str()) {

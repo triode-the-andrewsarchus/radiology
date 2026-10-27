@@ -1,7 +1,7 @@
+use crate::repository::file_node::RepositoryFile;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
-use crate::repository::file_node::RepositoryFile;
 
 pub struct RepositoryDiscovery;
 
@@ -68,15 +68,18 @@ impl RepositoryDiscovery {
 
     fn discover_git_files(root: &Path) -> Result<Vec<RepositoryFile>, std::io::Error> {
         let output = Command::new("git")
-            .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+            .args([
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ])
             .current_dir(root)
             .output()?;
 
         if !output.status.success() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "git ls-files failed",
-            ));
+            return Err(std::io::Error::other("git ls-files failed"));
         }
 
         let mut files = Vec::new();
@@ -147,8 +150,12 @@ mod tests {
     fn test_excluded_paths() {
         assert!(RepositoryDiscovery::is_excluded_path("target/debug/build"));
         assert!(RepositoryDiscovery::is_excluded_path(".git/config"));
-        assert!(RepositoryDiscovery::is_excluded_path("node_modules/pkg/index.js"));
-        assert!(!RepositoryDiscovery::is_excluded_path("src/target_detector.rs"));
+        assert!(RepositoryDiscovery::is_excluded_path(
+            "node_modules/pkg/index.js"
+        ));
+        assert!(!RepositoryDiscovery::is_excluded_path(
+            "src/target_detector.rs"
+        ));
         assert!(!RepositoryDiscovery::is_excluded_path("src/main.rs"));
     }
 }

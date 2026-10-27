@@ -1,5 +1,5 @@
-use egui::Color32;
 use crate::source::selection::OccurrenceColor;
+use egui::Color32;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AppTheme {

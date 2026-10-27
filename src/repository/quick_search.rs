@@ -29,7 +29,9 @@ impl QuickFileSearch {
         let mut results = Vec::new();
 
         for file in files {
-            if let Some((score, matched_indices)) = Self::match_subsequence(&file.path, &query_chars) {
+            if let Some((score, matched_indices)) =
+                Self::match_subsequence(&file.path, &query_chars)
+            {
                 results.push(QuickSearchResult {
                     file: file.clone(),
                     score,

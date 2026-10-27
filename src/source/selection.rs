@@ -10,12 +10,7 @@ pub enum OccurrenceColor {
 }
 
 impl OccurrenceColor {
-    pub const ALL: [Self; 4] = [
-        Self::Teal,
-        Self::Amber,
-        Self::Violet,
-        Self::Rose,
-    ];
+    pub const ALL: [Self; 4] = [Self::Teal, Self::Amber, Self::Violet, Self::Rose];
 
     pub fn title(&self) -> &'static str {
         match self {
@@ -78,7 +73,9 @@ impl OccurrencePinStore {
 
     pub fn unpin_group_containing(&mut self, byte_offset: usize) -> bool {
         if let Some(idx) = self.groups.iter().position(|g| {
-            g.ranges.iter().any(|r| r.contains(&byte_offset) || r.start == byte_offset)
+            g.ranges
+                .iter()
+                .any(|r| r.contains(&byte_offset) || r.start == byte_offset)
         }) {
             self.groups.remove(idx);
             true
@@ -107,7 +104,7 @@ mod tests {
         assert_eq!(store.groups.len(), 1);
         assert_eq!(store.groups[0].color, OccurrenceColor::Teal);
 
-        store.toggle_pin("bar", vec![20..23]);
+        store.toggle_pin("bar", vec![Range { start: 20, end: 23 }]);
         assert_eq!(store.groups.len(), 2);
         assert_eq!(store.groups[1].color, OccurrenceColor::Amber);
 

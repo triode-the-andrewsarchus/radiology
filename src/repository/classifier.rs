@@ -6,31 +6,92 @@ pub struct SourceFileClassifier;
 
 impl SourceFileClassifier {
     const SOURCE_EXTENSIONS: &'static [&'static str] = &[
-        "rs", "swift", "go", "py", "pyi", "js", "jsx", "ts", "tsx", "mjs", "cjs",
-        "c", "h", "cc", "cpp", "cxx", "hpp", "hh", "m", "mm",
-        "java", "kt", "kts", "scala", "rb", "php", "cs", "fs",
-        "sh", "bash", "zsh", "fish",
-        "lua", "zig", "nim", "dart", "ex", "exs", "erl", "clj", "cljs",
-        "html", "htm", "css", "scss", "sass", "less",
-        "json", "yaml", "yml", "toml", "xml", "plist", "sql", "graphql",
-        "md", "markdown", "rst", "adoc", "txt", "diff", "patch",
-        "dockerfile", "makefile", "cmake",
+        "rs",
+        "swift",
+        "go",
+        "py",
+        "pyi",
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "mjs",
+        "cjs",
+        "c",
+        "h",
+        "cc",
+        "cpp",
+        "cxx",
+        "hpp",
+        "hh",
+        "m",
+        "mm",
+        "java",
+        "kt",
+        "kts",
+        "scala",
+        "rb",
+        "php",
+        "cs",
+        "fs",
+        "sh",
+        "bash",
+        "zsh",
+        "fish",
+        "lua",
+        "zig",
+        "nim",
+        "dart",
+        "ex",
+        "exs",
+        "erl",
+        "clj",
+        "cljs",
+        "html",
+        "htm",
+        "css",
+        "scss",
+        "sass",
+        "less",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "xml",
+        "plist",
+        "sql",
+        "graphql",
+        "md",
+        "markdown",
+        "rst",
+        "adoc",
+        "txt",
+        "diff",
+        "patch",
+        "dockerfile",
+        "makefile",
+        "cmake",
     ];
 
     const IGNORED_EXTENSIONS: &'static [&'static str] = &[
-        "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff", "svg",
-        "mp3", "wav", "flac", "ogg", "aac", "m4a", "mid", "midi",
-        "mp4", "mkv", "avi", "mov", "webm",
-        "zip", "tar", "gz", "bz2", "xz", "7z", "rar",
-        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-        "o", "a", "so", "dylib", "dll", "exe", "bin", "wasm",
-        "lock", "min.js", "min.css", "map",
+        "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff", "svg", "mp3", "wav", "flac",
+        "ogg", "aac", "m4a", "mid", "midi", "mp4", "mkv", "avi", "mov", "webm", "zip", "tar", "gz",
+        "bz2", "xz", "7z", "rar", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "o", "a",
+        "so", "dylib", "dll", "exe", "bin", "wasm", "lock", "min.js", "min.css", "map",
     ];
 
     pub fn is_source_file(path: &str) -> bool {
         let p = Path::new(path);
-        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        let filename = p.file_name().and_then(|f| f.to_str()).unwrap_or("").to_lowercase();
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let filename = p
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("")
+            .to_lowercase();
 
         if filename == "cargo.lock" || filename == "package-lock.json" || filename == "yarn.lock" {
             return false;
@@ -60,7 +121,14 @@ impl TestPathClassifier {
             let comp_str = component.as_os_str().to_string_lossy().to_lowercase();
             if matches!(
                 comp_str.as_str(),
-                "tests" | "test" | "spec" | "specs" | "testing" | "fixtures" | "mocks" | "__tests__"
+                "tests"
+                    | "test"
+                    | "spec"
+                    | "specs"
+                    | "testing"
+                    | "fixtures"
+                    | "mocks"
+                    | "__tests__"
             ) {
                 return true;
             }
@@ -70,15 +138,25 @@ impl TestPathClassifier {
         let filename = p.file_name().and_then(|f| f.to_str()).unwrap_or("");
         let lower = filename.to_lowercase();
 
-        if lower.starts_with("test_") || lower.ends_with("_test.go") || lower.ends_with("_test.rs")
-            || lower.ends_with(".test.ts") || lower.ends_with(".test.js")
-            || lower.ends_with(".test.tsx") || lower.ends_with(".test.jsx")
-            || lower.ends_with(".spec.ts") || lower.ends_with(".spec.js")
-            || lower.ends_with(".spec.tsx") || lower.ends_with(".spec.jsx")
-            || lower.ends_with("_spec.rb") || lower.ends_with("_test.py")
-            || filename.ends_with("Test.java") || filename.ends_with("Tests.java")
-            || filename.ends_with("Test.kt") || filename.ends_with("Tests.kt")
-            || filename.ends_with("Tests.swift") || filename.ends_with("Test.swift")
+        if lower.starts_with("test_")
+            || lower.ends_with("_test.go")
+            || lower.ends_with("_test.rs")
+            || lower.ends_with(".test.ts")
+            || lower.ends_with(".test.js")
+            || lower.ends_with(".test.tsx")
+            || lower.ends_with(".test.jsx")
+            || lower.ends_with(".spec.ts")
+            || lower.ends_with(".spec.js")
+            || lower.ends_with(".spec.tsx")
+            || lower.ends_with(".spec.jsx")
+            || lower.ends_with("_spec.rb")
+            || lower.ends_with("_test.py")
+            || filename.ends_with("Test.java")
+            || filename.ends_with("Tests.java")
+            || filename.ends_with("Test.kt")
+            || filename.ends_with("Tests.kt")
+            || filename.ends_with("Tests.swift")
+            || filename.ends_with("Test.swift")
         {
             return true;
         }
@@ -104,11 +182,17 @@ mod tests {
 
     #[test]
     fn test_test_classifier() {
-        assert!(TestPathClassifier::is_test_path("tests/integration_test.rs"));
+        assert!(TestPathClassifier::is_test_path(
+            "tests/integration_test.rs"
+        ));
         assert!(TestPathClassifier::is_test_path("src/tests/helper.rs"));
         assert!(TestPathClassifier::is_test_path("pkg/service_test.go"));
-        assert!(TestPathClassifier::is_test_path("components/Button.test.tsx"));
-        assert!(TestPathClassifier::is_test_path("Tests/RadiologyTests/AppTests.swift"));
+        assert!(TestPathClassifier::is_test_path(
+            "components/Button.test.tsx"
+        ));
+        assert!(TestPathClassifier::is_test_path(
+            "Tests/RadiologyTests/AppTests.swift"
+        ));
         assert!(TestPathClassifier::is_test_path("tests/test_model.py"));
         assert!(!TestPathClassifier::is_test_path("src/testing_utils.rs"));
         assert!(!TestPathClassifier::is_test_path("src/core/model.rs"));

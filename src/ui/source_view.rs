@@ -1,6 +1,3 @@
-use egui::{Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
-use syntect::easy::HighlightLines;
-use syntect::parsing::SyntaxReference;
 use crate::pull_request::diff::FileLineChanges;
 use crate::source::buffer::SourceBuffer;
 use crate::source::location::ReviewRevision;
@@ -9,15 +6,25 @@ use crate::syntax::folds::{FoldRange, FoldStore};
 use crate::syntax::highlighter::SyntaxHighlighter;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
+use egui::{Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
+use syntect::easy::HighlightLines;
+use syntect::parsing::SyntaxReference;
 
 pub enum SourceViewAction {
-    CaretMoved { line: usize, column: usize, byte_offset: usize },
+    CaretMoved {
+        line: usize,
+        column: usize,
+        byte_offset: usize,
+    },
     JumpToDefinition,
     ToggleFold(usize),
     NextChangeBlock,
     PrevChangeBlock,
     ToggleRevision(ReviewRevision),
-    PinOccurrence { symbol: String, ranges: Vec<std::ops::Range<usize>> },
+    PinOccurrence {
+        symbol: String,
+        ranges: Vec<std::ops::Range<usize>>,
+    },
 }
 
 pub struct SourceView;
@@ -25,6 +32,7 @@ pub struct SourceView;
 impl SourceView {
     pub const GUTTER_WIDTH: f32 = 72.0;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
@@ -120,14 +128,13 @@ impl SourceView {
                 .auto_shrink([false, false])
                 .max_height(available_height)
                 .show(ui, |ui| {
-                    let mut syn_highlighter = syntax_ref.map(|s| {
-                        HighlightLines::new(s, highlighter.theme(theme.is_dark))
-                    });
+                    let mut syn_highlighter = syntax_ref
+                        .map(|s| HighlightLines::new(s, highlighter.theme(theme.is_dark)));
 
                     // Set of added and removed lines from diff
-                    let changed_lines = line_changes.map(|c| {
-                        c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After))
-                    }).unwrap_or_default();
+                    let changed_lines = line_changes
+                        .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
+                        .unwrap_or_default();
 
                     for line_num in 1..=buffer.line_count() {
                         // Skip line if hidden inside a collapsed fold
@@ -206,7 +213,8 @@ impl SourceView {
                                 theme.text_secondary,
                             );
 
-                            let chevron_rect = Rect::from_center_size(chevron_pos, Vec2::new(16.0, 16.0));
+                            let chevron_rect =
+                                Rect::from_center_size(chevron_pos, Vec2::new(16.0, 16.0));
                             if ui.rect_contains_pointer(chevron_rect)
                                 && ui.input(|i| i.pointer.primary_clicked())
                             {
@@ -222,20 +230,22 @@ impl SourceView {
                         );
 
                         // Draw Code text
-                        let code_pos = rect.left_center() + Vec2::new(Self::GUTTER_WIDTH + 8.0, 0.0);
+                        let code_pos =
+                            rect.left_center() + Vec2::new(Self::GUTTER_WIDTH + 8.0, 0.0);
                         if let Some(hl) = &mut syn_highlighter {
                             let spans = highlighter.highlight_line(hl, line_text);
                             let mut x_offset = 0.0;
                             for span in spans {
                                 let span_text = span.text;
                                 let font_id = TextStyle::Monospace.resolve(ui.style());
-                                let galley = ui.painter().layout_no_wrap(
-                                    span_text,
-                                    font_id,
+                                let galley =
+                                    ui.painter().layout_no_wrap(span_text, font_id, span.color);
+                                let span_pos = code_pos + Vec2::new(x_offset, 0.0);
+                                ui.painter().galley(
+                                    span_pos - Vec2::new(0.0, galley.size().y / 2.0),
+                                    galley.clone(),
                                     span.color,
                                 );
-                                let span_pos = code_pos + Vec2::new(x_offset, 0.0);
-                                ui.painter().galley(span_pos - Vec2::new(0.0, galley.size().y / 2.0), galley.clone(), span.color);
                                 x_offset += galley.size().x;
                             }
                         } else {
@@ -255,9 +265,15 @@ impl SourceView {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&buffer.path).monospace());
                 ui.separator();
-                ui.colored_label(theme.text_secondary, format!("Line {}, Col {}", *caret_line, *caret_col));
+                ui.colored_label(
+                    theme.text_secondary,
+                    format!("Line {}, Col {}", *caret_line, *caret_col),
+                );
                 ui.separator();
-                ui.colored_label(theme.text_secondary, format!("{} lines", buffer.line_count()));
+                ui.colored_label(
+                    theme.text_secondary,
+                    format!("{} lines", buffer.line_count()),
+                );
                 ui.separator();
                 ui.colored_label(theme.accent, "UTF-8");
             });

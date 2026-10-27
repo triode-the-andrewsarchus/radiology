@@ -1,8 +1,8 @@
-use egui::{Context, Key, TextEdit, Window};
 use crate::repository::file_node::RepositoryFile;
 use crate::repository::quick_search::QuickFileSearch;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
+use egui::{Context, Key, TextEdit, Window};
 
 pub enum ModalAction {
     OpenFile(String),
@@ -46,15 +46,13 @@ impl QuickFilePickerModal {
 
                 let results = QuickFileSearch::search(files, &self.query, 12);
 
-                if ctx.input(|i| i.key_pressed(Key::ArrowDown)) {
-                    if self.selected_idx + 1 < results.len() {
-                        self.selected_idx += 1;
-                    }
+                if ctx.input(|i| i.key_pressed(Key::ArrowDown))
+                    && self.selected_idx + 1 < results.len()
+                {
+                    self.selected_idx += 1;
                 }
-                if ctx.input(|i| i.key_pressed(Key::ArrowUp)) {
-                    if self.selected_idx > 0 {
-                        self.selected_idx -= 1;
-                    }
+                if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
+                    self.selected_idx -= 1;
                 }
                 if ctx.input(|i| i.key_pressed(Key::Enter)) {
                     if let Some(res) = results.get(self.selected_idx) {
@@ -106,7 +104,12 @@ pub struct GoToLineModal {
 }
 
 impl GoToLineModal {
-    pub fn show(&mut self, ctx: &Context, _theme: &AppTheme, max_lines: usize) -> Option<ModalAction> {
+    pub fn show(
+        &mut self,
+        ctx: &Context,
+        _theme: &AppTheme,
+        max_lines: usize,
+    ) -> Option<ModalAction> {
         let mut action = None;
 
         Window::new("Go to Line")
@@ -194,7 +197,9 @@ impl GoToSymbolModal {
 
                 ui.separator();
 
-                if ctx.input(|i| i.key_pressed(Key::ArrowDown)) && self.selected_idx + 1 < matches.len() {
+                if ctx.input(|i| i.key_pressed(Key::ArrowDown))
+                    && self.selected_idx + 1 < matches.len()
+                {
                     self.selected_idx += 1;
                 }
                 if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
@@ -230,7 +235,10 @@ impl GoToSymbolModal {
                                 ui.horizontal(|ui| {
                                     ui.colored_label(theme.accent, sym.kind.icon());
                                     ui.label(egui::RichText::new(&sym.name).strong());
-                                    ui.colored_label(theme.text_muted, format!("line {}", sym.line));
+                                    ui.colored_label(
+                                        theme.text_muted,
+                                        format!("line {}", sym.line),
+                                    );
                                 });
                             })
                             .response;

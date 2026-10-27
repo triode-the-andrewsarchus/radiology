@@ -1,22 +1,22 @@
-use std::collections::HashSet;
-use egui::Color32;
 use crate::semantic::index::SemanticIndex;
+use egui::Color32;
+use std::collections::HashSet;
 
 /// Deterministic 12-color identity palette for caller capsules.
 /// The same method/file pair keeps its hue across branches and application launches.
 pub const CALLER_PALETTE: [Color32; 12] = [
-    Color32::from_rgb(59, 130, 246),  // Blue
-    Color32::from_rgb(20, 184, 166),  // Teal
-    Color32::from_rgb(168, 85, 247),  // Purple
-    Color32::from_rgb(249, 115, 22),  // Orange
-    Color32::from_rgb(236, 72, 153),  // Pink
-    Color32::from_rgb(99, 102, 241),  // Indigo
-    Color32::from_rgb(34, 197, 94),   // Green
-    Color32::from_rgb(6, 182, 212),   // Cyan
-    Color32::from_rgb(162, 114, 80),  // Brown
-    Color32::from_rgb(52, 211, 153),  // Mint
-    Color32::from_rgb(239, 68, 68),   // Red
-    Color32::from_rgb(234, 179, 8),   // Yellow
+    Color32::from_rgb(59, 130, 246), // Blue
+    Color32::from_rgb(20, 184, 166), // Teal
+    Color32::from_rgb(168, 85, 247), // Purple
+    Color32::from_rgb(249, 115, 22), // Orange
+    Color32::from_rgb(236, 72, 153), // Pink
+    Color32::from_rgb(99, 102, 241), // Indigo
+    Color32::from_rgb(34, 197, 94),  // Green
+    Color32::from_rgb(6, 182, 212),  // Cyan
+    Color32::from_rgb(162, 114, 80), // Brown
+    Color32::from_rgb(52, 211, 153), // Mint
+    Color32::from_rgb(239, 68, 68),  // Red
+    Color32::from_rgb(234, 179, 8),  // Yellow
 ];
 
 /// Computes the deterministic 0..12 palette slot using FNV-1a hash over
@@ -26,7 +26,7 @@ pub fn caller_pill_slot(method: &str, file: &str) -> usize {
     for byte in method.bytes() {
         hash = (hash ^ (byte as u64)).wrapping_mul(1_099_511_628_211);
     }
-    hash = (hash ^ 0).wrapping_mul(1_099_511_628_211);
+    hash = hash.wrapping_mul(1_099_511_628_211);
     for byte in file.bytes() {
         hash = (hash ^ (byte as u64)).wrapping_mul(1_099_511_628_211);
     }
@@ -51,7 +51,11 @@ pub struct ReferenceCallerNode {
 pub struct CallerTreeBuilder;
 
 impl CallerTreeBuilder {
-    pub fn build(index: &SemanticIndex, symbol: &str, max_depth: usize) -> Vec<ReferenceCallerNode> {
+    pub fn build(
+        index: &SemanticIndex,
+        symbol: &str,
+        max_depth: usize,
+    ) -> Vec<ReferenceCallerNode> {
         let mut active_path = HashSet::new();
         Self::trace(index, symbol, 0, max_depth, &mut active_path)
     }
@@ -79,7 +83,9 @@ impl CallerTreeBuilder {
                 .unwrap_or(ref_path);
 
             let slot = caller_pill_slot(caller_name, ref_path);
-            let is_recursive = caller_sym.as_deref().map_or(false, |s| active_path.contains(s));
+            let is_recursive = caller_sym
+                .as_deref()
+                .is_some_and(|s| active_path.contains(s));
 
             let mut node = ReferenceCallerNode {
                 name: caller_name.to_string(),

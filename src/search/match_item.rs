@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::source::location::SourceLocation;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchMatch {
@@ -33,9 +33,17 @@ impl SearchMatch {
             return Vec::new();
         };
 
-        let path = if let Some(p) = data.get("path").and_then(|p| p.get("text")).and_then(|t| t.as_str()) {
+        let path = if let Some(p) = data
+            .get("path")
+            .and_then(|p| p.get("text"))
+            .and_then(|t| t.as_str())
+        {
             p.to_string()
-        } else if let Some(bytes_b64) = data.get("path").and_then(|p| p.get("bytes")).and_then(|b| b.as_str()) {
+        } else if let Some(bytes_b64) = data
+            .get("path")
+            .and_then(|p| p.get("bytes"))
+            .and_then(|b| b.as_str())
+        {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD
                 .decode(bytes_b64)
@@ -46,20 +54,30 @@ impl SearchMatch {
             return Vec::new();
         };
 
-        let clean_path = if path.starts_with("./") {
-            path[2..].to_string()
+        let clean_path = if let Some(stripped) = path.strip_prefix("./") {
+            stripped.to_string()
         } else {
             path
         };
 
-        let preview = if let Some(l) = data.get("lines").and_then(|l| l.get("text")).and_then(|t| t.as_str()) {
+        let preview = if let Some(l) = data
+            .get("lines")
+            .and_then(|l| l.get("text"))
+            .and_then(|t| t.as_str())
+        {
             l.trim_end_matches(['\r', '\n']).to_string()
         } else {
             String::new()
         };
 
-        let line_number = data.get("line_number").and_then(|n| n.as_u64()).unwrap_or(1) as usize;
-        let abs_offset = data.get("absolute_offset").and_then(|n| n.as_u64()).unwrap_or(0) as usize;
+        let line_number = data
+            .get("line_number")
+            .and_then(|n| n.as_u64())
+            .unwrap_or(1) as usize;
+        let abs_offset = data
+            .get("absolute_offset")
+            .and_then(|n| n.as_u64())
+            .unwrap_or(0) as usize;
 
         let mut matches = Vec::new();
         if let Some(submatches) = data.get("submatches").and_then(|s| s.as_array()) {

@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::bookmarks::bookmark::SourceBookmark;
 use crate::source::buffer::SourceBuffer;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BookmarkStore {
@@ -16,12 +16,17 @@ impl BookmarkStore {
 
     pub fn toggle(&mut self, buffer: &SourceBuffer, byte_offset: usize) -> bool {
         let line = buffer.line_at_byte(byte_offset);
-        if let Some(pos) = self.bookmarks.iter().position(|b| b.path == buffer.path && b.line == line && b.revision == buffer.revision) {
+        if let Some(pos) = self
+            .bookmarks
+            .iter()
+            .position(|b| b.path == buffer.path && b.line == line && b.revision == buffer.revision)
+        {
             self.bookmarks.remove(pos);
             false
         } else {
             let label = format!("{}:{}", buffer.path, line);
-            self.bookmarks.push(SourceBookmark::new(buffer, byte_offset, label));
+            self.bookmarks
+                .push(SourceBookmark::new(buffer, byte_offset, label));
             true
         }
     }

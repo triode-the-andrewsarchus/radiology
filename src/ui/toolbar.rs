@@ -1,10 +1,10 @@
-use egui::{RichText, Ui};
 use crate::critical::lens::SourceMode;
 use crate::pull_request::github::PullRequestSummary;
 use crate::repository::filters::SourceFilters;
 use crate::source::history::NavigationHistory;
 use crate::source::location::ReviewRevision;
 use crate::theme::AppTheme;
+use egui::{RichText, Ui};
 
 pub enum ToolbarAction {
     OpenRepositoryDialog,
@@ -25,6 +25,7 @@ pub enum ToolbarAction {
 pub struct Toolbar;
 
 impl Toolbar {
+    #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
@@ -107,20 +108,32 @@ impl Toolbar {
             egui::ComboBox::from_id_source("mode_picker")
                 .selected_text(mode.title())
                 .show_ui(ui, |ui| {
-                    if ui.selectable_value(&mut curr_mode, SourceMode::Normal, "Normal").clicked() {
+                    if ui
+                        .selectable_value(&mut curr_mode, SourceMode::Normal, "Normal")
+                        .clicked()
+                    {
                         action = Some(ToolbarAction::ToggleMode(SourceMode::Normal));
                     }
-                    if ui.selectable_value(&mut curr_mode, SourceMode::Critical, "Critical").clicked() {
+                    if ui
+                        .selectable_value(&mut curr_mode, SourceMode::Critical, "Critical")
+                        .clicked()
+                    {
                         action = Some(ToolbarAction::ToggleMode(SourceMode::Critical));
                     }
                 });
 
             // Filters Menu
             ui.menu_button("View", |ui| {
-                if ui.checkbox(&mut { filters.source_files_only }, "Source Files Only").clicked() {
+                if ui
+                    .checkbox(&mut { filters.source_files_only }, "Source Files Only")
+                    .clicked()
+                {
                     action = Some(ToolbarAction::ToggleSourceFilesOnly);
                 }
-                if ui.checkbox(&mut { filters.hides_tests }, "Hide Tests").clicked() {
+                if ui
+                    .checkbox(&mut { filters.hides_tests }, "Hide Tests")
+                    .clicked()
+                {
                     action = Some(ToolbarAction::ToggleHideTests);
                 }
             });

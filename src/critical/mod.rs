@@ -1,3 +1,5 @@
 pub mod lens;
 
-pub use lens::{Criticality, CriticalityClassification, CriticalityPolicy, CriticalityReason, SourceMode};
+pub use lens::{
+    Criticality, CriticalityClassification, CriticalityPolicy, CriticalityReason, SourceMode,
+};
