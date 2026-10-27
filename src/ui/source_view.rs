@@ -236,6 +236,7 @@ impl SourceView {
             let editor_viewport = ui.available_rect_before_wrap();
 
             let mut scroll_area = ScrollArea::both()
+                .id_source(&buffer.path)
                 .auto_shrink([false, false])
                 .max_height(available_height);
 
@@ -245,8 +246,15 @@ impl SourceView {
                     .position(|&l| l == target)
                     .unwrap_or_else(|| target.saturating_sub(1));
                 let line_y = target_idx as f32 * row_height;
-                let scroll_y = (line_y - available_height / 2.0 + row_height / 2.0).max(0.0);
+                let scroll_y = if target == 1 {
+                    0.0
+                } else {
+                    (line_y - available_height / 2.0 + row_height / 2.0).max(0.0)
+                };
                 scroll_area = scroll_area.vertical_scroll_offset(scroll_y);
+                if target == 1 {
+                    scroll_area = scroll_area.horizontal_scroll_offset(0.0);
+                }
                 *scroll_to_line = None;
             }
 
@@ -286,10 +294,6 @@ impl SourceView {
                         Vec2::new(row_width, row_height),
                         egui::Sense::click_and_drag(),
                     );
-
-                    if is_caret_line {
-                        line_response.scroll_to_me(Some(egui::Align::Center));
-                    }
 
                     // Pinned Gutter at editor viewport left edge (pinned: gutter does not scroll horizontally)
                     let gutter_rect = Rect::from_min_size(

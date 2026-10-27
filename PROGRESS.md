@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-10-27 — Horizontal Scroll Centering Defect Remediation (Antigravity)
+
+Resolved defect where opening a file with long lines automatically centered the horizontal scroll bar:
+- **Root Cause Analysis:**
+  - Inside [`SourceView::show`](file:///home/vcarlson/radiology/src/ui/source_view.rs), when iterating visible rows, the active caret line executed:
+    ```rust
+    if is_caret_line {
+        line_response.scroll_to_me(Some(egui::Align::Center));
+    }
+    ```
+  - In EGUI, [`Response::scroll_to_me`](https://docs.rs/egui/latest/egui/struct.Response.html#method.scroll_to_me) operates on both axes simultaneously.
+  - Since [`line_response`](file:///home/vcarlson/radiology/src/ui/source_view.rs) is allocated with `width = row_width` (spanning the full unclipped line length, e.g. 2000px), calling `scroll_to_me(Some(Align::Center))` every frame caused EGUI to center the 2000px wide line horizontally in the viewport.
+  - This continuously pulled the horizontal scrollbar away from the left edge and centered it horizontally, preventing the user from viewing the start of code lines.
+- **Remediation:**
+  - Completely removed the per-frame `line_response.scroll_to_me` call.
+  - Set [`ScrollArea::both().id_source(&buffer.path)`](file:///home/vcarlson/radiology/src/ui/source_view.rs), ensuring each document maintains its own scroll state.
+  - Programmatic vertical line jumps (outlines, search matches, Go To Line) now solely set `scroll_area.vertical_scroll_offset(scroll_y)` without modifying the horizontal scroll position.
+  - When opening a file (`target == 1`), explicitly set `scroll_area.horizontal_scroll_offset(0.0)` so the file always defaults scrolled fully left to `x = 0.0`.
+  - The application never programmatically moves the horizontal scrollbar; horizontal scroll remains strictly user-controlled.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved 100% intact.
+
+
 ## 2026-10-27 — Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback (Antigravity)
 
 Resolved four core user defects and missing macOS functional parity features:
