@@ -888,142 +888,149 @@ impl eframe::App for RadiologyApp {
                 }
             });
 
-        CentralPanel::default().show(ctx, |ui| {
-            if let Some(buf) = &self.open_buffer {
-                let mut enclosing = Vec::new();
-                let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-                for sym in &self.outline_symbols {
-                    sym.breadcrumbs(caret_byte, &mut enclosing);
-                }
+        let central_frame = egui::Frame::none()
+            .fill(self.theme.bg_base)
+            .inner_margin(egui::Margin::symmetric(0.0, 0.0));
 
-                if let Some(action) = SourceView::show(
-                    ui,
-                    &self.theme,
-                    self.mode,
-                    buf,
-                    &self.highlighted_lines,
-                    &mut self.caret_line,
-                    &mut self.caret_col,
-                    &self.fold_ranges,
-                    &mut self.fold_store,
-                    self.line_changes.as_ref(),
-                    &mut self.pin_store,
-                    self.session.wrap_lines,
-                    &enclosing,
-                ) {
-                    match action {
-                        SourceViewAction::CaretMoved {
-                            line,
-                            column,
-                            byte_offset,
-                        } => {
-                            self.caret_line = line;
-                            self.caret_col = column;
-                            self.history
-                                .update_current(buf.location_at_byte(byte_offset));
-                            self.refresh_symbol_context();
-                        }
-                        SourceViewAction::JumpToDefinition => {
-                            if let Some(idx) = &self.semantic_index {
-                                let line_0 = self.caret_line.saturating_sub(1);
-                                if let Some(occ) =
-                                    idx.occurrence_at(&buf.path, line_0, self.caret_col)
-                                {
-                                    if let Some((def_path, def_range)) =
-                                        idx.find_definition(&occ.symbol)
+        CentralPanel::default()
+            .frame(central_frame)
+            .show(ctx, |ui| {
+                if let Some(buf) = &self.open_buffer {
+                    let mut enclosing = Vec::new();
+                    let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
+                    for sym in &self.outline_symbols {
+                        sym.breadcrumbs(caret_byte, &mut enclosing);
+                    }
+
+                    if let Some(action) = SourceView::show(
+                        ui,
+                        &self.theme,
+                        self.mode,
+                        buf,
+                        &self.highlighted_lines,
+                        &mut self.caret_line,
+                        &mut self.caret_col,
+                        &self.fold_ranges,
+                        &mut self.fold_store,
+                        self.line_changes.as_ref(),
+                        &mut self.pin_store,
+                        self.session.wrap_lines,
+                        &enclosing,
+                    ) {
+                        match action {
+                            SourceViewAction::CaretMoved {
+                                line,
+                                column,
+                                byte_offset,
+                            } => {
+                                self.caret_line = line;
+                                self.caret_col = column;
+                                self.history
+                                    .update_current(buf.location_at_byte(byte_offset));
+                                self.refresh_symbol_context();
+                            }
+                            SourceViewAction::JumpToDefinition => {
+                                if let Some(idx) = &self.semantic_index {
+                                    let line_0 = self.caret_line.saturating_sub(1);
+                                    if let Some(occ) =
+                                        idx.occurrence_at(&buf.path, line_0, self.caret_col)
                                     {
-                                        let p = def_path.to_string();
-                                        let l = (def_range.start_line + 1) as usize;
-                                        self.jump_to_location(&p, l, 0);
+                                        if let Some((def_path, def_range)) =
+                                            idx.find_definition(&occ.symbol)
+                                        {
+                                            let p = def_path.to_string();
+                                            let l = (def_range.start_line + 1) as usize;
+                                            self.jump_to_location(&p, l, 0);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        SourceViewAction::ToggleFold(_) => {}
-                        SourceViewAction::NextChangeBlock => {
-                            if let Some(diff) = &self.line_changes {
-                                let anchors = diff.change_anchors(
-                                    self.active_revision.unwrap_or(ReviewRevision::After),
-                                );
-                                if let Some(&next) = anchors.iter().find(|&&a| a > self.caret_line)
-                                {
-                                    self.caret_line = next;
+                            SourceViewAction::ToggleFold(_) => {}
+                            SourceViewAction::NextChangeBlock => {
+                                if let Some(diff) = &self.line_changes {
+                                    let anchors = diff.change_anchors(
+                                        self.active_revision.unwrap_or(ReviewRevision::After),
+                                    );
+                                    if let Some(&next) =
+                                        anchors.iter().find(|&&a| a > self.caret_line)
+                                    {
+                                        self.caret_line = next;
+                                    }
                                 }
                             }
-                        }
-                        SourceViewAction::PrevChangeBlock => {
-                            if let Some(diff) = &self.line_changes {
-                                let anchors = diff.change_anchors(
-                                    self.active_revision.unwrap_or(ReviewRevision::After),
-                                );
-                                if let Some(&prev) =
-                                    anchors.iter().rev().find(|&&a| a < self.caret_line)
-                                {
-                                    self.caret_line = prev;
+                            SourceViewAction::PrevChangeBlock => {
+                                if let Some(diff) = &self.line_changes {
+                                    let anchors = diff.change_anchors(
+                                        self.active_revision.unwrap_or(ReviewRevision::After),
+                                    );
+                                    if let Some(&prev) =
+                                        anchors.iter().rev().find(|&&a| a < self.caret_line)
+                                    {
+                                        self.caret_line = prev;
+                                    }
                                 }
                             }
-                        }
-                        SourceViewAction::ToggleRevision(r) => {
-                            self.active_revision = Some(r);
-                        }
-                        SourceViewAction::PinOccurrence { symbol, ranges } => {
-                            self.pin_store.toggle_pin(&symbol, ranges);
+                            SourceViewAction::ToggleRevision(r) => {
+                                self.active_revision = Some(r);
+                            }
+                            SourceViewAction::PinOccurrence { symbol, ranges } => {
+                                self.pin_store.toggle_pin(&symbol, ranges);
+                            }
                         }
                     }
-                }
-            } else if self.repository_root.is_some() {
-                ui.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.heading("No File Selected");
-                        ui.add_space(8.0);
-                        ui.label(format!(
-                            "Browsing repository: {}",
-                            self.repository_name.as_deref().unwrap_or("")
-                        ));
-                        ui.add_space(8.0);
-                        ui.colored_label(
-                            self.theme.text_muted,
-                            "Select a file from the sidebar (or press Ctrl+K to search files).",
-                        );
-                    });
-                });
-            } else {
-                ui.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.heading(egui::RichText::new("Read the Code").size(24.0).strong());
-                        ui.add_space(8.0);
-                        ui.label("Open a repository to browse, search, and follow the source.");
-                        ui.add_space(16.0);
-                        let open_clicked = ui
-                            .horizontal(|ui| {
-                                Icon::Folder.ui(ui, 18.0, self.theme.accent);
-                                ui.button(egui::RichText::new("Open Repository…").size(15.0))
-                                    .clicked()
-                            })
-                            .inner;
-                        if open_clicked {
-                            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                                self.open_repository(&folder);
-                            }
-                        }
-                        if !self.session.recent_repositories.is_empty() {
-                            ui.add_space(24.0);
-                            ui.label(egui::RichText::new("Recent Repositories").strong());
+                } else if self.repository_root.is_some() {
+                    ui.centered_and_justified(|ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.heading("No File Selected");
                             ui.add_space(8.0);
-                            for recent in &self.session.recent_repositories.clone() {
-                                if ui.link(recent).clicked() {
-                                    self.open_repository(&PathBuf::from(recent));
+                            ui.label(format!(
+                                "Browsing repository: {}",
+                                self.repository_name.as_deref().unwrap_or("")
+                            ));
+                            ui.add_space(8.0);
+                            ui.colored_label(
+                                self.theme.text_muted,
+                                "Select a file from the sidebar (or press Ctrl+K to search files).",
+                            );
+                        });
+                    });
+                } else {
+                    ui.centered_and_justified(|ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.heading(egui::RichText::new("Read the Code").size(24.0).strong());
+                            ui.add_space(8.0);
+                            ui.label("Open a repository to browse, search, and follow the source.");
+                            ui.add_space(16.0);
+                            let open_clicked = ui
+                                .horizontal(|ui| {
+                                    Icon::Folder.ui(ui, 18.0, self.theme.accent);
+                                    ui.button(egui::RichText::new("Open Repository…").size(15.0))
+                                        .clicked()
+                                })
+                                .inner;
+                            if open_clicked {
+                                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                    self.open_repository(&folder);
                                 }
                             }
-                        }
-                        ui.add_space(24.0);
-                        ui.colored_label(
-                            self.theme.text_muted,
-                            "Ctrl+K  Go to file     Ctrl+Shift+F  Search     Ctrl+[  Go back",
-                        );
+                            if !self.session.recent_repositories.is_empty() {
+                                ui.add_space(24.0);
+                                ui.label(egui::RichText::new("Recent Repositories").strong());
+                                ui.add_space(8.0);
+                                for recent in &self.session.recent_repositories.clone() {
+                                    if ui.link(recent).clicked() {
+                                        self.open_repository(&PathBuf::from(recent));
+                                    }
+                                }
+                            }
+                            ui.add_space(24.0);
+                            ui.colored_label(
+                                self.theme.text_muted,
+                                "Ctrl+K  Go to file     Ctrl+Shift+F  Search     Ctrl+[  Go back",
+                            );
+                        });
                     });
-                });
-            }
-        });
+                }
+            });
     }
 }
