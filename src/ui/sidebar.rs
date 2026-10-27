@@ -4,6 +4,7 @@
 //! files with Git status badges, and performing ripgrep-powered repository-wide text searches.
 
 use crate::pull_request::change::FileChange;
+use crate::pull_request::github::PullRequestSummary;
 use crate::repository::file_node::FileNode;
 use crate::search::match_item::SearchMatch;
 use crate::search::ripgrep::SearchOptions;
@@ -51,6 +52,7 @@ impl Sidebar {
     /// * `file_tree` - Hierarchical file tree nodes discovered in the repository.
     /// * `expanded_dirs` - Set of directory paths currently expanded by the user.
     /// * `selected_path` - Path of the currently focused source file, if any.
+    /// * `active_pr` - Metadata of the currently reviewed pull request, if any.
     /// * `pr_changes` - List of modified files in the active pull request review.
     /// * `search_options` - Mutable search query and regex/case options.
     /// * `search_matches` - Matches found from previous search execution.
@@ -63,6 +65,7 @@ impl Sidebar {
         file_tree: &[FileNode],
         expanded_dirs: &mut HashSet<String>,
         selected_path: Option<&str>,
+        active_pr: Option<&PullRequestSummary>,
         pr_changes: &[FileChange],
         search_options: &mut SearchOptions,
         search_matches: &[SearchMatch],
@@ -121,54 +124,130 @@ impl Sidebar {
                     });
                 }
                 SidebarTab::Changes => {
+                    if let Some(pr) = active_pr {
+                        let total_add: usize = pr_changes.iter().map(|c| c.additions).sum();
+                        let total_del: usize = pr_changes.iter().map(|c| c.deletions).sum();
+
+                        ui.vertical(|ui| {
+                            ui.add_space(2.0);
+                            ui.label(RichText::new(&pr.title).strong().size(13.0));
+                            ui.add_space(2.0);
+                            ui.horizontal(|ui| {
+                                let state_str = if pr.is_open() { "Open" } else { &pr.state };
+                                ui.colored_label(
+                                    theme.text_secondary,
+                                    format!("#{} · {} · {} files", pr.number, state_str, pr_changes.len()),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.colored_label(
+                                            Color32::from_rgb(239, 68, 68),
+                                            format!("−{total_del}"),
+                                        );
+                                        ui.colored_label(
+                                            Color32::from_rgb(34, 197, 94),
+                                            format!("+{total_add}"),
+                                        );
+                                    },
+                                );
+                            });
+                            ui.add_space(4.0);
+                            ui.separator();
+                        });
+                    }
+
                     ScrollArea::vertical().show(ui, |ui| {
                         for change in pr_changes {
                             let is_selected = selected_path == Some(&change.path);
                             let bg = if is_selected {
-                                theme.accent.linear_multiply(0.25)
+                                if theme.is_dark {
+                                    Color32::from_rgba_premultiplied(255, 255, 255, 22)
+                                } else {
+                                    Color32::from_rgb(229, 229, 234)
+                                }
                             } else {
                                 Color32::TRANSPARENT
                             };
 
+                            let filename = std::path::Path::new(&change.path)
+                                .file_name()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_else(|| change.path.clone());
+                            let dir = std::path::Path::new(&change.path)
+                                .parent()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .unwrap_or_default();
+
                             let resp = egui::Frame::none()
                                 .fill(bg)
-                                .inner_margin(egui::Margin::symmetric(6.0, 3.0))
-                                .rounding(3.0)
+                                .inner_margin(egui::Margin::symmetric(6.0, 4.0))
+                                .rounding(4.0)
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         let (status_color, badge) = match change.status {
                                             crate::pull_request::change::FileChangeStatus::Added => {
-                                                (Color32::from_rgb(34, 197, 94), "A")
+                                                (Color32::from_rgb(34, 197, 94), "⊕")
                                             }
                                             crate::pull_request::change::FileChangeStatus::Modified => {
-                                                (Color32::from_rgb(234, 179, 8), "M")
+                                                (Color32::from_rgb(234, 179, 8), "⊘")
                                             }
                                             crate::pull_request::change::FileChangeStatus::Deleted => {
-                                                (Color32::from_rgb(239, 68, 68), "D")
+                                                (Color32::from_rgb(239, 68, 68), "⊖")
                                             }
-                                            _ => (theme.text_muted, "?"),
+                                            crate::pull_request::change::FileChangeStatus::Renamed { .. } => {
+                                                (theme.accent, "⤹")
+                                            }
+                                            _ => (theme.text_muted, "·"),
                                         };
 
-                                        ui.colored_label(status_color, badge);
-                                        ui.label(RichText::new(&change.path).monospace());
+                                        ui.colored_label(status_color, RichText::new(badge).size(13.0));
 
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                if change.deletions > 0 {
-                                                    ui.colored_label(
-                                                        Color32::from_rgb(239, 68, 68),
-                                                        format!("-{}", change.deletions),
-                                                    );
-                                                }
-                                                if change.additions > 0 {
-                                                    ui.colored_label(
-                                                        Color32::from_rgb(34, 197, 94),
-                                                        format!("+{}", change.additions),
-                                                    );
-                                                }
-                                            },
-                                        );
+                                        ui.vertical(|ui| {
+                                            ui.horizontal(|ui| {
+                                                let text = if is_selected {
+                                                    RichText::new(&filename).strong().size(12.5)
+                                                } else {
+                                                    RichText::new(&filename).size(12.5)
+                                                };
+                                                ui.label(text);
+
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(egui::Align::Center),
+                                                    |ui| {
+                                                        if change.deletions > 0 {
+                                                            ui.colored_label(
+                                                                Color32::from_rgb(239, 68, 68),
+                                                                format!("−{}", change.deletions),
+                                                            );
+                                                        } else {
+                                                            ui.colored_label(
+                                                                theme.text_muted,
+                                                                "−0",
+                                                            );
+                                                        }
+                                                        if change.additions > 0 {
+                                                            ui.colored_label(
+                                                                Color32::from_rgb(34, 197, 94),
+                                                                format!("+{}", change.additions),
+                                                            );
+                                                        } else {
+                                                            ui.colored_label(
+                                                                theme.text_muted,
+                                                                "+0",
+                                                            );
+                                                        }
+                                                    },
+                                                );
+                                            });
+
+                                            if !dir.is_empty() {
+                                                ui.colored_label(
+                                                    theme.text_muted,
+                                                    RichText::new(&dir).size(10.5),
+                                                );
+                                            }
+                                        });
                                     });
                                 })
                                 .response;

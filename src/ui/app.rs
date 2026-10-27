@@ -672,6 +672,28 @@ impl eframe::App for RadiologyApp {
                             self.navigate_to_location(&loc.path, 1, loc.byte_offset, false);
                         }
                     }
+                    ToolbarAction::PrevChangeBlock => {
+                        if let Some(diff) = &self.line_changes {
+                            let anchors = diff.change_anchors(
+                                self.active_revision.unwrap_or(ReviewRevision::After),
+                            );
+                            if let Some(&prev) =
+                                anchors.iter().rev().find(|&&a| a < self.caret_line)
+                            {
+                                self.caret_line = prev;
+                            }
+                        }
+                    }
+                    ToolbarAction::NextChangeBlock => {
+                        if let Some(diff) = &self.line_changes {
+                            let anchors = diff.change_anchors(
+                                self.active_revision.unwrap_or(ReviewRevision::After),
+                            );
+                            if let Some(&next) = anchors.iter().find(|&&a| a > self.caret_line) {
+                                self.caret_line = next;
+                            }
+                        }
+                    }
                     ToolbarAction::ToggleBookmark => {
                         if let Some(buf) = &self.open_buffer {
                             let offset = buf.byte_offset(self.caret_line, self.caret_col);
@@ -754,6 +776,7 @@ impl eframe::App for RadiologyApp {
                     &self.file_tree,
                     &mut self.expanded_dirs,
                     self.selected_path.as_deref(),
+                    self.active_pr.as_ref(),
                     &self.pr_changes,
                     &mut self.search_options,
                     &self.search_matches,

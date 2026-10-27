@@ -104,13 +104,42 @@ impl ContextInspector {
             match active_tab {
                 InspectorTab::Symbol => {
                     ScrollArea::vertical().show(ui, |ui| {
+                        // Declaration Section
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Declaration").strong());
+                            ui.colored_label(theme.text_muted, "0 references");
+                        });
+                        ui.add_space(4.0);
+
                         if let Some(sym) = current_symbol {
-                            ui.label(RichText::new(&sym.display_name).heading().strong());
-                            ui.colored_label(theme.text_secondary, &sym.symbol);
+                            ui.horizontal(|ui| {
+                                ui.colored_label(theme.accent, "ƒ(x)");
+                                ui.label(RichText::new(&sym.display_name).strong());
+                                if let Some((def_path, def_line)) = definition_location {
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui.link(format!("{def_line}")).clicked() {
+                                                action = Some(InspectorAction::JumpToLocation {
+                                                    path: def_path.to_string(),
+                                                    line: def_line,
+                                                    byte_offset: 0,
+                                                });
+                                            }
+                                        },
+                                    );
+                                }
+                            });
+
+                            if let Some((def_path, _)) = definition_location {
+                                ui.colored_label(
+                                    theme.text_muted,
+                                    RichText::new(def_path).size(11.0),
+                                );
+                            }
 
                             if !sym.signature.is_empty() {
-                                ui.separator();
-                                ui.label(RichText::new("Signature:").strong());
+                                ui.add_space(4.0);
                                 egui::Frame::none()
                                     .fill(theme.bg_surface)
                                     .inner_margin(egui::Margin::symmetric(8.0, 6.0))
@@ -118,18 +147,6 @@ impl ContextInspector {
                                     .show(ui, |ui| {
                                         ui.monospace(&sym.signature);
                                     });
-                            }
-
-                            if let Some((def_path, def_line)) = definition_location {
-                                ui.separator();
-                                ui.label(RichText::new("Defined at:").strong());
-                                if ui.link(format!("{def_path}:{def_line}")).clicked() {
-                                    action = Some(InspectorAction::JumpToLocation {
-                                        path: def_path.to_string(),
-                                        line: def_line,
-                                        byte_offset: 0,
-                                    });
-                                }
                             }
 
                             if !sym.documentation.is_empty() {
@@ -142,8 +159,25 @@ impl ContextInspector {
                         } else {
                             ui.colored_label(
                                 theme.text_muted,
-                                "Place caret on a symbol to inspect definition and documentation.",
+                                "Place caret on a symbol to inspect definition.",
                             );
+                        }
+
+                        // Outline Section below (Swift VSplitView parity)
+                        if !outline.is_empty() {
+                            ui.add_space(8.0);
+                            ui.separator();
+                            ui.label(RichText::new("Outline").strong());
+                            ui.add_space(4.0);
+
+                            let active_name = current_symbol.map(|s| s.display_name.as_str());
+                            for sym in outline {
+                                if let Some(act) =
+                                    Self::render_outline_node(ui, theme, sym, active_name, 0)
+                                {
+                                    action = Some(act);
+                                }
+                            }
                         }
                     });
                 }
@@ -165,11 +199,14 @@ impl ContextInspector {
                 }
                 InspectorTab::Outline => {
                     ScrollArea::vertical().show(ui, |ui| {
+                        let active_name = current_symbol.map(|s| s.display_name.as_str());
                         if outline.is_empty() {
                             ui.colored_label(theme.text_muted, "No document symbols in this file.");
                         } else {
                             for sym in outline {
-                                if let Some(act) = Self::render_outline_node(ui, theme, sym, 0) {
+                                if let Some(act) =
+                                    Self::render_outline_node(ui, theme, sym, active_name, 0)
+                                {
                                     action = Some(act);
                                 }
                             }
@@ -324,19 +361,41 @@ impl ContextInspector {
         ui: &mut Ui,
         theme: &AppTheme,
         sym: &DocumentSymbol,
+        active_name: Option<&str>,
         indent: usize,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let indent_px = indent as f32 * 14.0;
+        let is_active = active_name == Some(sym.name.as_str());
+
+        let bg = if is_active {
+            if theme.is_dark {
+                Color32::from_rgba_premultiplied(255, 255, 255, 16)
+            } else {
+                Color32::from_rgb(238, 238, 240)
+            }
+        } else {
+            Color32::TRANSPARENT
+        };
 
         let resp = egui::Frame::none()
-            .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+            .fill(bg)
+            .inner_margin(egui::Margin::symmetric(6.0, 3.0))
+            .rounding(3.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(indent_px);
-                    ui.colored_label(theme.accent, sym.kind.icon());
+                    ui.colored_label(theme.accent, "ƒ(x)");
                     ui.label(RichText::new(&sym.name).strong());
-                    ui.colored_label(theme.text_muted, format!(":{}", sym.line));
+
+                    if is_active {
+                        ui.colored_label(theme.accent, "●");
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let span = sym.range.end.saturating_sub(sym.range.start) / 30;
+                        ui.colored_label(theme.text_muted, format!("{} L", span.max(1)));
+                    });
                 });
             })
             .response;
@@ -346,7 +405,8 @@ impl ContextInspector {
         }
 
         for child in &sym.children {
-            if let Some(act) = Self::render_outline_node(ui, theme, child, indent + 1) {
+            if let Some(act) = Self::render_outline_node(ui, theme, child, active_name, indent + 1)
+            {
                 action = Some(act);
             }
         }
