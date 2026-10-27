@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Non-Selectable Inspector & Sidebar Navigation Labels (2026-10-27):**
+Disabled text selection on navigation labels in the right inspector (Symbols, Callers, Outline, Bookmarks) and left sidebar:
+- Configured `ui.style_mut().interaction.selectable_labels = false;` so label text no longer intercepts mouse clicks for text selection.
+- Clicking anywhere on a label or row immediately triggers navigation actions.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Horizontal Scroll Centering Defect Remediation (2026-10-27):**
 Resolved defect where opening a file with long lines automatically centered the horizontal scroll bar:
 - Eliminated per-frame `line_response.scroll_to_me(Some(Align::Center))` which operated on the full unclipped `row_width` and centered the horizontal scroll bar.

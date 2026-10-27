@@ -79,6 +79,8 @@ impl Sidebar {
     ) -> Option<SidebarAction> {
         let mut action = None;
 
+        ui.style_mut().interaction.selectable_labels = false;
+
         ui.vertical(|ui| {
             // Tab Selector
             ui.horizontal(|ui| {

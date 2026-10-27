@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-27 — Non-Selectable Inspector & Sidebar Navigation Labels (Antigravity)
+
+Disabled text selection on navigation labels in the Context Inspector (Symbols, Callers, Outline, Bookmarks) and Sidebar:
+- **Root Cause Analysis:**
+  - EGUI defaults `ui.style().interaction.selectable_labels` to `true`.
+  - When `selectable_labels` is active, clicking or dragging on label text absorbs the mouse event to position the text selection caret and highlight characters.
+  - This swallowed click events meant for navigation rows in the Outline, Callers, Bookmarks, and File Tree, requiring users to hunt for non-text padding to trigger navigation actions.
+- **Remediation:**
+  - Configured `ui.style_mut().interaction.selectable_labels = false;` across [`ContextInspector::show`](file:///home/vcarlson/radiology/src/ui/context_inspector.rs), [`Sidebar::show`](file:///home/vcarlson/radiology/src/ui/sidebar.rs), and the left and right side panels in [`app.rs`](file:///home/vcarlson/radiology/src/ui/app.rs).
+  - All text labels now use `Sense::hover()`, allowing clicks anywhere across the row (text, icons, badges) to pass cleanly to the row click handler.
+  - Added pointing hand cursor feedback on hover for bookmark rows.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved 100% intact.
+
+
 ## 2026-10-27 — Horizontal Scroll Centering Defect Remediation (Antigravity)
 
 Resolved defect where opening a file with long lines automatically centered the horizontal scroll bar:
