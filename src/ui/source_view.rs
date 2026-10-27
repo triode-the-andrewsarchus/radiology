@@ -8,12 +8,10 @@ use crate::source::buffer::SourceBuffer;
 use crate::source::location::ReviewRevision;
 use crate::source::selection::OccurrencePinStore;
 use crate::syntax::folds::{FoldRange, FoldStore};
-use crate::syntax::highlighter::SyntaxHighlighter;
+use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
-use syntect::easy::HighlightLines;
-use syntect::parsing::SyntaxReference;
 
 /// User interactions and navigation events produced within the [`SourceView`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,9 +57,8 @@ impl SourceView {
     ///
     /// * `ui` - EGUI UI layout context.
     /// * `theme` - Visual color palette.
-    /// * `highlighter` - Syntect syntax highlighter holding syntax definitions and color themes.
-    /// * `syntax_ref` - Detected syntax definition for the active file.
     /// * `buffer` - Source buffer containing file text, lines, and revision info.
+    /// * `highlighted_lines` - Pre-computed syntax highlighted token spans for each buffer line.
     /// * `caret_line` - Mutable 1-based line number of the user caret.
     /// * `caret_col` - Mutable 0-based column offset of the user caret.
     /// * `fold_ranges` - Detected foldable AST syntax nodes in the document.
@@ -73,9 +70,8 @@ impl SourceView {
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
-        highlighter: &SyntaxHighlighter,
-        syntax_ref: Option<&SyntaxReference>,
         buffer: &SourceBuffer,
+        highlighted_lines: &[Vec<HighlightedSpan>],
         caret_line: &mut usize,
         caret_col: &mut usize,
         fold_ranges: &[FoldRange],
@@ -166,34 +162,37 @@ impl SourceView {
             }
 
             // Central Code Area with Gutter
-            let available_height = ui.available_height() - 24.0; // Reserve for status bar
+            let available_height = (ui.available_height() - 28.0).max(100.0);
             let row_height = 20.0;
+
+            // Build visible line numbers skipping collapsed folds
+            let visible_lines: Vec<usize> = (1..=buffer.line_count())
+                .filter(|&l| !fold_store.is_line_hidden(l, fold_ranges))
+                .collect();
+            let total_rows = visible_lines.len();
+
+            let changed_lines = line_changes
+                .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
+                .unwrap_or_default();
 
             ScrollArea::both()
                 .auto_shrink([false, false])
                 .max_height(available_height)
-                .show(ui, |ui| {
-                    let mut syn_highlighter = syntax_ref
-                        .map(|s| HighlightLines::new(s, highlighter.theme(theme.is_dark)));
-
-                    // Set of added and removed lines from diff
-                    let changed_lines = line_changes
-                        .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
-                        .unwrap_or_default();
-
+                .show_rows(ui, row_height, total_rows, |ui, row_range| {
                     let clip_rect = ui.clip_rect();
+                    let painter = ui.painter().with_clip_rect(clip_rect);
+                    let row_width = ui.available_width().max(400.0);
 
-                    for line_num in 1..=buffer.line_count() {
-                        // Skip line if hidden inside a collapsed fold
-                        if fold_store.is_line_hidden(line_num, fold_ranges) {
-                            continue;
+                    for idx in row_range {
+                        if idx >= visible_lines.len() {
+                            break;
                         }
-
+                        let line_num = visible_lines[idx];
                         let is_caret_line = line_num == *caret_line;
                         let line_text = buffer.line_text(line_num);
 
                         let (rect, line_response) = ui.allocate_exact_size(
-                            Vec2::new(ui.available_width().max(800.0), row_height),
+                            Vec2::new(row_width, row_height),
                             egui::Sense::click_and_drag(),
                         );
 
@@ -202,7 +201,7 @@ impl SourceView {
                             rect.min,
                             Vec2::new(Self::GUTTER_WIDTH, row_height),
                         );
-                        ui.painter().rect_filled(gutter_rect, 0.0, theme.bg_gutter);
+                        painter.rect_filled(gutter_rect, 0.0, theme.bg_gutter);
 
                         // Fold Chevron in Gutter
                         let mut chevron_clicked = false;
@@ -210,7 +209,7 @@ impl SourceView {
                             let is_folded = fold_store.is_folded(line_num);
                             let chevron = if is_folded { "▶" } else { "▼" };
                             let chevron_pos = gutter_rect.left_center() + Vec2::new(6.0, 0.0);
-                            ui.painter().text(
+                            painter.text(
                                 chevron_pos,
                                 egui::Align2::LEFT_CENTER,
                                 chevron,
@@ -236,7 +235,6 @@ impl SourceView {
                             if let Some(pos) = line_response.interact_pointer_pos() {
                                 let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 8.0;
                                 if pos.x > code_start_x {
-                                    // Approximate monospace column position
                                     let char_width = 8.5;
                                     col = ((pos.x - code_start_x) / char_width).floor() as usize;
                                     col = col.min(line_text.chars().count());
@@ -253,7 +251,7 @@ impl SourceView {
 
                         // Background highlighting for active caret line
                         if is_caret_line {
-                            ui.painter().rect_filled(rect, 0.0, theme.bg_active_line);
+                            painter.rect_filled(rect, 0.0, theme.bg_active_line);
                         }
 
                         // Diff line highlighting
@@ -264,18 +262,18 @@ impl SourceView {
                             } else {
                                 theme.diff_add
                             };
-                            ui.painter().rect_filled(rect, 0.0, diff_bg);
+                            painter.rect_filled(rect, 0.0, diff_bg);
                         }
 
                         // Line number rule: print every 5th line or active caret line
-                        let should_print_number = line_num % 5 == 0 || is_caret_line;
+                        let should_print_number = line_num.is_multiple_of(5) || is_caret_line;
                         if should_print_number {
                             let num_color = if is_caret_line {
                                 theme.accent
                             } else {
                                 theme.text_muted
                             };
-                            ui.painter().text(
+                            painter.text(
                                 gutter_rect.right_center() - Vec2::new(12.0, 0.0),
                                 egui::Align2::RIGHT_CENTER,
                                 line_num.to_string(),
@@ -285,38 +283,33 @@ impl SourceView {
                         }
 
                         // Gutter right border
-                        ui.painter().line_segment(
+                        painter.line_segment(
                             [gutter_rect.right_top(), gutter_rect.right_bottom()],
                             Stroke::new(1.0, theme.border),
                         );
 
-                        // Only layout and paint code text if within or near viewport
-                        let is_visible = rect.max.y >= clip_rect.min.y - 40.0
-                            && rect.min.y <= clip_rect.max.y + 40.0;
-
-                        // Draw Code text
+                        // Draw pre-highlighted code spans strictly clipped
                         let code_pos =
                             rect.left_center() + Vec2::new(Self::GUTTER_WIDTH + 8.0, 0.0);
-                        if let Some(hl) = &mut syn_highlighter {
-                            let spans = highlighter.highlight_line(hl, line_text);
-                            if is_visible {
-                                let mut x_offset = 0.0;
-                                for span in spans {
-                                    let span_text = span.text;
-                                    let font_id = TextStyle::Monospace.resolve(ui.style());
-                                    let galley =
-                                        ui.painter().layout_no_wrap(span_text, font_id, span.color);
-                                    let span_pos = code_pos + Vec2::new(x_offset, 0.0);
-                                    ui.painter().galley(
-                                        span_pos - Vec2::new(0.0, galley.size().y / 2.0),
-                                        galley.clone(),
-                                        span.color,
-                                    );
-                                    x_offset += galley.size().x;
-                                }
+                        if let Some(spans) = highlighted_lines.get(line_num.saturating_sub(1)) {
+                            let mut x_offset = 0.0;
+                            let font_id = TextStyle::Monospace.resolve(ui.style());
+                            for span in spans {
+                                let galley = painter.layout_no_wrap(
+                                    span.text.clone(),
+                                    font_id.clone(),
+                                    span.color,
+                                );
+                                let span_pos = code_pos + Vec2::new(x_offset, 0.0);
+                                painter.galley(
+                                    span_pos - Vec2::new(0.0, galley.size().y / 2.0),
+                                    galley.clone(),
+                                    span.color,
+                                );
+                                x_offset += galley.size().x;
                             }
-                        } else if is_visible {
-                            ui.painter().text(
+                        } else {
+                            painter.text(
                                 code_pos,
                                 egui::Align2::LEFT_CENTER,
                                 line_text,
@@ -326,7 +319,7 @@ impl SourceView {
                         }
 
                         // Draw occurrence pins if any exist on this line
-                        if is_visible && !pin_store.is_empty() {
+                        if !pin_store.is_empty() {
                             let line_start_byte = buffer.byte_offset(line_num, 0);
                             let line_end_byte = buffer.byte_offset(line_num + 1, 0);
                             for group in &pin_store.groups {
@@ -341,11 +334,7 @@ impl SourceView {
                                             egui::vec2(pin_w.max(char_w), row_height - 4.0),
                                         );
                                         let color = theme.accent.linear_multiply(0.3);
-                                        ui.painter().rect_stroke(
-                                            pin_rect,
-                                            2.0,
-                                            Stroke::new(1.0, color),
-                                        );
+                                        painter.rect_stroke(pin_rect, 2.0, Stroke::new(1.0, color));
                                     }
                                 }
                             }

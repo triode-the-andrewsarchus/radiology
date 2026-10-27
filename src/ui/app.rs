@@ -23,7 +23,7 @@ use crate::source::history::NavigationHistory;
 use crate::source::location::ReviewRevision;
 use crate::source::selection::OccurrencePinStore;
 use crate::syntax::folds::{FoldDetector, FoldRange, FoldStore};
-use crate::syntax::highlighter::SyntaxHighlighter;
+use crate::syntax::highlighter::{HighlightedSpan, SyntaxHighlighter};
 use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
 use crate::theme::AppTheme;
 use crate::ui::context_inspector::{ContextInspector, InspectorAction, InspectorTab};
@@ -78,6 +78,8 @@ pub struct RadiologyApp {
     pub history: NavigationHistory,
     /// Syntax highlighting engine.
     pub highlighter: SyntaxHighlighter,
+    /// Cached highlighted lines for active source buffer.
+    pub highlighted_lines: Vec<Vec<HighlightedSpan>>,
     /// Foldable line ranges in the open file.
     pub fold_ranges: Vec<FoldRange>,
     /// Fold store tracking collapsed line numbers.
@@ -141,6 +143,7 @@ impl RadiologyApp {
             caret_col: 0,
             history: NavigationHistory::new(),
             highlighter: SyntaxHighlighter::new(),
+            highlighted_lines: Vec::new(),
             fold_ranges: Vec::new(),
             fold_store: FoldStore::new(),
             outline_symbols: Vec::new(),
@@ -263,6 +266,13 @@ impl RadiologyApp {
                 self.fold_ranges = FoldDetector::detect_folds(&buffer);
                 self.fold_store.unfold_all();
 
+                let syntax_ref = self.highlighter.find_syntax_for_path(&buffer.path);
+                self.highlighted_lines = self.highlighter.highlight_document(
+                    syntax_ref,
+                    &buffer.text,
+                    self.theme.is_dark,
+                );
+
                 if record_history {
                     self.history.visit(buffer.location_at_byte(0));
                 }
@@ -327,6 +337,42 @@ impl RadiologyApp {
 
     /// Handles global keyboard shortcuts.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
+        if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::O)) {
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                self.open_repository(&folder);
+            }
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.shift
+                && i.key_pressed(egui::Key::F)
+        }) {
+            self.sidebar_tab = SidebarTab::Search;
+        }
+        if ctx
+            .input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::Num1))
+        {
+            self.mode = SourceMode::Normal;
+        }
+        if ctx
+            .input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::Num2))
+        {
+            self.mode = SourceMode::Critical;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::F12)) {
+            if let Some(buf) = &self.open_buffer {
+                if let Some(idx) = &self.semantic_index {
+                    let line_0 = self.caret_line.saturating_sub(1);
+                    if let Some(occ) = idx.occurrence_at(&buf.path, line_0, self.caret_col) {
+                        if let Some((def_path, def_range)) = idx.find_definition(&occ.symbol) {
+                            let p = def_path.to_string();
+                            let l = (def_range.start_line + 1) as usize;
+                            self.jump_to_location(&p, l, 0);
+                        }
+                    }
+                }
+            }
+        }
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::K)) {
             self.modal = ActiveModal::QuickFilePicker(QuickFilePickerModal::default());
         }
@@ -701,8 +747,6 @@ impl eframe::App for RadiologyApp {
 
         CentralPanel::default().show(ctx, |ui| {
             if let Some(buf) = &self.open_buffer {
-                let syntax_ref = self.highlighter.find_syntax_for_path(&buf.path);
-
                 let mut enclosing = Vec::new();
                 let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
                 for sym in &self.outline_symbols {
@@ -712,9 +756,8 @@ impl eframe::App for RadiologyApp {
                 if let Some(action) = SourceView::show(
                     ui,
                     &self.theme,
-                    &self.highlighter,
-                    syntax_ref,
                     buf,
+                    &self.highlighted_lines,
                     &mut self.caret_line,
                     &mut self.caret_col,
                     &self.fold_ranges,
@@ -783,9 +826,53 @@ impl eframe::App for RadiologyApp {
                         }
                     }
                 }
+            } else if self.repository_root.is_some() {
+                ui.centered_and_justified(|ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.heading("No File Selected");
+                        ui.add_space(8.0);
+                        ui.label(format!(
+                            "Browsing repository: {}",
+                            self.repository_name.as_deref().unwrap_or("")
+                        ));
+                        ui.add_space(8.0);
+                        ui.colored_label(
+                            self.theme.text_muted,
+                            "Select a file from the sidebar (or press Ctrl+K to search files).",
+                        );
+                    });
+                });
             } else {
                 ui.centered_and_justified(|ui| {
-                    ui.label("Open a repository or select a file to view source.");
+                    ui.vertical_centered(|ui| {
+                        ui.heading(egui::RichText::new("Read the Code").size(24.0).strong());
+                        ui.add_space(8.0);
+                        ui.label("Open a repository to browse, search, and follow the source.");
+                        ui.add_space(16.0);
+                        if ui
+                            .button(egui::RichText::new("📁 Open Repository…").size(15.0))
+                            .clicked()
+                        {
+                            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                self.open_repository(&folder);
+                            }
+                        }
+                        if !self.session.recent_repositories.is_empty() {
+                            ui.add_space(24.0);
+                            ui.label(egui::RichText::new("Recent Repositories").strong());
+                            ui.add_space(8.0);
+                            for recent in &self.session.recent_repositories.clone() {
+                                if ui.link(recent).clicked() {
+                                    self.open_repository(&PathBuf::from(recent));
+                                }
+                            }
+                        }
+                        ui.add_space(24.0);
+                        ui.colored_label(
+                            self.theme.text_muted,
+                            "Ctrl+K  Go to file     Ctrl+Shift+F  Search     Ctrl+[  Go back",
+                        );
+                    });
                 });
             }
         });
