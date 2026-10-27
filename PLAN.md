@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Horizontal Scroll Centering Defect Remediation (2026-10-27):**
+Resolved defect where opening a file with long lines automatically centered the horizontal scroll bar:
+- Eliminated per-frame `line_response.scroll_to_me(Some(Align::Center))` which operated on the full unclipped `row_width` and centered the horizontal scroll bar.
+- Attached `ScrollArea::both().id_source(&buffer.path)` so each file independently tracks scroll position.
+- Programmatic line navigation sets only `vertical_scroll_offset(scroll_y)`; horizontal scroll defaults to `0.0` (fully left) on file open and is never automatically modified.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback (2026-10-27):**
 Resolved four core user defects and missing macOS functional parity features:
 - Changes Tab in Sidebar: Made the `Changes` tab permanently selectable alongside `Files` and `Search`. Displays real Git working tree diffs (`git diff HEAD` and untracked `??` files) with line additions and deletions, or active PR changes when reviewing a PR. Rendered with clean status badges (`M`, `A`, `D`, `R`, `C` with zero emojis/unicode symbols), bold filename, directory, and `+A −D` counters. Added native sidebar footer (`{visible} of {total} files` + `Icon::Diff`).
