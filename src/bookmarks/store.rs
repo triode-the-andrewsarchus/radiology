@@ -3,8 +3,45 @@
 use crate::bookmarks::bookmark::SourceBookmark;
 use crate::source::buffer::SourceBuffer;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
+
+/// Scope identifying whether bookmarks belong to the local repository checkout or a pull request.
+///
+/// Ensures checkout bookmarks and PR review bookmarks remain completely isolated.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BookmarkScope {
+    /// Canonical repository path.
+    pub repository_path: String,
+    /// Pull request number if viewing a PR.
+    pub pull_request: Option<usize>,
+}
+
+impl BookmarkScope {
+    /// Creates a new checkout or pull request scope.
+    #[must_use]
+    pub fn new(root: impl AsRef<Path>, pull_request: Option<usize>) -> Self {
+        let path = std::fs::canonicalize(root.as_ref())
+            .unwrap_or_else(|_| root.as_ref().to_path_buf())
+            .to_string_lossy()
+            .to_string();
+        Self {
+            repository_path: path,
+            pull_request,
+        }
+    }
+
+    /// Scope storage key isolating checkout from PR numbers.
+    #[must_use]
+    pub fn key(&self) -> String {
+        format!(
+            "{}\0{}",
+            self.repository_path,
+            self.pull_request
+                .map_or_else(|| "checkout".to_string(), |pr| format!("pr:{pr}"))
+        )
+    }
+}
 
 /// Manages ordered bookmarks for a repository checkout or pull request.
 ///
@@ -77,33 +114,32 @@ impl BookmarkStore {
         self.bookmarks.get(index)
     }
 
-    fn storage_path(repo_path: &str, pr: Option<usize>) -> Option<PathBuf> {
+    fn storage_path_for_key(key: &str) -> Option<PathBuf> {
         let config_dir = dirs::config_dir()?.join("radiology").join("bookmarks");
         let _ = std::fs::create_dir_all(&config_dir);
 
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
-        repo_path.hash(&mut hasher);
-        pr.hash(&mut hasher);
+        key.hash(&mut hasher);
         let filename = format!("{:x}.json", hasher.finish());
 
         Some(config_dir.join(filename))
     }
 
-    /// Persists bookmarks to disk for the given repository and optional pull request number.
-    pub fn save(&self, repo_path: &str, pr: Option<usize>) {
-        if let Some(path) = Self::storage_path(repo_path, pr) {
+    /// Persists bookmarks for a given [`BookmarkScope`].
+    pub fn save_scope(&self, scope: &BookmarkScope) {
+        if let Some(path) = Self::storage_path_for_key(&scope.key()) {
             if let Ok(json) = serde_json::to_string_pretty(self) {
                 let _ = std::fs::write(path, json);
             }
         }
     }
 
-    /// Loads persisted bookmarks from disk for the given repository and optional PR number.
+    /// Loads persisted bookmarks for a given [`BookmarkScope`].
     #[must_use]
-    pub fn load(repo_path: &str, pr: Option<usize>) -> Self {
-        if let Some(path) = Self::storage_path(repo_path, pr) {
+    pub fn load_scope(scope: &BookmarkScope) -> Self {
+        if let Some(path) = Self::storage_path_for_key(&scope.key()) {
             if let Ok(bytes) = std::fs::read(path) {
                 if let Ok(store) = serde_json::from_slice::<BookmarkStore>(&bytes) {
                     return store;
@@ -111,6 +147,19 @@ impl BookmarkStore {
             }
         }
         Self::new()
+    }
+
+    /// Persists bookmarks to disk for the given repository and optional pull request number.
+    pub fn save(&self, repo_path: &str, pr: Option<usize>) {
+        let scope = BookmarkScope::new(repo_path, pr);
+        self.save_scope(&scope);
+    }
+
+    /// Loads persisted bookmarks from disk for the given repository and optional PR number.
+    #[must_use]
+    pub fn load(repo_path: &str, pr: Option<usize>) -> Self {
+        let scope = BookmarkScope::new(repo_path, pr);
+        Self::load_scope(&scope)
     }
 }
 
@@ -136,5 +185,15 @@ mod tests {
 
         assert!(!store.toggle(&buf, byte2));
         assert_eq!(store.bookmarks.len(), 1);
+    }
+
+    #[test]
+    fn test_scope_separation() {
+        let scope1 = BookmarkScope::new("/tmp/repo", None);
+        let scope2 = BookmarkScope::new("/tmp/repo", Some(42));
+        let scope3 = BookmarkScope::new("/tmp/other", None);
+
+        assert_ne!(scope1.key(), scope2.key());
+        assert_ne!(scope1.key(), scope3.key());
     }
 }

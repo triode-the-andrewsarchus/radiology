@@ -60,11 +60,36 @@ Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`,
   - Replaced unconditional default startup directory with valid persisted session restoration.
   - Implemented CLI argument flags: `--repository`, `--pull-request`, `--file`, and `--verify-resources`.
 
+### Subsystem 4: Critical Lens, Pull Requests, Bookmarks, and UI/Appearance
+- **Critical Lens Subsystem:**
+  - `SCIPSymbolHeader`: Implemented 4-field SCIP header parser (`scheme manager package version`), supporting double-space escapes, package name extraction (`.` placeholder handling), and `scheme manager name` package keys.
+  - `CriticalityProfiles`: Added verified scheme (`rust-analyzer`), standard runtime plumbing package set (`core`, `alloc`, `std`), explicit native FFI package list (22 crates), FFI descriptor rules (`ffi/`, `os/`), and system API descriptor prefixes/exclusions (`std::fs`, `std::net`, `std::process`, `std::env`, `std::os`, `std::thread`, `std::io`, `tokio`).
+  - `CriticalityOverrides`: Built persistent symbol and package manual overrides rejecting `local N` bindings.
+  - `CriticalityPolicy`: Implemented strict deterministic precedence table matching Swift: `local N` -> user symbol override -> user package override -> profiled FFI package/descriptor -> `extern "` signature -> system API -> repository package/definition -> runtime plumbing -> unknown.
+  - `SourceProjection`: Disjoint, sorted byte range normalization and receded rendering.
+  - Gutter count annotations with `CountAnnotation` and `CountCompleteness` (`0`, `3+`, `—`).
+- **Pull Requests Subsystem:**
+  - `UnifiedDiffParser::parse_file_changes`: Converts unified diffs (`git diff` or `gh pr diff`) into structured `FileChange` items capturing path, old path, additions, deletions, binary status, and change status (`Added`, `Modified`, `Deleted`, `Renamed { similarity }`).
+  - `ReviewChangesPresentation`: Filters file changes against active `SourceFilters` (`sourceFilesOnly`, `hidesTests`), calculates visible additions/deletions totals, and computes `file_count_label`.
+  - Sidebar integration: Automatically populates `self.pr_changes` and switches to the `Changes` tab upon opening or restoring pull requests.
+  - Change block navigation: Implemented `previous_change_line` and `next_change_line` in `FileLineChanges` for navigating between changed hunks via `Alt+Up` / `Alt+Down`.
+- **Bookmarks Subsystem:**
+  - `BookmarkScope`: Added repository-level scoping isolating local checkouts (`<canonical_repo>\0checkout`) from pull request reviews (`<canonical_repo>\0pr:<number>`).
+  - `ContextInspector` Click Conflict Fix: Fixed event handling in bookmark rows so clicking delete (`✕`), move-up (`▲`), or move-down (`▼`) is never clobbered by row jump click interactions. Added row hover highlighting.
+  - Kept keyboard shortcuts `Ctrl+D` (toggle bookmark at caret) and `Ctrl+0`..`Ctrl+9` (jump to first 10 bookmarks).
+- **UI & Appearance:**
+  - Dark/Light Theme Switching: Added toolbar `🌙 / ☀️` button, `View -> Switch to Light/Dark Mode` menu item, and `Ctrl+Alt+T` shortcut. Dynamically swaps `AppTheme`, updates `egui::Visuals`, and re-highlights open buffers.
+  - Virtualized SourceView: Pre-cached Syntect highlighting and `ScrollArea::show_rows` virtualization to maintain 144 FPS.
+  - Painter Viewport Clipping: Enforced `ui.painter().with_clip_rect` to prevent text overflow from bleeding into the right-hand panel.
+  - Welcome Landing View: Displays "Read the Code", folder picker button, recent repositories history, and keyboard shortcut legends.
+  - Breadcrumbs: Renders full enclosing symbol hierarchy (`Outer › Inner › Current`).
+  - Revision Toggle: Added `Ctrl+Alt+B` shortcut to swap between Before and After revisions.
+
 ---
 
 ## Verification & Test Results
-- **Unit Tests:** 33/33 passed (`cargo test --all-targets`).
-- **Documentation Tests:** 28/28 passed (`cargo test --doc`).
+- **Unit Tests:** 38/38 passed (`cargo test --all-targets`).
+- **Documentation Tests:** 29/29 passed (`cargo test --doc`).
 - **Resource Verification:** `cargo run -- --verify-resources` exited 0 with all 13 grammars verified.
 - **Clippy Linting:** `cargo clippy --all-targets` passed with 0 warnings.
 - **Code Formatting:** `cargo fmt --all -- --check` passed with 0 diffs.

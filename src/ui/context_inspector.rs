@@ -184,7 +184,16 @@ impl ContextInspector {
                             );
                         } else {
                             for (idx, b) in bookmarks.bookmarks.iter().enumerate() {
+                                let row_id = ui.make_persistent_id(b.id);
+                                let is_hovered = ui.ctx().animate_bool(row_id, false);
+                                let bg = if is_hovered > 0.0 {
+                                    theme.bg_active_line
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
+
                                 let resp = egui::Frame::none()
+                                    .fill(bg)
                                     .inner_margin(egui::Margin::symmetric(6.0, 4.0))
                                     .rounding(3.0)
                                     .show(ui, |ui| {
@@ -227,7 +236,11 @@ impl ContextInspector {
                                     })
                                     .response;
 
-                                if resp.interact(egui::Sense::click()).clicked() {
+                                let row_click = resp.interact(egui::Sense::click());
+                                if row_click.hovered() {
+                                    ui.ctx().animate_bool(row_id, true);
+                                }
+                                if action.is_none() && row_click.clicked() {
                                     action = Some(InspectorAction::JumpToLocation {
                                         path: b.path.clone(),
                                         line: b.line,

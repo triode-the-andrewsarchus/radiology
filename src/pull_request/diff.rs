@@ -1,5 +1,6 @@
 //! Unified diff hunk parsing and line-level addition/deletion tracking.
 
+use crate::pull_request::change::{FileChange, FileChangeStatus};
 use crate::source::location::ReviewRevision;
 use std::ops::Range;
 
@@ -102,6 +103,37 @@ impl FileLineChanges {
     pub fn total_deletions(&self) -> usize {
         self.hunks.iter().map(|h| h.before_count).sum()
     }
+
+    /// Returns the line number of the previous changed hunk block before `current_line`.
+    #[must_use]
+    pub fn previous_change_line(
+        &self,
+        current_line: usize,
+        revision: ReviewRevision,
+    ) -> Option<usize> {
+        let changed = self.changed_lines(revision);
+        let mut prev = None;
+        for range in changed {
+            if range.end <= current_line {
+                prev = Some(range.start);
+            } else if range.contains(&current_line) {
+                break;
+            }
+        }
+        prev
+    }
+
+    /// Returns the line number of the next changed hunk block after `current_line`.
+    #[must_use]
+    pub fn next_change_line(&self, current_line: usize, revision: ReviewRevision) -> Option<usize> {
+        let changed = self.changed_lines(revision);
+        for range in changed {
+            if range.start > current_line {
+                return Some(range.start);
+            }
+        }
+        None
+    }
 }
 
 /// Parses unified diff outputs into structured [`FileLineChanges`].
@@ -132,6 +164,100 @@ impl UnifiedDiffParser {
             hunks,
             is_binary: false,
         }
+    }
+
+    /// Parses a complete multi-file unified diff into a list of [`FileChange`] items.
+    #[must_use]
+    pub fn parse_file_changes(text: &str) -> Vec<FileChange> {
+        let mut changes = Vec::new();
+        let mut lines = text.lines().peekable();
+
+        while let Some(line) = lines.next() {
+            if !line.starts_with("diff --git ") {
+                continue;
+            }
+
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let mut old_path = parts
+                .get(2)
+                .and_then(|p| p.strip_prefix("a/"))
+                .map(|p| p.to_string());
+            let mut new_path = parts
+                .get(3)
+                .and_then(|p| p.strip_prefix("b/"))
+                .map(|p| p.to_string());
+
+            let mut status = FileChangeStatus::Modified;
+            let mut is_binary = false;
+            let mut additions = 0;
+            let mut deletions = 0;
+
+            while let Some(&sub_line) = lines.peek() {
+                if sub_line.starts_with("diff --git ") {
+                    break;
+                }
+                lines.next();
+
+                if sub_line.starts_with("new file mode") {
+                    status = FileChangeStatus::Added;
+                } else if sub_line.starts_with("deleted file mode") {
+                    status = FileChangeStatus::Deleted;
+                } else if let Some(from) = sub_line.strip_prefix("rename from ") {
+                    old_path = Some(from.to_string());
+                    let sim = if let FileChangeStatus::Renamed { similarity } = status {
+                        similarity
+                    } else {
+                        100
+                    };
+                    status = FileChangeStatus::Renamed { similarity: sim };
+                } else if let Some(to) = sub_line.strip_prefix("rename to ") {
+                    new_path = Some(to.to_string());
+                } else if let Some(score_str) = sub_line.strip_prefix("similarity index ") {
+                    if let Some(num_str) = score_str.strip_suffix('%') {
+                        if let Ok(sim) = num_str.parse::<usize>() {
+                            status = FileChangeStatus::Renamed { similarity: sim };
+                        }
+                    }
+                } else if sub_line.starts_with("Binary files")
+                    || sub_line.starts_with("GIT binary patch")
+                {
+                    is_binary = true;
+                } else if sub_line.starts_with('+') && !sub_line.starts_with("+++") {
+                    additions += 1;
+                } else if sub_line.starts_with('-') && !sub_line.starts_with("---") {
+                    deletions += 1;
+                }
+            }
+
+            let final_path = if status == FileChangeStatus::Deleted {
+                old_path.clone().unwrap_or_default()
+            } else {
+                new_path
+                    .clone()
+                    .unwrap_or_else(|| old_path.clone().unwrap_or_default())
+            };
+
+            if !final_path.is_empty() {
+                changes.push(FileChange {
+                    path: final_path,
+                    old_path: if status == FileChangeStatus::Modified
+                        || status == FileChangeStatus::Added
+                    {
+                        None
+                    } else {
+                        old_path
+                    },
+                    status,
+                    before_blob: String::new(),
+                    after_blob: String::new(),
+                    additions,
+                    deletions,
+                    is_binary,
+                });
+            }
+        }
+
+        changes
     }
 
     fn parse_hunk_header(line: &str) -> Option<DiffHunk> {
@@ -193,5 +319,70 @@ mod tests {
 
         let after_ranges = changes.changed_lines(ReviewRevision::After);
         assert_eq!(after_ranges, vec![10..15]);
+    }
+
+    #[test]
+    fn test_parse_file_changes() {
+        let diff = r#"
+diff --git a/src/new.rs b/src/new.rs
+new file mode 100644
+index 0000000..abcdef1
+--- /dev/null
++++ b/src/new.rs
+@@ -0,0 +1,3 @@
++fn added() {}
++fn two() {}
++fn three() {}
+diff --git a/src/old.rs b/src/renamed.rs
+similarity index 95%
+rename from src/old.rs
+rename to src/renamed.rs
+index 1111111..2222222 100644
+--- a/src/old.rs
++++ b/src/renamed.rs
+@@ -1,2 +1,2 @@
+-let a = 1;
++let a = 2;
+"#;
+        let files = UnifiedDiffParser::parse_file_changes(diff);
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].path, "src/new.rs");
+        assert_eq!(files[0].status, FileChangeStatus::Added);
+        assert_eq!(files[0].additions, 3);
+        assert_eq!(files[0].deletions, 0);
+
+        assert_eq!(files[1].path, "src/renamed.rs");
+        assert_eq!(files[1].old_path, Some("src/old.rs".to_string()));
+        assert_eq!(
+            files[1].status,
+            FileChangeStatus::Renamed { similarity: 95 }
+        );
+        assert_eq!(files[1].additions, 1);
+        assert_eq!(files[1].deletions, 1);
+    }
+
+    #[test]
+    fn test_change_block_navigation() {
+        let diff = r#"
+@@ -5,2 +5,2 @@
+-a
++b
+@@ -20,1 +20,3 @@
+-x
++y
++z
++w
+"#;
+        let changes = UnifiedDiffParser::parse(diff);
+        assert_eq!(
+            changes.previous_change_line(10, ReviewRevision::After),
+            Some(5)
+        );
+        assert_eq!(
+            changes.next_change_line(10, ReviewRevision::After),
+            Some(20)
+        );
+        assert_eq!(changes.previous_change_line(5, ReviewRevision::After), None);
+        assert_eq!(changes.next_change_line(25, ReviewRevision::After), None);
     }
 }

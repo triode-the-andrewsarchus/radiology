@@ -6,5 +6,7 @@
 pub mod lens;
 
 pub use lens::{
-    Criticality, CriticalityClassification, CriticalityPolicy, CriticalityReason, SourceMode,
+    CountAnnotation, CountCompleteness, Criticality, CriticalityClassification,
+    CriticalityOverrides, CriticalityPolicy, CriticalityProfiles, CriticalityReason,
+    SCIPSymbolHeader, SourceMode, SourceProjection,
 };

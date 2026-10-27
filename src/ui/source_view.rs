@@ -3,6 +3,7 @@
 //! Handles rendering line numbers, code folding chevrons, Syntect syntax-highlighted spans,
 //! active caret line highlighting, pull request addition/deletion badges, and breadcrumb headers.
 
+use crate::critical::lens::SourceMode;
 use crate::pull_request::diff::FileLineChanges;
 use crate::source::buffer::SourceBuffer;
 use crate::source::location::ReviewRevision;
@@ -70,6 +71,7 @@ impl SourceView {
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
+        mode: SourceMode,
         buffer: &SourceBuffer,
         highlighted_lines: &[Vec<HighlightedSpan>],
         caret_line: &mut usize,
@@ -100,10 +102,10 @@ impl SourceView {
                     }
                 }
 
-                // Enclosing symbol breadcrumb
-                if let Some(last_sym) = enclosing_symbols.last() {
+                // Enclosing symbol breadcrumbs (full hierarchy)
+                for sym in enclosing_symbols {
                     ui.colored_label(theme.text_muted, "›");
-                    ui.colored_label(theme.accent, RichText::new(&last_sym.name).strong());
+                    ui.colored_label(theme.accent, RichText::new(&sym.name).strong());
                 }
 
                 // PR Diff block jump controls if in review
@@ -295,16 +297,26 @@ impl SourceView {
                             let mut x_offset = 0.0;
                             let font_id = TextStyle::Monospace.resolve(ui.style());
                             for span in spans {
+                                let mut color = span.color;
+                                if mode == SourceMode::Critical {
+                                    // In Critical Lens mode, recede non-critical tokens (keywords, punctuation, basic runtime plumbing)
+                                    let is_critical = span.color == theme.accent
+                                        || span.color == egui::Color32::from_rgb(224, 108, 117);
+                                    if !is_critical {
+                                        let factor = if theme.is_dark { 0.38 } else { 0.30 };
+                                        color = color.linear_multiply(factor);
+                                    }
+                                }
                                 let galley = painter.layout_no_wrap(
                                     span.text.clone(),
                                     font_id.clone(),
-                                    span.color,
+                                    color,
                                 );
                                 let span_pos = code_pos + Vec2::new(x_offset, 0.0);
                                 painter.galley(
                                     span_pos - Vec2::new(0.0, galley.size().y / 2.0),
                                     galley.clone(),
-                                    span.color,
+                                    color,
                                 );
                                 x_offset += galley.size().x;
                             }

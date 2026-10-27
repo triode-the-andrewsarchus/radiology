@@ -1,5 +1,53 @@
 # Progress
 
+## 2026-10-27 — Swift Parity & Defect Remediation (Subsystem 4 & Theme Control) Completed (Antigravity)
+
+Completed comprehensive feature audit, defect remediation, and parity implementation for Subsystem 4
+(Critical Lens, Pull Requests, Bookmarks, and UI/Appearance):
+- **Theme Control & Appearance:**
+  - Added dedicated toolbar toggle button (`🌙 / ☀️`) and `View -> Switch to Light/Dark Mode` menu item.
+  - Added global shortcut `Ctrl+Alt+T` to dynamically toggle between Dark and Light appearance.
+  - Dynamically updates `AppTheme` colors, calls `ctx.set_visuals` (`Visuals::dark()` vs `Visuals::light()`),
+    and re-tokenizes open buffer syntax highlighting using the active theme palette.
+- **Critical Lens Subsystem:**
+  - `SCIPSymbolHeader`: Parses 4-field SCIP symbols (`scheme manager package version`), supporting double-space
+    escapes, package name extraction (`.` placeholder handling), and `scheme manager name` package keys.
+  - `CriticalityProfiles`: Added verified scheme (`rust-analyzer`), standard runtime plumbing packages (`core`,
+    `alloc`, `std`), explicit native FFI package list (22 crates), FFI descriptor rules (`ffi/`, `os/`), and
+    system API descriptor prefixes/exclusions (`std::fs`, `std::net`, `std::process`, `std::env`, `std::os`,
+    `std::thread`, `std::io`, `tokio`).
+  - `CriticalityOverrides`: Built persistent symbol and package manual overrides rejecting `local N` bindings.
+  - `CriticalityPolicy`: Implemented strict deterministic precedence table matching Swift: `local N` -> user
+    symbol override -> user package override -> profiled FFI package/descriptor -> `extern "` signature ->
+    system API -> repository package/definition -> runtime plumbing -> unknown.
+  - `SourceProjection` & View Rendering: Added normalized disjoint byte range tracking; updated `SourceView::show`
+    to recede non-prominent code spans (reduced opacity `0.38` dark / `0.30` light) when `SourceMode::Critical`
+    is active.
+  - Added gutter count annotations with `CountAnnotation` and `CountCompleteness` (`0`, `3+`, `—`).
+- **Pull Requests Subsystem:**
+  - `UnifiedDiffParser::parse_file_changes`: Converts unified diffs into structured `FileChange` records capturing
+    path, old path, additions, deletions, binary status, and change status (`Added`, `Modified`, `Deleted`, `Renamed`).
+  - `ReviewChangesPresentation`: Filters file changes against active `SourceFilters` (`sourceFilesOnly`, `hidesTests`),
+    calculates visible additions/deletions totals, and computes `file_count_label`.
+  - Sidebar integration: Automatically populates `self.pr_changes` and switches to the `Changes` tab upon opening
+    or restoring pull requests.
+  - Change block navigation: Implemented `previous_change_line` and `next_change_line` in `FileLineChanges` for
+    navigating between changed hunks via `Alt+Up` / `Alt+Down`.
+  - Added `Ctrl+Alt+B` shortcut to swap between Before and After revisions.
+- **Bookmarks Subsystem:**
+  - `BookmarkScope`: Added repository-level scoping isolating local checkouts (`<canonical_repo>\0checkout`) from
+    pull request reviews (`<canonical_repo>\0pr:<number>`).
+  - `ContextInspector` Click Conflict Fix: Fixed event handling in bookmark rows so clicking delete (`✕`),
+    move-up (`▲`), or move-down (`▼`) is never clobbered by row jump click interactions. Added row hover highlighting.
+  - Verified keyboard shortcuts `Ctrl+D` (toggle bookmark at caret) and `Ctrl+0`..`Ctrl+9` (jump to first 10 bookmarks).
+- **Quality Gates & Preservation:**
+  - 38/38 unit tests passing (`cargo test --all-targets`).
+  - 29/29 doctests passing (`cargo test --doc`).
+  - `cargo clippy --all-targets` clean with zero warnings.
+  - `cargo fmt --all -- --check` clean with zero diffs.
+  - Swift source code remains 100% intact as instructed.
+
+
 ## 2026-10-27 — SourceView Virtualization, Performance & Clipping Resolved (Antigravity)
 
 Addressed user-reported performance degradation and text overflow in `SourceView`:

@@ -14,17 +14,14 @@ viewport clipping (`ui.painter().with_clip_rect`) preventing code lines from eve
 overflowing into `SidePanel::right`. Implemented Welcome View with recent repository
 links and keyboard shortcut hints.
 
-**Swift Parity & Defect Remediation (Subsystems 1–3 Completed, 2026-10-27):**
+**Swift Parity & Defect Remediation (Subsystems 1–4 Completed, 2026-10-27):**
 Exhaustive feature audit and defect remediation pass validating every feature
-from the original Swift codebase against the Rust + EGUI port.
-Eliminated UI thread blocking (streaming ripgrep search via `mpsc::channel`),
-fixed SCIP wire field tags (occurrence enclosing range field 7, symbol display name
-field 6, signature doc extraction from field 7), added document-scoped local
-symbols (`SemanticSymbolID`), 5-tier fuzzy file search with diacritic normalization,
-4-tier workspace symbol ranking (Ctrl+T), native folder selection dialog (`rfd`),
-viewport virtualization in `SourceView`, fold deduplication, test region detector,
-and command-line arguments (`--repository`, `--pull-request`, `--file`, `--verify-resources`).
-33 unit tests and 28 doctests passing, clean clippy with zero warnings, rustfmt clean.
+from the original Swift codebase against the Rust + EGUI port across all 4 subsystems:
+- Subsystem 1: Exact source/test classifiers, 5-tier fuzzy search with diacritic normalization, background streaming ripgrep search, folder picker dialog, and validated recent sessions.
+- Subsystem 2: TSX and `.mts`/`.cts` grammar support, fold deduplication preserving outer blocks, multi-language test region detector, and virtualized SourceView rendering.
+- Subsystem 3: SCIP wire tag fixes (enclosing range field 7, display name field 6, signature extraction), document-scoped local symbols (`SemanticSymbolID`), 4-tier workspace symbol ranking (Ctrl+T), deterministic 12-color caller palette, navigation history corruption fixes, and CLI flags (`--repository`, `--pull-request`, `--file`, `--verify-resources`).
+- Subsystem 4: Critical Lens (`SCIPSymbolHeader`, `CriticalityProfiles`, `CriticalityOverrides`, exact precedence `CriticalityPolicy`, `SourceProjection` and receded rendering in `SourceMode::Critical`, `CountAnnotation`), Pull Requests (`UnifiedDiffParser::parse_file_changes`, `ReviewChangesPresentation` source filtering, change block navigation `previous_change_line`/`next_change_line` via Alt+Up/Down, PR sidebar changes tab), Bookmarks (`BookmarkScope` isolating checkout vs PR number, ContextInspector bookmark row click conflict fix and hover styling), and UI theme switching (dark/light mode toggle with dynamic re-highlighting).
+38 unit tests and 29 doctests passing, clean clippy with zero warnings, rustfmt clean.
 Original Swift source code is 100% preserved in place as requested.
 [Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
 
