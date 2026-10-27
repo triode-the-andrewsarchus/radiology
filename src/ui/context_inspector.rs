@@ -370,7 +370,7 @@ impl ContextInspector {
 
         let bg = if is_active {
             if theme.is_dark {
-                Color32::from_rgba_premultiplied(255, 255, 255, 16)
+                Color32::from_rgba_unmultiplied(255, 255, 255, 16)
             } else {
                 Color32::from_rgb(238, 238, 240)
             }

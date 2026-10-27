@@ -162,7 +162,7 @@ impl Sidebar {
                             let is_selected = selected_path == Some(&change.path);
                             let bg = if is_selected {
                                 if theme.is_dark {
-                                    Color32::from_rgba_premultiplied(255, 255, 255, 22)
+                                    Color32::from_rgba_unmultiplied(255, 255, 255, 22)
                                 } else {
                                     Color32::from_rgb(229, 229, 234)
                                 }

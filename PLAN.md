@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Dark Mode Premultiplied Alpha & Contrast Remediation (2026-10-27):**
+Resolved active line and wash contrast issues in dark mode:
+- Migrated translucent color definitions from `from_rgba_premultiplied` to `from_rgba_unmultiplied`. Previously, passing unscaled RGB (`blue = 255`) caused premultiplied blending to add full-intensity blue directly to the dark background, producing an overpowering neon bar.
+- Dark mode active line now uses `from_rgba_unmultiplied(10, 132, 255, 14)` (~5% opacity), matching macOS Swift `Theme.swift` reference.
+- Corrected diff washes, occurrence pins, and selection row highlights.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Typographic Baseline & Unified Line LayoutJob Remediation (2026-10-27):**
 Resolved inconsistent vertical token jumping and text baseline misalignment within rendered source lines:
 - Migrated code line formatting to `egui::text::LayoutJob` with section-based `TextFormat`.

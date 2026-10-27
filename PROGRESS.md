@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-27 — Dark Mode Premultiplied Alpha Blending & Contrast Remediation (Antigravity)
+
+Resolved severe active line contrast issue in dark mode (where active line rendered as solid neon blue):
+- **Root Cause Analysis:**
+  - `bg_active_line` (and other translucent tint colors) was constructed using `Color32::from_rgba_premultiplied(10, 132, 255, 18)`.
+  - In premultiplied alpha, the color components are assumed to already be pre-scaled by `alpha / 255`.
+  - Passing straight RGB values (e.g. `blue = 255`) directly to `from_rgba_premultiplied` stored an unscaled `255` in the blue channel.
+  - During GPU premultiplied blending (`dst_rgb = src_rgb + dst_rgb * (1.0 - src_a)`), the full-intensity `255` blue was added directly onto the dark background (`#1C1C1E`), blowing out into a blinding, saturated cyan/electric blue bar (`rgb(36, 158, 255)`) that completely destroyed text legibility.
+- **Remediation:**
+  - Replaced all raw color tint definitions with `Color32::from_rgba_unmultiplied(r, g, b, a)`, which correctly calculates `r * a / 255` before storing in EGUI's premultiplied color buffer.
+  - Configured dark mode `bg_active_line` to `Color32::from_rgba_unmultiplied(10, 132, 255, 14)` (~5% opacity), directly adhering to Swift `Theme.swift` ("current-line tint: accent at 5%").
+  - Fixed translucent diff wash highlights (`diff_add`, `diff_del`, `diff_mod`), occurrence pin tints, and list selection states across `palette.rs`, `sidebar.rs`, and `context_inspector.rs`.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Zero emojis in `src/`.
+  - Swift code preserved intact.
+
 ## 2026-10-27 — Typographic Baseline & Token Layout Alignment Remediation (Antigravity)
 
 Resolved inconsistent vertical token jumping and text baseline misalignment within rendered source lines:
