@@ -4,6 +4,15 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback (2026-10-27):**
+Resolved four core user defects and missing macOS functional parity features:
+- Changes Tab in Sidebar: Made the `Changes` tab permanently selectable alongside `Files` and `Search`. Displays real Git working tree diffs (`git diff HEAD` and untracked `??` files) with line additions and deletions, or active PR changes when reviewing a PR. Rendered with clean status badges (`M`, `A`, `D`, `R`, `C` with zero emojis/unicode symbols), bold filename, directory, and `+A −D` counters. Added native sidebar footer (`{visible} of {total} files` + `Icon::Diff`).
+- Outline Clickable Navigation & Editor Centering: Outline symbol rows are interactive with click handling and pointing hand cursor. Programmatically scrolls the editor and centers the target line via `scroll_area.vertical_scroll_offset` and `line_response.scroll_to_me(Some(Align::Center))`.
+- Caller List Population & Declaration Region Wiring: Context Inspector Declaration card displays enclosing symbol and line link. Implemented `App::find_callers_fallback` using high-speed synchronous `rg --json -w <symbol> .` (~5ms) to discover callers across the repo with deterministic 12-color caller capsule pills.
+- Bottom Status Bar Parity: Replicated macOS `ReaderDetail.swift` status bar (language, line count, index status, Line N button, UTF-8 · Read Only).
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **Gutter Viewport Anchor & File Switch Displacement Remediation (2026-10-27):**
 Resolved defect where selecting a new file displaced line numbers and gutter to `x = 0.0`, covering the sidebar file tree:
 - Explicitly captured `editor_viewport = ui.available_rect_before_wrap()` outside `ScrollArea`. In EGUI, child `ui.clip_rect().min.x` could fall back to `0.0` when switching files before `content_is_too_large` was computed.

@@ -5,6 +5,24 @@ Comprehensive feature audit and defect remediation pass porting Radiology from S
 
 Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`, and `Package.swift` for follow-up review passes.
 
+### Subsystem 5: Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback
+- **Sidebar Changes Tab & Working Tree Discovery (`src/ui/sidebar.rs`, `src/ui/app.rs`):**
+  - Made `SidebarTab::Changes` permanently available in the sidebar header alongside `Files` and `Search`.
+  - Added `refresh_git_changes(&mut self)` discovering working tree changes via `git diff HEAD` (capturing both staged and unstaged tracked modifications) and `git status --porcelain` (capturing untracked files with line counts).
+  - Displays PR header when reviewing a pull request, or Working Tree header with branch name and `+total_add −total_del` counts when browsing the local repository.
+  - Replaced unicode symbols (`⊕`, `⊘`, `⊖`, `⤹`) with clean status badges (`M` in amber, `A` in green, `D` in red, `R` in blue) with background tint.
+  - Added bottom sidebar footer matching macOS `RepositorySidebar.swift` (`{visible} of {total} files` + `Icon::Diff`).
+- **Clickable Outline Navigation & Viewport Centering (`src/ui/context_inspector.rs`, `src/ui/source_view.rs`):**
+  - Made outline node rows interactive with `Sense::click()`, hover tint, pointing hand cursor, and left accent border.
+  - Added `scroll_to_line: &mut Option<usize>` to `SourceView::show`.
+  - When target line is set, calculates `line_y = target_idx * row_height` and configures `scroll_area.vertical_scroll_offset(scroll_y)` so virtualized rows center directly around `target_line`. Calls `line_response.scroll_to_me(Some(Align::Center))` inside the row loop.
+- **Caller List Population & Declaration Wiring (`src/ui/app.rs`, `src/ui/context_inspector.rs`):**
+  - Declaration region card displays enclosing declaration name, signature detail card, line link (`filename:line`), and reference count.
+  - Implemented `find_callers_fallback` executing `rg --json -w <symbol> .` (~5ms) across repository files to locate all call sites, extracting caller functions and mapping deterministic 12-color pills via `caller_pill_slot`.
+  - Caller rows are interactive with pointing hand cursor, navigating and scrolling to the call site on click.
+- **Bottom Status Bar Parity (`src/ui/app.rs`):**
+  - Replicated macOS `ReaderDetail.swift` status bar via `TopBottomPanel::bottom("status_bar")`: language, line count, index status, Line N button (opens Go To Line modal), UTF-8 · Read Only.
+
 ---
 
 ## Remediated Subsystems
@@ -89,6 +107,24 @@ Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`,
   - Welcome Landing View: Displays "Read the Code", folder picker button, recent repositories history, and keyboard shortcut legends.
   - Breadcrumbs: Renders full enclosing symbol hierarchy with vector chevrons.
   - Revision Toggle: Added `Ctrl+Alt+B` shortcut to swap between Before and After revisions.
+
+### Subsystem 5: Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback
+- **Sidebar Changes Tab & Working Tree Discovery (`src/ui/sidebar.rs`, `src/ui/app.rs`):**
+  - Made `SidebarTab::Changes` permanently available in the sidebar header alongside `Files` and `Search`.
+  - Added `refresh_git_changes(&mut self)` discovering working tree changes via `git diff HEAD` (capturing both staged and unstaged tracked modifications) and `git status --porcelain` (capturing untracked files with line counts).
+  - Displays PR header when reviewing a pull request, or Working Tree header with branch name and `+total_add −total_del` counts when browsing the local repository.
+  - Replaced unicode symbols (`⊕`, `⊘`, `⊖`, `⤹`) with clean status badges (`M` in amber, `A` in green, `D` in red, `R` in blue) with background tint.
+  - Added bottom sidebar footer matching macOS `RepositorySidebar.swift` (`{visible} of {total} files` + `Icon::Diff`).
+- **Clickable Outline Navigation & Viewport Centering (`src/ui/context_inspector.rs`, `src/ui/source_view.rs`):**
+  - Made outline node rows interactive with `Sense::click()`, hover tint, pointing hand cursor, and left accent border.
+  - Added `scroll_to_line: &mut Option<usize>` to `SourceView::show`.
+  - When target line is set, calculates `line_y = target_idx * row_height` and configures `scroll_area.vertical_scroll_offset(scroll_y)` so virtualized rows center directly around `target_line`. Calls `line_response.scroll_to_me(Some(Align::Center))` inside the row loop.
+- **Caller List Population & Declaration Wiring (`src/ui/app.rs`, `src/ui/context_inspector.rs`):**
+  - Declaration region card displays enclosing declaration name, signature detail card, line link (`filename:line`), and reference count.
+  - Implemented `find_callers_fallback` executing `rg --json -w <symbol> .` (~5ms) across repository files to locate all call sites, extracting caller functions and mapping deterministic 12-color pills via `caller_pill_slot`.
+  - Caller rows are interactive with pointing hand cursor, navigating and scrolling to the call site on click.
+- **Bottom Status Bar Parity (`src/ui/app.rs`):**
+  - Replicated macOS `ReaderDetail.swift` status bar via `TopBottomPanel::bottom("status_bar")`: language, line count, index status, Line N button (opens Go To Line modal), UTF-8 · Read Only.
 
 ---
 

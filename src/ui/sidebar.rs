@@ -57,6 +57,9 @@ impl Sidebar {
     /// * `search_options` - Mutable search query and regex/case options.
     /// * `search_matches` - Matches found from previous search execution.
     /// * `is_searching` - Whether a ripgrep background process is currently streaming hits.
+    /// * `visible_file_count` - Number of files currently visible after applying source filters.
+    /// * `total_file_count` - Total number of repository files discovered.
+    /// * `branch_name` - Current Git branch name, if any.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -70,6 +73,9 @@ impl Sidebar {
         search_options: &mut SearchOptions,
         search_matches: &[SearchMatch],
         is_searching: bool,
+        visible_file_count: usize,
+        total_file_count: usize,
+        branch_name: Option<&str>,
     ) -> Option<SidebarAction> {
         let mut action = None;
 
@@ -82,14 +88,16 @@ impl Sidebar {
                 {
                     *active_tab = SidebarTab::Files;
                 }
-                if !pr_changes.is_empty() {
-                    let label = format!("Changes ({})", pr_changes.len());
-                    if ui
-                        .selectable_label(*active_tab == SidebarTab::Changes, label)
-                        .clicked()
-                    {
-                        *active_tab = SidebarTab::Changes;
-                    }
+                let changes_label = if pr_changes.is_empty() {
+                    "Changes".to_string()
+                } else {
+                    format!("Changes ({})", pr_changes.len())
+                };
+                if ui
+                    .selectable_label(*active_tab == SidebarTab::Changes, changes_label)
+                    .clicked()
+                {
+                    *active_tab = SidebarTab::Changes;
                 }
                 let search_label = if search_matches.is_empty() {
                     "Search".to_string()
@@ -106,28 +114,32 @@ impl Sidebar {
 
             ui.separator();
 
+            let scroll_area_height = (ui.available_height() - 28.0).max(100.0);
+
             match active_tab {
                 SidebarTab::Files => {
-                    ScrollArea::vertical().show(ui, |ui| {
-                        for node in file_tree {
-                            if let Some(act) = Self::render_tree_node(
-                                ui,
-                                theme,
-                                node,
-                                expanded_dirs,
-                                selected_path,
-                                0,
-                            ) {
-                                action = Some(act);
+                    ScrollArea::vertical()
+                        .max_height(scroll_area_height)
+                        .show(ui, |ui| {
+                            for node in file_tree {
+                                if let Some(act) = Self::render_tree_node(
+                                    ui,
+                                    theme,
+                                    node,
+                                    expanded_dirs,
+                                    selected_path,
+                                    0,
+                                ) {
+                                    action = Some(act);
+                                }
                             }
-                        }
-                    });
+                        });
                 }
                 SidebarTab::Changes => {
-                    if let Some(pr) = active_pr {
-                        let total_add: usize = pr_changes.iter().map(|c| c.additions).sum();
-                        let total_del: usize = pr_changes.iter().map(|c| c.deletions).sum();
+                    let total_add: usize = pr_changes.iter().map(|c| c.additions).sum();
+                    let total_del: usize = pr_changes.iter().map(|c| c.deletions).sum();
 
+                    if let Some(pr) = active_pr {
                         ui.vertical(|ui| {
                             ui.add_space(2.0);
                             ui.label(RichText::new(&pr.title).strong().size(13.0));
@@ -155,108 +167,168 @@ impl Sidebar {
                             ui.add_space(4.0);
                             ui.separator();
                         });
+                    } else {
+                        ui.vertical(|ui| {
+                            ui.add_space(2.0);
+                            let title = branch_name
+                                .map(|b| format!("{b} (Working Tree)"))
+                                .unwrap_or_else(|| "Working Tree Changes".to_string());
+                            ui.label(RichText::new(title).strong().size(13.0));
+                            ui.add_space(2.0);
+                            ui.horizontal(|ui| {
+                                ui.colored_label(
+                                    theme.text_secondary,
+                                    format!("{} changed files", pr_changes.len()),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if total_del > 0 {
+                                            ui.colored_label(
+                                                Color32::from_rgb(239, 68, 68),
+                                                format!("−{total_del}"),
+                                            );
+                                        }
+                                        if total_add > 0 {
+                                            ui.colored_label(
+                                                Color32::from_rgb(34, 197, 94),
+                                                format!("+{total_add}"),
+                                            );
+                                        }
+                                    },
+                                );
+                            });
+                            ui.add_space(4.0);
+                            ui.separator();
+                        });
                     }
 
-                    ScrollArea::vertical().show(ui, |ui| {
-                        for change in pr_changes {
-                            let is_selected = selected_path == Some(&change.path);
-                            let bg = if is_selected {
-                                if theme.is_dark {
-                                    Color32::from_rgba_unmultiplied(255, 255, 255, 22)
-                                } else {
-                                    Color32::from_rgb(229, 229, 234)
-                                }
-                            } else {
-                                Color32::TRANSPARENT
-                            };
+                    if pr_changes.is_empty() {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(30.0);
+                            Icon::Check.ui(ui, 24.0, Color32::from_rgb(34, 197, 94));
+                            ui.add_space(8.0);
+                            ui.colored_label(
+                                theme.text_secondary,
+                                RichText::new("Working Tree is Clean").strong(),
+                            );
+                            ui.add_space(4.0);
+                            ui.colored_label(
+                                theme.text_muted,
+                                RichText::new("No uncommitted changes in git repository").size(11.0),
+                            );
+                        });
+                    } else {
+                        ScrollArea::vertical()
+                            .max_height(scroll_area_height)
+                            .show(ui, |ui| {
+                                for change in pr_changes {
+                                    let is_selected = selected_path == Some(&change.path);
+                                    let bg = if is_selected {
+                                        if theme.is_dark {
+                                            Color32::from_rgba_unmultiplied(255, 255, 255, 22)
+                                        } else {
+                                            Color32::from_rgb(229, 229, 234)
+                                        }
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    };
 
-                            let filename = std::path::Path::new(&change.path)
-                                .file_name()
-                                .map(|s| s.to_string_lossy().to_string())
-                                .unwrap_or_else(|| change.path.clone());
-                            let dir = std::path::Path::new(&change.path)
-                                .parent()
-                                .map(|p| p.to_string_lossy().to_string())
-                                .unwrap_or_default();
+                                    let filename = std::path::Path::new(&change.path)
+                                        .file_name()
+                                        .map(|s| s.to_string_lossy().to_string())
+                                        .unwrap_or_else(|| change.path.clone());
+                                    let dir = std::path::Path::new(&change.path)
+                                        .parent()
+                                        .map(|p| p.to_string_lossy().to_string())
+                                        .unwrap_or_default();
 
-                            let resp = egui::Frame::none()
-                                .fill(bg)
-                                .inner_margin(egui::Margin::symmetric(6.0, 4.0))
-                                .rounding(4.0)
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        let (status_color, badge) = match change.status {
-                                            crate::pull_request::change::FileChangeStatus::Added => {
-                                                (Color32::from_rgb(34, 197, 94), "⊕")
-                                            }
-                                            crate::pull_request::change::FileChangeStatus::Modified => {
-                                                (Color32::from_rgb(234, 179, 8), "⊘")
-                                            }
-                                            crate::pull_request::change::FileChangeStatus::Deleted => {
-                                                (Color32::from_rgb(239, 68, 68), "⊖")
-                                            }
-                                            crate::pull_request::change::FileChangeStatus::Renamed { .. } => {
-                                                (theme.accent, "⤹")
-                                            }
-                                            _ => (theme.text_muted, "·"),
-                                        };
-
-                                        ui.colored_label(status_color, RichText::new(badge).size(13.0));
-
-                                        ui.vertical(|ui| {
+                                    let resp = egui::Frame::none()
+                                        .fill(bg)
+                                        .inner_margin(egui::Margin::symmetric(6.0, 4.0))
+                                        .rounding(4.0)
+                                        .show(ui, |ui| {
                                             ui.horizontal(|ui| {
-                                                let text = if is_selected {
-                                                    RichText::new(&filename).strong().size(12.5)
-                                                } else {
-                                                    RichText::new(&filename).size(12.5)
+                                                let (status_color, badge) = match change.status {
+                                                    crate::pull_request::change::FileChangeStatus::Added => {
+                                                        (Color32::from_rgb(34, 197, 94), "A")
+                                                    }
+                                                    crate::pull_request::change::FileChangeStatus::Modified => {
+                                                        (Color32::from_rgb(234, 179, 8), "M")
+                                                    }
+                                                    crate::pull_request::change::FileChangeStatus::Deleted => {
+                                                        (Color32::from_rgb(239, 68, 68), "D")
+                                                    }
+                                                    crate::pull_request::change::FileChangeStatus::Renamed { .. } => {
+                                                        (theme.accent, "R")
+                                                    }
+                                                    crate::pull_request::change::FileChangeStatus::Copied => {
+                                                        (theme.accent, "C")
+                                                    }
+                                                    _ => (theme.text_muted, "?"),
                                                 };
-                                                ui.label(text);
 
-                                                ui.with_layout(
-                                                    egui::Layout::right_to_left(egui::Align::Center),
-                                                    |ui| {
-                                                        if change.deletions > 0 {
-                                                            ui.colored_label(
-                                                                Color32::from_rgb(239, 68, 68),
-                                                                format!("−{}", change.deletions),
-                                                            );
+                                                // Clean badge with background tint
+                                                egui::Frame::none()
+                                                    .fill(status_color.linear_multiply(0.18))
+                                                    .inner_margin(egui::Margin::symmetric(5.0, 1.5))
+                                                    .rounding(3.0)
+                                                    .show(ui, |ui| {
+                                                        ui.colored_label(
+                                                            status_color,
+                                                            RichText::new(badge).strong().size(11.0),
+                                                        );
+                                                    });
+
+                                                ui.vertical(|ui| {
+                                                    ui.horizontal(|ui| {
+                                                        let text = if is_selected {
+                                                            RichText::new(&filename).strong().size(12.5)
                                                         } else {
-                                                            ui.colored_label(
-                                                                theme.text_muted,
-                                                                "−0",
-                                                            );
-                                                        }
-                                                        if change.additions > 0 {
-                                                            ui.colored_label(
-                                                                Color32::from_rgb(34, 197, 94),
-                                                                format!("+{}", change.additions),
-                                                            );
-                                                        } else {
-                                                            ui.colored_label(
-                                                                theme.text_muted,
-                                                                "+0",
-                                                            );
-                                                        }
-                                                    },
-                                                );
+                                                            RichText::new(&filename).size(12.5)
+                                                        };
+                                                        ui.label(text);
+
+                                                        ui.with_layout(
+                                                            egui::Layout::right_to_left(egui::Align::Center),
+                                                            |ui| {
+                                                                if change.deletions > 0 {
+                                                                    ui.colored_label(
+                                                                        Color32::from_rgb(239, 68, 68),
+                                                                        format!("−{}", change.deletions),
+                                                                    );
+                                                                }
+                                                                if change.additions > 0 {
+                                                                    ui.colored_label(
+                                                                        Color32::from_rgb(34, 197, 94),
+                                                                        format!("+{}", change.additions),
+                                                                    );
+                                                                }
+                                                            },
+                                                        );
+                                                    });
+
+                                                    if !dir.is_empty() {
+                                                        ui.colored_label(
+                                                            theme.text_muted,
+                                                            RichText::new(&dir).size(10.5),
+                                                        );
+                                                    }
+                                                });
                                             });
+                                        })
+                                        .response;
 
-                                            if !dir.is_empty() {
-                                                ui.colored_label(
-                                                    theme.text_muted,
-                                                    RichText::new(&dir).size(10.5),
-                                                );
-                                            }
-                                        });
-                                    });
-                                })
-                                .response;
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
 
-                            if resp.interact(egui::Sense::click()).clicked() {
-                                action = Some(SidebarAction::OpenFile(change.path.clone()));
-                            }
-                        }
-                    });
+                                    if resp.interact(egui::Sense::click()).clicked() {
+                                        action = Some(SidebarAction::OpenFile(change.path.clone()));
+                                    }
+                                }
+                            });
+                    }
                 }
                 SidebarTab::Search => {
                     ui.horizontal(|ui| {
@@ -311,6 +383,21 @@ impl Sidebar {
                     });
                 }
             }
+
+            // Bottom sidebar footer matching native macOS RepositorySidebar
+            ui.add_space(2.0);
+            ui.separator();
+            ui.horizontal(|ui| {
+                let footer_text = if visible_file_count < total_file_count {
+                    format!("{visible_file_count} of {total_file_count} files")
+                } else {
+                    format!("{total_file_count} files")
+                };
+                ui.colored_label(theme.text_secondary, RichText::new(footer_text).size(11.0));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    Icon::Diff.ui(ui, 12.0, theme.text_muted);
+                });
+            });
         });
 
         action

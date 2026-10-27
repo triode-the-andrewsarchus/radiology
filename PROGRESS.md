@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-10-27 — Git Changes Tab, Clickable Outline Navigation & Ripgrep Caller Fallback (Antigravity)
+
+Resolved four core user defects and missing macOS functional parity features:
+1. **Changes Tab in Sidebar (`src/ui/sidebar.rs`, `src/ui/app.rs`):**
+   - Made the `Changes` tab permanently selectable alongside `Files` and `Search` (`SidebarTab::Changes`).
+   - Implemented `App::refresh_git_changes(&mut self)` which executes `git diff HEAD` to capture tracked modifications and `git status --porcelain` to capture untracked files (`??`) with line counts.
+   - When reviewing a PR, renders the PR summary header (`#num · Open · X files` and `+A −D` totals).
+   - When browsing the local repository, renders the Working Tree header (`branch (Working Tree)` and `+A −D` totals).
+   - Displays clean empty state ("Working Tree is Clean — No uncommitted changes in git repository") when working tree is unmodified.
+   - Each file change row renders with a crisp status badge (`M` in amber, `A` in green, `D` in red, `R` in blue) with background tint (zero emojis / zero unicode math symbols), bold filename, muted directory, and right-aligned `+add −del` counters.
+   - Entire row is interactive with pointing hand cursor on hover and opens the file in the editor upon click.
+   - Added native sidebar footer (`{visible} of {total} files` + `Icon::Diff`).
+2. **Outline Clickable Navigation & Editor Centering (`src/ui/context_inspector.rs`, `src/ui/source_view.rs`, `src/ui/app.rs`):**
+   - Made outline symbol rows fully interactive with `Sense::click()`, hover background tint, pointing hand cursor (`CursorIcon::PointingHand`), and active accent border on the left edge.
+   - Added `scroll_to_line: &mut Option<usize>` to `SourceView::show` and `pub scroll_to_line: Option<usize>` to `RadiologyApp`.
+   - In `SourceView`, programmatic scrolling calculates the exact line position `line_y = target_idx * row_height` and sets `scroll_area.vertical_scroll_offset(scroll_y)` so that off-screen target lines are pulled into the virtual `show_rows` slice and centered into view.
+   - Additionally calls `line_response.scroll_to_me(Some(egui::Align::Center))` when `line_num == *caret_line`.
+   - Clicking an outline symbol, search match, or Go To Line now actively navigates and centers the editor on that line.
+3. **Caller List Population & Declaration Region Wiring (`src/ui/app.rs`, `src/ui/context_inspector.rs`):**
+   - Context Inspector Declaration card displays the enclosing symbol (`enclosing_sym.name`, `enclosing.detail`, and clickable link `filename:line`).
+   - Shows reference count (`{count} references`).
+   - Implemented `App::find_callers_fallback` which runs a high-speed synchronous `rg --json -w <symbol> .` across repository files (~5ms), discards the definition line, parses caller call sites, calculates deterministic 12-color caller capsule pill slots via `caller_pill_slot(&caller_name, &path)`, and populates `caller_tree`.
+   - When SCIP semantic index is available, queries SCIP occurrences and reverse references; falls back to ripgrep caller search when SCIP is missing or returns 0 callers.
+   - Made caller rows interactive with pointing hand cursor, jumping and scrolling directly to the call site on click.
+4. **Bottom Status Bar Parity (`src/ui/app.rs`):**
+   - Replicated macOS `ReaderDetail.swift` bottom status bar via `TopBottomPanel::bottom("status_bar")`:
+   - Left: Source language (`Rust`, `Swift`, `Markdown`, `TOML`), `·`, `{count} lines`, `·`, index status (`SCIP index active` or `Ripgrep ready`).
+   - Right: Clickable `Line {caret_line}` button (opens Go To Line sheet), `·`, `UTF-8 · Read Only`.
+5. **Quality Gates:**
+   - 38/38 unit tests passing.
+   - 30/30 doctests passing.
+   - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+   - `cargo fmt --all -- --check` passing with zero diffs.
+   - `cargo run -- --verify-resources` passing all 13 syntax grammars.
+   - Zero emojis in `src/`.
+   - Swift code preserved 100% intact.
+
+
 ## 2026-10-27 — Gutter Viewport Anchor & File Switch Displacement Remediation (Antigravity)
 
 Resolved defect where selecting a new file displaced line numbers and gutter to `x = 0.0`, covering the sidebar file tree:
