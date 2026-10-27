@@ -1,5 +1,53 @@
 # Progress
 
+## 2026-10-27 — Horizontal Scrolling, Line Wrap Toggle & Vector SVG Icon System (Antigravity)
+
+Resolved middle text box overflow on long lines and eliminated all emojis in favor of vector SVGs:
+- **Swift Code Overflow Parity Investigation:**
+  - Audited `Sources/Radiology/Source/SourceViewer.swift`, `SourceContainerView.swift`, and `SourceScrollView.swift`.
+  - Swift disabled line wrapping (`text.textContainer?.widthTracksTextView = false`) and fixed the document frame
+    to the maximum glyph width with horizontal scrolling enabled (`scroll.hasHorizontalScroller = true`).
+  - Gutter in Swift was a separate fixed view (`x: 0, width: 72`) outside the scroll view (`x: 72, width: bounds.width - 72`),
+    so horizontal scrolling never moved or obscured the gutter.
+- **EGUI Horizontal Scrolling & Inspector Clipping:**
+  - Added `SourceBuffer::max_line_len(&self) -> usize` to efficiently calculate the longest line character count.
+  - Sized virtualized rows to `full_code_width = (max_chars as f32 * char_width + GUTTER_WIDTH + 64.0).max(ui.available_width())`,
+    activating egui's horizontal scrollbar.
+  - Pinned the gutter to the viewport's left edge (`pos2(viewport_clip.min.x, rect.min.y)`), ensuring line numbers and
+    folding chevrons stay docked during horizontal scrolling.
+  - Enforced strict code clipping using `viewport_clip = ui.clip_rect().intersect(ui.max_rect())` and
+    `code_clip_rect = Rect::from_min_max(pos2(viewport_clip.min.x + GUTTER_WIDTH, viewport_clip.min.y), viewport_clip.max)`.
+    Tokens and background bars are strictly clipped to this rectangle, making it impossible for code text to bleed into
+    `SidePanel::right`.
+- **Configurable Line Wrapping:**
+  - Added `wrap_lines: bool` to `SessionStore`, persisted across sessions.
+  - Added `View -> Wrap Lines` checkbox to toolbar menu and `Ctrl+Alt+W` global toggle shortcut.
+  - When enabled, text wraps at available width; when disabled, horizontal scrolling is enabled.
+- **Complete Vector SVG Icon System (Zero Emojis):**
+  - Copied and curated 18 vector SVG icons into `assets/icons/`: `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`,
+    `chevron_down`, `chevron_right`, `check`, `x`, `code`, `text`, `contrast`, `sun`, `moon`, `folder`, `diff`,
+    `pin`, `search`, and `wrap`.
+  - Pruned all 93 unused SVG icons from `little-screen-clip` so that only the 18 actively used SVGs are present.
+  - Implemented `src/ui/icons.rs` with `Icon` enum supporting `image()`, `image_tinted()`, `button()`, and direct
+    painter rasterization via `egui_extras::install_image_loaders`.
+  - Replaced all emojis and Unicode arrows across the application:
+    - Sidebar: Replaced Unicode `▼`/`▶` with `Icon::ChevronDown`/`Icon::ChevronRight`, added `Icon::Folder` and `Icon::Code`.
+    - Toolbar: Replaced emojis with `Icon::Sun`/`Icon::Moon` button, `Wrap Lines` toggle.
+    - Modals: Replaced `🔍` and `🔣` with `Icon::Search` and `Icon::Code`.
+    - Context Inspector: Replaced `✕`, `▲`, `▼` bookmark controls with `Icon::Close`, `Icon::ArrowUp`, `Icon::ArrowDown`.
+    - Welcome View: Replaced `📁` button with `Icon::Folder` icon.
+    - Source View: Replaced breadcrumb `›` with `Icon::ChevronRight`, PR change buttons with `Icon::ArrowUp`/`Icon::ArrowDown`,
+      and gutter fold chevrons with vector chevrons.
+    - Unit tests: Replaced crab emoji test in `src/source/buffer.rs` with `\u{20000}` 4-byte UTF-8 character.
+  - Verified 0 emojis and 0 geometric arrows across the entire Rust codebase.
+- **Quality Gates:**
+  - 38/38 unit tests passing.
+  - 30/30 doctests passing.
+  - `cargo clippy --all-targets -- -D warnings` passing with zero warnings.
+  - `cargo fmt --all -- --check` passing with zero diffs.
+  - Swift source code remains 100% intact.
+
+
 ## 2026-10-27 — Swift Parity & Defect Remediation (Subsystem 4 & Theme Control) Completed (Antigravity)
 
 Completed comprehensive feature audit, defect remediation, and parity implementation for Subsystem 4

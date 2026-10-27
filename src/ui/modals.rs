@@ -7,6 +7,7 @@ use crate::repository::quick_search::QuickFileSearch;
 use crate::semantic::index::SemanticIndex;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
+use crate::ui::icons::Icon;
 use egui::{Context, Key, TextEdit, Window};
 
 /// Action triggered by user input inside any modal dialog.
@@ -65,7 +66,7 @@ impl QuickFilePickerModal {
             .fixed_size(egui::vec2(550.0, 380.0))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("🔍");
+                    Icon::Search.ui(ui, 14.0, theme.text_muted);
                     let edit = TextEdit::singleline(&mut self.query)
                         .hint_text("Type a filename or fuzzy path...")
                         .desired_width(ui.available_width() - 20.0);
@@ -230,7 +231,7 @@ impl GoToSymbolModal {
                 .fixed_size(egui::vec2(540.0, 380.0))
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("🔣");
+                        Icon::Code.ui(ui, 14.0, theme.accent);
                         let edit = TextEdit::singleline(&mut self.query)
                             .hint_text("Search symbols in workspace...")
                             .desired_width(ui.available_width() - 20.0);
@@ -326,7 +327,7 @@ impl GoToSymbolModal {
             .fixed_size(egui::vec2(500.0, 360.0))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("🔣");
+                    Icon::Code.ui(ui, 14.0, theme.accent);
                     let edit = TextEdit::singleline(&mut self.query)
                         .hint_text("Symbol name...")
                         .desired_width(ui.available_width() - 20.0);

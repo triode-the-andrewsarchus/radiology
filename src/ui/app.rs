@@ -27,6 +27,7 @@ use crate::syntax::highlighter::{HighlightedSpan, SyntaxHighlighter};
 use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
 use crate::theme::AppTheme;
 use crate::ui::context_inspector::{ContextInspector, InspectorAction, InspectorTab};
+use crate::ui::icons::Icon;
 use crate::ui::modals::{
     GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,
 };
@@ -126,7 +127,8 @@ pub struct RadiologyApp {
 impl RadiologyApp {
     /// Creates a new [`RadiologyApp`] instance initialized with session defaults.
     #[must_use]
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         let session = SessionStore::load();
         let mut app = Self {
             theme: AppTheme::dark(),
@@ -445,6 +447,36 @@ impl RadiologyApp {
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::P)) {
             self.modal = ActiveModal::PullRequest(PullRequestModal::default());
         }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::T)
+        }) {
+            let new_dark = !self.theme.is_dark;
+            self.theme = if new_dark {
+                AppTheme::dark()
+            } else {
+                AppTheme::light()
+            };
+            ctx.set_visuals(if new_dark {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            });
+            if let Some(buf) = &self.open_buffer {
+                let syntax_ref = self.highlighter.find_syntax_for_path(&buf.path);
+                self.highlighted_lines = self
+                    .highlighter
+                    .highlight_document(syntax_ref, &buf.text, new_dark);
+            }
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::W)
+        }) {
+            self.session.wrap_lines = !self.session.wrap_lines;
+        }
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::D)) {
             if let Some(buf) = &self.open_buffer {
                 let offset = buf.byte_offset(self.caret_line, self.caret_col);
@@ -621,6 +653,7 @@ impl eframe::App for RadiologyApp {
                 self.active_revision,
                 self.mode,
                 &self.session.source_filters,
+                self.session.wrap_lines,
                 &self.history,
             ) {
                 match action {
@@ -700,6 +733,9 @@ impl eframe::App for RadiologyApp {
                                 .highlighter
                                 .highlight_document(syntax_ref, &buf.text, new_dark);
                         }
+                    }
+                    ToolbarAction::ToggleWrapLines => {
+                        self.session.wrap_lines = !self.session.wrap_lines;
                     }
                 }
             }
@@ -849,6 +885,7 @@ impl eframe::App for RadiologyApp {
                     &mut self.fold_store,
                     self.line_changes.as_ref(),
                     &mut self.pin_store,
+                    self.session.wrap_lines,
                     &enclosing,
                 ) {
                     match action {
@@ -934,10 +971,14 @@ impl eframe::App for RadiologyApp {
                         ui.add_space(8.0);
                         ui.label("Open a repository to browse, search, and follow the source.");
                         ui.add_space(16.0);
-                        if ui
-                            .button(egui::RichText::new("📁 Open Repository…").size(15.0))
-                            .clicked()
-                        {
+                        let open_clicked = ui
+                            .horizontal(|ui| {
+                                Icon::Folder.ui(ui, 18.0, self.theme.accent);
+                                ui.button(egui::RichText::new("Open Repository…").size(15.0))
+                                    .clicked()
+                            })
+                            .inner;
+                        if open_clicked {
                             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                                 self.open_repository(&folder);
                             }

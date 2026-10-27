@@ -12,7 +12,8 @@ use crate::syntax::folds::{FoldRange, FoldStore};
 use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
-use egui::{Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
+use crate::ui::icons::Icon;
+use egui::{pos2, Key, Rect, RichText, ScrollArea, Stroke, TextStyle, Ui, Vec2};
 
 /// User interactions and navigation events produced within the [`SourceView`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +67,7 @@ impl SourceView {
     /// * `fold_store` - Set of currently collapsed fold start lines.
     /// * `line_changes` - Pull request line change markers for before/after diff overlays.
     /// * `pin_store` - Highlighted symbol occurrence pins.
+    /// * `wrap_lines` - Whether long lines wrap at viewport edge instead of scrolling horizontally.
     /// * `enclosing_symbols` - Hierarchical list of symbols enclosing the current caret position.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
@@ -80,6 +82,7 @@ impl SourceView {
         fold_store: &mut FoldStore,
         line_changes: Option<&FileLineChanges>,
         pin_store: &mut OccurrencePinStore,
+        wrap_lines: bool,
         enclosing_symbols: &[DocumentSymbol],
     ) -> Option<SourceViewAction> {
         let mut action = None;
@@ -93,7 +96,7 @@ impl SourceView {
                 let parts: Vec<&str> = buffer.path.split('/').collect();
                 for (i, part) in parts.iter().enumerate() {
                     if i > 0 {
-                        ui.colored_label(theme.text_muted, "›");
+                        Icon::ChevronRight.ui(ui, 10.0, theme.text_muted);
                     }
                     if i == parts.len() - 1 {
                         ui.label(RichText::new(*part).strong());
@@ -104,7 +107,7 @@ impl SourceView {
 
                 // Enclosing symbol breadcrumbs (full hierarchy)
                 for sym in enclosing_symbols {
-                    ui.colored_label(theme.text_muted, "›");
+                    Icon::ChevronRight.ui(ui, 10.0, theme.text_muted);
                     ui.colored_label(theme.accent, RichText::new(&sym.name).strong());
                 }
 
@@ -112,10 +115,18 @@ impl SourceView {
                 if let Some(diff) = line_changes {
                     if !diff.hunks.is_empty() {
                         ui.separator();
-                        if ui.button("▲ Prev Change").clicked() {
+                        if Icon::ArrowUp
+                            .button(ui, 11.0, theme.text_primary)
+                            .on_hover_text("Previous change block")
+                            .clicked()
+                        {
                             action = Some(SourceViewAction::PrevChangeBlock);
                         }
-                        if ui.button("▼ Next Change").clicked() {
+                        if Icon::ArrowDown
+                            .button(ui, 11.0, theme.text_primary)
+                            .on_hover_text("Next change block")
+                            .clicked()
+                        {
                             action = Some(SourceViewAction::NextChangeBlock);
                         }
                     }
@@ -166,6 +177,7 @@ impl SourceView {
             // Central Code Area with Gutter
             let available_height = (ui.available_height() - 28.0).max(100.0);
             let row_height = 20.0;
+            let char_width = 8.5;
 
             // Build visible line numbers skipping collapsed folds
             let visible_lines: Vec<usize> = (1..=buffer.line_count())
@@ -177,13 +189,31 @@ impl SourceView {
                 .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
                 .unwrap_or_default();
 
+            let max_chars = buffer.max_line_len();
+            let full_code_width = (max_chars as f32 * char_width + Self::GUTTER_WIDTH + 64.0)
+                .max(ui.available_width());
+            let row_width = if wrap_lines {
+                ui.available_width()
+            } else {
+                full_code_width
+            };
+
             ScrollArea::both()
                 .auto_shrink([false, false])
                 .max_height(available_height)
                 .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                    let clip_rect = ui.clip_rect();
-                    let painter = ui.painter().with_clip_rect(clip_rect);
-                    let row_width = ui.available_width().max(400.0);
+                    // Strict clip rect intersecting with CentralPanel's max bounds
+                    // This mathematically guarantees no drawing overflows into the right inspector
+                    let viewport_clip = ui.clip_rect().intersect(ui.max_rect());
+                    let gutter_painter = ui.painter().with_clip_rect(viewport_clip);
+
+                    // Code clip rect: area to the right of the pinned gutter up to the viewport edge
+                    let code_clip_min_x = viewport_clip.min.x + Self::GUTTER_WIDTH;
+                    let code_clip_rect = Rect::from_min_max(
+                        pos2(code_clip_min_x, viewport_clip.min.y),
+                        viewport_clip.max,
+                    );
+                    let code_painter = ui.painter().with_clip_rect(code_clip_rect);
 
                     for idx in row_range {
                         if idx >= visible_lines.len() {
@@ -198,29 +228,27 @@ impl SourceView {
                             egui::Sense::click_and_drag(),
                         );
 
-                        // Draw Gutter
+                        // Pinned Gutter at viewport left edge (Swift parity: gutter does not scroll horizontally)
                         let gutter_rect = Rect::from_min_size(
-                            rect.min,
+                            pos2(viewport_clip.min.x, rect.min.y),
                             Vec2::new(Self::GUTTER_WIDTH, row_height),
                         );
-                        painter.rect_filled(gutter_rect, 0.0, theme.bg_gutter);
+                        gutter_painter.rect_filled(gutter_rect, 0.0, theme.bg_gutter);
 
                         // Fold Chevron in Gutter
                         let mut chevron_clicked = false;
                         if let Some(_fold) = fold_ranges.iter().find(|f| f.start_line == line_num) {
                             let is_folded = fold_store.is_folded(line_num);
-                            let chevron = if is_folded { "▶" } else { "▼" };
-                            let chevron_pos = gutter_rect.left_center() + Vec2::new(6.0, 0.0);
-                            painter.text(
-                                chevron_pos,
-                                egui::Align2::LEFT_CENTER,
-                                chevron,
-                                TextStyle::Small.resolve(ui.style()),
-                                theme.text_secondary,
-                            );
-
+                            let chevron_icon = if is_folded {
+                                Icon::ChevronRight
+                            } else {
+                                Icon::ChevronDown
+                            };
+                            let chevron_pos = gutter_rect.left_center() + Vec2::new(10.0, 0.0);
                             let chevron_rect =
-                                Rect::from_center_size(chevron_pos, Vec2::new(16.0, 16.0));
+                                Rect::from_center_size(chevron_pos, Vec2::new(12.0, 12.0));
+                            chevron_icon.paint(&gutter_painter, chevron_rect, theme.text_secondary);
+
                             if ui.rect_contains_pointer(chevron_rect)
                                 && ui.input(|i| i.pointer.primary_clicked())
                             {
@@ -230,6 +258,45 @@ impl SourceView {
                             }
                         }
 
+                        // Background highlighting for active caret line (clipped to code area)
+                        if is_caret_line {
+                            code_painter.rect_filled(rect, 0.0, theme.bg_active_line);
+                        }
+
+                        // Diff line highlighting (clipped to code area)
+                        let is_diff_changed = changed_lines.iter().any(|r| r.contains(&line_num));
+                        if is_diff_changed {
+                            let diff_bg = if buffer.revision == Some(ReviewRevision::Before) {
+                                theme.diff_del
+                            } else {
+                                theme.diff_add
+                            };
+                            code_painter.rect_filled(rect, 0.0, diff_bg);
+                        }
+
+                        // Line number in pinned gutter: print every 5th line or active caret line
+                        let should_print_number = line_num.is_multiple_of(5) || is_caret_line;
+                        if should_print_number {
+                            let num_color = if is_caret_line {
+                                theme.accent
+                            } else {
+                                theme.text_muted
+                            };
+                            gutter_painter.text(
+                                gutter_rect.right_center() - Vec2::new(12.0, 0.0),
+                                egui::Align2::RIGHT_CENTER,
+                                line_num.to_string(),
+                                TextStyle::Monospace.resolve(ui.style()),
+                                num_color,
+                            );
+                        }
+
+                        // Gutter right border
+                        gutter_painter.line_segment(
+                            [gutter_rect.right_top(), gutter_rect.right_bottom()],
+                            Stroke::new(1.0, theme.border),
+                        );
+
                         // Caret click: calculate actual character column from mouse position
                         if line_response.clicked() && !chevron_clicked {
                             *caret_line = line_num;
@@ -237,7 +304,6 @@ impl SourceView {
                             if let Some(pos) = line_response.interact_pointer_pos() {
                                 let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 8.0;
                                 if pos.x > code_start_x {
-                                    let char_width = 8.5;
                                     col = ((pos.x - code_start_x) / char_width).floor() as usize;
                                     col = col.min(line_text.chars().count());
                                 }
@@ -250,45 +316,6 @@ impl SourceView {
                                 byte_offset: offset,
                             });
                         }
-
-                        // Background highlighting for active caret line
-                        if is_caret_line {
-                            painter.rect_filled(rect, 0.0, theme.bg_active_line);
-                        }
-
-                        // Diff line highlighting
-                        let is_diff_changed = changed_lines.iter().any(|r| r.contains(&line_num));
-                        if is_diff_changed {
-                            let diff_bg = if buffer.revision == Some(ReviewRevision::Before) {
-                                theme.diff_del
-                            } else {
-                                theme.diff_add
-                            };
-                            painter.rect_filled(rect, 0.0, diff_bg);
-                        }
-
-                        // Line number rule: print every 5th line or active caret line
-                        let should_print_number = line_num.is_multiple_of(5) || is_caret_line;
-                        if should_print_number {
-                            let num_color = if is_caret_line {
-                                theme.accent
-                            } else {
-                                theme.text_muted
-                            };
-                            painter.text(
-                                gutter_rect.right_center() - Vec2::new(12.0, 0.0),
-                                egui::Align2::RIGHT_CENTER,
-                                line_num.to_string(),
-                                TextStyle::Monospace.resolve(ui.style()),
-                                num_color,
-                            );
-                        }
-
-                        // Gutter right border
-                        painter.line_segment(
-                            [gutter_rect.right_top(), gutter_rect.right_bottom()],
-                            Stroke::new(1.0, theme.border),
-                        );
 
                         // Draw pre-highlighted code spans strictly clipped
                         let code_pos =
@@ -307,13 +334,23 @@ impl SourceView {
                                         color = color.linear_multiply(factor);
                                     }
                                 }
-                                let galley = painter.layout_no_wrap(
-                                    span.text.clone(),
-                                    font_id.clone(),
-                                    color,
-                                );
+                                let galley = if wrap_lines {
+                                    code_painter.layout(
+                                        span.text.clone(),
+                                        font_id.clone(),
+                                        color,
+                                        (ui.available_width() - Self::GUTTER_WIDTH - 16.0)
+                                            .max(100.0),
+                                    )
+                                } else {
+                                    code_painter.layout_no_wrap(
+                                        span.text.clone(),
+                                        font_id.clone(),
+                                        color,
+                                    )
+                                };
                                 let span_pos = code_pos + Vec2::new(x_offset, 0.0);
-                                painter.galley(
+                                code_painter.galley(
                                     span_pos - Vec2::new(0.0, galley.size().y / 2.0),
                                     galley.clone(),
                                     color,
@@ -321,7 +358,7 @@ impl SourceView {
                                 x_offset += galley.size().x;
                             }
                         } else {
-                            painter.text(
+                            code_painter.text(
                                 code_pos,
                                 egui::Align2::LEFT_CENTER,
                                 line_text,
@@ -338,15 +375,18 @@ impl SourceView {
                                 for range in &group.ranges {
                                     if range.start < line_end_byte && range.end > line_start_byte {
                                         let col_start = range.start.saturating_sub(line_start_byte);
-                                        let char_w = 8.5;
-                                        let pin_x = code_pos.x + col_start as f32 * char_w;
-                                        let pin_w = (range.end - range.start) as f32 * char_w;
+                                        let pin_x = code_pos.x + col_start as f32 * char_width;
+                                        let pin_w = (range.end - range.start) as f32 * char_width;
                                         let pin_rect = Rect::from_min_size(
                                             egui::pos2(pin_x, rect.min.y + 2.0),
-                                            egui::vec2(pin_w.max(char_w), row_height - 4.0),
+                                            egui::vec2(pin_w.max(char_width), row_height - 4.0),
                                         );
                                         let color = theme.accent.linear_multiply(0.3);
-                                        painter.rect_stroke(pin_rect, 2.0, Stroke::new(1.0, color));
+                                        code_painter.rect_stroke(
+                                            pin_rect,
+                                            2.0,
+                                            Stroke::new(1.0, color),
+                                        );
                                     }
                                 }
                             }

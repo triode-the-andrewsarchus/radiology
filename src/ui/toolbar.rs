@@ -9,6 +9,7 @@ use crate::repository::filters::SourceFilters;
 use crate::source::history::NavigationHistory;
 use crate::source::location::ReviewRevision;
 use crate::theme::AppTheme;
+use crate::ui::icons::Icon;
 use egui::{RichText, Ui};
 
 /// Actions triggered by interacting with controls in the top [`Toolbar`].
@@ -42,6 +43,8 @@ pub enum ToolbarAction {
     ToggleHideTests,
     /// Toggles between dark and light appearance themes.
     ToggleTheme,
+    /// Toggles whether long source code lines are soft-wrapped.
+    ToggleWrapLines,
 }
 
 /// Renders the top horizontal toolbar in the Radiology desktop interface.
@@ -60,6 +63,7 @@ impl Toolbar {
     /// * `revision` - Active revision view (`Before` or `After`).
     /// * `mode` - Active inspection mode (`Normal` or `Critical`).
     /// * `filters` - Repository file filter settings.
+    /// * `wrap_lines` - Whether long lines wrap at viewport width.
     /// * `history` - Navigation history tracker used to enable/disable back/forward buttons.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
@@ -71,6 +75,7 @@ impl Toolbar {
         revision: Option<ReviewRevision>,
         mode: SourceMode,
         filters: &SourceFilters,
+        wrap_lines: bool,
         history: &NavigationHistory,
     ) -> Option<ToolbarAction> {
         let mut action = None;
@@ -79,7 +84,7 @@ impl Toolbar {
             ui.spacing_mut().item_spacing.x = 8.0;
 
             // Open Repository
-            if ui.button("📁 Open Repository…").clicked() {
+            if ui.button("Open Repository…").clicked() {
                 action = Some(ToolbarAction::OpenRepositoryDialog);
             }
 
@@ -96,18 +101,18 @@ impl Toolbar {
 
             // Navigation Back/Forward
             ui.add_enabled_ui(history.can_go_back(), |ui| {
-                if ui.button("◀ Back").clicked() {
+                if ui.button("Back").clicked() {
                     action = Some(ToolbarAction::NavigateBack);
                 }
             });
             ui.add_enabled_ui(history.can_go_forward(), |ui| {
-                if ui.button("Forward ▶").clicked() {
+                if ui.button("Forward").clicked() {
                     action = Some(ToolbarAction::NavigateForward);
                 }
             });
 
             // Bookmark shortcut
-            if ui.button("🔖 Bookmark (Ctrl+D)").clicked() {
+            if ui.button("Bookmark (Ctrl+D)").clicked() {
                 action = Some(ToolbarAction::ToggleBookmark);
             }
 
@@ -133,16 +138,16 @@ impl Toolbar {
                 if ui.button("Exit Review").clicked() {
                     action = Some(ToolbarAction::ExitPRReview);
                 }
-            } else if ui.button("🔀 Pull Request… (Ctrl+P)").clicked() {
+            } else if ui.button("Review PR…").clicked() {
                 action = Some(ToolbarAction::OpenPRDialog);
             }
 
             ui.separator();
 
-            // Mode Selector: Normal / Critical
+            // Critical Lens Mode Selector
             let mut curr_mode = mode;
-            egui::ComboBox::from_id_source("mode_picker")
-                .selected_text(mode.title())
+            egui::ComboBox::from_id_source("source_mode_combo")
+                .selected_text(curr_mode.title())
                 .show_ui(ui, |ui| {
                     if ui
                         .selectable_value(&mut curr_mode, SourceMode::Normal, "Normal")
@@ -161,13 +166,21 @@ impl Toolbar {
             // View & Filters Menu
             ui.menu_button("View", |ui| {
                 let theme_label = if theme.is_dark {
-                    "☀️ Switch to Light Mode"
+                    "Switch to Light Mode"
                 } else {
-                    "🌙 Switch to Dark Mode"
+                    "Switch to Dark Mode"
                 };
                 if ui.button(theme_label).clicked() {
                     action = Some(ToolbarAction::ToggleTheme);
                     ui.close_menu();
+                }
+                ui.separator();
+                if ui
+                    .checkbox(&mut { wrap_lines }, "Wrap Lines")
+                    .on_hover_text("Wrap long lines at viewport edge instead of scrolling horizontally (Swift parity)")
+                    .clicked()
+                {
+                    action = Some(ToolbarAction::ToggleWrapLines);
                 }
                 ui.separator();
                 if ui
@@ -185,10 +198,14 @@ impl Toolbar {
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let theme_btn = if theme.is_dark { "🌙" } else { "☀️" };
-                if ui
-                    .button(theme_btn)
-                    .on_hover_text("Toggle Dark/Light Mode")
+                let theme_icon = if theme.is_dark {
+                    Icon::Sun
+                } else {
+                    Icon::Moon
+                };
+                if theme_icon
+                    .button(ui, 14.0, theme.text_primary)
+                    .on_hover_text("Toggle Dark/Light Mode (Ctrl+Alt+T)")
                     .clicked()
                 {
                     action = Some(ToolbarAction::ToggleTheme);

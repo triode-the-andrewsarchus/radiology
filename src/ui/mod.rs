@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod context_inspector;
+pub mod icons;
 pub mod modals;
 pub mod sidebar;
 pub mod source_view;
@@ -14,6 +15,7 @@ pub mod toolbar;
 
 pub use app::RadiologyApp;
 pub use context_inspector::{ContextInspector, InspectorAction, InspectorTab};
+pub use icons::Icon;
 pub use modals::{
     GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,
 };

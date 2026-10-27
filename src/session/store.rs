@@ -27,6 +27,9 @@ pub struct SessionStore {
     pub active_pr: Option<usize>,
     /// Persisted file tree filters.
     pub source_filters: SourceFilters,
+    /// Whether source code lines wrap at the viewport boundary or scroll horizontally.
+    #[serde(default)]
+    pub wrap_lines: bool,
 }
 
 impl SessionStore {

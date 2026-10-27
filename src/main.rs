@@ -119,6 +119,7 @@ fn main() -> eframe::Result<()> {
         "Radiology",
         native_options,
         Box::new(move |cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             let mut app = RadiologyApp::new(cc);
             if let Some(path) = initial_path {
                 app.open_repository(&path);
