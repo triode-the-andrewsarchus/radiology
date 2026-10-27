@@ -175,6 +175,10 @@ impl RadiologyApp {
                         app.active_pr = Some(pr);
                         if let Ok(diff) = GitHubClient::get_pr_diff(&path, pr_num) {
                             app.line_changes = Some(UnifiedDiffParser::parse(&diff));
+                            app.pr_changes = UnifiedDiffParser::parse_file_changes(&diff);
+                            if !app.pr_changes.is_empty() {
+                                app.sidebar_tab = SidebarTab::Changes;
+                            }
                         }
                     }
                 }
@@ -337,6 +341,29 @@ impl RadiologyApp {
 
     /// Handles global keyboard shortcuts.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::T)
+        }) {
+            let new_dark = !self.theme.is_dark;
+            self.theme = if new_dark {
+                AppTheme::dark()
+            } else {
+                AppTheme::light()
+            };
+            ctx.set_visuals(if new_dark {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            });
+            if let Some(buf) = &self.open_buffer {
+                let syntax_ref = self.highlighter.find_syntax_for_path(&buf.path);
+                self.highlighted_lines = self
+                    .highlighter
+                    .highlight_document(syntax_ref, &buf.text, new_dark);
+            }
+        }
         if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::O)) {
             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                 self.open_repository(&folder);
@@ -358,6 +385,39 @@ impl RadiologyApp {
             .input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::Num2))
         {
             self.mode = SourceMode::Critical;
+        }
+        if ctx.input(|i| {
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.alt
+                && i.key_pressed(egui::Key::B)
+        }) {
+            if let Some(rev) = self.active_revision {
+                self.active_revision = Some(rev.other());
+            }
+        }
+        if ctx.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowDown)) {
+            if let Some(changes) = &self.line_changes {
+                let rev = self.active_revision.unwrap_or(ReviewRevision::After);
+                if let Some(next) = changes.next_change_line(self.caret_line, rev) {
+                    if let Some(buf) = &self.open_buffer {
+                        let path = buf.path.clone();
+                        let offset = buf.byte_offset(next, 0);
+                        self.jump_to_location(&path, next, offset);
+                    }
+                }
+            }
+        }
+        if ctx.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowUp)) {
+            if let Some(changes) = &self.line_changes {
+                let rev = self.active_revision.unwrap_or(ReviewRevision::After);
+                if let Some(prev) = changes.previous_change_line(self.caret_line, rev) {
+                    if let Some(buf) = &self.open_buffer {
+                        let path = buf.path.clone();
+                        let offset = buf.byte_offset(prev, 0);
+                        self.jump_to_location(&path, prev, offset);
+                    }
+                }
+            }
         }
         if ctx.input(|i| i.key_pressed(egui::Key::F12)) {
             if let Some(buf) = &self.open_buffer {
@@ -529,6 +589,11 @@ impl eframe::App for RadiologyApp {
                                     if let Ok(diff_text) = GitHubClient::get_pr_diff(root, num) {
                                         self.line_changes =
                                             Some(UnifiedDiffParser::parse(&diff_text));
+                                        self.pr_changes =
+                                            UnifiedDiffParser::parse_file_changes(&diff_text);
+                                        if !self.pr_changes.is_empty() {
+                                            self.sidebar_tab = SidebarTab::Changes;
+                                        }
                                     }
                                 }
                             }
@@ -616,6 +681,25 @@ impl eframe::App for RadiologyApp {
                         self.session.source_filters.hides_tests =
                             !self.session.source_filters.hides_tests;
                         self.refresh_file_tree();
+                    }
+                    ToolbarAction::ToggleTheme => {
+                        let new_dark = !self.theme.is_dark;
+                        self.theme = if new_dark {
+                            AppTheme::dark()
+                        } else {
+                            AppTheme::light()
+                        };
+                        ctx.set_visuals(if new_dark {
+                            egui::Visuals::dark()
+                        } else {
+                            egui::Visuals::light()
+                        });
+                        if let Some(buf) = &self.open_buffer {
+                            let syntax_ref = self.highlighter.find_syntax_for_path(&buf.path);
+                            self.highlighted_lines = self
+                                .highlighter
+                                .highlight_document(syntax_ref, &buf.text, new_dark);
+                        }
                     }
                 }
             }
@@ -756,6 +840,7 @@ impl eframe::App for RadiologyApp {
                 if let Some(action) = SourceView::show(
                     ui,
                     &self.theme,
+                    self.mode,
                     buf,
                     &self.highlighted_lines,
                     &mut self.caret_line,

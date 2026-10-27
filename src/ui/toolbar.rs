@@ -40,6 +40,8 @@ pub enum ToolbarAction {
     ToggleSourceFilesOnly,
     /// Toggles the filter to hide test directories and test files.
     ToggleHideTests,
+    /// Toggles between dark and light appearance themes.
+    ToggleTheme,
 }
 
 /// Renders the top horizontal toolbar in the Radiology desktop interface.
@@ -156,8 +158,18 @@ impl Toolbar {
                     }
                 });
 
-            // Filters Menu
+            // View & Filters Menu
             ui.menu_button("View", |ui| {
+                let theme_label = if theme.is_dark {
+                    "☀️ Switch to Light Mode"
+                } else {
+                    "🌙 Switch to Dark Mode"
+                };
+                if ui.button(theme_label).clicked() {
+                    action = Some(ToolbarAction::ToggleTheme);
+                    ui.close_menu();
+                }
+                ui.separator();
                 if ui
                     .checkbox(&mut { filters.source_files_only }, "Source Files Only")
                     .clicked()
@@ -173,6 +185,14 @@ impl Toolbar {
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let theme_btn = if theme.is_dark { "🌙" } else { "☀️" };
+                if ui
+                    .button(theme_btn)
+                    .on_hover_text("Toggle Dark/Light Mode")
+                    .clicked()
+                {
+                    action = Some(ToolbarAction::ToggleTheme);
+                }
                 if ui.button("Symbol ⌘T").clicked() {
                     action = Some(ToolbarAction::OpenGoToSymbol);
                 }

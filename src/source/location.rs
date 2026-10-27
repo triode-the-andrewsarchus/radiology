@@ -21,6 +21,15 @@ impl ReviewRevision {
             Self::After => "After",
         }
     }
+
+    /// Returns the opposite revision (`Before` <-> `After`).
+    #[must_use]
+    pub fn other(&self) -> Self {
+        match self {
+            Self::Before => Self::After,
+            Self::After => Self::Before,
+        }
+    }
 }
 
 /// Represents a precise byte-level coordinate within a repository or PR revision.

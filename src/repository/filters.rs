@@ -34,6 +34,28 @@ pub struct SourceFilters {
 }
 
 impl SourceFilters {
+    /// Checks whether an individual path passes the active filters.
+    #[must_use]
+    pub fn includes_path(&self, path: &str) -> bool {
+        if self.source_files_only
+            && !crate::repository::classifier::SourceFileClassifier::is_source_file(path)
+        {
+            return false;
+        }
+        if self.hides_tests && crate::repository::classifier::TestPathClassifier::is_test_path(path)
+        {
+            return false;
+        }
+        if !self.path_query.trim().is_empty()
+            && !path
+                .to_lowercase()
+                .contains(&self.path_query.trim().to_lowercase())
+        {
+            return false;
+        }
+        true
+    }
+
     /// Returns a new vector containing only files matching the active filter criteria.
     #[must_use]
     pub fn filter_files(&self, files: &[RepositoryFile]) -> Vec<RepositoryFile> {
