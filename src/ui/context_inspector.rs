@@ -10,7 +10,7 @@ use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
-use egui::{Color32, RichText, ScrollArea, Ui};
+use egui::{Color32, RichText, ScrollArea, Ui, Vec2};
 use uuid::Uuid;
 
 /// Active tab selected in the [`ContextInspector`].
@@ -62,6 +62,9 @@ impl ContextInspector {
     /// * `active_tab` - Mutable reference to the currently displayed tab.
     /// * `current_symbol` - SCIP symbol metadata for the token under the caret.
     /// * `definition_location` - Optional target file and line where the active symbol is defined.
+    /// * `enclosing_declaration` - AST document symbol enclosing the current caret position.
+    /// * `enclosing_line` - 1-based line number of the enclosing declaration.
+    /// * `current_file_path` - Path of the currently open source file.
     /// * `caller_tree` - Hierarchical caller tree rooted at incoming references.
     /// * `outline` - Hierarchical AST document symbols for the active file.
     /// * `bookmarks` - Store containing active bookmarks for the repository.
@@ -72,6 +75,9 @@ impl ContextInspector {
         active_tab: &mut InspectorTab,
         current_symbol: Option<&ScipSymbolInformation>,
         definition_location: Option<(&str, usize)>,
+        enclosing_declaration: Option<&DocumentSymbol>,
+        enclosing_line: usize,
+        current_file_path: Option<&str>,
         caller_tree: &[ReferenceCallerNode],
         outline: &[DocumentSymbol],
         bookmarks: &BookmarkStore,
@@ -105,9 +111,16 @@ impl ContextInspector {
                 InspectorTab::Symbol => {
                     ScrollArea::vertical().show(ui, |ui| {
                         // Declaration Section
+                        let ref_count = caller_tree.len();
+                        let ref_str = if ref_count == 1 {
+                            "1 reference".to_string()
+                        } else {
+                            format!("{ref_count} references")
+                        };
+
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Declaration").strong());
-                            ui.colored_label(theme.text_muted, "0 references");
+                            ui.colored_label(theme.text_muted, ref_str);
                         });
                         ui.add_space(4.0);
 
@@ -119,7 +132,12 @@ impl ContextInspector {
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if ui.link(format!("{def_line}")).clicked() {
+                                            let file_short = std::path::Path::new(def_path)
+                                                .file_name()
+                                                .map(|f| f.to_string_lossy().to_string())
+                                                .unwrap_or_else(|| def_path.to_string());
+                                            if ui.link(format!("{file_short}:{def_line}")).clicked()
+                                            {
                                                 action = Some(InspectorAction::JumpToLocation {
                                                     path: def_path.to_string(),
                                                     line: def_line,
@@ -156,10 +174,48 @@ impl ContextInspector {
                                     ui.label(RichText::new(doc).color(theme.text_secondary));
                                 }
                             }
+                        } else if let Some(enclosing) = enclosing_declaration {
+                            ui.horizontal(|ui| {
+                                ui.colored_label(theme.accent, "ƒ(x)");
+                                ui.label(RichText::new(&enclosing.name).strong());
+
+                                if let Some(curr_path) = current_file_path {
+                                    let file_short = std::path::Path::new(curr_path)
+                                        .file_name()
+                                        .map(|f| f.to_string_lossy().to_string())
+                                        .unwrap_or_else(|| curr_path.to_string());
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui
+                                                .link(format!("{file_short}:{enclosing_line}"))
+                                                .clicked()
+                                            {
+                                                action = Some(InspectorAction::JumpToLocation {
+                                                    path: curr_path.to_string(),
+                                                    line: enclosing_line,
+                                                    byte_offset: 0,
+                                                });
+                                            }
+                                        },
+                                    );
+                                }
+                            });
+
+                            if let Some(detail) = &enclosing.detail {
+                                ui.add_space(4.0);
+                                egui::Frame::none()
+                                    .fill(theme.bg_surface)
+                                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+                                    .rounding(4.0)
+                                    .show(ui, |ui| {
+                                        ui.monospace(detail);
+                                    });
+                            }
                         } else {
                             ui.colored_label(
                                 theme.text_muted,
-                                "Place caret on a symbol to inspect definition.",
+                                "Place caret inside a declaration or symbol to inspect.",
                             );
                         }
 
@@ -170,7 +226,9 @@ impl ContextInspector {
                             ui.label(RichText::new("Outline").strong());
                             ui.add_space(4.0);
 
-                            let active_name = current_symbol.map(|s| s.display_name.as_str());
+                            let active_name = current_symbol
+                                .map(|s| s.display_name.as_str())
+                                .or_else(|| enclosing_declaration.map(|s| s.name.as_str()));
                             for sym in outline {
                                 if let Some(act) =
                                     Self::render_outline_node(ui, theme, sym, active_name, 0)
@@ -316,36 +374,64 @@ impl ContextInspector {
     ) -> Option<InspectorAction> {
         let mut action = None;
         let indent_px = indent as f32 * 14.0;
+        let row_height = 24.0;
 
-        ui.horizontal(|ui| {
-            ui.add_space(indent_px);
+        let (rect, resp) = ui.allocate_exact_size(
+            Vec2::new(ui.available_width(), row_height),
+            egui::Sense::click(),
+        );
 
-            // Deterministic 12-color capsule identity pill
-            let pill_color = caller_pill_color(&node.name, &node.path);
-            let pill_resp = egui::Frame::none()
-                .fill(pill_color.linear_multiply(0.2))
-                .stroke(egui::Stroke::new(1.0, pill_color))
-                .inner_margin(egui::Margin::symmetric(6.0, 2.0))
-                .rounding(10.0)
-                .show(ui, |ui| {
-                    ui.label(RichText::new(&node.name).color(pill_color).strong());
-                })
-                .response;
+        let is_hovered = resp.hovered();
+        if is_hovered {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            let hover_bg = if theme.is_dark {
+                Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+            } else {
+                Color32::from_rgba_unmultiplied(0, 0, 0, 10)
+            };
+            ui.painter().rect_filled(rect, 3.0, hover_bg);
+        }
 
-            if pill_resp.interact(egui::Sense::click()).clicked() {
-                action = Some(InspectorAction::JumpToLocation {
-                    path: node.path.clone(),
-                    line: node.line,
-                    byte_offset: 0,
-                });
-            }
+        let mut child_ui = ui.child_ui(rect, egui::Layout::left_to_right(egui::Align::Center));
+        child_ui.add_space(indent_px + 4.0);
 
-            ui.colored_label(theme.text_muted, format!("{}:{}", node.path, node.line));
+        // Deterministic 12-color capsule identity pill
+        let pill_color = caller_pill_color(&node.name, &node.path);
+        egui::Frame::none()
+            .fill(pill_color.linear_multiply(0.2))
+            .stroke(egui::Stroke::new(1.0, pill_color))
+            .inner_margin(egui::Margin::symmetric(6.0, 2.0))
+            .rounding(10.0)
+            .show(&mut child_ui, |ui| {
+                ui.label(
+                    RichText::new(&node.name)
+                        .color(pill_color)
+                        .strong()
+                        .size(11.0),
+                );
+            });
 
-            if node.is_recursive {
-                ui.colored_label(Color32::from_rgb(234, 179, 8), "(recursion loop)");
-            }
-        });
+        let file_short = std::path::Path::new(&node.path)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| node.path.clone());
+        child_ui.add_space(4.0);
+        child_ui.colored_label(
+            theme.text_secondary,
+            RichText::new(format!("{file_short}:{}", node.line)).size(11.0),
+        );
+
+        if node.is_recursive {
+            child_ui.colored_label(Color32::from_rgb(234, 179, 8), "(recursion loop)");
+        }
+
+        if resp.clicked() {
+            action = Some(InspectorAction::JumpToLocation {
+                path: node.path.clone(),
+                line: node.line,
+                byte_offset: 0,
+            });
+        }
 
         for child in &node.children {
             if let Some(act) = Self::render_caller_node(ui, theme, child, indent + 1) {
@@ -368,39 +454,57 @@ impl ContextInspector {
         let indent_px = indent as f32 * 14.0;
         let is_active = active_name == Some(sym.name.as_str());
 
+        let row_height = 22.0;
+        let (rect, resp) = ui.allocate_exact_size(
+            Vec2::new(ui.available_width(), row_height),
+            egui::Sense::click(),
+        );
+
+        let is_hovered = resp.hovered();
+        if is_hovered {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+
         let bg = if is_active {
             if theme.is_dark {
-                Color32::from_rgba_unmultiplied(255, 255, 255, 16)
+                Color32::from_rgba_unmultiplied(255, 255, 255, 22)
             } else {
                 Color32::from_rgb(238, 238, 240)
+            }
+        } else if is_hovered {
+            if theme.is_dark {
+                Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+            } else {
+                Color32::from_rgba_unmultiplied(0, 0, 0, 10)
             }
         } else {
             Color32::TRANSPARENT
         };
 
-        let resp = egui::Frame::none()
-            .fill(bg)
-            .inner_margin(egui::Margin::symmetric(6.0, 3.0))
-            .rounding(3.0)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_space(indent_px);
-                    ui.colored_label(theme.accent, "ƒ(x)");
-                    ui.label(RichText::new(&sym.name).strong());
+        if bg != Color32::TRANSPARENT {
+            ui.painter().rect_filled(rect, 3.0, bg);
+        }
 
-                    if is_active {
-                        ui.colored_label(theme.accent, "●");
-                    }
+        if is_active {
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height())),
+                1.0,
+                theme.accent,
+            );
+        }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let span = sym.range.end.saturating_sub(sym.range.start) / 30;
-                        ui.colored_label(theme.text_muted, format!("{} L", span.max(1)));
-                    });
-                });
-            })
-            .response;
+        let mut child_ui = ui.child_ui(rect, egui::Layout::left_to_right(egui::Align::Center));
+        child_ui.add_space(indent_px + 4.0);
+        child_ui.colored_label(theme.accent, "ƒ(x)");
+        child_ui.label(RichText::new(&sym.name).strong());
 
-        if resp.interact(egui::Sense::click()).clicked() {
+        let span = sym.range.end.saturating_sub(sym.range.start) / 30;
+        child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(6.0);
+            ui.colored_label(theme.text_muted, format!("{} L", span.max(1)));
+        });
+
+        if resp.clicked() {
             action = Some(InspectorAction::JumpToSymbol(sym.selection_range.start));
         }
 

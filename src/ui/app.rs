@@ -1,6 +1,6 @@
 //! Main application model and EGUI event loop lifecycle.
 
-use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
+use egui::{CentralPanel, Color32, Context, SidePanel, Stroke, TopBottomPanel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -122,6 +122,8 @@ pub struct RadiologyApp {
     pub bookmarks: BookmarkStore,
     /// Active modal dialog sheet.
     pub modal: ActiveModal,
+    /// Target line to scroll and center into view in the code editor.
+    pub scroll_to_line: Option<usize>,
 }
 
 impl RadiologyApp {
@@ -166,6 +168,7 @@ impl RadiologyApp {
             search_rx: None,
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
+            scroll_to_line: None,
         };
 
         if app.session.is_valid() {
@@ -243,6 +246,8 @@ impl RadiologyApp {
             let path_clone = f.path.clone();
             self.open_file(&path_clone);
         }
+
+        self.refresh_git_changes();
     }
 
     /// Rebuilds the hierarchical file tree applying active filters.
@@ -267,6 +272,7 @@ impl RadiologyApp {
                 self.selected_path = Some(rel_path.to_string());
                 self.caret_line = 1;
                 self.caret_col = 0;
+                self.scroll_to_line = Some(1);
 
                 self.outline_symbols = SymbolExtractor::extract(&buffer);
                 self.fold_ranges = FoldDetector::detect_folds(&buffer);
@@ -312,6 +318,7 @@ impl RadiologyApp {
             };
             self.caret_line = target_line;
             self.caret_col = 0;
+            self.scroll_to_line = Some(target_line);
             let offset = if byte_offset > 0 {
                 byte_offset
             } else {
@@ -324,20 +331,217 @@ impl RadiologyApp {
         }
     }
 
-    /// Updates semantic caller context for the symbol at the caret.
+    /// Refreshes working tree Git changes when no pull request is actively being reviewed.
+    pub fn refresh_git_changes(&mut self) {
+        if self.active_pr.is_some() {
+            return;
+        }
+        let Some(root) = &self.repository_root else {
+            return;
+        };
+
+        let mut changes = Vec::new();
+
+        if let Ok(output) = std::process::Command::new("git")
+            .args(["diff", "HEAD"])
+            .current_dir(root)
+            .output()
+        {
+            if output.status.success() {
+                let diff_text = String::from_utf8_lossy(&output.stdout);
+                changes = UnifiedDiffParser::parse_file_changes(&diff_text);
+                if let Some(buf) = &self.open_buffer {
+                    if let Ok(file_diff) = std::process::Command::new("git")
+                        .args(["diff", "-U0", "HEAD", "--", &buf.path])
+                        .current_dir(root)
+                        .output()
+                    {
+                        if file_diff.status.success() {
+                            let text = String::from_utf8_lossy(&file_diff.stdout);
+                            self.line_changes = Some(UnifiedDiffParser::parse(&text));
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Ok(output) = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(root)
+            .output()
+        {
+            if output.status.success() {
+                let status_text = String::from_utf8_lossy(&output.stdout);
+                for line in status_text.lines() {
+                    if let Some(rel) = line.strip_prefix("?? ") {
+                        let rel = rel.trim();
+                        let full = root.join(rel);
+                        if full.is_file() {
+                            let count = std::fs::read_to_string(&full)
+                                .map(|s| s.lines().count())
+                                .unwrap_or(0);
+                            changes.push(FileChange {
+                                path: rel.to_string(),
+                                old_path: None,
+                                status: crate::pull_request::change::FileChangeStatus::Added,
+                                before_blob: String::new(),
+                                after_blob: String::new(),
+                                additions: count,
+                                deletions: 0,
+                                is_binary: false,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        self.pr_changes = changes;
+    }
+
+    /// Traces incoming callers using ripgrep fallback when SCIP index is not present.
+    fn find_callers_fallback(
+        &self,
+        sym_name: &str,
+        def_file: &str,
+        def_line: usize,
+    ) -> Vec<ReferenceCallerNode> {
+        let Some(root) = &self.repository_root else {
+            return Vec::new();
+        };
+
+        if sym_name.len() < 2 || matches!(sym_name, "new" | "default" | "from" | "into" | "clone") {
+            return Vec::new();
+        }
+
+        let output = match std::process::Command::new("rg")
+            .args(["--json", "-w", sym_name, "."])
+            .current_dir(root)
+            .output()
+        {
+            Ok(out) if out.status.success() => out,
+            _ => return Vec::new(),
+        };
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut callers = Vec::new();
+        let mut seen = HashSet::new();
+
+        for line in stdout.lines() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                if v.get("type").and_then(|t| t.as_str()) == Some("match") {
+                    if let Some(data) = v.get("data") {
+                        let path = data
+                            .get("path")
+                            .and_then(|p| p.get("text"))
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("")
+                            .trim_start_matches("./")
+                            .to_string();
+                        let line_no = data
+                            .get("line_number")
+                            .and_then(|l| l.as_u64())
+                            .unwrap_or(0) as usize;
+                        let line_text = data
+                            .get("lines")
+                            .and_then(|l| l.get("text"))
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("")
+                            .trim();
+
+                        if path == def_file && line_no == def_line {
+                            continue;
+                        }
+
+                        let caller_name = if let Some(fn_idx) = line_text.find("fn ") {
+                            line_text[fn_idx + 3..]
+                                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                                .next()
+                                .unwrap_or(sym_name)
+                                .to_string()
+                        } else {
+                            line_text
+                                .split('(')
+                                .next()
+                                .and_then(|s| s.split_whitespace().next_back())
+                                .and_then(|s| s.rsplit("::").next())
+                                .and_then(|s| s.rsplit('.').next())
+                                .unwrap_or(sym_name)
+                                .to_string()
+                        };
+
+                        let key = format!("{path}:{line_no}");
+                        if !seen.insert(key) {
+                            continue;
+                        }
+
+                        let slot =
+                            crate::semantic::caller_tree::caller_pill_slot(&caller_name, &path);
+                        callers.push(ReferenceCallerNode {
+                            name: caller_name,
+                            path,
+                            line: line_no,
+                            depth: 0,
+                            color_slot: slot,
+                            is_recursive: false,
+                            children: Vec::new(),
+                        });
+
+                        if callers.len() >= 30 {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        callers
+    }
+
+    /// Updates semantic caller context for the symbol at the caret or enclosing declaration.
     pub fn refresh_symbol_context(&mut self) {
         let Some(buf) = &self.open_buffer else {
             return;
         };
-        let Some(index) = &self.semantic_index else {
-            return;
-        };
 
         let line_0 = self.caret_line.saturating_sub(1);
-        if let Some(occ) = index.occurrence_at(&buf.path, line_0, self.caret_col) {
-            if !occ.symbol.is_empty() {
-                self.caller_tree = CallerTreeBuilder::build(index, &occ.symbol, 4);
+        let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
+        let mut enclosing = Vec::new();
+        for sym in &self.outline_symbols {
+            sym.breadcrumbs(caret_byte, &mut enclosing);
+        }
+        let enclosing_sym = enclosing.last().cloned();
+
+        let mut scip_callers = Vec::new();
+        if let Some(index) = &self.semantic_index {
+            let target_sym = index
+                .occurrence_at(&buf.path, line_0, self.caret_col)
+                .map(|occ| occ.symbol.clone())
+                .or_else(|| {
+                    if let Some(enclosing) = &enclosing_sym {
+                        index
+                            .search_symbols(&enclosing.name, 5)
+                            .first()
+                            .map(|m| m.id.symbol.clone())
+                    } else {
+                        None
+                    }
+                });
+
+            if let Some(sym) = target_sym {
+                if !sym.is_empty() {
+                    scip_callers = CallerTreeBuilder::build(index, &sym, 4);
+                }
             }
+        }
+
+        if !scip_callers.is_empty() {
+            self.caller_tree = scip_callers;
+        } else if let Some(enclosing) = &enclosing_sym {
+            let def_line = buf.line_at_byte(enclosing.selection_range.start);
+            self.caller_tree = self.find_callers_fallback(&enclosing.name, &buf.path, def_line);
+        } else {
+            self.caller_tree.clear();
         }
     }
 
@@ -769,6 +973,13 @@ impl eframe::App for RadiologyApp {
             .min_width(180.0)
             .max_width(500.0)
             .show(ctx, |ui| {
+                let prev_tab = self.sidebar_tab;
+                let visible_count = self
+                    .session
+                    .source_filters
+                    .filter_files(&self.all_files)
+                    .len();
+                let total_count = self.all_files.len();
                 if let Some(action) = Sidebar::show(
                     ui,
                     &self.theme,
@@ -781,6 +992,9 @@ impl eframe::App for RadiologyApp {
                     &mut self.search_options,
                     &self.search_matches,
                     self.is_searching,
+                    visible_count,
+                    total_count,
+                    self.branch_name.as_deref(),
                 ) {
                     match action {
                         SidebarAction::OpenFile(p) => {
@@ -827,6 +1041,10 @@ impl eframe::App for RadiologyApp {
                         }
                     }
                 }
+
+                if prev_tab != SidebarTab::Changes && self.sidebar_tab == SidebarTab::Changes {
+                    self.refresh_git_changes();
+                }
             });
 
         SidePanel::right("context_inspector")
@@ -850,12 +1068,32 @@ impl eframe::App for RadiologyApp {
                     })
                 });
 
+                let (enclosing_sym, enclosing_line) = if let Some(buf) = &self.open_buffer {
+                    let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
+                    let mut enclosing = Vec::new();
+                    for sym in &self.outline_symbols {
+                        sym.breadcrumbs(caret_byte, &mut enclosing);
+                    }
+                    let sym = enclosing.last().cloned();
+                    let line = sym
+                        .as_ref()
+                        .map(|s| buf.line_at_byte(s.selection_range.start))
+                        .unwrap_or(self.caret_line);
+                    (sym, line)
+                } else {
+                    (None, 1)
+                };
+                let current_file_path = self.open_buffer.as_ref().map(|b| b.path.as_str());
+
                 if let Some(action) = ContextInspector::show(
                     ui,
                     &self.theme,
                     &mut self.inspector_tab,
                     current_sym_info,
                     def_loc,
+                    enclosing_sym.as_ref(),
+                    enclosing_line,
+                    current_file_path,
                     &self.caller_tree,
                     &self.outline_symbols,
                     &self.bookmarks,
@@ -888,6 +1126,58 @@ impl eframe::App for RadiologyApp {
                 }
             });
 
+        // Bottom status bar (matching native macOS ReaderDetail)
+        TopBottomPanel::bottom("status_bar")
+            .frame(
+                egui::Frame::none()
+                    .fill(self.theme.bg_base)
+                    .inner_margin(egui::Margin::symmetric(10.0, 4.0))
+                    .stroke(Stroke::new(1.0, self.theme.border)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some(buf) = &self.open_buffer {
+                        let lang = if buf.path.ends_with(".rs") {
+                            "Rust"
+                        } else if buf.path.ends_with(".swift") {
+                            "Swift"
+                        } else if buf.path.ends_with(".md") {
+                            "Markdown"
+                        } else if buf.path.ends_with(".toml") {
+                            "TOML"
+                        } else {
+                            "Text"
+                        };
+                        ui.colored_label(self.theme.text_secondary, lang);
+                        ui.colored_label(self.theme.text_muted, "·");
+                        ui.colored_label(
+                            self.theme.text_secondary,
+                            format!("{} lines", buf.line_count()),
+                        );
+                        ui.colored_label(self.theme.text_muted, "·");
+                        if self.semantic_index.is_some() {
+                            ui.colored_label(Color32::from_rgb(34, 197, 94), "SCIP index active");
+                        } else {
+                            ui.colored_label(self.theme.text_muted, "Ripgrep ready");
+                        }
+                    } else {
+                        ui.colored_label(self.theme.text_muted, "No file open");
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.colored_label(self.theme.text_secondary, "UTF-8 · Read Only");
+                        ui.colored_label(self.theme.text_muted, "·");
+                        if ui
+                            .button(format!("Line {}", self.caret_line))
+                            .on_hover_text("Go to Line (⌘L)")
+                            .clicked()
+                        {
+                            self.modal = ActiveModal::GoToLine(GoToLineModal::default());
+                        }
+                    });
+                });
+            });
+
         let central_frame = egui::Frame::none()
             .fill(self.theme.bg_base)
             .inner_margin(egui::Margin::symmetric(0.0, 0.0));
@@ -917,6 +1207,7 @@ impl eframe::App for RadiologyApp {
                         &mut self.pin_store,
                         self.session.wrap_lines,
                         &enclosing,
+                        &mut self.scroll_to_line,
                     ) {
                         match action {
                             SourceViewAction::CaretMoved {
@@ -947,6 +1238,10 @@ impl eframe::App for RadiologyApp {
                                 }
                             }
                             SourceViewAction::ToggleFold(_) => {}
+                            SourceViewAction::CollapseFunctions => {
+                                self.fold_store
+                                    .collapse_all_functions(&self.outline_symbols);
+                            }
                             SourceViewAction::NextChangeBlock => {
                                 if let Some(diff) = &self.line_changes {
                                     let anchors = diff.change_anchors(
