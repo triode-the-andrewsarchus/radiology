@@ -1,6 +1,7 @@
 .build/
 build/
 dist/
+target/
 *.xcodeproj/
 .DS_Store
 .agents/
