@@ -1,7 +1,7 @@
-# Swift Parity and Defect Remediation Report (Subsystems 1–3)
+# Swift Parity and Defect Remediation Report (Subsystems 1–4, Horizontal Scrolling & SVG System)
 
 ## Overview
-Comprehensive feature audit and defect remediation pass porting Radiology from Swift to standalone Linux-native Rust + EGUI (`eframe` 0.27 / `egui` 0.27). Covers Subsystems 1, 2, and 3, ensuring zero UI-thread blocking, exact behavioral parity with the original macOS Swift implementation, and complete validation with unit tests, doctests, and linter gates.
+Comprehensive feature audit and defect remediation pass porting Radiology from Swift to standalone Linux-native Rust + EGUI (`eframe` 0.27 / `egui` 0.27). Covers Subsystems 1, 2, 3, and 4, long-line horizontal scroll / line-wrap parity, and full vector SVG icon migration, ensuring zero UI-thread blocking, exact behavioral parity with the original macOS Swift implementation, and complete validation with unit tests, doctests, and linter gates.
 
 Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`, and `Package.swift` for follow-up review passes.
 
@@ -77,19 +77,23 @@ Original Swift code remains 100% intact across `Sources/`, `Tests/`, `scripts/`,
   - `BookmarkScope`: Added repository-level scoping isolating local checkouts (`<canonical_repo>\0checkout`) from pull request reviews (`<canonical_repo>\0pr:<number>`).
   - `ContextInspector` Click Conflict Fix: Fixed event handling in bookmark rows so clicking delete (`✕`), move-up (`▲`), or move-down (`▼`) is never clobbered by row jump click interactions. Added row hover highlighting.
   - Kept keyboard shortcuts `Ctrl+D` (toggle bookmark at caret) and `Ctrl+0`..`Ctrl+9` (jump to first 10 bookmarks).
-- **UI & Appearance:**
-  - Dark/Light Theme Switching: Added toolbar `🌙 / ☀️` button, `View -> Switch to Light/Dark Mode` menu item, and `Ctrl+Alt+T` shortcut. Dynamically swaps `AppTheme`, updates `egui::Visuals`, and re-highlights open buffers.
+- **UI, Appearance & Horizontal Scrolling Parity:**
+  - Swift Overflow Parity Investigation: Swift disabled text container width tracking (`widthTracksTextView = false`) and enabled horizontal scrolling (`hasHorizontalScroller = true`) alongside a separate fixed gutter (`SourceContainerView.swift`).
+  - EGUI Horizontal Scrolling & Inspector Clipping: Computes line width via `SourceBuffer::max_line_len()`, activating egui's horizontal scrollbar. Pinned the gutter to the viewport's left edge (`viewport_clip.min.x`) and strictly clipped code rendering to `[viewport_clip.min.x + GUTTER_WIDTH, viewport_clip.max.x]`, mathematically preventing any text from bleeding into `SidePanel::right`.
+  - Configurable Line Wrapping: Added `wrap_lines: bool` to `SessionStore`, accessible via `View -> Wrap Lines`, toolbar menu, and `Ctrl+Alt+W` global shortcut.
+  - Dark/Light Theme Switching: Added toolbar `Icon::Sun` / `Icon::Moon` button, `View -> Switch to Light/Dark Mode` menu item, and `Ctrl+Alt+T` shortcut. Dynamically swaps `AppTheme`, updates `egui::Visuals`, and re-highlights open buffers.
+  - Zero Emojis & Curated Vector SVG Icon System: Embedded 18 curated SVG assets in `assets/icons/` (`arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`, `chevron_down`, `chevron_right`, `check`, `x`, `code`, `text`, `contrast`, `sun`, `moon`, `folder`, `diff`, `pin`, `search`, `wrap`) with all 93 unused files pruned. Created `src/ui/icons.rs` with `Icon` enum supporting theme-adaptive tinting, button hover feedback, and painter rasterization. Replaced all emojis across toolbar, modals, sidebar, welcome view, context inspector, and source view.
   - Virtualized SourceView: Pre-cached Syntect highlighting and `ScrollArea::show_rows` virtualization to maintain 144 FPS.
-  - Painter Viewport Clipping: Enforced `ui.painter().with_clip_rect` to prevent text overflow from bleeding into the right-hand panel.
   - Welcome Landing View: Displays "Read the Code", folder picker button, recent repositories history, and keyboard shortcut legends.
-  - Breadcrumbs: Renders full enclosing symbol hierarchy (`Outer › Inner › Current`).
+  - Breadcrumbs: Renders full enclosing symbol hierarchy with vector chevrons.
   - Revision Toggle: Added `Ctrl+Alt+B` shortcut to swap between Before and After revisions.
 
 ---
 
 ## Verification & Test Results
 - **Unit Tests:** 38/38 passed (`cargo test --all-targets`).
-- **Documentation Tests:** 29/29 passed (`cargo test --doc`).
+- **Documentation Tests:** 30/30 passed (`cargo test --doc`).
 - **Resource Verification:** `cargo run -- --verify-resources` exited 0 with all 13 grammars verified.
-- **Clippy Linting:** `cargo clippy --all-targets` passed with 0 warnings.
+- **Clippy Linting:** `cargo clippy --all-targets -- -D warnings` passed with 0 warnings.
 - **Code Formatting:** `cargo fmt --all -- --check` passed with 0 diffs.
+- **Zero Emojis:** Verified 0 emoji matches and 0 geometric arrow symbols in `src/`.

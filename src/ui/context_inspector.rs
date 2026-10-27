@@ -9,6 +9,7 @@ use crate::semantic::caller_tree::{caller_pill_color, ReferenceCallerNode};
 use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
+use crate::ui::icons::Icon;
 use egui::{Color32, RichText, ScrollArea, Ui};
 use uuid::Uuid;
 
@@ -206,21 +207,33 @@ impl ContextInspector {
                                             ui.with_layout(
                                                 egui::Layout::right_to_left(egui::Align::Center),
                                                 |ui| {
-                                                    if ui.small_button("✕").clicked() {
+                                                    if Icon::Close
+                                                        .button(ui, 10.0, theme.text_muted)
+                                                        .on_hover_text("Delete bookmark")
+                                                        .clicked()
+                                                    {
                                                         action = Some(
                                                             InspectorAction::RemoveBookmark(b.id),
                                                         );
                                                     }
-                                                    if idx > 0 && ui.small_button("▲").clicked() {
-                                                        action = Some(
-                                                            InspectorAction::MoveBookmarkUp(idx),
-                                                        );
-                                                    }
                                                     if idx + 1 < bookmarks.bookmarks.len()
-                                                        && ui.small_button("▼").clicked()
+                                                        && Icon::ArrowDown
+                                                            .button(ui, 10.0, theme.text_muted)
+                                                            .on_hover_text("Move down")
+                                                            .clicked()
                                                     {
                                                         action = Some(
                                                             InspectorAction::MoveBookmarkDown(idx),
+                                                        );
+                                                    }
+                                                    if idx > 0
+                                                        && Icon::ArrowUp
+                                                            .button(ui, 10.0, theme.text_muted)
+                                                            .on_hover_text("Move up")
+                                                            .clicked()
+                                                    {
+                                                        action = Some(
+                                                            InspectorAction::MoveBookmarkUp(idx),
                                                         );
                                                     }
                                                 },

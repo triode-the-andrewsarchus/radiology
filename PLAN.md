@@ -4,6 +4,24 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Horizontal Scrolling, Line Wrap Toggle & SVG Vector System (2026-10-27):**
+Resolved long-line overflow bleeding into the right inspector and completed 100% vector SVG
+migration with zero emoji usage:
+- Swift parity investigation: Swift disabled text container width tracking (`widthTracksTextView = false`)
+  and enabled horizontal scrolling (`hasHorizontalScroller = true`) alongside a separate fixed
+  gutter (`SourceContainerView.swift`).
+- EGUI horizontal scrolling & clipping: Compute line width via `SourceBuffer::max_line_len()`,
+  enabling egui's horizontal scrollbar. Pinned the gutter to the viewport's left edge (`viewport_clip.min.x`)
+  and strictly clipped code rendering to `[viewport_clip.min.x + GUTTER_WIDTH, viewport_clip.max.x]`,
+  mathematically preventing any text from bleeding over `SidePanel::right`.
+- Configurable line wrapping: Added `wrap_lines: bool` to `SessionStore`, accessible via `View -> Wrap Lines`,
+  toolbar menu, and `Ctrl+Alt+W` global shortcut.
+- Vector SVG System: Embedded 18 curated SVG assets in `assets/icons/` with zero unused files.
+  Created `src/ui/icons.rs` providing theme-adaptive tinting, button hover feedback, and direct painter
+  rasterization. Replaced all emojis across toolbar, modals, sidebar, welcome view, inspector, and tests.
+- 38 unit tests and 30 doctests passing, clippy clean with -D warnings, rustfmt clean. Swift code intact.
+[Parity audit & defect remediation plan](plans/swift-parity-and-defect-remediation.md).
+
 **SourceView Virtualization & Rendering Performance Fix (2026-10-27):**
 Fixed severe UI performance degradation and text overflow bleeding into the right
 context inspector. Replaced per-frame syntax highlighting and widget allocation over

@@ -8,6 +8,7 @@ use crate::repository::file_node::FileNode;
 use crate::search::match_item::SearchMatch;
 use crate::search::ripgrep::SearchOptions;
 use crate::theme::AppTheme;
+use crate::ui::icons::Icon;
 use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
 use std::collections::HashSet;
 
@@ -72,23 +73,32 @@ impl Sidebar {
         ui.vertical(|ui| {
             // Tab Selector
             ui.horizontal(|ui| {
-                ui.selectable_value(active_tab, SidebarTab::Files, "Files");
-                if !pr_changes.is_empty() {
-                    ui.selectable_value(
-                        active_tab,
-                        SidebarTab::Changes,
-                        format!("Changes ({})", pr_changes.len()),
-                    );
+                if ui
+                    .selectable_label(*active_tab == SidebarTab::Files, "Files")
+                    .clicked()
+                {
+                    *active_tab = SidebarTab::Files;
                 }
-                ui.selectable_value(
-                    active_tab,
-                    SidebarTab::Search,
-                    if search_matches.is_empty() {
-                        "Search".to_string()
-                    } else {
-                        format!("Search ({})", search_matches.len())
-                    },
-                );
+                if !pr_changes.is_empty() {
+                    let label = format!("Changes ({})", pr_changes.len());
+                    if ui
+                        .selectable_label(*active_tab == SidebarTab::Changes, label)
+                        .clicked()
+                    {
+                        *active_tab = SidebarTab::Changes;
+                    }
+                }
+                let search_label = if search_matches.is_empty() {
+                    "Search".to_string()
+                } else {
+                    format!("Search ({})", search_matches.len())
+                };
+                if ui
+                    .selectable_label(*active_tab == SidebarTab::Search, search_label)
+                    .clicked()
+                {
+                    *active_tab = SidebarTab::Search;
+                }
             });
 
             ui.separator();
@@ -241,22 +251,33 @@ impl Sidebar {
 
         if node.is_directory {
             let is_expanded = expanded_dirs.contains(&node.path);
-            let icon = if is_expanded { "▼" } else { "▶" };
+            let chevron = if is_expanded {
+                Icon::ChevronDown
+            } else {
+                Icon::ChevronRight
+            };
 
-            ui.horizontal(|ui| {
-                ui.add_space(indent);
-                let btn = ui.selectable_label(
-                    false,
-                    RichText::new(format!("{icon} {}", node.name)).strong(),
-                );
-                if btn.clicked() {
-                    if is_expanded {
-                        expanded_dirs.remove(&node.path);
-                    } else {
-                        expanded_dirs.insert(node.path.clone());
-                    }
+            let resp = egui::Frame::none()
+                .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+                .rounding(3.0)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_space(indent);
+                        chevron.ui(ui, 10.0, theme.text_muted);
+                        Icon::Folder.ui(ui, 12.0, theme.accent);
+                        ui.add_space(2.0);
+                        ui.label(RichText::new(&node.name).strong());
+                    });
+                })
+                .response;
+
+            if resp.interact(egui::Sense::click()).clicked() {
+                if is_expanded {
+                    expanded_dirs.remove(&node.path);
+                } else {
+                    expanded_dirs.insert(node.path.clone());
                 }
-            });
+            }
 
             if is_expanded {
                 for child in &node.children {
@@ -286,7 +307,9 @@ impl Sidebar {
                 .rounding(3.0)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.add_space(indent);
+                        ui.add_space(indent + 12.0);
+                        Icon::Code.ui(ui, 11.0, theme.text_muted);
+                        ui.add_space(2.0);
                         ui.label(RichText::new(&node.name).monospace());
                     });
                 })

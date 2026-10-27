@@ -131,6 +131,37 @@ impl SourceBuffer {
         self.data.len()
     }
 
+    /// Returns the maximum line length in characters across all lines.
+    ///
+    /// Used for computing horizontal scroll extents when line wrapping is disabled.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use radiology::source::SourceBuffer;
+    ///
+    /// let buf = SourceBuffer::from_str("test.rs", "short\na very long line here\n");
+    /// assert_eq!(buf.max_line_len(), 21);
+    /// ```
+    #[must_use]
+    pub fn max_line_len(&self) -> usize {
+        if self.line_starts.len() <= 1 {
+            return self.text.chars().count();
+        }
+        let mut max_chars = 0;
+        for i in 0..self.line_starts.len() - 1 {
+            let start = self.line_starts[i];
+            let end = self.line_starts[i + 1].saturating_sub(1); // omit newline
+            let line_chars = self.text[start..end].chars().count();
+            if line_chars > max_chars {
+                max_chars = line_chars;
+            }
+        }
+        let last_start = *self.line_starts.last().unwrap_or(&0);
+        let last_chars = self.text[last_start..].chars().count();
+        max_chars.max(last_chars)
+    }
+
     /// Returns a [`SourceLocation`] pointing at the given byte offset, clamped to character bounds.
     #[must_use]
     pub fn location_at_byte(&self, byte: usize) -> SourceLocation {
@@ -272,14 +303,14 @@ mod tests {
 
     #[test]
     fn test_multibyte_utf8() {
-        let text = "hello 🦀 world\nsecond line\n";
-        let buf = SourceBuffer::from_str("crab.txt", text);
+        let text = "hello \u{20000} world\nsecond line\n";
+        let buf = SourceBuffer::from_str("multibyte.txt", text);
         assert_eq!(buf.line_count(), 3);
 
-        let crab_start = 6;
-        assert_eq!(buf.clamp_to_char_boundary(crab_start + 1), crab_start);
-        assert_eq!(buf.column_at_byte(crab_start), 6);
-        let after_crab = crab_start + 4;
-        assert_eq!(buf.column_at_byte(after_crab), 7);
+        let char_start = 6;
+        assert_eq!(buf.clamp_to_char_boundary(char_start + 1), char_start);
+        assert_eq!(buf.column_at_byte(char_start), 6);
+        let after_char = char_start + 4;
+        assert_eq!(buf.column_at_byte(after_char), 7);
     }
 }
