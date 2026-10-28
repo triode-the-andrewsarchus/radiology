@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-28 — Cached-index reader reopen, fallback and native acceptance (Codex)
+
+Integrated backend `f51ab3d`: repository opening and Reload Index try persistent
+cache data first, preserve explicit stale provenance and fall back to repository
+SCIP imports when absent/invalid. Invalid-cache diagnostics remain visible beside
+the import's unknown freshness. Cancel suppresses fallback; repository switches
+retire pending cache results. Reindex still runs tools, and persistence warnings
+are visible in Index Projects. No sibling runtime dependency was added.
+
+Tests cover reopen with tools removed, stale source, corrupt-cache import fallback,
+cancellation and switching before publication. Native private Weston/Niri checks
+verified generated → cached-without-indexer → stale → corrupt/import-fallback
+states, with final app/compositors exiting zero. Validation: 133 application tests,
+5 reader-text tests, 30 doctests, fmt, Clippy and build pass. Architecture has no
+new production clone/hotspot/cycle; one six-line fixture clone remains flagged.
+See [persistent indexes](plans/rust-index-cache.md) for evidence and boundaries.
+
+Full parity is open: per-project/version-aware cache reuse, tool provisioning,
+C/C++ rebasing, pinned After generation/cache reuse, refresh lifecycle, Critical
+Lens, parsed call graphs, richer inspector/source presentation and final Swift
+acceptance remain. Basic persistent-cache absence is no longer a blocker.
+
 ## 2026-10-28 — Persistent semantic cache backend (Codex)
 
 Generated indexes now persist atomically outside the checkout with exact source

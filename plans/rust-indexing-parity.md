@@ -237,8 +237,9 @@ stderr bytes even when omitted from retained logs.
 The final pristine baseline is checked against current viewed inputs and a fresh
 inventory. Changed, added or removed inputs produce a stale report. Individual
 project failures preserve successful projects. The host decides whether to replace
-its previous index; an all-failed run carries no replacement. This stage does not
-persist generated output across app restarts or claim full dependency resolution.
+its previous index; an all-failed run carries no replacement. This initial generation stage did not persist output; the subsequent
+[persistent cache integration](rust-index-cache.md) now restores it across app
+restarts. Full semantic dependency resolution remains unproven.
 
 Current capability limits: checkout generation only; C/C++ is gated until its
 compilation database can be rebased to copied paths. Kotlin requires an installed
@@ -277,7 +278,7 @@ requires current-document coverage and matching bytes. F12 requests verify the
 target digest. Workspace symbol-palette and caller-row destinations now share
 that encoded/digest-checked navigation path; Before uses its document outline.
 [Navigation acceptance](rust-semantic-navigation.md) records tests and native
-fixture checks. Persistent caches and review indexing still prevent full R11 acceptance.
+fixture checks. Per-project cache reuse and review indexing still prevent full R11 acceptance.
 
 Native acceptance used the existing sibling private-compositor/pointer helpers
 through a temporary driver, without a sibling runtime dependency or source edit.
@@ -308,6 +309,16 @@ Real tool acceptance, persistent validated cache reuse, private provisioning,
 C/C++ database rebasing, Kotlin fallback Gradle/dependency environments, linked
 source coverage, Rust extra cfg injection, pinned After generation and automatic
 open/refresh lifecycle remain required. Before never borrows After semantic data.
+
+## Persistent cache integration (2026-10-28)
+
+Generated data now persists atomically with its input inventory, exact source
+identities and bounded reports. Repository opening/Reload Index restore it without
+tools or input copies, label stale results and fall back to unverified imports if
+absent/invalid. Cancellation and repository transitions retire both paths. Backend,
+application and native restart checks are recorded in [cache acceptance](rust-index-cache.md).
+Earlier statements that persistence is absent are superseded by this integration;
+per-project/version-aware reuse, pinned After caching and retention remain open.
 
 ## Generation acceptance contract and remaining integration
 

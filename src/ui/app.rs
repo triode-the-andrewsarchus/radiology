@@ -308,7 +308,7 @@ impl RadiologyApp {
         self.refresh_file_tree();
         self.load_bookmarks();
 
-        self.index_importer.start(root.clone());
+        self.load_repository_index();
         self.inspect_index_projects();
 
         let first_file = self

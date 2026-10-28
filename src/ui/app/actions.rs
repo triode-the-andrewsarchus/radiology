@@ -26,15 +26,16 @@ impl RadiologyApp {
             CancelIndexGeneration => self.index_generator.stop(),
             CheckIndexTools => self.check_index_tools(),
             CancelIndexToolCheck => self.tool_probe_job.stop(),
-            ReloadIndexImport if self.review.is_none() => {
-                if let Some(root) = &self.repository_root {
-                    self.index_generator = Default::default();
-                    self.generation_report = None;
-                    self.index_importer.start(root.clone());
+            ReloadIndexImport if self.review.is_none() => self.load_repository_index(),
+            ReloadIndexImport => {}
+            CancelIndexImport => {
+                self.index_importer.stop();
+                if self.index_cache_status()
+                    == &crate::semantic::indexing::service::CacheLoadStatus::Loading
+                {
+                    self.index_generator.stop();
                 }
             }
-            ReloadIndexImport => {}
-            CancelIndexImport => self.index_importer.stop(),
             ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             ToggleInspector => self.show_inspector = !self.show_inspector,
             OpenRecentRepo(path) => self.open_repository(Path::new(&path)),

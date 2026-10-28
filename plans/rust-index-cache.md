@@ -41,8 +41,31 @@ Maximum CCN remains 100 and there are no new dependency cycles.
 
 ## Integration and remaining Swift requirements
 
-The backend is implemented; automatic reader reopen/fallback/status integration
-is the next commit. Per-project incremental cache reuse, cross-revision reuse,
-validated tool-version refresh policy, retention controls and pinned PR cache
-namespaces remain required. Swift's cache is a behavioral reference; these entries
-are Rust-private normalized data, not a promise of Swift disk-format compatibility.
+Repository opening and Reload Index now load the private cache first, with a
+missing/invalid-cache fallback to repository SCIP imports. Cache failure remains
+visible alongside the import's explicitly unknown freshness. Generation and cache
+loads share a captured request and existing job ownership; cancellation suppresses
+fallback, and repository/review transitions retire pending publications. Reindex
+still forces a new tool run. A persistence warning is visible in Index Projects.
+
+Application integration tests cover reopening with the fixture indexer removed,
+stale source, corrupt-cache import fallback, cancelled cache loading and switching
+repositories before publication. Final verification: 133 application tests,
+5 reader-text tests, 30 doctests, fmt, Clippy with warnings denied and binary build.
+Architecture findings remain the one fixture clone documented above.
+
+Native acceptance in a private Weston/Niri 1280×900 session generated an entry,
+removed the fixture indexer, restarted to show Cached index, changed source and
+restarted to show Stale cached index with semantic availability disabled for the
+changed bytes. Corrupting the entry and supplying a repository SCIP file showed
+both Cached index unavailable and Imported index / freshness unknown. Captures
+are local `/tmp/radiology-cache-native-acceptance/{generated,reopened-without-indexer,stale-reopen,corrupt-cache-import-fallback}.png`.
+The final app and both compositors exited zero. The first temporary driver trial
+closed stdin early and terminated its owned app during cleanup; it was terminal
+before the successful acceptance session started. Fixture output does not prove
+compiler-indexer correctness or Swift visual parity.
+
+Per-project incremental cache reuse, cross-revision reuse, validated tool-version
+refresh policy, retention controls and pinned PR cache namespaces remain required.
+Swift's cache is a behavioral reference; these entries are Rust-private normalized
+data, not a promise of Swift disk-format compatibility.

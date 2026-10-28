@@ -1,7 +1,7 @@
 //! Semantic import publication and its repository-scoped status controls.
 
 use super::*;
-use crate::semantic::indexing::service::{GenerationReport, GenerationRequest};
+use crate::semantic::indexing::service::{CacheLoadStatus, GenerationReport, GenerationRequest};
 use crate::semantic::indexing::tools::{ToolAvailability, ToolDirectory};
 use crate::semantic::indexing::{IndexPlan, Indexer};
 use crate::semantic::loader::IndexImportStatus;
@@ -24,17 +24,40 @@ impl RadiologyApp {
                 Some("Index generation for pull request snapshots is not available yet.".into());
             return;
         }
-        let Some((root, cache)) = self.cached_repository() else {
+        let Some(request) = self.index_request() else {
+            self.error = Some("No private index cache is available for this repository".into());
             return;
         };
-        let tools = self.index_tools.clone();
-        self.start_index_generation(GenerationRequest {
+        self.start_index_generation(request);
+    }
+
+    fn index_request(&self) -> Option<GenerationRequest> {
+        let root = self.repository_root.clone()?;
+        let cache = self.session.repository_cache(&root)?.join("indexes");
+        Some(GenerationRequest {
             root,
-            cache: cache.join("indexes"),
-            tools,
+            cache,
+            tools: self.index_tools.clone(),
             timeout: std::time::Duration::from_secs(600),
             limits: Default::default(),
-        });
+        })
+    }
+
+    pub(super) fn load_repository_index(&mut self) {
+        self.index_importer.stop();
+        self.index_generator.stop();
+        self.generation_report = None;
+        if let Some(request) = self.index_request() {
+            self.index_generator.start_cached(request);
+        } else if let Some(root) = &self.repository_root {
+            self.index_importer.start(root.clone());
+        }
+    }
+
+    /// Returns cache loading status, including an import fallback's original error.
+    #[must_use]
+    pub fn index_cache_status(&self) -> &CacheLoadStatus {
+        self.index_generator.cache_status()
     }
 
     pub(super) fn start_index_generation(&mut self, request: GenerationRequest) {
@@ -117,6 +140,14 @@ impl RadiologyApp {
             Ok(None) => {}
             Err(_) => self.error = Some("Indexer tool checks stopped unexpectedly".into()),
         }
+        self.poll_generated_index();
+        if self.is_index_loading() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        }
+    }
+
+    fn poll_generated_index(&mut self) {
+        let loading_cache = self.index_cache_status() == &CacheLoadStatus::Loading;
         if let Some(generated) = self.index_generator.poll() {
             if let Some(index) = generated.index {
                 self.semantic_index = Some(index);
@@ -125,8 +156,15 @@ impl RadiologyApp {
             self.index_plan = generated.report.plan.clone();
             self.generation_report = Some(generated.report);
         }
-        if self.is_index_loading() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        if loading_cache
+            && matches!(
+                self.index_cache_status(),
+                CacheLoadStatus::Missing | CacheLoadStatus::Failed(_)
+            )
+        {
+            if let Some(root) = &self.repository_root {
+                self.index_importer.start(root.clone());
+            }
         }
     }
 
@@ -156,7 +194,9 @@ impl RadiologyApp {
                 if ui.small_button("Index Projects").clicked() {
                     self.index_projects_open = true;
                 }
-                if self.index_importer.is_running() {
+                if self.index_importer.is_running()
+                    || self.index_cache_status() == &CacheLoadStatus::Loading
+                {
                     if ui.small_button("Cancel").clicked() {
                         command = Some(ToolbarAction::CancelIndexImport);
                     }
@@ -203,23 +243,35 @@ impl RadiologyApp {
         if self.index_generator.is_running() {
             let progress = self.index_generator.progress();
             ui.spinner();
-            ui.label(format!(
-                "Indexing {}/{} · {}",
-                progress.step,
-                progress.total,
-                progress.project.as_deref().unwrap_or("repository")
-            ))
-            .on_hover_text(progress.message);
+            let label = if self.index_cache_status() == &CacheLoadStatus::Loading {
+                "Loading cached index…".to_owned()
+            } else {
+                format!(
+                    "Indexing {}/{} · {}",
+                    progress.step,
+                    progress.total,
+                    progress.project.as_deref().unwrap_or("repository")
+                )
+            };
+            ui.label(label).on_hover_text(progress.message);
+        } else if let CacheLoadStatus::Failed(error) = self.index_cache_status() {
+            ui.label("Cached index unavailable").on_hover_text(error);
+            self.show_import_status(ui);
         } else if let Some(error) = self.index_generator.error() {
             ui.label("Index generation failed").on_hover_text(error);
             if ui.small_button("Details").clicked() {
                 self.error = Some(error.to_owned());
             }
         } else if self.index_generator.was_cancelled() {
-            ui.label(if self.semantic_index.is_some() {
-                "Index generation cancelled · previous data retained"
+            let operation = if self.index_cache_status() == &CacheLoadStatus::Cancelled {
+                "Index loading cancelled"
             } else {
                 "Index generation cancelled"
+            };
+            ui.label(if self.semantic_index.is_some() {
+                format!("{operation} · previous data retained")
+            } else {
+                operation.to_owned()
             });
         } else if let Some(report) = &self.generation_report {
             if report.documents == 0 && self.semantic_index.is_some() {
@@ -299,10 +351,23 @@ impl RadiologyApp {
                     ));
                 }
             });
+        if let Some(warning) = self
+            .generation_report
+            .as_ref()
+            .and_then(|report| report.cache_warning.as_deref())
+        {
+            ui.label("Index is available for this session; saving its cache failed.")
+                .on_hover_text(warning);
+        }
         if self.index_generator.is_running() {
             ui.label(self.index_generator.progress().message);
+            let label = if self.index_cache_status() == &CacheLoadStatus::Loading {
+                "Cancel Load"
+            } else {
+                "Cancel Generation"
+            };
             return ui
-                .button("Cancel Generation")
+                .button(label)
                 .clicked()
                 .then_some(ToolbarAction::CancelIndexGeneration);
         }

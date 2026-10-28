@@ -56,6 +56,10 @@ and the remaining generation/cache requirements.
   require matching source digests. Workspace symbols, caller rows and F12 share
   exact encoding-aware asynchronous navigation; the symbol picker is virtualized.
   [Index lifecycle](rust-indexing-parity.md) and [navigation acceptance](rust-semantic-navigation.md).
+- Generated semantic data and bounded reports persist atomically outside the
+  checkout. Opening/Reload Index restore current or explicitly stale cache data
+  without tools and fall back to unverified imports for missing/invalid entries.
+  Source identity guards survive reload. [Cache acceptance](rust-index-cache.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -67,7 +71,8 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 - Background repository discovery/Git refresh/SCIP decode and semantic context;
   complete index lifecycle with all Swift project strategies, provisioning,
-  cache/provenance and stale/partial/error/cancel UI. Source/native stage and Git
+  per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
+  cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
 - Remaining source presentation: content-keyed fold/pin restoration, unlimited pin
   groups/legend, AST-aware fallback occurrence scope, enclosing-function body
