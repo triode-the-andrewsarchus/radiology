@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-10-27 — Parity implementation: correctness, review snapshots, search, inspector (Codex)
+
+Full objective remains active. [Implementation handoff and remaining
+requirements](plans/rust-parity-implementation.md) distinguish verified initial
+work from missing functionality. Do not repeat the earlier full-parity claims.
+
+- Committed the audit (`12d51fa`), core fixes (`8b199d2`), private PR snapshots
+  (`b87494d`), and cancellable search service (`72bba06`) as separate packages.
+  User explicitly requests commits as implementation progresses.
+- UI integration shares consumed commands across toolbar/keys; headless model
+  construction and explicit launch priority; exact navigation/history/fold reveal;
+  repository-state retirement; persistent relocated/scoped bookmarks; source
+  errors; background review preparation with visible progress/cancel; After-tree
+  search; and three simultaneously usable resizable inspector regions.
+- Core work preserves local semantic IDs and encoded coordinates, bounds source
+  reads, fixes TSX extraction, and orders outline functions by real source spans.
+- Review tests use actual isolated Git repositories: dirty checkout stays intact;
+  Before/After read pinned merge-base/head bytes; renamed/spaced/added/deleted/binary
+  files and hunks remain revision/file-specific. App tests verify revision history
+  and checkout-versus-PR bookmark scope restoration.
+- Current suite: 55 unit tests and 30 doctests passing; current-toolchain Clippy
+  with `-D warnings` passes after fixing baseline float-literal warnings. Added
+  headless tests for simultaneous inspector regions and keyboard exclusion.
+- Full indexing generation, source selection/find/zoom/wrapping, Swift/Kotlin and
+  inline test parity, complete references/previews, semantic Critical Lens, full
+  PR refresh/restoration/cache lifecycle, host component extraction, and desktop
+  visual acceptance remain outstanding. No changes to Swift or little-screen-clip.
+
 ## 2026-10-27 — Independent Rust/Swift parity review (Codex)
 
 Reviewed `rust-egui-port` at `fd421e1` against the existing Swift source and test

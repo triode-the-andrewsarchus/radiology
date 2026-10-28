@@ -6,6 +6,7 @@
 //! and modal dialogs for quick file jumping and symbol navigation.
 
 pub mod app;
+pub mod commands;
 pub mod context_inspector;
 pub mod icons;
 pub mod modals;
@@ -14,7 +15,7 @@ pub mod source_view;
 pub mod toolbar;
 
 pub use app::RadiologyApp;
-pub use context_inspector::{ContextInspector, InspectorAction, InspectorTab};
+pub use context_inspector::{ContextInspector, InspectorAction, InspectorContent};
 pub use icons::Icon;
 pub use modals::{
     GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,

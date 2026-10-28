@@ -95,6 +95,7 @@ impl SourceView {
         enclosing_symbols: &[DocumentSymbol],
         scroll_to_line: &mut Option<usize>,
         has_semantic_index: bool,
+        keyboard_enabled: bool,
     ) -> Option<SourceViewAction> {
         let mut action = None;
 
@@ -186,38 +187,6 @@ impl SourceView {
 
             ui.separator();
 
-            // Keyboard navigation (Arrow keys & Enter)
-            let max_lines = buffer.line_count();
-            if ui.ctx().input(|i| i.key_pressed(Key::ArrowDown)) && *caret_line < max_lines {
-                let mut next_line = *caret_line + 1;
-                while next_line < max_lines && fold_store.is_line_hidden(next_line, fold_ranges) {
-                    next_line += 1;
-                }
-                *caret_line = next_line;
-                let offset = buffer.byte_offset(*caret_line, *caret_col);
-                action = Some(SourceViewAction::CaretMoved {
-                    line: *caret_line,
-                    column: *caret_col,
-                    byte_offset: offset,
-                });
-            }
-            if ui.ctx().input(|i| i.key_pressed(Key::ArrowUp)) && *caret_line > 1 {
-                let mut prev_line = *caret_line - 1;
-                while prev_line > 1 && fold_store.is_line_hidden(prev_line, fold_ranges) {
-                    prev_line -= 1;
-                }
-                *caret_line = prev_line;
-                let offset = buffer.byte_offset(*caret_line, *caret_col);
-                action = Some(SourceViewAction::CaretMoved {
-                    line: *caret_line,
-                    column: *caret_col,
-                    byte_offset: offset,
-                });
-            }
-            if ui.ctx().input(|i| i.key_pressed(Key::Enter)) {
-                action = Some(SourceViewAction::JumpToDefinition);
-            }
-
             // Central Code Area with Gutter
             let available_height = (ui.available_height() - 28.0).max(100.0);
             let row_height = 22.0; // matching macOS Swift Theme.sourceLineHeight: 22
@@ -229,6 +198,34 @@ impl SourceView {
                 .filter(|&l| !fold_store.is_line_hidden(l, fold_ranges))
                 .collect();
             let total_rows = visible_lines.len();
+            if keyboard_enabled && ui.input(|input| input.modifiers.is_none()) {
+                let step = ui.input_mut(|input| {
+                    if input.consume_key(egui::Modifiers::NONE, Key::ArrowDown) {
+                        1_isize
+                    } else if input.consume_key(egui::Modifiers::NONE, Key::ArrowUp) {
+                        -1
+                    } else {
+                        0
+                    }
+                });
+                if step != 0 {
+                    let index = visible_lines.partition_point(|&line| line < *caret_line);
+                    let target = index
+                        .saturating_add_signed(step)
+                        .min(total_rows.saturating_sub(1));
+                    if let Some(&line) = visible_lines.get(target) {
+                        *caret_line = line;
+                        let byte = buffer.byte_offset(line, *caret_col);
+                        *caret_col = buffer.column_at_byte(byte);
+                        *scroll_to_line = Some(line);
+                        action = Some(SourceViewAction::CaretMoved {
+                            line,
+                            column: *caret_col,
+                            byte_offset: byte,
+                        });
+                    }
+                }
+            }
 
             let changed_lines = line_changes
                 .map(|c| c.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
@@ -282,7 +279,7 @@ impl SourceView {
                 gutter_painter.rect_filled(gutter_column, 0.0, theme.bg_gutter);
                 gutter_painter.line_segment(
                     [gutter_column.right_top(), gutter_column.right_bottom()],
-                    Stroke::new(1.0, theme.border),
+                    Stroke::new(1.0_f32, theme.border),
                 );
 
                 // Code clip rect: area to the right of the pinned gutter up to the right edge of the viewport.
@@ -562,11 +559,11 @@ impl SourceView {
                                         egui::pos2(pin_x, rect.min.y + 2.0),
                                         egui::vec2(pin_w.max(char_width), row_height - 4.0),
                                     );
-                                    let color = theme.accent.linear_multiply(0.3);
+                                    let color = theme.occurrence_tint(group.color);
                                     code_painter.rect_stroke(
                                         pin_rect,
                                         2.0,
-                                        Stroke::new(1.0, color),
+                                        Stroke::new(1.0_f32, color),
                                     );
                                 }
                             }
@@ -630,12 +627,73 @@ impl SourceView {
                     if has_semantic_index {
                         ui.colored_label(Color32::from_rgb(34, 197, 94), "Index Ready");
                     } else {
-                        ui.colored_label(theme.text_muted, "Ripgrep ready");
+                        ui.colored_label(
+                            theme.text_muted,
+                            if buffer.revision == Some(ReviewRevision::Before) {
+                                "Not Indexed (Before)"
+                            } else {
+                                "No Index"
+                            },
+                        );
                     }
                 });
             });
         });
 
         action
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_does_not_handle_arrows_when_another_control_owns_input() {
+        let ctx = egui::Context::default();
+        let buffer = SourceBuffer::from_str("focus.rs", "one\ntwo\n");
+        let (mut line, mut column) = (1, 0);
+        let mut folds = FoldStore::new();
+        let mut pins = OccurrencePinStore::new();
+        let mut scroll = None;
+        let _ = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events: vec![egui::Event::Key {
+                    key: Key::ArrowDown,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    SourceView::show(
+                        ui,
+                        &AppTheme::dark(),
+                        SourceMode::Normal,
+                        &buffer,
+                        &[],
+                        &mut line,
+                        &mut column,
+                        &[],
+                        &mut folds,
+                        None,
+                        &mut pins,
+                        false,
+                        &[],
+                        &mut scroll,
+                        false,
+                        false,
+                    );
+                });
+            },
+        );
+        assert_eq!(line, 1);
     }
 }
