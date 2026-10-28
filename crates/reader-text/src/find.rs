@@ -129,7 +129,12 @@ impl MatchSpool {
             if range.start > fragment.end {
                 break;
             }
-            if range.end >= fragment.start {
+            let overlaps = if range.is_empty() {
+                range.start >= fragment.start
+            } else {
+                range.start < fragment.end && range.end > fragment.start
+            };
+            if overlaps {
                 matches.push((low, range));
             }
             low += 1;
@@ -153,12 +158,28 @@ mod tests {
         assert_eq!(spool.len(), 100_000);
         assert!(spool.file.is_rolled());
         assert_eq!(spool.get(99_999).unwrap(), 99_999..100_000);
-        assert!(spool
-            .in_fragment(99_997..99_999)
-            .unwrap()
-            .iter()
-            .any(|(_, range)| *range == (99_998..99_999)));
+        assert_eq!(
+            spool.in_fragment(99_997..99_999).unwrap(),
+            vec![(99_997, 99_997..99_998), (99_998, 99_998..99_999)]
+        );
         assert!(spool.get(100_000).is_err());
+    }
+
+    #[test]
+    fn zero_width_matches_include_empty_lines_and_end_of_file() {
+        let mut spool = MatchSpool::build(
+            "one\n\nlast",
+            &FindOptions {
+                query: "(?m)$".into(),
+                regex: true,
+                ..Default::default()
+            },
+            || false,
+        )
+        .unwrap();
+        assert_eq!(spool.in_fragment(0..3).unwrap(), vec![(0, 3..3)]);
+        assert_eq!(spool.in_fragment(4..4).unwrap(), vec![(1, 4..4)]);
+        assert_eq!(spool.in_fragment(5..9).unwrap(), vec![(2, 9..9)]);
     }
 
     #[test]

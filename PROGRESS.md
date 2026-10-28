@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-27 — Owned asynchronous source find (Codex)
+
+- Added `SourceFind` over immutable source snapshots, with query replacement,
+  cancellation, exact original-byte navigation, and disk-spilling complete results.
+  PR preparation now shares the same blocking pool (at most four active workers).
+- Source buffers compute their content identity once; bookmarks reuse that digest
+  without rehashing the document on every resolution. Constructor logic is shared.
+- Fixed match/fragment boundaries so ordinary adjacent matches are excluded while
+  zero-width regex matches at empty lines and EOF remain navigable. Updated the
+  extracted row geometry for this toolchain's lowest-set-bit API.
+- Worker replacement, Unicode/CRLF coordinates, wrapping navigation, dense spill,
+  and zero-width boundaries pass focused tests. UI wiring follows separately.
+
 ## 2026-10-27 — Extract source viewport primitives (Codex)
 
 Added GUI-independent `crates/reader-text` inside the standalone workspace:
