@@ -1,0 +1,10 @@
+[package]
+name = "reader-text"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Application-independent source selection and bounded viewport geometry"
+
+[dependencies]
+regex = "1.10"
+tempfile = "3.10"

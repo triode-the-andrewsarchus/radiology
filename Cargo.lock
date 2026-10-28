@@ -2475,6 +2475,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_extras",
+ "reader-text",
  "regex",
  "rfd",
  "serde",
@@ -2560,6 +2561,14 @@ name = "rctree"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b42e27ef78c35d3998403c1d26f3efd9e135d3e5121b0a4845cc5cc27547f4f"
+
+[[package]]
+name = "reader-text"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "tempfile",
+]
 
 [[package]]
 name = "redox_syscall"

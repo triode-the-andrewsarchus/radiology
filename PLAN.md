@@ -10,6 +10,9 @@ regression tests. [Implementation status and remaining acceptance queue](plans/r
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits as work progresses.
 
+[Shared source viewport primitives and integration contract](plans/shared-text-viewport.md)
+records the standalone `reader-text` package extracted from existing host mechanisms.
+
 **Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
 The source audit and headless probes at `fd421e1` found 17 groups of functional,
 interaction, UI, and validation gaps. In particular, PR review reads checkout

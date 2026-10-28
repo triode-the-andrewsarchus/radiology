@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-27 — Extract source viewport primitives (Codex)
+
+Added GUI-independent `crates/reader-text` inside the standalone workspace:
+UTF-8/CRLF-safe bounded fragments, canonical byte selection, incremental variable
+row heights, and a complete local-find range spool that spills beyond 1 MiB.
+Geometry and spool mechanisms derive from the existing little-screen-clip text
+viewer. Four focused tests pass, including 100,000 matches with disk spill and
+geometry checks across block boundaries. UI integration is the next step; this
+package alone does not complete selection/find/wrapping parity.
+
+[Design and reuse boundary](plans/shared-text-viewport.md). No sibling application
+dependency or edits to little-screen-clip were introduced.
+
 ## 2026-10-27 — Native smoke checks and architectural consolidation (Codex)
 
 - UI integration committed as `011072d`. Subsequent consolidation reuses one
