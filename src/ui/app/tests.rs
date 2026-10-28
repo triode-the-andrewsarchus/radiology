@@ -481,7 +481,11 @@ fn imported_indexes_publish_asynchronously_and_failed_reload_keeps_prior_data() 
         .contains_key("a.rs"));
     app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
     app.execute_command(&ctx, ToolbarAction::CancelIndexImport);
-    assert_eq!(app.index_import_status(), &IndexImportStatus::Cancelled);
+    assert_eq!(
+        app.index_cache_status(),
+        &crate::semantic::indexing::service::CacheLoadStatus::Cancelled
+    );
+    settle(&mut app);
     assert!(app.semantic_index.is_some());
 
     app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
@@ -602,9 +606,33 @@ printf '\022\006\012\004a.rs' > "$output"
     assert_eq!(app.generation_report().unwrap().documents, 1);
     let digest = app.semantic_index.as_ref().unwrap().source_digests["a.rs"].clone();
     assert!(!root.join("artifact.bin").exists());
+    // Reopening must restore persisted data without even a usable indexer.
+    std::fs::remove_file(&executable).unwrap();
+    app.open_repository(&root);
+    assert!(app.semantic_index.is_none());
+    settle(&mut app);
+    assert!(app.generation_report().unwrap().cached);
+    assert_eq!(
+        app.index_cache_status(),
+        &crate::semantic::indexing::service::CacheLoadStatus::Loaded
+    );
+    assert_eq!(
+        app.semantic_index.as_ref().unwrap().source_digests["a.rs"],
+        digest
+    );
+    assert!(!executable.exists());
     std::fs::write(root.join("a.rs"), "fn changed() {}\n").unwrap();
     app.execute_command(&ctx, ToolbarAction::ReloadSource);
     settle(&mut app);
+    assert!(!app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .matches_buffer(app.open_buffer.as_ref().unwrap()));
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app.generation_report().unwrap().cached);
+    assert!(app.generation_report().unwrap().stale_reason.is_some());
     assert!(!app
         .semantic_index
         .as_ref()
@@ -627,6 +655,49 @@ printf '\022\006\012\004a.rs' > "$output"
     settle(&mut app);
     assert!(app.semantic_index.is_none());
     assert!(app.generation_report().is_none());
+
+    // Cancelling an automatic load must not launch a fallback or publish its result.
+    app.open_repository(&root);
+    app.execute_command(&ctx, ToolbarAction::CancelIndexImport);
+    settle(&mut app);
+    assert_eq!(
+        app.index_cache_status(),
+        &crate::semantic::indexing::service::CacheLoadStatus::Cancelled
+    );
+    assert!(app.semantic_index.is_none());
+    app.open_repository(&root);
+    app.open_repository(&next);
+    settle(&mut app);
+    assert!(app.semantic_index.is_none());
+
+    // Corrupt cache diagnostics survive a successful explicitly unverified import.
+    let cache = app.session.repository_cache(&root).unwrap().join("indexes");
+    let entry = std::fs::read_dir(cache)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    std::fs::write(entry, b"{truncated").unwrap();
+    std::fs::write(
+        root.join("index.scip"),
+        [0x12, 6, 0x0a, 4, b'b', b'.', b'r', b's'],
+    )
+    .unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(matches!(
+        app.index_cache_status(),
+        crate::semantic::indexing::service::CacheLoadStatus::Failed(_)
+    ));
+    assert!(matches!(
+        app.index_import_status(),
+        crate::semantic::loader::IndexImportStatus::Imported { documents: 1, .. }
+    ));
+    assert!(app.generation_report().is_none());
+    let imported = app.semantic_index.as_ref().unwrap();
+    assert!(imported.documents.contains_key("b.rs"));
+    assert!(imported.source_digests.is_empty());
 }
 
 #[cfg(target_os = "linux")]
