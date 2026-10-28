@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-10-28 — Inline Hide Tests and navigation integration (Codex)
+
+- Native grammars committed as `9330a1c`; AST rules committed as `230e092`.
+  Added `DocumentSyntax` so outline, folds, and tests share one native parse.
+- Integrated independent test reveal state and exact-byte viewport projection:
+  dimmed headers, gutter/inline controls, status, filtered inspector outline,
+  explicit-navigation/find reveal, and readable explicitly opened test files.
+  Manual folds and source bytes survive preference changes and test toggles.
+- Projection preserves production tails on shared lines, hidden-source copy,
+  canonical line numbers and bounded fragments. A headless click test caught the
+  source canvas intercepting a reveal label; code hit regions are now per-row
+  and exclude controls, with a stable canvas keyboard focus identity.
+- Native isolated smoke confirmed hiding, outline omission and local-find reveal;
+  clipboard exactly matched all 170 original CRLF fixture bytes. Own window was
+  closed after capture. Evidence and design: [Rust inline tests](plans/rust-inline-test-parity.md).
+- Verified 73 application tests, 5 reader-text tests, 30 doctests; formatting and
+  Clippy with warnings denied pass. Architecture retains the two documented
+  test-only assertion clones and review-preparation structural flag. Product
+  traversal duplication was removed; Python classification was simplified.
+- Full parity is still open: background source/index lifecycle, complete
+  highlighting/query coverage, semantic Critical Lens, reference/call previews,
+  PR refresh/process lifecycle, document pins/folds and final desktop acceptance.
+
 ## 2026-10-27 — AST-based test detection (Codex)
 
 Replaced the line/brace-counting detector with native grammar-node rules aligned

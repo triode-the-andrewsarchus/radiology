@@ -76,22 +76,24 @@ impl Detector<'_> {
         match node.kind() {
             "function_definition" => pytest && name.starts_with("test_"),
             "class_definition" => {
-                let unittest = node
-                    .child_by_field_name("superclasses")
-                    .is_some_and(|bases| {
-                        children(bases).iter().any(|base| {
-                            matches!(base.kind(), "identifier" | "attribute")
-                                && self
-                                    .text(*base)
-                                    .split('.')
-                                    .next_back()
-                                    .is_some_and(|name| name.ends_with("TestCase"))
-                        })
-                    });
-                unittest || (pytest && name.starts_with("Test"))
+                self.python_test_class(node) || (pytest && name.starts_with("Test"))
             }
             _ => false,
         }
+    }
+
+    fn python_test_class(&self, node: Node<'_>) -> bool {
+        node.child_by_field_name("superclasses")
+            .is_some_and(|bases| {
+                children(bases).iter().any(|base| {
+                    matches!(base.kind(), "identifier" | "attribute")
+                        && self
+                            .text(*base)
+                            .split('.')
+                            .next_back()
+                            .is_some_and(|name| name.ends_with("TestCase"))
+                })
+            })
     }
 
     pub(super) fn script_regions(&self, root: Node<'_>, output: &mut Vec<TestRegion>) {

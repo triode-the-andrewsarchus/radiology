@@ -1,5 +1,6 @@
 use super::*;
 use crate::semantic::scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
+use crate::syntax::outline::SymbolExtractor;
 
 fn reader() -> (tempfile::TempDir, RadiologyApp) {
     let dir = tempfile::tempdir().unwrap();
@@ -243,4 +244,33 @@ fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
         .all(|range| range.end < text.find("fn second").unwrap()));
     app.pin_at_byte(text.rfind("value").unwrap());
     assert_eq!(app.pin_store.groups.len(), 2);
+}
+
+#[test]
+fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
+    let (dir, mut app) = reader();
+    let text = "fn production() {\n 1;\n}\n#[cfg(test)]\nmod checks {\n fn hidden_only() {}\n}\nfn tail() {}\n";
+    std::fs::write(dir.path().join("mixed.rs"), text).unwrap();
+    app.open_repository(dir.path());
+    app.open_file("mixed.rs");
+    app.fold_store.toggle(1);
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+    let buffer = app.open_buffer.as_ref().unwrap().clone();
+    let hidden = text.find("fn hidden_only").unwrap();
+    assert!(app
+        .test_code
+        .hides_declaration(&(hidden..hidden + "fn hidden_only() {}".len())));
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    app.navigate(buffer.location_at_byte(hidden + 3), true);
+    assert_eq!(app.caret_line, 6);
+    assert_eq!(app.caret_col, 4);
+    assert!(!app
+        .test_code
+        .hides_declaration(&(hidden..hidden + "fn hidden_only() {}".len())));
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+    app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+    assert!(app.test_code.status().is_some());
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
 }

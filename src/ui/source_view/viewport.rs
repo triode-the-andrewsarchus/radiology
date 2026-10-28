@@ -33,10 +33,12 @@ pub struct SourceViewport {
     selection: Option<ByteSelection>,
     dragging: bool,
     max_bytes: usize,
+    test_generation: u64,
 }
 
 pub(super) struct CanvasContent<'a> {
     pub theme: &'a AppTheme,
+    pub test_code: &'a crate::source::test_code::TestCodePresentation,
     pub mode: SourceMode,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
@@ -128,26 +130,38 @@ impl SourceViewport {
             source.content_identity(),
         );
         let changed = self.document.as_ref() != Some(&key);
-        if changed {
-            self.fragments = source_fragments(&source.text, FRAGMENT_BYTES);
+        let old_byte = self
+            .visible
+            .get(self.rows.row_at(self.scroll_y))
+            .map_or(0, |&index| self.fragments[index].bytes.start);
+        let projected = changed || self.test_generation != content.test_code.generation();
+        if projected {
+            let mut projected = Vec::new();
+            for fragment in source_fragments(&source.text, FRAGMENT_BYTES) {
+                content.test_code.project_into(&fragment, &mut projected);
+            }
+            let mut previous_line = None;
+            for fragment in &mut projected {
+                fragment.first_in_line = previous_line != Some(fragment.line);
+                previous_line = Some(fragment.line);
+            }
+            self.fragments = projected;
             self.max_bytes = self
                 .fragments
                 .iter()
                 .map(|part| part.bytes.len())
                 .max()
                 .unwrap_or(0);
+            self.test_generation = content.test_code.generation();
+        }
+        if changed {
             self.selection = None;
             self.dragging = false;
             self.scroll_y = 0.0;
             self.scroll_x = 0.0;
             self.document = Some(key);
         }
-        if changed || self.folded != content.fold_store.folded_lines {
-            let old_fragment = self
-                .visible
-                .get(self.rows.row_at(self.scroll_y))
-                .copied()
-                .unwrap_or(0);
+        if projected || self.folded != content.fold_store.folded_lines {
             self.visible = self
                 .fragments
                 .iter()
@@ -158,7 +172,9 @@ impl SourceViewport {
                 .collect();
             self.anchor_after_reset = Some(
                 self.visible
-                    .partition_point(|&index| index <= old_fragment)
+                    .partition_point(|&index| {
+                        self.fragments[index].bytes.start <= if changed { 0 } else { old_byte }
+                    })
                     .saturating_sub(1),
             );
             self.folded.clone_from(&content.fold_store.folded_lines);
@@ -174,10 +190,10 @@ impl SourceViewport {
         self.sync(&content);
         let geometry = CanvasGeometry::new(ui, &content);
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
-        let response = ui.interact(
+        ui.interact(
             geometry.code_rect,
             Self::focus_id(),
-            Sense::click_and_drag(),
+            Sense::focusable_noninteractive(),
         );
         let output = egui::ScrollArea::new([!content.wrap, true])
             .id_source((
@@ -191,16 +207,14 @@ impl SourceViewport {
             .horizontal_scroll_offset(if content.wrap { 0.0 } else { self.scroll_x })
             .drag_to_scroll(false)
             .show_viewport(ui, |ui, viewport| {
-                if let Some(event) =
-                    self.render_rows(ui, viewport, &geometry, &response, &mut content)
-                {
+                if let Some(event) = self.render_rows(ui, viewport, &geometry, &mut content) {
                     action = Some(event);
                 }
             });
         self.scroll_y = output.state.offset.y;
         self.scroll_x = output.state.offset.x;
         self.finish_drag(ui, geometry.code_rect);
-        self.context_menu(&response, &content).or(action)
+        action
     }
 
     fn prepare(
@@ -300,7 +314,6 @@ impl SourceViewport {
         ui: &mut Ui,
         viewport: Rect,
         geometry: &CanvasGeometry,
-        response: &egui::Response,
         content: &mut CanvasContent<'_>,
     ) -> Option<SourceViewAction> {
         let mut action = None;
@@ -332,21 +345,35 @@ impl SourceViewport {
             let fragment = self.fragments[self.visible[row]].clone();
             let text = &content.buffer.text[fragment.bytes.clone()];
             let galley = layout(ui, content, &fragment, &geometry.font, geometry.width);
-            let row_height = (galley.size().y + 4.0).max(geometry.minimum_height);
+            let row_height = measured_height(&galley, geometry.minimum_height, &fragment, content);
             self.rows.set_height(row, row_height);
             let text_origin = origin + vec2(SourceView::GUTTER_WIDTH + TEXT_INSET, y + 2.0);
             let rect = Rect::from_min_size(
                 pos2(geometry.code_rect.left(), origin.y + y),
                 vec2(geometry.code_rect.width(), row_height),
             );
+            let code_bottom = text_origin.y + galley.size().y + 2.0;
+            let code_hit = Rect::from_min_max(rect.min, pos2(rect.right(), code_bottom));
+            let response = ui.interact(
+                code_hit,
+                Id::new(("source_row", fragment.bytes.start)),
+                Sense::click_and_drag(),
+            );
             self.paint_row(&painter, &galley, text_origin, rect, &fragment, content);
             if fragment.first_in_line {
-                if let Some(fold) =
+                if let Some(event) =
                     paint_gutter(ui, &gutter, geometry.surface, rect, &fragment, content)
                 {
-                    content.fold_store.toggle(fold);
-                    action = Some(SourceViewAction::ToggleFold(fold));
+                    if let SourceViewAction::ToggleFold(fold) = event {
+                        content.fold_store.toggle(fold);
+                    }
+                    action = Some(event);
                 }
+            }
+            if let Some(event) =
+                paint_test_label(ui, &painter, rect, text_origin, &fragment, content)
+            {
+                action = Some(event);
             }
             if let Some(pointer) = response
                 .interact_pointer_pos()
@@ -355,11 +382,11 @@ impl SourceViewport {
                 let target_y = pointer
                     .y
                     .clamp(geometry.code_rect.top(), geometry.code_rect.bottom() - 0.1);
-                if target_y >= rect.top() && target_y < rect.bottom() {
+                if target_y >= rect.top() && target_y < code_bottom {
                     let byte = hit_byte(&galley, pointer - text_origin, text, fragment.bytes.start);
                     if let Some(event) = self.pointer_input(
                         ui,
-                        response,
+                        &response,
                         byte,
                         geometry.code_rect.contains(pointer),
                         content,
@@ -370,6 +397,9 @@ impl SourceViewport {
                         action = Some(SourceViewAction::PinAtByte(byte));
                     }
                 }
+            }
+            if let Some(event) = self.context_menu(&response, content) {
+                action = Some(event);
             }
             full_width =
                 full_width.max(galley.size().x + SourceView::GUTTER_WIDTH + TEXT_INSET * 2.0);
@@ -445,7 +475,7 @@ impl SourceViewport {
             && ui.input(|input| input.pointer.primary_pressed());
         let secondary = inside && response.secondary_clicked();
         if pressed || secondary {
-            response.request_focus();
+            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
             let extending = ui.input(|input| input.modifiers.shift);
             let keep_selection = secondary
                 && self
@@ -504,8 +534,10 @@ impl SourceViewport {
         };
         let part = part.clone();
         let galley = layout(ui, content, &part, font, width);
-        self.rows
-            .set_height(row, (galley.size().y + 4.0).max(minimum_height));
+        self.rows.set_height(
+            row,
+            measured_height(&galley, minimum_height, &part, content),
+        );
         let local = byte.saturating_sub(part.bytes.start).min(part.bytes.len());
         let chars = content.buffer.text[part.bytes.start..part.bytes.start + local]
             .chars()
@@ -524,6 +556,16 @@ impl SourceViewport {
         height: f32,
     ) {
         if !content.wrap {
+            if self.rows.next_measurement > 0 {
+                return;
+            }
+            for (row, &index) in self.visible.iter().enumerate() {
+                let part = &self.fragments[index];
+                if part.first_in_line && content.test_code.header(part.line).is_some() {
+                    self.rows.set_height(row, height + 18.0);
+                }
+            }
+            self.rows.next_measurement = self.visible.len();
             return;
         }
         let started = std::time::Instant::now();
@@ -537,7 +579,7 @@ impl SourceViewport {
             let galley = ui
                 .fonts(|fonts| fonts.layout(text.to_owned(), font.clone(), Color32::WHITE, width));
             self.rows
-                .set_height(row, (galley.size().y + 4.0).max(height));
+                .set_height(row, measured_height(&galley, height, part, content));
             self.rows.next_measurement += 1;
             if started.elapsed() >= std::time::Duration::from_millis(2) {
                 break;
@@ -866,6 +908,12 @@ fn layout(
                 {
                     color = color.linear_multiply(if content.theme.is_dark { 0.38 } else { 0.30 });
                 }
+                if content.test_code.header(part.line).is_some_and(|region| {
+                    content.test_code.is_hidden(region.byte_range.start)
+                        && region.byte_range.start <= start
+                }) {
+                    color = color.gamma_multiply(0.55);
+                }
                 job.append(
                     &content.buffer.text[start..stop],
                     0.0,
@@ -881,7 +929,17 @@ fn layout(
         job.append(
             &content.buffer.text[part.bytes.clone()],
             0.0,
-            TextFormat::simple(font.clone(), content.theme.text_primary),
+            TextFormat::simple(
+                font.clone(),
+                if content.test_code.header(part.line).is_some_and(|region| {
+                    content.test_code.is_hidden(region.byte_range.start)
+                        && region.byte_range.start <= part.bytes.start
+                }) {
+                    content.theme.text_muted
+                } else {
+                    content.theme.text_primary
+                },
+            ),
         );
     }
     ui.fonts(|fonts| fonts.layout_job(job))
@@ -894,7 +952,7 @@ fn paint_gutter(
     row: Rect,
     part: &SourceFragment,
     content: &CanvasContent<'_>,
-) -> Option<usize> {
+) -> Option<SourceViewAction> {
     let theme = content.theme;
     painter.text(
         pos2(row.left() - 10.0, row.top() + 2.0),
@@ -921,6 +979,34 @@ fn paint_gutter(
                 Color32::from_rgb(52, 199, 89)
             },
         );
+    }
+    if let Some(region) = content.test_code.header(part.line) {
+        let rect = Rect::from_min_size(
+            pos2(surface.left() + 4.0, row.top() + 3.0),
+            vec2(28.0, 16.0),
+        );
+        let hidden = content.test_code.is_hidden(region.byte_range.start);
+        let icon = if hidden {
+            Icon::ChevronRight
+        } else {
+            Icon::ChevronDown
+        };
+        icon.paint(
+            painter,
+            Rect::from_min_size(rect.min, vec2(10.0, 12.0)),
+            theme.text_muted,
+        );
+        let count = region.line_range.end.saturating_sub(region.header_line + 1);
+        let response = ui
+            .interact(
+                rect,
+                Id::new(("test_gutter", region.byte_range.start)),
+                Sense::click(),
+            )
+            .on_hover_text(format!("Test code — {count} lines hidden; click to toggle"));
+        return response
+            .clicked()
+            .then_some(SourceViewAction::ToggleTestRegion(region.byte_range.start));
     }
     let fold = content
         .folds
@@ -952,7 +1038,58 @@ fn paint_gutter(
     }
     ui.interact(rect, Id::new(("source_fold", part.line)), Sense::click())
         .clicked()
-        .then_some(part.line)
+        .then_some(SourceViewAction::ToggleFold(part.line))
+}
+
+fn measured_height(
+    galley: &egui::Galley,
+    minimum: f32,
+    part: &SourceFragment,
+    content: &CanvasContent<'_>,
+) -> f32 {
+    (galley.size().y + 4.0).max(minimum)
+        + if part.first_in_line && content.test_code.header(part.line).is_some() {
+            18.0
+        } else {
+            0.0
+        }
+}
+
+fn paint_test_label(
+    ui: &Ui,
+    painter: &egui::Painter,
+    row: Rect,
+    origin: egui::Pos2,
+    part: &SourceFragment,
+    content: &CanvasContent<'_>,
+) -> Option<SourceViewAction> {
+    if !part.first_in_line {
+        return None;
+    }
+    let region = content.test_code.header(part.line)?;
+    let hidden = content.test_code.is_hidden(region.byte_range.start);
+    let count = region.line_range.end.saturating_sub(region.header_line + 1);
+    let label = if hidden {
+        format!("Test code · {count} lines hidden")
+    } else {
+        "Hide test code".into()
+    };
+    let rect = Rect::from_min_size(pos2(origin.x, row.bottom() - 17.0), vec2(190.0, 16.0));
+    painter.text(
+        rect.left_center(),
+        egui::Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(11.0),
+        content.theme.text_muted,
+    );
+    ui.interact(
+        rect,
+        Id::new(("test_label", region.byte_range.start)),
+        Sense::click(),
+    )
+    .on_hover_text("Toggle this test region")
+    .clicked()
+    .then_some(SourceViewAction::ToggleTestRegion(region.byte_range.start))
 }
 
 #[cfg(test)]
@@ -970,6 +1107,7 @@ mod tests {
         target: Option<usize>,
         wrap: bool,
         font_size: f32,
+        test_code: crate::source::test_code::TestCodePresentation,
     }
 
     impl Reader {
@@ -985,6 +1123,7 @@ mod tests {
                 target: None,
                 wrap: true,
                 font_size: 14.0,
+                test_code: Default::default(),
             }
         }
 
@@ -997,10 +1136,11 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        self.viewport.show(
+                        let event = self.viewport.show(
                             ui,
                             CanvasContent {
                                 theme: &AppTheme::dark(),
+                                test_code: &self.test_code,
                                 mode: SourceMode::Normal,
                                 buffer: &self.source,
                                 highlights: &[],
@@ -1017,6 +1157,9 @@ mod tests {
                                 find: &mut self.find,
                             },
                         );
+                        if let Some(SourceViewAction::ToggleTestRegion(id)) = event {
+                            self.test_code.toggle(&self.source, id);
+                        }
                     });
                 },
             )
@@ -1139,5 +1282,33 @@ mod tests {
         assert!(reader.viewport.rows.total_height() > height);
         assert_eq!(reader.column, 5000);
         assert_eq!(reader.line, 1);
+    }
+    #[test]
+    fn hidden_test_headers_offer_a_working_reveal_control_and_copy_retains_bytes() {
+        let ctx = egui::Context::default();
+        let text = "fn production() {}\n#[cfg(test)]\nmod checks {\n fn hidden_only() {}\n}\nfn tail() {}\n";
+        let mut reader = Reader::new(text);
+        reader.test_code.load(
+            &reader.source,
+            crate::syntax::TestRegionDetector::detect(&reader.source),
+            true,
+        );
+        let output = reader.frame(&ctx, Vec::new());
+        let painted = |output: &egui::FullOutput, needle: &str| {
+            output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains(needle)))
+        };
+        assert!(painted(&output, "Test code · 3 lines hidden"));
+        assert!(!painted(&output, "hidden_only"));
+        assert!(painted(&output, "fn tail"));
+        reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
+        let copied = reader.frame(&ctx, vec![egui::Event::Copy]);
+        assert_eq!(copied.platform_output.copied_text, text);
+        let (origin, label) = text_shape(&output, "Test code · 3 lines hidden");
+        let point = origin + label.size() / 2.0;
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        let output = reader.frame(&ctx, Vec::new());
+        assert!(painted(&output, "hidden_only"));
+        assert!(painted(&output, "Hide test code"));
     }
 }

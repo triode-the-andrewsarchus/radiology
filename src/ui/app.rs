@@ -26,9 +26,9 @@ use crate::source::buffer::SourceBuffer;
 use crate::source::history::NavigationHistory;
 use crate::source::location::{ReviewRevision, SourceLocation};
 use crate::source::selection::OccurrencePinStore;
-use crate::syntax::folds::{FoldDetector, FoldRange, FoldStore};
+use crate::syntax::folds::{FoldRange, FoldStore};
 use crate::syntax::highlighter::{HighlightedSpan, SyntaxHighlighter};
-use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
+use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::context_inspector::{ContextInspector, InspectorAction, InspectorContent};
 use crate::ui::icons::Icon;
@@ -95,6 +95,8 @@ pub struct RadiologyApp {
     pub fold_store: FoldStore,
     /// Tree-sitter document outline symbols.
     pub outline_symbols: Vec<DocumentSymbol>,
+    /// Inline-test visibility independent of manual folds.
+    pub test_code: crate::source::test_code::TestCodePresentation,
     /// Pinned token occurrence groups.
     pub pin_store: OccurrencePinStore,
     /// SCIP semantic index if loaded.
@@ -183,6 +185,7 @@ impl RadiologyApp {
             fold_ranges: Vec::new(),
             fold_store: FoldStore::new(),
             outline_symbols: Vec::new(),
+            test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
             caller_tree: Vec::new(),
@@ -303,8 +306,14 @@ impl RadiologyApp {
         self.caret_line = 1;
         self.caret_col = 0;
         self.scroll_to_line = Some(1);
-        self.outline_symbols = SymbolExtractor::extract(&buffer);
-        self.fold_ranges = FoldDetector::detect_folds(&buffer);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+        self.outline_symbols = syntax.symbols;
+        self.fold_ranges = syntax.folds;
+        self.test_code.load(
+            &buffer,
+            syntax.tests,
+            self.session.source_filters.hides_tests,
+        );
         self.fold_store.unfold_all();
         self.pin_store.clear();
         self.rehighlight(&buffer);
@@ -369,6 +378,7 @@ impl RadiologyApp {
         };
         let byte = line.map_or(location.byte_offset, |line| buffer.byte_offset(line, 0));
         let byte = buffer.clamp_to_char_boundary(byte.min(buffer.byte_len()));
+        self.test_code.reveal_byte(buffer, byte);
         self.caret_line = buffer.line_at_byte(byte);
         self.caret_col = buffer.column_at_byte(byte);
         self.scroll_to_line = Some(self.caret_line);
@@ -422,6 +432,7 @@ impl RadiologyApp {
     fn reset_repository_state(&mut self) {
         self.source_find = Default::default();
         self.source_viewport = Default::default();
+        self.test_code = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
         self.repository_root = None;
@@ -798,7 +809,7 @@ impl eframe::App for RadiologyApp {
                                 self.repository_search.stop();
                                 self.repository_search.matches.clear();
                             }
-                            SidebarAction::FiltersChanged => self.refresh_file_tree(),
+                            SidebarAction::FiltersChanged => self.filters_changed(),
                             SidebarAction::ShowAllFiles => {
                                 self.execute_command(ctx, ToolbarAction::ShowAllFiles)
                             }
@@ -882,6 +893,7 @@ impl eframe::App for RadiologyApp {
                             buffer: self.open_buffer.as_deref(),
                             callers: &self.caller_tree,
                             outline: &self.outline_symbols,
+                            test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
                             indexed: self.semantic_index.is_some()
@@ -937,6 +949,7 @@ impl eframe::App for RadiologyApp {
                         })
                         .inner;
                     if let Some(range) = found {
+                        self.test_code.reveal_range(&buf, &range);
                         self.navigate(buf.location_at_byte(range.start), true);
                         self.fold_store
                             .reveal_line(buf.line_at_byte(range.end), &self.fold_ranges);
@@ -968,6 +981,7 @@ impl eframe::App for RadiologyApp {
                             keyboard_enabled: matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,
                             font_size: self.session.source_font_size,
+                            test_code: &self.test_code,
                         },
                         &mut self.source_viewport,
                     ) {
@@ -987,6 +1001,11 @@ impl eframe::App for RadiologyApp {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)
                             }
                             SourceViewAction::ToggleFold(_) => {}
+                            SourceViewAction::ToggleTestRegion(id) => {
+                                if let Some(buffer) = &self.open_buffer {
+                                    self.test_code.toggle(buffer, id);
+                                }
+                            }
                             SourceViewAction::CollapseFunctions => {
                                 self.execute_command(ctx, ToolbarAction::CollapseFunctions)
                             }

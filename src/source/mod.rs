@@ -15,3 +15,6 @@ pub use buffer::{SourceBuffer, SourceBufferError};
 pub use history::NavigationHistory;
 pub use location::{ColumnEncoding, ReviewRevision, SourceLocation};
 pub use selection::{OccurrenceColor, OccurrencePinGroup, OccurrencePinStore};
+
+/// Test-region visibility and canonical byte projection.
+pub mod test_code;

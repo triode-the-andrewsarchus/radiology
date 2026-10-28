@@ -222,7 +222,14 @@ impl SymbolExtractor {
             return Self::extract_fallback(buffer);
         };
 
-        let root = tree.root_node();
+        Self::from_tree(buffer, grammar, tree.root_node())
+    }
+
+    pub(crate) fn from_tree(
+        buffer: &SourceBuffer,
+        grammar: SupportedGrammar,
+        root: Node<'_>,
+    ) -> Vec<DocumentSymbol> {
         let mut symbols = Vec::new();
         Self::collect_symbols(root, buffer, grammar, &mut symbols);
         symbols
