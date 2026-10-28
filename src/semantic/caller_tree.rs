@@ -1,6 +1,6 @@
 //! Multi-level caller tree tracing with cycle detection and deterministic identity pills.
 
-use crate::semantic::index::{SCIPSymbolString, SemanticIndex};
+use crate::semantic::index::{SemanticIndex, SemanticSymbolID};
 use egui::Color32;
 use std::collections::HashSet;
 
@@ -82,35 +82,43 @@ impl CallerTreeBuilder {
         symbol: &str,
         max_depth: usize,
     ) -> Vec<ReferenceCallerNode> {
-        let mut active_path = HashSet::new();
+        Self::build_for_id(index, &SemanticSymbolID::new(symbol, ""), max_depth)
+    }
+
+    /// Traces a scoped symbol while retaining document-local identities.
+    #[must_use]
+    pub fn build_for_id(
+        index: &SemanticIndex,
+        symbol: &SemanticSymbolID,
+        max_depth: usize,
+    ) -> Vec<ReferenceCallerNode> {
+        let mut active_path = HashSet::from([symbol.clone()]);
         Self::trace(index, symbol, 0, max_depth, &mut active_path)
     }
 
     fn trace(
         index: &SemanticIndex,
-        symbol: &str,
+        symbol: &SemanticSymbolID,
         depth: usize,
         max_depth: usize,
-        active_path: &mut HashSet<String>,
+        active_path: &mut HashSet<SemanticSymbolID>,
     ) -> Vec<ReferenceCallerNode> {
         if depth >= max_depth {
             return Vec::new();
         }
 
-        let refs = index.find_references(symbol);
+        let refs = index.find_references_for_id(symbol);
         let mut nodes = Vec::new();
 
         for (ref_path, ref_range) in refs {
             let caller_sym = Self::find_enclosing_symbol(index, ref_path, ref_range.start_line);
             let caller_name = caller_sym
-                .as_deref()
-                .map(SCIPSymbolString::fallback_name)
+                .as_ref()
+                .map(|id| index.display_name(id))
                 .unwrap_or_else(|| ref_path.to_string());
 
             let slot = caller_pill_slot(&caller_name, ref_path);
-            let is_recursive = caller_sym
-                .as_deref()
-                .is_some_and(|s| active_path.contains(s));
+            let is_recursive = caller_sym.as_ref().is_some_and(|s| active_path.contains(s));
 
             let mut node = ReferenceCallerNode {
                 name: caller_name.to_string(),
@@ -136,22 +144,27 @@ impl CallerTreeBuilder {
         nodes
     }
 
-    fn find_enclosing_symbol(index: &SemanticIndex, path: &str, line: i32) -> Option<String> {
-        let doc = index.documents.get(path)?;
-        for occ in &doc.occurrences {
-            if occ.is_definition() {
-                if let Some(enclosing) = &occ.enclosing_range {
-                    if enclosing.start_line <= line && enclosing.end_line >= line {
-                        return Some(occ.symbol.clone());
-                    }
-                } else if let Some(r) = &occ.range {
-                    if r.start_line <= line && r.end_line >= line {
-                        return Some(occ.symbol.clone());
-                    }
-                }
-            }
-        }
-        None
+    fn find_enclosing_symbol(
+        index: &SemanticIndex,
+        path: &str,
+        line: i32,
+    ) -> Option<SemanticSymbolID> {
+        let document = index.documents.get(path)?;
+        document
+            .occurrences
+            .iter()
+            .filter(|occ| occ.is_definition())
+            .filter_map(|occ| {
+                let range = occ.enclosing_range.as_ref().or(occ.range.as_ref())?;
+                (range.start_line <= line && line <= range.end_line).then_some((range, occ))
+            })
+            .min_by_key(|(range, _)| {
+                (
+                    range.end_line - range.start_line,
+                    range.end_col - range.start_col,
+                )
+            })
+            .map(|(_, occ)| SemanticSymbolID::new(&occ.symbol, path))
     }
 }
 
