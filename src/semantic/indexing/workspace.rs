@@ -1,6 +1,7 @@
 //! Disposable copies of real build inputs with byte/type/mode verification.
 
 use super::inventory::{check_cancel, validate_input_path, InputInventory};
+use crate::semantic::loader::open_regular_file as open_input;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -157,17 +158,40 @@ impl IndexingWorkspace {
     /// Returns a deterministic SHA-256 fingerprint of original paths, bytes and modes.
     #[must_use]
     pub fn fingerprint(&self) -> String {
-        let mut hash = Sha256::new();
-        hash.update(b"radiology-build-inputs-v1\0");
-        for (path, input) in &self.inputs {
-            hash.update(path.as_bytes());
-            hash.update([0]);
-            hash.update(input.original.sha256.as_bytes());
-            hash.update([0]);
-            hash.update(input.original.mode.to_le_bytes());
-            hash.update([u8::from(input.original.link)]);
+        fingerprint(
+            self.inputs
+                .iter()
+                .map(|(path, input)| (path, &input.original)),
+        )
+    }
+
+    /// Hashes current build inputs without creating a workspace or running tools.
+    ///
+    /// # Errors
+    ///
+    /// Rejects escaping paths, link parents, unsupported files, copy-limit breaches,
+    /// changed reads and cancellation, using the same identities as generation.
+    pub fn fingerprint_source(
+        source: &Path,
+        inventory: &InputInventory,
+        limits: WorkspaceLimits,
+        cancel: &AtomicBool,
+    ) -> Result<String, String> {
+        let mut inputs = BTreeMap::new();
+        let mut total = 0;
+        for path in &inventory.paths {
+            check_cancel(cancel)?;
+            validate_input_path(path)?;
+            reject_link_parents(source, path)?;
+            let input = source.join(path);
+            let metadata = fs::symlink_metadata(&input).map_err(|e| e.to_string())?;
+            add_budget(metadata.len(), limits, &mut total)?;
+            inputs.insert(
+                path.clone(),
+                read_identity(&input, limits.file_bytes, cancel)?,
+            );
         }
-        format!("{:x}", hash.finalize())
+        Ok(fingerprint(inputs.iter()))
     }
 
     /// Checks that copied inputs still have their original materialized bytes/modes.
@@ -267,6 +291,20 @@ impl IndexingWorkspace {
     }
 }
 
+fn fingerprint<'a>(inputs: impl IntoIterator<Item = (&'a String, &'a Identity)>) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"radiology-build-inputs-v1\0");
+    for (path, identity) in inputs {
+        hash.update(path.as_bytes());
+        hash.update([0]);
+        hash.update(identity.sha256.as_bytes());
+        hash.update([0]);
+        hash.update(identity.mode.to_le_bytes());
+        hash.update([u8::from(identity.link)]);
+    }
+    format!("{:x}", hash.finalize())
+}
+
 fn add_budget(bytes: u64, limits: WorkspaceLimits, total: &mut u64) -> Result<(), String> {
     *total = total
         .checked_add(bytes)
@@ -287,7 +325,7 @@ fn copy_file(
     cancel: &AtomicBool,
 ) -> Result<Identity, String> {
     add_budget(metadata.len(), limits, total)?;
-    let mut file = open_input(source)?;
+    let mut file = open_input(source).map_err(|e| e.to_string())?;
     let mut output = File::create_new(destination).map_err(|e| e.to_string())?;
     let identity = hash_file(
         &mut file,
@@ -298,21 +336,6 @@ fn copy_file(
     )?;
     fs::set_permissions(destination, metadata.permissions()).map_err(|e| e.to_string())?;
     Ok(identity)
-}
-
-fn open_input(path: &Path) -> Result<File, String> {
-    let mut options = File::options();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    let file = options.open(path).map_err(|e| e.to_string())?;
-    if !file.metadata().map_err(|e| e.to_string())?.is_file() {
-        return Err("Input was replaced by a nonregular file".into());
-    }
-    Ok(file)
 }
 
 fn read_identity(path: &Path, limit: u64, cancel: &AtomicBool) -> Result<Identity, String> {
@@ -327,7 +350,7 @@ fn read_identity(path: &Path, limit: u64, cancel: &AtomicBool) -> Result<Identit
     if !metadata.is_file() || metadata.len() > limit {
         return Err("Input type or size changed".into());
     }
-    let mut file = open_input(path)?;
+    let mut file = open_input(path).map_err(|e| e.to_string())?;
     hash_file(
         &mut file,
         metadata.len(),

@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-28 — Persistent semantic cache backend (Codex)
+
+Generated indexes now persist atomically outside the checkout with exact source
+digests, input inventories and bounded project reports. Cache-only loading uses
+the existing background job, runs no tools and makes no workspace. Stale reloads
+retain original provenance; corrupt/foreign/unsupported entries are rejected.
+Source fingerprinting reuses generation identities without copying inputs. Shared
+SCIP/cache reads remove duplicate low-level logic and add chunk cancellation.
+
+Backend validation: 133 application tests, 5 reader-text tests, 30 doctests, fmt,
+Clippy and build pass. The architecture check has no new production clone or CCN
+hotspot; one six-line fixture clone remains reported. Reader reopen/fallback/status
+integration follows separately. Full parity is open. See [persistent indexes](plans/rust-index-cache.md).
+
 ## 2026-10-28 — Shared semantic navigation and symbol-picker acceptance (Codex)
 
 Integrated core commit `52d7580`: workspace keyboard/pointer selection carries

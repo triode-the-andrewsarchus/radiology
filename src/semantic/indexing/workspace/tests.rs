@@ -401,3 +401,69 @@ fn link_targets_match_git_blobs_and_workspace_parent_links_cannot_write_into_sou
     .is_err());
     assert!(!source.join("new-directory").exists());
 }
+
+#[test]
+fn read_only_fingerprints_match_workspace_inputs_and_detect_modes_links_and_budget_limits() {
+    let (_owner, source, cache) = fixture();
+    let cancel = AtomicBool::new(false);
+    create_link(Path::new("src/main.rs"), &source.join("alias.rs")).unwrap();
+    let inventory = InputInventory::discover(&source, &cancel).unwrap();
+    let original = IndexingWorkspace::fingerprint_source(
+        &source,
+        &inventory,
+        WorkspaceLimits::default(),
+        &cancel,
+    )
+    .unwrap();
+    assert!(!cache.exists());
+    let workspace = isolate(&source, &cache, &cancel);
+    assert_eq!(original, workspace.fingerprint());
+    assert!(IndexingWorkspace::fingerprint_source(
+        &source,
+        &inventory,
+        WorkspaceLimits {
+            total_bytes: 1,
+            file_bytes: 1
+        },
+        &cancel
+    )
+    .is_err());
+    assert!(IndexingWorkspace::fingerprint_source(
+        &source,
+        &inventory,
+        WorkspaceLimits::default(),
+        &AtomicBool::new(true)
+    )
+    .is_err());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(
+            source.join("src/main.rs"),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        assert_ne!(
+            original,
+            IndexingWorkspace::fingerprint_source(
+                &source,
+                &inventory,
+                WorkspaceLimits::default(),
+                &cancel
+            )
+            .unwrap()
+        );
+    }
+    fs::remove_file(source.join("alias.rs")).unwrap();
+    create_link(Path::new("Cargo.toml"), &source.join("alias.rs")).unwrap();
+    assert_ne!(
+        original,
+        IndexingWorkspace::fingerprint_source(
+            &source,
+            &inventory,
+            WorkspaceLimits::default(),
+            &cancel
+        )
+        .unwrap()
+    );
+}

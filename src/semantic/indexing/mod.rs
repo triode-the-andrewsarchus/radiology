@@ -3,6 +3,7 @@
 //! Planning is pure and uses the repository inventory rather than reader filters.
 //! No command is executed and no repository file is changed during inspection.
 
+pub mod cache;
 pub mod command;
 pub mod inventory;
 pub mod process;
@@ -15,7 +16,9 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 /// Indexers supported by the Swift implementation, in registry priority order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum Indexer {
     /// Rust Cargo projects.
     Rust,
@@ -93,7 +96,7 @@ impl Indexer {
 }
 
 /// One adapter applied to a repository-relative project directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct IndexingStrategy {
     /// Tool adapter selected for this project.
     pub indexer: Indexer,
@@ -118,7 +121,7 @@ impl IndexingStrategy {
 }
 
 /// Deterministic bounded plan, including projects beyond the launch cap.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct IndexPlan {
     /// Projects eligible to run, ordered by depth then adapter then path.
     pub selected: Vec<IndexingStrategy>,
