@@ -664,3 +664,88 @@ fn idle_reader_construction_does_not_create_default_configuration() {
     );
     assert!(!directory.exists());
 }
+
+fn indexed_target(text: &str) -> (SemanticIndex, SemanticSymbolID, ScipRange) {
+    let byte = text.find("target").unwrap();
+    let column = text[..byte].encode_utf16().count() as i32;
+    let range = ScipRange::from_packed(&[0, column, column + 6]).unwrap();
+    let id = SemanticSymbolID::new("scip test fixture 1 target().", "");
+    let mut index = SemanticIndex::from_scip(ScipIndex {
+        documents: vec![ScipDocument {
+            relative_path: "b.ts".into(),
+            position_encoding: 2,
+            occurrences: vec![ScipOccurrence {
+                symbol: id.symbol.clone(),
+                symbol_roles: 1,
+                range: Some(range.clone()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    index.source_digests.insert(
+        "b.ts".into(),
+        SourceBuffer::from_str("b.ts", text).content_digest().into(),
+    );
+    (index, id, range)
+}
+
+#[test]
+fn indexed_symbol_and_reference_navigation_share_encoding_fresh_reads_and_provenance() {
+    let (dir, mut app) = reader();
+    repository(dir.path());
+    let original = "const note = \"😀\"; function target() {}\n";
+    std::fs::write(dir.path().join("b.ts"), original).unwrap();
+    app.open_repository(dir.path());
+    settle(&mut app);
+    let (index, id, range) = indexed_target(original);
+    app.semantic_index = Some(index);
+    app.navigate_to_indexed_symbol(&id);
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("b.ts"));
+    assert_eq!(
+        app.caret_col,
+        original[..original.find("target").unwrap()].chars().count()
+    );
+    app.navigate_to_indexed_range("b.ts", &range);
+    settle(&mut app);
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, original);
+
+    // A new index can describe newer bytes than the currently cached same-path buffer.
+    let newer = "const note = \"😀 newer\"; function target() {}\n";
+    std::fs::write(dir.path().join("b.ts"), newer).unwrap();
+    let (index, _, range) = indexed_target(newer);
+    app.semantic_index = Some(index);
+    app.navigate_to_indexed_symbol(&id);
+    assert!(app.is_source_loading());
+    settle(&mut app);
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, newer);
+    assert_eq!(
+        app.caret_col,
+        newer[..newer.find("target").unwrap()].chars().count()
+    );
+
+    app.open_file("a.rs");
+    settle(&mut app);
+    let history = format!("{:?}", app.history);
+    std::fs::write(dir.path().join("b.ts"), "changed again").unwrap();
+    app.navigate_to_indexed_range("b.ts", &range);
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!(format!("{:?}", app.history), history);
+    assert!(app.error.as_ref().unwrap().contains("bytes changed"));
+    app.semantic_index.as_mut().unwrap().source_digests.clear();
+    app.semantic_index
+        .as_mut()
+        .unwrap()
+        .source_digests
+        .insert("other.ts".into(), "missing target identity".into());
+    app.navigate_to_indexed_range("b.ts", &range);
+    assert!(!app.is_source_loading());
+    assert!(app.error.as_ref().unwrap().contains("no source identity"));
+    app.active_revision = Some(ReviewRevision::Before);
+    app.navigate_to_indexed_symbol(&id);
+    assert!(!app.is_source_loading());
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+}

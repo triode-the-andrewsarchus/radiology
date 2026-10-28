@@ -51,6 +51,11 @@ and the remaining generation/cache requirements.
   reader; bookmark/definition/revision pre-reads are removed. Theme recoloring
   shares immutable source; repository/review transitions retire stale reads.
   [Source integration and limits](rust-source-loading.md).
+- Isolated checkout Generate/Reindex/Cancel and bounded coverage/diagnostic UI
+  share configured tool paths and retire competing jobs. Generated destinations
+  require matching source digests. Workspace symbols, caller rows and F12 share
+  exact encoding-aware asynchronous navigation; the symbol picker is virtualized.
+  [Index lifecycle](rust-indexing-parity.md) and [navigation acceptance](rust-semantic-navigation.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
