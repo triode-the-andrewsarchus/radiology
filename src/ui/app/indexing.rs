@@ -1,6 +1,7 @@
 //! Semantic import publication and its repository-scoped status controls.
 
 use super::*;
+use crate::semantic::indexing::service::{GenerationReport, GenerationRequest};
 use crate::semantic::indexing::tools::{ToolAvailability, ToolDirectory};
 use crate::semantic::indexing::{IndexPlan, Indexer};
 use crate::semantic::loader::IndexImportStatus;
@@ -8,6 +9,8 @@ use crate::semantic::loader::IndexImportStatus;
 impl RadiologyApp {
     pub(super) fn reset_index_state(&mut self) {
         self.index_importer = Default::default();
+        self.index_generator = Default::default();
+        self.generation_report = None;
         self.index_plan_job.stop();
         self.tool_probe_job.stop();
         self.index_plan = Default::default();
@@ -15,15 +18,43 @@ impl RadiologyApp {
         self.semantic_index = None;
     }
 
+    pub(super) fn generate_index(&mut self) {
+        if self.review.is_some() {
+            self.error =
+                Some("Index generation for pull request snapshots is not available yet.".into());
+            return;
+        }
+        let Some((root, cache)) = self.cached_repository() else {
+            return;
+        };
+        let tools = self.index_tools.clone();
+        self.start_index_generation(GenerationRequest {
+            root,
+            cache: cache.join("indexes"),
+            tools,
+            timeout: std::time::Duration::from_secs(600),
+            limits: Default::default(),
+        });
+    }
+
+    pub(super) fn start_index_generation(&mut self, request: GenerationRequest) {
+        self.index_importer.stop();
+        self.index_plan_job.stop();
+        self.tool_probe_job.stop();
+        self.index_generator.start(request);
+    }
+
+    /// Returns coverage, diagnostics and provenance for the last completed run.
+    #[must_use]
+    pub fn generation_report(&self) -> Option<&GenerationReport> {
+        self.generation_report.as_ref()
+    }
+
     pub(super) fn check_index_tools(&mut self) {
         let Some(root) = self.search_root() else {
             return;
         };
-        let tools = ToolDirectory::from_environment(
-            self.session
-                .config_directory()
-                .map(|path| path.join("tools")),
-        );
+        let tools = self.index_tools.clone();
         self.probe_index_tools(tools, root);
     }
 
@@ -86,6 +117,14 @@ impl RadiologyApp {
             Ok(None) => {}
             Err(_) => self.error = Some("Indexer tool checks stopped unexpectedly".into()),
         }
+        if let Some(generated) = self.index_generator.poll() {
+            if let Some(index) = generated.index {
+                self.semantic_index = Some(index);
+                self.refresh_symbol_context();
+            }
+            self.index_plan = generated.report.plan.clone();
+            self.generation_report = Some(generated.report);
+        }
         if self.is_index_loading() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
@@ -97,6 +136,7 @@ impl RadiologyApp {
         self.index_importer.is_running()
             || self.index_plan_job.is_running()
             || self.tool_probe_job.is_running()
+            || self.index_generator.is_running()
     }
 
     /// Returns lifecycle and diagnostic information for the current import.
@@ -112,35 +152,7 @@ impl RadiologyApp {
         let mut command = None;
         TopBottomPanel::bottom("semantic_index_status").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                match self.index_importer.status() {
-                    IndexImportStatus::Loading => {
-                        ui.spinner();
-                        ui.label("Loading semantic index…");
-                    }
-                    IndexImportStatus::Imported { path, documents } => {
-                        ui.label(format!(
-                            "Imported index · {documents} documents · freshness unknown"
-                        ))
-                        .on_hover_text(path.display().to_string());
-                    }
-                    IndexImportStatus::Failed(error) => {
-                        ui.colored_label(self.theme.text_secondary, "Index import failed")
-                            .on_hover_text(error);
-                        if ui.small_button("Details").clicked() {
-                            self.error = Some(error.clone());
-                        }
-                    }
-                    IndexImportStatus::Cancelled => {
-                        ui.label("Index import cancelled");
-                    }
-                    IndexImportStatus::Idle | IndexImportStatus::Missing => {
-                        ui.label(if self.review.is_some() {
-                            "Review has no generated semantic index"
-                        } else {
-                            "No semantic index · source navigation available"
-                        });
-                    }
-                }
+                self.show_generation_status(ui);
                 if ui.small_button("Index Projects").clicked() {
                     self.index_projects_open = true;
                 }
@@ -148,16 +160,24 @@ impl RadiologyApp {
                     if ui.small_button("Cancel").clicked() {
                         command = Some(ToolbarAction::CancelIndexImport);
                     }
-                } else if self.review.is_none() && ui.small_button("Reload Index").clicked() {
+                } else if self.review.is_none()
+                    && ui
+                        .add_enabled(
+                            !self.index_generator.is_running(),
+                            egui::Button::new("Reload Index").small(),
+                        )
+                        .clicked()
+                {
                     command = Some(ToolbarAction::ReloadIndexImport);
                 }
                 if self.semantic_index.is_some()
+                    && self.generation_report.is_none()
                     && !matches!(
                         self.index_importer.status(),
                         IndexImportStatus::Imported { .. }
                     )
                 {
-                    ui.label("Previous imported data retained · freshness unknown");
+                    ui.label("Previous semantic data retained · freshness unknown");
                 }
             });
         });
@@ -179,55 +199,98 @@ impl RadiologyApp {
         }
     }
 
+    fn show_generation_status(&mut self, ui: &mut egui::Ui) {
+        if self.index_generator.is_running() {
+            let progress = self.index_generator.progress();
+            ui.spinner();
+            ui.label(format!(
+                "Indexing {}/{} · {}",
+                progress.step,
+                progress.total,
+                progress.project.as_deref().unwrap_or("repository")
+            ))
+            .on_hover_text(progress.message);
+        } else if let Some(error) = self.index_generator.error() {
+            ui.label("Index generation failed").on_hover_text(error);
+            if ui.small_button("Details").clicked() {
+                self.error = Some(error.to_owned());
+            }
+        } else if self.index_generator.was_cancelled() {
+            ui.label(if self.semantic_index.is_some() {
+                "Index generation cancelled · previous data retained"
+            } else {
+                "Index generation cancelled"
+            });
+        } else if let Some(report) = &self.generation_report {
+            if report.documents == 0 && self.semantic_index.is_some() {
+                ui.label("Previous semantic data retained");
+            }
+            ui.label(report.summary()).on_hover_text(
+                report.stale_reason.as_deref().unwrap_or(
+                    "Source coverage and tool diagnostics are available in Index Projects",
+                ),
+            );
+            if self
+                .open_buffer
+                .as_ref()
+                .zip(self.semantic_index.as_ref())
+                .is_some_and(|(buffer, index)| !index.matches_buffer(buffer))
+            {
+                ui.label("Open source differs from index");
+                if ui.small_button("Reload Source").clicked() {
+                    self.execute_command(ui.ctx(), ToolbarAction::ReloadSource);
+                }
+            }
+        } else {
+            self.show_import_status(ui);
+        }
+    }
+
+    fn show_import_status(&mut self, ui: &mut egui::Ui) {
+        match self.index_importer.status() {
+            IndexImportStatus::Loading => {
+                ui.spinner();
+                ui.label("Loading semantic index…");
+            }
+            IndexImportStatus::Imported { path, documents } => {
+                ui.label(format!(
+                    "Imported index · {documents} documents · freshness unknown"
+                ))
+                .on_hover_text(path.display().to_string());
+            }
+            IndexImportStatus::Failed(error) => {
+                ui.colored_label(self.theme.text_secondary, "Index import failed")
+                    .on_hover_text(error);
+                if ui.small_button("Details").clicked() {
+                    self.error = Some(error.clone());
+                }
+            }
+            IndexImportStatus::Cancelled => {
+                ui.label("Index import cancelled");
+            }
+            IndexImportStatus::Idle | IndexImportStatus::Missing => {
+                ui.label(if self.review.is_some() {
+                    "Review has no generated semantic index"
+                } else {
+                    "No semantic index · source navigation available"
+                });
+            }
+        }
+    }
+
     fn show_index_projects(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
         if self.index_plan_job.is_running() {
             ui.label("Inspecting build files…");
             return None;
         }
         if self.index_plan.selected.is_empty() {
-            ui.label("No supported build files found");
-            return None;
+            ui.label("Generate Index to check for supported build projects.");
         }
         egui::ScrollArea::vertical()
             .max_height(300.0)
             .show(ui, |ui| {
                 for strategy in &self.index_plan.selected {
-                    let project = if strategy.directory.is_empty() {
-                        "."
-                    } else {
-                        &strategy.directory
-                    };
-                    ui.label(
-                        egui::RichText::new(format!("{} · {project}", strategy.indexer.id()))
-                            .strong(),
-                    );
-                    ui.label(format!(
-                        "{} · {} source file{}",
-                        strategy.indexer.languages().join(", "),
-                        strategy.source_files,
-                        if strategy.source_files == 1 { "" } else { "s" }
-                    ));
-                    ui.label(strategy.evidence.join(", "));
-                    match self.tool_availability.get(&strategy.indexer) {
-                        Some(ToolAvailability::Available {
-                            executable,
-                            version,
-                        }) => {
-                            ui.label(version)
-                                .on_hover_text(executable.display().to_string());
-                        }
-                        Some(ToolAvailability::Unavailable {
-                            reason,
-                            diagnostics,
-                            ..
-                        }) => {
-                            ui.label(reason).on_hover_text(diagnostics);
-                        }
-                        None => {
-                            ui.label("Tool availability unchecked");
-                        }
-                    }
-                    ui.separator();
+                    self.show_index_project(ui, strategy);
                 }
                 if !self.index_plan.skipped.is_empty() {
                     ui.label(format!(
@@ -236,6 +299,24 @@ impl RadiologyApp {
                     ));
                 }
             });
+        if self.index_generator.is_running() {
+            ui.label(self.index_generator.progress().message);
+            return ui
+                .button("Cancel Generation")
+                .clicked()
+                .then_some(ToolbarAction::CancelIndexGeneration);
+        }
+        if self.review.is_none()
+            && ui
+                .button(if self.generation_report.is_some() {
+                    "Reindex"
+                } else {
+                    "Generate Index"
+                })
+                .clicked()
+        {
+            return Some(ToolbarAction::GenerateIndex);
+        }
         if self.tool_probe_job.is_running() {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -247,7 +328,89 @@ impl RadiologyApp {
         } else if ui.button("Check Tools").clicked() {
             return Some(ToolbarAction::CheckIndexTools);
         }
-        ui.label("Index generation is unavailable in this build.");
+        if self.review.is_some() {
+            ui.label("Index generation for pull request snapshots is not available yet.");
+        }
         None
+    }
+    fn show_index_project(
+        &self,
+        ui: &mut egui::Ui,
+        strategy: &crate::semantic::indexing::IndexingStrategy,
+    ) {
+        ui.push_id(strategy.id(), |ui| {
+            let project = if strategy.directory.is_empty() {
+                "."
+            } else {
+                &strategy.directory
+            };
+            ui.label(
+                egui::RichText::new(format!("{} · {project}", strategy.indexer.id())).strong(),
+            );
+            ui.label(format!(
+                "{} · {} source file{}",
+                strategy.indexer.languages().join(", "),
+                strategy.source_files,
+                if strategy.source_files == 1 { "" } else { "s" }
+            ));
+            ui.label(strategy.evidence.join(", "));
+            let outcome = self.generation_report.as_ref().and_then(|report| {
+                report
+                    .outcomes
+                    .iter()
+                    .find(|outcome| outcome.strategy == *strategy)
+            });
+            match self.tool_availability.get(&strategy.indexer) {
+                Some(ToolAvailability::Available {
+                    executable,
+                    version,
+                }) => {
+                    ui.label(version)
+                        .on_hover_text(executable.display().to_string());
+                }
+                Some(ToolAvailability::Unavailable {
+                    reason,
+                    diagnostics,
+                    ..
+                }) => {
+                    ui.label(reason).on_hover_text(diagnostics);
+                }
+                None if outcome.is_none_or(|outcome| outcome.version.is_none()) => {
+                    ui.label("Tool availability unchecked");
+                }
+                None => {}
+            }
+            if let Some(outcome) = outcome {
+                ui.label(format!(
+                    "Last run: {} document{} · {} source file{} missing",
+                    outcome.documents,
+                    if outcome.documents == 1 { "" } else { "s" },
+                    outcome.missing_count,
+                    if outcome.missing_count == 1 { "" } else { "s" }
+                ));
+                if let Some(version) = &outcome.version {
+                    ui.label(format!("Index tool: {version}"));
+                }
+                if let Some(failure) = &outcome.failure {
+                    ui.label(failure);
+                }
+                if !outcome.diagnostics.is_empty() || !outcome.missing_paths.is_empty() {
+                    ui.collapsing("Generation Details", |ui| {
+                        egui::ScrollArea::both().max_height(160.0).show(ui, |ui| {
+                            for path in &outcome.missing_paths {
+                                ui.label(format!("Not indexed: {path}"));
+                            }
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&outcome.diagnostics).monospace(),
+                                )
+                                .wrap(false),
+                            );
+                        });
+                    });
+                }
+            }
+            ui.separator();
+        });
     }
 }

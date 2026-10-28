@@ -40,11 +40,7 @@ impl RadiologyApp {
             self.error = Some("Enter a positive pull request number".into());
             return;
         }
-        let Some(root) = self.repository_root.clone() else {
-            return;
-        };
-        let Some(cache) = self.session.repository_cache(&root) else {
-            self.error = Some("No private cache directory is available".into());
+        let Some((root, cache)) = self.cached_repository() else {
             return;
         };
         let (sender, receiver) = std::sync::mpsc::channel();

@@ -70,7 +70,6 @@ impl SessionStore {
 
     fn session_file_path() -> Option<PathBuf> {
         let dir = dirs::config_dir()?.join("radiology");
-        let _ = std::fs::create_dir_all(&dir);
         Some(dir.join("session.json"))
     }
 

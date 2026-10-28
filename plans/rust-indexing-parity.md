@@ -256,10 +256,61 @@ parallel library-suite repetitions; enhanced failure diagnostics were retained.
 Architecture reports only previously documented clone/structural findings after
 removing new product duplication and excessive generation complexity.
 
-## Next generation integration contract
+## Reader integration and native acceptance (2026-10-28)
 
-The workspace/process foundations are committed, but Generate/Reindex must still
-be connected. Preserve these publication rules while doing so:
+Generate/Reindex/Cancel are shared reader commands in the Index Projects window.
+The app drives the independent generator through `poll_index`, publishes semantic
+data atomically and retains prior data when a run fails or is cancelled. Per-run
+coverage, missing-file counts, tool versions and bounded diagnostics are visible.
+Current report summaries distinguish generated/partial/stale/no output; they do
+not claim full semantic dependency resolution. Imports and generation cannot race
+to overwrite each other. Repository/review transitions retire jobs and reports.
+
+The app's public `index_tools` context is shared by probes and generation and can
+be configured by an embedded host. Repository/cache context acquisition is shared
+with review preparation. Idle construction remains free of configuration writes:
+path discovery is pure and saving creates parent directories when needed.
+
+Open-buffer provenance mismatch exposes Reload Source, preserving the caret byte
+request through asynchronous preparation. Inspector semantic availability now
+requires current-document coverage and matching bytes. F12 requests verify the
+target digest. Global symbol-palette and caller-row destinations still need the
+same encoded/digest-checked navigation path; this is not full R11 acceptance.
+
+Native acceptance used the existing sibling private-compositor/pointer helpers
+through a temporary driver, without a sibling runtime dependency or source edit.
+In a private 1280×900 Weston/Niri session, a fixture indexer emitted a real small
+SCIP payload. Generate published it; Reindex kept the existing reader and index;
+Find produced a highlighted match during the running subprocess; Cancel stopped
+the indexer and removed its workspace while preserving the previous index. Recorded
+environment proved `CARGO_BUILD_JOBS=16`, isolated `CARGO_TARGET_DIR` and no generated
+artifact in the viewed fixture. App, Weston and Niri exited zero. Captures under
+`/tmp/radiology-generation-native/`: `before-generate.png`,
+`generation-complete.png`, `reindex-responsive-find.png`,
+`generation-cancelled.png`. These predate the final singular-label/status wording
+cleanup; they prove the workflow, not pixel acceptance of those final strings.
+
+Current final suite: 120 application tests, 5 reader-text tests and 30 doctests;
+formatting, Clippy with warnings denied and binary build pass. Added app command,
+retention, source-reload and repository retirement coverage plus an isolated idle
+constructor test. One earlier stderr-version probe test failed once; it did not
+reproduce in 20 parallel library-suite runs and now prints its actual result on
+failure. Cause remains unproven. Architecture flags are two retained test-only
+clones and structural rankings for review preparation, workspace materialization
+and generation orchestration. New product duplication and excessive generation
+CCN were removed; the overall result is still REGRESSION, not a clean gate.
+
+The system rust-analyzer proxy reports its component missing. Native acceptance
+therefore used fixture tools and does not prove real compiler/indexer output.
+Real tool acceptance, persistent validated cache reuse, private provisioning,
+C/C++ database rebasing, Kotlin fallback Gradle/dependency environments, linked
+source coverage, Rust extra cfg injection, pinned After generation and automatic
+open/refresh lifecycle remain required. Before never borrows After semantic data.
+
+## Generation acceptance contract and remaining integration
+
+Generate/Reindex is connected for checkout work. Preserve these publication rules
+while completing caches, refresh, pinned snapshots and semantic destinations:
 
 - Discover/replan on the worker using the full input inventory. Keep one pristine
   baseline copy alive for the run; create an independent build copy per strategy
@@ -284,8 +335,8 @@ be connected. Preserve these publication rules while doing so:
 - Keep useful previously published data during failure/cancellation, with explicit
   stale/unverified status. Do not let imports and generated results race to
   overwrite each other. Repository/review transitions retire every indexing job.
-- Add Generate/Reindex/Cancel controls and per-strategy outcome/diagnostic views;
-  preserve independent-host polling APIs and keep source navigation responsive.
+- Keep Generate/Reindex/Cancel controls and per-strategy outcomes/diagnostics
+  responsive while completing open/refresh and cache lifecycle integration.
 - Pinned review generation must verify the worktree against exact Git object
   inventories. Checkout imports must never be applied to Before/After by accident.
 - Persist only validated outputs with tool/config/content provenance and atomic
@@ -308,8 +359,8 @@ The import lifecycle above is only part of R4 in the independent parity review.
   workspaces; control known output paths and verify inputs before publication.
 - Validate per-strategy fingerprints/tool versions/content digests; atomically
   cache and merge independently scoped projects with partial/stale outcomes.
-- Reindex and refresh lifecycles; preserve useful prior data while reporting
-  incomplete, cancelled, failed or stale strategies truthfully.
+- Complete automatic open/refresh and persistent-cache lifecycles. Explicit
+  Generate/Reindex/Cancel now retain prior data with per-run outcomes.
 - Index pinned After snapshots and reuse only content-validated strategies.
   Before must remain isolated from After semantic data.
 - Move remaining repository discovery/Git refresh/context work off the UI thread.

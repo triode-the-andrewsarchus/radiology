@@ -96,7 +96,7 @@ impl ContextInspector {
                         if !content.indexed {
                             ui.colored_label(
                                 theme.text_muted,
-                                "Semantic index unavailable for this revision.",
+                                "Semantic data unavailable for this source.",
                             );
                         } else if content.callers.is_empty() {
                             ui.colored_label(theme.text_muted, "No indexed incoming references.");

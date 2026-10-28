@@ -103,7 +103,11 @@ pub struct RadiologyApp {
     pub pin_store: OccurrencePinStore,
     /// SCIP semantic index if loaded.
     pub semantic_index: Option<SemanticIndex>,
+    /// Configurable tool lookup context shared by probes and generation.
+    pub index_tools: crate::semantic::indexing::tools::ToolDirectory,
     index_importer: crate::semantic::loader::IndexImporter,
+    index_generator: crate::semantic::indexing::service::IndexGenerator,
+    generation_report: Option<crate::semantic::indexing::service::GenerationReport>,
     index_plan: crate::semantic::indexing::IndexPlan,
     index_plan_job: crate::background::LatestRead<crate::semantic::indexing::IndexPlan>,
     index_projects_open: bool,
@@ -178,6 +182,9 @@ impl RadiologyApp {
     /// Hosts choose when to restore a session or open an explicit repository.
     #[must_use]
     pub fn from_session(session: SessionStore) -> Self {
+        let index_tools = crate::semantic::indexing::tools::ToolDirectory::from_environment(
+            session.config_directory().map(|path| path.join("tools")),
+        );
         Self {
             theme: if session.dark_mode {
                 AppTheme::dark()
@@ -206,7 +213,10 @@ impl RadiologyApp {
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
+            index_tools,
             index_importer: Default::default(),
+            index_generator: Default::default(),
+            generation_report: None,
             index_plan: Default::default(),
             index_plan_job: Default::default(),
             index_projects_open: false,
@@ -239,6 +249,19 @@ impl RadiologyApp {
     /// Restores the last confirmed repository when no explicit launch root was supplied.
     pub fn restore_session(&mut self) {
         self.launch(None, None, None);
+    }
+
+    /// Captures the attached root and its private storage for background operations.
+    fn cached_repository(&mut self) -> Option<(PathBuf, PathBuf)> {
+        let root = self.repository_root.clone()?;
+        match self.session.repository_cache(&root) {
+            Some(cache) => Some((root, cache)),
+            None => {
+                self.error =
+                    Some("No private cache directory is available for this repository".into());
+                None
+            }
+        }
     }
 
     /// Opens the repository located at `path`, discovering files and restoring bookmarks.
@@ -872,7 +895,14 @@ impl eframe::App for RadiologyApp {
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
-                            indexed: self.semantic_index.is_some()
+                            indexed: self
+                                .semantic_index
+                                .as_ref()
+                                .zip(self.open_buffer.as_ref())
+                                .is_some_and(|(index, buffer)| {
+                                    index.documents.contains_key(&buffer.path)
+                                        && index.matches_buffer(buffer)
+                                })
                                 && self.active_revision != Some(ReviewRevision::Before),
                         },
                     ) {
