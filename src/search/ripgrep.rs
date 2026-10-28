@@ -162,12 +162,20 @@ impl SearchRunner {
         let mut total_count = 0;
         let mut limited = false;
 
-        while let Some(line) = reader.next_line().await? {
+        loop {
             if cancel.load(Ordering::Relaxed) {
                 let _ = child.kill().await;
                 let _ = stderr_task.await;
                 return Ok(false);
             }
+
+            let line = tokio::select! {
+                line = reader.next_line() => line?,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => continue,
+            };
+            let Some(line) = line else {
+                break;
+            };
 
             let matches = SearchMatch::decode_rg_json_line(&line);
             for m in matches {
