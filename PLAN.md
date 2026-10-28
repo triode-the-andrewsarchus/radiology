@@ -28,6 +28,9 @@ records asynchronous SCIP imports, project strategies, tool probes, cancellable
 processes, real-input workspaces, Generate/Reindex controls, native fixture
 acceptance and remaining cache/provisioning/snapshot integration.
 
+[Occurrence pin storage and controls](plans/rust-occurrence-pins.md)
+records unlimited groups, stable colors and content/revision-bound restoration.
+
 [C/C++ compilation database rebasing](plans/rust-clang-indexing.md)
 records private command/response/input/output mapping and compiler acceptance.
 
