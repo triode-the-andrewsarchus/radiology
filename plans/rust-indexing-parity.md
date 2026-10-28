@@ -227,7 +227,9 @@ are rebased; column encoding is made explicit before merging. Non-source,
 non-input and symbolic-link-text documents are filtered. Local IDs remain scoped
 by document. Overlapping documents retain the first document and make the report
 partial; they are not silently merged across unrelated local scopes. Actual
-source digests populate the semantic provenance boundary. Missing path counts
+source digests populate the semantic provenance boundary. Command paths carry the
+original root so Python project names remain stable across random build copies;
+a subprocess argv test verifies this boundary. Missing path counts
 are complete, with at most 100 names retained per project. Process diagnostics
 remain bounded; Kotlin partial-build markers are detected across all streamed
 stderr bytes even when omitted from retained logs.
