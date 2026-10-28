@@ -60,6 +60,10 @@ and the remaining generation/cache requirements.
   checkout. Opening/Reload Index restore current or explicitly stale cache data
   without tools and fall back to unverified imports for missing/invalid entries.
   Source identity guards survive reload. [Cache acceptance](rust-index-cache.md).
+- C/C++ generation uses rebased private compilation databases and copied response
+  files, preserving source input verification, UTF-8 coordinates and cache reports.
+  Real Clang compiles the rebased fixture with original sources unavailable;
+  native generation uses fixture SCIP output. [C/C++ limits](rust-clang-indexing.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different

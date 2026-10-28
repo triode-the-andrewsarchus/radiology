@@ -58,7 +58,7 @@ impl Fixture {
 if [ "${{1:-}}" = --version ]; then printf '{} fixture-1\n'; exit 0; fi
 printf '%s\n' "$@" > {}
 output=''
-while [ "$#" -gt 0 ]; do case "$1" in --output) shift; output=$1;; esac; shift; done
+while [ "$#" -gt 0 ]; do case "$1" in --output|--index-output-path) shift; output=$1;; --compdb-path) shift; database=$1;; esac; shift; done
 {before_output}
 /bin/cat {} > "$output"
 "#,
@@ -437,4 +437,110 @@ fn failed_generation_and_cancelled_cache_load_preserve_the_last_persisted_index(
     assert!(generated.index.is_some());
     assert!(generated.report.cache_warning.is_some());
     assert!(path.is_dir());
+}
+
+#[test]
+fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() {
+    let fixture = Fixture::new(&[
+        ("build/compile_commands.json", "[]"),
+        ("native.c", "int f(void) { return 0; }\n"),
+        ("include/header.h", "#define VALUE 1\n"),
+        ("flags.rsp", "-I../include -c ../native.c -o native.o"),
+    ]);
+    let database = fixture.source.join("build/compile_commands.json");
+    let original = serde_json::to_vec(&serde_json::json!([{
+        "directory": fixture.source.join("build"), "file": "../native.c",
+        "arguments": ["clang", "@../flags.rsp"], "output": "native.o"
+    }]))
+    .unwrap();
+    fs::write(&database, &original).unwrap();
+    // Full inventories retain tracked build inputs even though the browser hides build/.
+    for arguments in [
+        vec!["init", "-q"],
+        vec!["add", "-f", "build/compile_commands.json"],
+    ] {
+        assert!(std::process::Command::new("git")
+            .args(arguments)
+            .current_dir(&fixture.source)
+            .status()
+            .unwrap()
+            .success());
+    }
+    let witness = fixture.bin.join("rebased-database.json");
+    fixture.tool(
+        Indexer::Clang,
+        &["native.c"],
+        &format!(
+            "test -d build\n/bin/cat \"$database\" > {}",
+            quote(&witness)
+        ),
+    );
+    let generated = run(fixture.request());
+    assert!(generated.report.cache_warning.is_none());
+    assert_eq!(generated.report.documents, 1, "{:?}", generated.report);
+    let index = generated.index.unwrap();
+    assert_eq!(
+        index.column_encoding("native.c"),
+        Some(crate::source::ColumnEncoding::Utf8)
+    );
+    assert!(index.matches_buffer(&SourceBuffer::from_str(
+        "native.c",
+        "int f(void) { return 0; }\n"
+    )));
+    let arguments = fs::read_to_string(fixture.bin.join("scip-clang.args")).unwrap();
+    let arguments: Vec<_> = arguments.lines().collect();
+    assert_eq!(arguments[0], "--compdb-path");
+    let prepared = Path::new(arguments[1]);
+    assert!(prepared.starts_with(&fixture.cache));
+    assert_eq!(prepared.file_name().unwrap(), "compile_commands.json");
+    assert!(!prepared.exists()); // Disposable run removed after success.
+    let commands: serde_json::Value = serde_json::from_slice(&fs::read(witness).unwrap()).unwrap();
+    let copied = prepared.parent().unwrap().parent().unwrap();
+    assert_eq!(
+        commands[0]["directory"],
+        serde_json::json!(copied.join("build"))
+    );
+    assert_eq!(
+        commands[0]["file"],
+        serde_json::json!(copied.join("native.c"))
+    );
+    assert_eq!(
+        commands[0]["arguments"][1],
+        format!("-I{}", copied.join("include").display())
+    );
+    assert_eq!(
+        commands[0]["output"],
+        serde_json::json!(copied.join("build/native.o"))
+    );
+    assert_eq!(fs::read(database).unwrap(), original);
+    assert!(!fixture.source.join("build/native.o").exists());
+    assert!(
+        super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+            .unwrap()
+            .unwrap()
+            .report
+            .cached
+    );
+}
+
+#[test]
+fn malformed_clang_inputs_fail_before_indexer_execution_without_writing_inputs_or_cache() {
+    let fixture = Fixture::new(&[
+        ("compile_commands.json", "not JSON"),
+        ("native.c", "int x;"),
+    ]);
+    fixture.tool(Indexer::Clang, &["native.c"], "");
+    let generated = run(fixture.request());
+    assert!(generated.index.is_none());
+    assert!(generated.report.outcomes[0].failure.is_some());
+    assert!(!fixture.bin.join("scip-clang.args").exists());
+    assert_eq!(
+        fs::read_to_string(fixture.source.join("compile_commands.json")).unwrap(),
+        "not JSON"
+    );
+    assert!(
+        super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+            .unwrap()
+            .is_none()
+    );
 }

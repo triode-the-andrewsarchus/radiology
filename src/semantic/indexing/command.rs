@@ -35,6 +35,8 @@ pub struct CommandPaths<'a> {
     pub run: &'a Path,
     /// Optional fallback Gradle when a project has no executable wrapper.
     pub gradle: Option<&'a Path>,
+    /// Prepared C/C++ compilation database, exclusively under the private run.
+    pub compilation_database: Option<&'a Path>,
 }
 
 impl IndexingStrategy {
@@ -118,13 +120,13 @@ impl IndexingStrategy {
                 "--quiet".into(),
             ],
             Indexer::Clang => {
-                let database = self
-                    .evidence
-                    .first()
-                    .ok_or("C/C++ indexing requires a compilation database")?;
+                let database = paths.compilation_database
+                    .filter(|database| database.is_absolute() && database.starts_with(paths.run)
+                            && !database.components().any(|part| part == std::path::Component::ParentDir))
+                    .ok_or("C/C++ indexing requires a rebased database under the private run directory")?;
                 vec![
                     "--compdb-path".into(),
-                    database.into(),
+                    database.as_os_str().to_owned(),
                     "--index-output-path".into(),
                     output,
                     "--no-progress-report".into(),

@@ -427,9 +427,6 @@ fn prepare_and_run(
     state: &Mutex<GenerationProgress>,
     outcome: &mut StrategyOutcome,
 ) -> Result<ScipIndex, String> {
-    if strategy.indexer == Indexer::Clang {
-        return Err("C/C++ generation requires compilation-database rebasing before it can run in an isolated workspace".into());
-    }
     let workspace = IndexingWorkspace::create(
         baseline.root(),
         inventory,
@@ -466,6 +463,14 @@ fn prepare_and_run(
         .tempdir_in(workspace.root())
         .map_err(|e| e.to_string())?;
     let output = run.path().join("index.scip");
+    progress(state, "Preparing indexer inputs…");
+    let compilation_database = prepare_compilation_database(
+        strategy,
+        &request.root,
+        workspace.root(),
+        run.path(),
+        cancel,
+    )?;
     let mut command = strategy.command(CommandPaths {
         workspace: workspace.root(),
         source_root: &request.root,
@@ -473,6 +478,7 @@ fn prepare_and_run(
         output: &output,
         run: run.path(),
         gradle: None,
+        compilation_database: compilation_database.as_deref(),
     })?;
     command
         .environment
@@ -496,6 +502,34 @@ fn prepare_and_run(
     let normalized = normalize(scip, strategy, inventory, baseline)?;
     record_coverage(&normalized, inventory, outcome);
     Ok(normalized)
+}
+
+fn prepare_compilation_database(
+    strategy: &IndexingStrategy,
+    original: &std::path::Path,
+    workspace: &std::path::Path,
+    run: &std::path::Path,
+    cancel: &AtomicBool,
+) -> Result<Option<PathBuf>, String> {
+    if strategy.indexer != Indexer::Clang {
+        return Ok(None);
+    }
+    let evidence = strategy
+        .evidence
+        .first()
+        .ok_or("C/C++ indexing requires a compilation database")?;
+    super::inventory::validate_input_path(evidence)?;
+    let bytes = crate::semantic::loader::read_index_bytes(&workspace.join(evidence), cancel)?
+        .ok_or("Copied compilation database is missing")?;
+    let database = super::compilation_database::rebase(&bytes, original, workspace, run, cancel)?;
+    for directory in database.directories {
+        check_cancel(cancel)?;
+        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    }
+    check_cancel(cancel)?;
+    let path = run.join("compile_commands.json");
+    std::fs::write(&path, database.bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path))
 }
 
 fn record_coverage(scip: &ScipIndex, inventory: &InputInventory, outcome: &mut StrategyOutcome) {

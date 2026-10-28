@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-28 — C/C++ generation integration and native acceptance (Codex)
+
+Connected backend `574f68d` to generation: supported C/C++ compilation databases
+are prepared in the private run, required as absolute adapter input, and leave
+copied/original build inputs unchanged. Response expansion, source/encoding guards,
+coverage, disposal and persistent caching share the existing generation path.
+The blanket C/C++ generation gate is removed; no new jobs or UI flow was added.
+
+Validation: 142 application tests, 5 reader-text tests, 30 doctests, fmt, Clippy and
+binary build pass. The explicit real-Clang test also passes with original sources
+unavailable. Service tests inspect nested tracked database argv, unchanged bytes,
+UTF-8 publication and cache reload; native private Weston/Niri Generate publishes
+fixture SCIP coverage and semantics, captures private source/output paths and
+cleans its workspace. App/compositors exit zero. Architecture has no new product
+clone/hotspot/cycle; one six-line test fixture clone remains reported.
+
+Limitations remain: no installed scip-clang for actual semantic compiler acceptance,
+ignored generated build-database discovery, external build directories and broader
+compiler path-option protocols. Full parity remains open, including provisioning,
+cache reuse/retention, pinned After indexing, Critical Lens, call graphs and final
+Swift acceptance. Details: [C/C++ indexing](plans/rust-clang-indexing.md).
+
 ## 2026-10-28 — C/C++ compilation database rebase backend (Codex)
 
 Added bounded compilation-command rebasing for private inputs: argument arrays and

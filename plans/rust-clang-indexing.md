@@ -39,10 +39,38 @@ It is ignored by default because it requires Clang; this machine passed it.
 
 ## Integration and remaining requirements
 
-Backend implemented; generation integration follows separately. The current
-service still gates C/C++ until it can prepare the rebased database in its run and
-pass that absolute path to the adapter. No installed `scip-clang` was found on this
-machine, so compiler acceptance is not end-to-end semantic indexer acceptance.
+Backend `574f68d` is now integrated into the generation service. Each C/C++ run
+prepares a database under its existing private run directory and creates only its
+mapped working directories. The adapter requires that absolute prepared path;
+relative/original/parent-traversing database paths are rejected. The copied input
+database stays unchanged so standard input verification still applies. Successful
+C/C++ output follows normal encoding, source-digest, coverage and cache publication.
+Malformed databases fail before indexer execution and retain previous data.
+
+Integration tests cover a tracked nested `build/compile_commands.json`, response
+expansion, exact private argv/path capture, unchanged original bytes, disposal,
+UTF-8 semantic publication and cache reload. Native Generate acceptance used a
+fixture `scip-clang` in a private Weston/Niri session. The reader showed generated
+coverage and semantic availability; captured database paths referenced only the
+private copy. That copy was removed, and no objects/artifacts entered the viewed
+fixture. App and both compositors exited zero. Local captures:
+`/tmp/radiology-clang-native/{projects,generated}.png`; the captured rebased database
+is in that directory as `rebased-database.json`.
+
+Final checks: 142 application tests, 5 reader-text tests and 30 doctests pass;
+formatting, Clippy with warnings denied and binary build pass. The separate real
+Clang compilation test also passes when explicitly run. It is ignored by default
+because Clang is an external prerequisite. Architecture comparison finds no new
+production duplication, excessive CCN or cycle; its REGRESSION verdict is a new
+six-line test-fixture clone. Max CCN remains 100; duplication is about 0.7%.
+
+No installed `scip-clang` was found on this machine. Real compiler acceptance plus
+fixture semantic publication do not prove real compiler-indexer output.
+
+Input discovery retains its existing policy: tracked/unignored files in Git;
+browser exclusions in non-Git directories. Thus ignored/untracked generated build
+databases are not automatically included. The nested-build integration fixture
+tracks its database explicitly; broader build-database discovery is still required.
 
 External build working directories, generated dependencies outside the copied
 inventory, Windows/MSVC response quoting, uncommon path-valued compiler options

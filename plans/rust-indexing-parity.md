@@ -320,6 +320,18 @@ application and native restart checks are recorded in [cache acceptance](rust-in
 Earlier statements that persistence is absent are superseded by this integration;
 per-project/version-aware reuse, pinned After caching and retention remain open.
 
+## C/C++ isolated generation integration (2026-10-28)
+
+The earlier C/C++ generation gate is removed for supported repository-local
+compilation databases. The service rebases directories, sources, known path
+options, outputs and copied response files, and passes an absolute prepared file
+under its private run to the adapter. Original database bytes remain verified.
+[C/C++ acceptance and limits](rust-clang-indexing.md) records backend, real-Clang,
+service/cache and native fixture acceptance. Ignored build-database discovery,
+external build directories, uncommon compiler path protocols and actual
+`scip-clang` acceptance remain open. Historical C/C++ gate statements above are
+superseded by this integration, without claiming complete project coverage.
+
 ## Generation acceptance contract and remaining integration
 
 Generate/Reindex is connected for checkout work. Preserve these publication rules
