@@ -274,8 +274,10 @@ path discovery is pure and saving creates parent directories when needed.
 Open-buffer provenance mismatch exposes Reload Source, preserving the caret byte
 request through asynchronous preparation. Inspector semantic availability now
 requires current-document coverage and matching bytes. F12 requests verify the
-target digest. Global symbol-palette and caller-row destinations still need the
-same encoded/digest-checked navigation path; this is not full R11 acceptance.
+target digest. Workspace symbol-palette and caller-row destinations now share
+that encoded/digest-checked navigation path; Before uses its document outline.
+[Navigation acceptance](rust-semantic-navigation.md) records tests and native
+fixture checks. Persistent caches and review indexing still prevent full R11 acceptance.
 
 Native acceptance used the existing sibling private-compositor/pointer helpers
 through a temporary driver, without a sibling runtime dependency or source edit.

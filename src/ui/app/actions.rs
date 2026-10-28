@@ -273,7 +273,35 @@ impl RadiologyApp {
             return;
         };
         let id = SemanticSymbolID::new(&occurrence.symbol, &buffer.path);
-        let Some((path, range)) = index.find_definition_for_id(&id) else {
+        self.navigate_to_indexed_symbol(&id);
+    }
+
+    pub(super) fn navigate_to_indexed_symbol(&mut self, id: &SemanticSymbolID) {
+        let Some((path, range)) = self
+            .semantic_index
+            .as_ref()
+            .and_then(|index| index.find_definition_for_id(id))
+            .map(|(path, range)| (path.to_owned(), range.clone()))
+        else {
+            return;
+        };
+        self.navigate_to_indexed_range(&path, &range);
+    }
+
+    pub(super) fn navigate_to_indexed_range(
+        &mut self,
+        path: &str,
+        range: &crate::semantic::ScipRange,
+    ) {
+        let revision = self
+            .open_buffer
+            .as_ref()
+            .and_then(|buffer| buffer.revision)
+            .or(self.active_revision);
+        if revision == Some(ReviewRevision::Before) {
+            return;
+        }
+        let Some(index) = &self.semantic_index else {
             return;
         };
         let (Some(line), Ok(column), Some(encoding)) = (
@@ -286,7 +314,11 @@ impl RadiologyApp {
             return;
         };
         let content_digest = index.source_digests.get(path).cloned();
-        let location = SourceLocation::with_revision(path, 0, buffer.revision);
+        if !index.source_digests.is_empty() && content_digest.is_none() {
+            self.error = Some("Index has no source identity for this destination".into());
+            return;
+        }
+        let location = SourceLocation::with_revision(path, 0, revision);
         self.request_navigation(
             location,
             crate::source::loader::SourceTarget::Encoded {

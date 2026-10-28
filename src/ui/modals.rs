@@ -4,7 +4,7 @@
 
 use crate::repository::file_node::RepositoryFile;
 use crate::repository::quick_search::QuickFileSearch;
-use crate::semantic::index::SemanticIndex;
+use crate::semantic::index::{SemanticIndex, SemanticSymbolID};
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
@@ -19,15 +19,8 @@ pub enum ModalAction {
     JumpToLine(usize),
     /// Jumps the editor caret to the symbol starting at the given byte offset.
     JumpToSymbol(usize),
-    /// Jumps the editor caret to a specific file, line number, and byte offset.
-    JumpToLocation {
-        /// Target file path relative to repository root.
-        path: String,
-        /// 1-based line number.
-        line: usize,
-        /// 0-based byte offset.
-        byte_offset: usize,
-    },
+    /// Resolves the canonical definition for an indexed symbol identity.
+    JumpToIndexedSymbol(SemanticSymbolID),
     /// Fetches and opens the GitHub pull request with the given number.
     OpenPullRequest(usize),
     /// Dismisses the modal dialog without performing an action.
@@ -200,18 +193,16 @@ pub struct GoToSymbolModal {
     pub selected_idx: usize,
 }
 
+struct SymbolChoice {
+    name: String,
+    detail: String,
+    icon: &'static str,
+    action: ModalAction,
+}
+
 impl GoToSymbolModal {
-    /// Renders the symbol filter dialog.
-    ///
-    /// Searches workspace-wide semantic symbols if `semantic_index` is provided,
-    /// or falls back to current file outline `symbols`.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - EGUI context for global window rendering and keyboard input.
-    /// * `theme` - Visual color palette.
-    /// * `semantic_index` - Optional workspace semantic symbol index.
-    /// * `symbols` - Document outline symbols discovered in the active source buffer.
+    /// Searches indexed workspace symbols or the current document outline.
+    /// Both modes preserve their typed destinations and share input/rendering.
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -219,179 +210,161 @@ impl GoToSymbolModal {
         semantic_index: Option<&SemanticIndex>,
         symbols: &[DocumentSymbol],
     ) -> Option<ModalAction> {
+        let workspace = semantic_index.is_some();
         let mut action = None;
-
-        if let Some(index) = semantic_index {
-            let matches = index.search_symbols(&self.query, 100);
-
-            Window::new("Go to Symbol (Workspace)")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
-                .fixed_size(egui::vec2(540.0, 380.0))
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        Icon::Code.ui(ui, 14.0, theme.accent);
-                        let edit = TextEdit::singleline(&mut self.query)
-                            .hint_text("Search symbols in workspace...")
-                            .desired_width(ui.available_width() - 20.0);
-                        let resp = ui.add(edit);
-                        resp.request_focus();
-                    });
-
-                    ui.separator();
-
-                    if ctx.input(|i| i.key_pressed(Key::ArrowDown))
-                        && self.selected_idx + 1 < matches.len()
-                    {
-                        self.selected_idx += 1;
-                    }
-                    if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
-                        self.selected_idx -= 1;
-                    }
-                    if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                        if let Some(m) = matches.get(self.selected_idx) {
-                            action = Some(ModalAction::JumpToLocation {
-                                path: m.path.clone(),
-                                line: m.line,
-                                byte_offset: 0,
-                            });
-                        }
-                    }
-                    if ctx.input(|i| i.key_pressed(Key::Escape)) {
-                        action = Some(ModalAction::Close);
-                    }
-
-                    if self.selected_idx >= matches.len() && !matches.is_empty() {
-                        self.selected_idx = 0;
-                    }
-
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (idx, m) in matches.iter().enumerate() {
-                            let is_selected = idx == self.selected_idx;
-                            let bg = if is_selected {
-                                theme.accent.linear_multiply(0.2)
-                            } else {
-                                egui::Color32::TRANSPARENT
-                            };
-
-                            let item_resp = egui::Frame::none()
-                                .fill(bg)
-                                .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                                .rounding(4.0)
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.colored_label(theme.accent, "sym");
-                                        ui.label(egui::RichText::new(&m.name).strong());
-                                        ui.colored_label(
-                                            theme.text_muted,
-                                            format!("{}:{}", m.path, m.line),
-                                        );
-                                    });
-                                })
-                                .response;
-
-                            if item_resp.interact(egui::Sense::click()).clicked() {
-                                action = Some(ModalAction::JumpToLocation {
-                                    path: m.path.clone(),
-                                    line: m.line,
-                                    byte_offset: 0,
-                                });
-                            }
-                        }
-                    });
-                });
-
-            return action;
-        }
-
-        let mut flattened = Vec::new();
-        fn flatten_syms(syms: &[DocumentSymbol], out: &mut Vec<DocumentSymbol>) {
-            for s in syms {
-                out.push(s.clone());
-                flatten_syms(&s.children, out);
-            }
-        }
-        flatten_syms(symbols, &mut flattened);
-
-        let query_lower = self.query.trim().to_lowercase();
-        let matches: Vec<&DocumentSymbol> = flattened
-            .iter()
-            .filter(|s| query_lower.is_empty() || s.name.to_lowercase().contains(&query_lower))
-            .collect();
-
-        Window::new("Go to Symbol")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
-            .fixed_size(egui::vec2(500.0, 360.0))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+        Window::new(if workspace {
+            "Go to Symbol (Workspace)"
+        } else {
+            "Go to Symbol"
+        })
+        .id(egui::Id::new("reader_symbol_picker"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
+        .fixed_size(egui::vec2(540.0, 380.0))
+        .show(ctx, |ui| {
+            let changed = ui
+                .horizontal(|ui| {
                     Icon::Code.ui(ui, 14.0, theme.accent);
-                    let edit = TextEdit::singleline(&mut self.query)
-                        .hint_text("Symbol name...")
-                        .desired_width(ui.available_width() - 20.0);
-                    let resp = ui.add(edit);
-                    resp.request_focus();
-                });
-
-                ui.separator();
-
-                if ctx.input(|i| i.key_pressed(Key::ArrowDown))
-                    && self.selected_idx + 1 < matches.len()
-                {
-                    self.selected_idx += 1;
-                }
-                if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
-                    self.selected_idx -= 1;
-                }
-                if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                    if let Some(sym) = matches.get(self.selected_idx) {
-                        action = Some(ModalAction::JumpToSymbol(sym.selection_range.start));
-                    }
-                }
-                if ctx.input(|i| i.key_pressed(Key::Escape)) {
-                    action = Some(ModalAction::Close);
-                }
-
-                if self.selected_idx >= matches.len() && !matches.is_empty() {
-                    self.selected_idx = 0;
-                }
-
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (idx, sym) in matches.iter().enumerate() {
-                        let is_selected = idx == self.selected_idx;
-                        let bg = if is_selected {
-                            theme.accent.linear_multiply(0.2)
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        };
-
-                        let item_resp = egui::Frame::none()
-                            .fill(bg)
-                            .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                            .rounding(4.0)
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.colored_label(theme.accent, sym.kind.icon());
-                                    ui.label(egui::RichText::new(&sym.name).strong());
-                                    ui.colored_label(
-                                        theme.text_muted,
-                                        format!("line {}", sym.line),
-                                    );
-                                });
+                    let response = ui.add(
+                        TextEdit::singleline(&mut self.query)
+                            .hint_text(if workspace {
+                                "Search symbols in workspace..."
+                            } else {
+                                "Symbol name..."
                             })
-                            .response;
-
-                        if item_resp.interact(egui::Sense::click()).clicked() {
-                            action = Some(ModalAction::JumpToSymbol(sym.selection_range.start));
-                        }
-                    }
-                });
+                            .desired_width(ui.available_width() - 20.0),
+                    );
+                    response.request_focus();
+                    response.changed()
+                })
+                .inner;
+            // Resolve after text input, including text and Enter in one frame.
+            let choices = symbol_choices(&self.query, semantic_index, symbols);
+            if changed {
+                self.selected_idx = 0;
+            }
+            action = self.keyboard_selection(ctx, &choices);
+            ui.separator();
+            // Horizontal layout reserves at least the standard interaction height.
+            let height = ui
+                .text_style_height(&egui::TextStyle::Body)
+                .max(ui.spacing().interact_size.y)
+                + 8.0;
+            let stride = height + ui.spacing().item_spacing.y;
+            let id = ui.make_persistent_id("symbol_choices");
+            let mut scroll = egui::ScrollArea::vertical().id_source("symbol_choices");
+            let moved = ctx.input(|input| {
+                input.key_pressed(Key::ArrowDown) || input.key_pressed(Key::ArrowUp)
             });
-
+            if changed {
+                scroll = scroll.vertical_scroll_offset(0.0);
+            } else if moved {
+                let offset = egui::scroll_area::State::load(ctx, id)
+                    .unwrap_or_default()
+                    .offset
+                    .y;
+                let top = self.selected_idx as f32 * stride;
+                let bottom = top + height;
+                let target = offset.min(top).max(bottom - ui.available_height()).max(0.0);
+                scroll = scroll.vertical_scroll_offset(target);
+            }
+            scroll.show_rows(ui, height, choices.len(), |ui, rows| {
+                for idx in rows {
+                    let choice = &choices[idx];
+                    let bg = if idx == self.selected_idx {
+                        theme.accent.linear_multiply(0.2)
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    };
+                    let response = egui::Frame::none()
+                        .fill(bg)
+                        .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                        .rounding(4.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.colored_label(theme.accent, choice.icon);
+                                ui.add(
+                                    egui::Label::new(egui::RichText::new(&choice.name).strong())
+                                        .truncate(true),
+                                );
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&choice.detail).color(theme.text_muted),
+                                    )
+                                    .truncate(true),
+                                )
+                                .on_hover_text(&choice.detail);
+                            })
+                        })
+                        .response;
+                    if response.interact(egui::Sense::click()).clicked() {
+                        action = Some(choice.action.clone());
+                    }
+                }
+            });
+        });
         action
     }
+
+    fn keyboard_selection(
+        &mut self,
+        ctx: &Context,
+        choices: &[SymbolChoice],
+    ) -> Option<ModalAction> {
+        self.selected_idx = self.selected_idx.min(choices.len().saturating_sub(1));
+        if ctx.input(|input| input.key_pressed(Key::ArrowDown))
+            && self.selected_idx + 1 < choices.len()
+        {
+            self.selected_idx += 1;
+        }
+        if ctx.input(|input| input.key_pressed(Key::ArrowUp)) {
+            self.selected_idx = self.selected_idx.saturating_sub(1);
+        }
+        if ctx.input(|input| input.key_pressed(Key::Escape)) {
+            return Some(ModalAction::Close);
+        }
+        if ctx.input(|input| input.key_pressed(Key::Enter)) {
+            return choices
+                .get(self.selected_idx)
+                .map(|choice| choice.action.clone());
+        }
+        None
+    }
+}
+
+fn symbol_choices(
+    query: &str,
+    index: Option<&SemanticIndex>,
+    symbols: &[DocumentSymbol],
+) -> Vec<SymbolChoice> {
+    if let Some(index) = index {
+        return index
+            .search_symbols(query, 100)
+            .into_iter()
+            .map(|entry| SymbolChoice {
+                name: entry.name,
+                detail: format!("{}:{}", entry.path, entry.line),
+                icon: "sym",
+                action: ModalAction::JumpToIndexedSymbol(entry.id),
+            })
+            .collect();
+    }
+    let query = query.trim().to_lowercase();
+    let mut stack: Vec<_> = symbols.iter().rev().collect();
+    let mut choices = Vec::new();
+    while let Some(symbol) = stack.pop() {
+        if query.is_empty() || symbol.name.to_lowercase().contains(&query) {
+            choices.push(SymbolChoice {
+                name: symbol.name.clone(),
+                detail: format!("line {}", symbol.line),
+                icon: symbol.kind.icon(),
+                action: ModalAction::JumpToSymbol(symbol.selection_range.start),
+            });
+        }
+        stack.extend(symbol.children.iter().rev());
+    }
+    choices
 }
 
 /// Modal dialog for entering a pull request number to review from GitHub.
@@ -446,5 +419,177 @@ impl PullRequestModal {
             });
 
         action
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::semantic::index::SymbolSearchEntry;
+
+    fn frame(events: Vec<egui::Event>) -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(700.0, 600.0),
+            )),
+            events,
+            ..Default::default()
+        }
+    }
+    fn key(key: Key, pressed: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: Default::default(),
+        }
+    }
+
+    #[test]
+    fn workspace_keyboard_and_pointer_selection_emit_symbol_identity() {
+        let context = Context::default();
+        let id = SemanticSymbolID::new("scip test fixture 1 target().", "");
+        let mut index = SemanticIndex::default();
+        index.search_entries.push(SymbolSearchEntry {
+            id: id.clone(),
+            name: "target".into(),
+            kind: 0,
+            path: "b.ts".into(),
+            line: 3,
+            definition_count: 1,
+        });
+        let mut modal = GoToSymbolModal::default();
+        let mut action = None;
+        let _ = context.run(frame(vec![]), |context| {
+            action = modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+        });
+        let output = context.run(frame(vec![]), |context| {
+            action = modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+        });
+        assert!(action.is_none());
+        let position = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == "target" => {
+                    Some(text.pos + text.galley.size() * 0.5)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let _ = context.run(
+            frame(vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }]),
+            |context| {
+                action = modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+            },
+        );
+        assert_eq!(action, Some(ModalAction::JumpToIndexedSymbol(id.clone())));
+        for pressed in [true, false] {
+            let _ = context.run(
+                frame(vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Default::default(),
+                    },
+                ]),
+                |context| {
+                    action = modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+                },
+            );
+        }
+        assert_eq!(action, Some(ModalAction::JumpToIndexedSymbol(id)));
+    }
+    #[test]
+    fn query_text_and_enter_in_the_same_frame_select_the_new_match() {
+        let context = Context::default();
+        let mut index = SemanticIndex::default();
+        for name in ["alpha", "target"] {
+            index.search_entries.push(SymbolSearchEntry {
+                id: SemanticSymbolID::new(name, ""),
+                name: name.into(),
+                kind: 0,
+                path: "a.rs".into(),
+                line: 1,
+                definition_count: 1,
+            });
+        }
+        let mut modal = GoToSymbolModal::default();
+        for _ in 0..2 {
+            let _ = context.run(frame(vec![]), |context| {
+                modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+            });
+        }
+        let mut action = None;
+        let _ = context.run(
+            frame(vec![
+                egui::Event::Text("target".into()),
+                key(Key::Enter, true),
+            ]),
+            |context| {
+                action = modal.show(context, &AppTheme::dark(), Some(&index), &[]);
+            },
+        );
+        assert_eq!(
+            action,
+            Some(ModalAction::JumpToIndexedSymbol(SemanticSymbolID::new(
+                "target", ""
+            )))
+        );
+    }
+
+    #[test]
+    fn document_picker_virtualizes_rows_and_reveals_keyboard_selection() {
+        use crate::syntax::outline::SymbolKind;
+        let symbols: Vec<_> = (0..1000)
+            .map(|n| DocumentSymbol {
+                name: format!("f{n:04}"),
+                kind: SymbolKind::Function,
+                range: n * 8..n * 8 + 8,
+                selection_range: n * 8..n * 8 + 5,
+                line: n + 1,
+                children: vec![],
+                detail: None,
+            })
+            .collect();
+        let context = Context::default();
+        let mut modal = GoToSymbolModal::default();
+        for _ in 0..2 {
+            let _ = context.run(frame(vec![]), |context| {
+                modal.show(context, &AppTheme::dark(), None, &symbols);
+            });
+        }
+        modal.selected_idx = 998;
+        let output = context.run(frame(vec![key(Key::ArrowDown, true)]), |context| {
+            modal.show(context, &AppTheme::dark(), None, &symbols);
+        });
+        let painted: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            painted.contains(&"f0999"),
+            "keyboard target not painted: {painted:?}"
+        );
+        assert!(painted.len() < 100, "offscreen symbol rows were rendered");
+        let mut action = None;
+        let _ = context.run(frame(vec![key(Key::Enter, true)]), |context| {
+            action = modal.show(context, &AppTheme::dark(), None, &symbols);
+        });
+        assert_eq!(action, Some(ModalAction::JumpToSymbol(999 * 8)));
     }
 }

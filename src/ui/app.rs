@@ -659,16 +659,14 @@ impl eframe::App for RadiologyApp {
                 if let Some(action) = modal.show(
                     ctx,
                     &self.theme,
-                    self.semantic_index.as_ref(),
+                    self.semantic_index
+                        .as_ref()
+                        .filter(|_| self.active_revision != Some(ReviewRevision::Before)),
                     &self.outline_symbols,
                 ) {
                     match action {
-                        ModalAction::JumpToLocation {
-                            path,
-                            line,
-                            byte_offset,
-                        } => {
-                            self.jump_to_location(&path, line, byte_offset);
+                        ModalAction::JumpToIndexedSymbol(id) => {
+                            self.navigate_to_indexed_symbol(&id);
                             close_modal = true;
                         }
                         ModalAction::JumpToSymbol(byte) => {
@@ -902,6 +900,7 @@ impl eframe::App for RadiologyApp {
                                 .is_some_and(|(index, buffer)| {
                                     index.documents.contains_key(&buffer.path)
                                         && index.matches_buffer(buffer)
+                                        && index.column_encoding(&buffer.path).is_some()
                                 })
                                 && self.active_revision != Some(ReviewRevision::Before),
                         },
@@ -910,12 +909,8 @@ impl eframe::App for RadiologyApp {
                             InspectorAction::GoToDefinition => {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)
                             }
-                            InspectorAction::JumpToLocation {
-                                path,
-                                line,
-                                byte_offset,
-                            } => {
-                                self.jump_to_location(&path, line, byte_offset);
+                            InspectorAction::JumpToIndexedLocation { path, range } => {
+                                self.navigate_to_indexed_range(&path, &range);
                             }
                             InspectorAction::JumpToSymbol(byte) => {
                                 if let Some(buffer) = &self.open_buffer {
@@ -985,6 +980,7 @@ impl eframe::App for RadiologyApp {
                             has_semantic_index: self.semantic_index.as_ref().is_some_and(|index| {
                                 index.documents.contains_key(&buf.path)
                                     && index.matches_buffer(&buf)
+                                    && index.column_encoding(&buf.path).is_some()
                             }) && buf.revision != Some(ReviewRevision::Before),
                             keyboard_enabled: matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,

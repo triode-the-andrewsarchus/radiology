@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-28 — Shared semantic navigation and symbol-picker acceptance (Codex)
+
+Integrated core commit `52d7580`: workspace keyboard/pointer selection carries
+scoped identity, callers preserve original reference coordinates, and both share
+F12's encoding/digest-checked asynchronous navigation. Before exposes its outline.
+The consolidated picker virtualizes rows, reveals keyboard selection, handles
+query-plus-Enter in one frame and avoids cloning nested outline trees.
+
+Verification passes 128 application tests, 5 reader-text tests, 30 doctests, fmt,
+Clippy with warnings denied and binary build. Private native Weston/Niri checks
+verified keyboard/pointer symbols, caller rows and F12 at exact positions after
+emoji; app and both compositors exited zero. Fixture imports do not constitute
+real compiler-indexer acceptance. Architecture duplication improves, but test
+clones, update CCN 51→53 for required checks and orchestration flags remain;
+the tool verdict is still REGRESSION. Details: [semantic navigation](plans/rust-semantic-navigation.md).
+
+Full parity remains open: persistent validated caches, private tool provisioning,
+C/C++ compilation-database rebasing, pinned After generation, refresh lifecycle,
+Critical Lens, parsed call graphs, richer inspector/source presentation and final
+Swift/runtime acceptance. The older palette/caller TODO below is now superseded.
+
 ## 2026-10-28 — Canonical semantic coordinates and cache-aware destinations (Codex)
 
 Search labels, definition resolution and relationship fallback now use the same

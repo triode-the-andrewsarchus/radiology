@@ -14,11 +14,12 @@ use uuid::Uuid;
 pub enum InspectorAction {
     /// Opens the exact semantic definition under the source caret.
     GoToDefinition,
-    /// Navigates to canonical source coordinates.
-    JumpToLocation {
+    /// Resolves a reference in its document's declared encoding and exact bytes.
+    JumpToIndexedLocation {
+        /// Repository-relative destination path.
         path: String,
-        line: usize,
-        byte_offset: usize,
+        /// Original SCIP coordinates; not byte offsets.
+        range: crate::semantic::ScipRange,
     },
     /// Navigates to an exact symbol byte in the current source.
     JumpToSymbol(usize),
@@ -275,10 +276,9 @@ impl ContextInspector {
         }
 
         if resp.clicked() {
-            action = Some(InspectorAction::JumpToLocation {
+            action = Some(InspectorAction::JumpToIndexedLocation {
                 path: node.path.clone(),
-                line: node.line,
-                byte_offset: 0,
+                range: node.range.clone(),
             });
         }
 
@@ -379,5 +379,62 @@ mod tests {
             "declaration region collapsed around its content"
         );
         assert!(y("Bookmarks") > y("Outline") + 100.0);
+    }
+    #[test]
+    fn caller_row_pointer_navigation_preserves_the_encoded_reference_range() {
+        let context = egui::Context::default();
+        let range = crate::semantic::ScipRange::from_packed(&[1, 7, 13]).unwrap();
+        let node = ReferenceCallerNode {
+            name: "caller".into(),
+            path: "b.ts".into(),
+            line: 2,
+            range: range.clone(),
+            depth: 0,
+            color_slot: 0,
+            is_recursive: false,
+            children: vec![],
+        };
+        let mut action = None;
+        let mut position = egui::Pos2::ZERO;
+        let frame = |events| egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(320.0, 300.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let _ = context.run(frame(vec![]), |context| {
+            egui::CentralPanel::default().show(context, |ui| {
+                position = ui.next_widget_position() + egui::vec2(120.0, 12.0);
+                action = ContextInspector::render_caller_node(ui, &AppTheme::dark(), &node, 0);
+            });
+        });
+        for pressed in [true, false] {
+            let _ = context.run(
+                frame(vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Default::default(),
+                    },
+                ]),
+                |context| {
+                    egui::CentralPanel::default().show(context, |ui| {
+                        action =
+                            ContextInspector::render_caller_node(ui, &AppTheme::dark(), &node, 0);
+                    });
+                },
+            );
+        }
+        assert_eq!(
+            action,
+            Some(InspectorAction::JumpToIndexedLocation {
+                path: "b.ts".into(),
+                range
+            })
+        );
     }
 }
