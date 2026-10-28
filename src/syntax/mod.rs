@@ -14,4 +14,4 @@ pub use folds::{FoldDetector, FoldRange, FoldStore};
 pub use highlighter::{HighlightedSpan, SyntaxHighlighter};
 pub use language::{LanguageInfo, LanguageRegistry, SupportedGrammar};
 pub use outline::{DocumentSymbol, SymbolExtractor, SymbolKind};
-pub use test_detector::{TestRegion, TestRegionDetector};
+pub use test_detector::{TestDetection, TestRegion, TestRegionDetector};

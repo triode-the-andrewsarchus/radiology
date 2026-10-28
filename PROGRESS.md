@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-27 — AST-based test detection (Codex)
+
+Replaced the line/brace-counting detector with native grammar-node rules aligned
+with Swift: Rust test attributes and conservative three-valued cfg predicates,
+Kotlin annotations/classes/Kotest bases, Python unittest and pytest module
+conventions, and ECMAScript callbacks with binding provenance and Vitest guards.
+Regions include owned doc/trailing comments, preserve canonical CRLF coordinates,
+and normalize nested/adjacent tests. File-level Rust cfg gating stays explicit.
+Rust and Kotlin share one iterative region walk rather than copied traversal.
+
+Five fixture groups cover production-reachable/contradictory cfg, strings/macros,
+CRLF comments, framework evidence, local JS shadowing, TSX, Kotlin bodies and
+Kotest classes. All 69 application tests, 5 reader-text tests and 30 doctests pass;
+Clippy with warnings denied passes. UI Hide Tests wiring remains the next step.
+The added grammar-fixture test assertion clone is retained; the production walk
+clone was removed. Existing architecture flags remain documented above.
+
 ## 2026-10-27 — Native Swift/Kotlin syntax foundations (Codex)
 
 Added statically linked Swift 0.7.4 and Kotlin-ng 1.1.0 grammars (MIT), with
