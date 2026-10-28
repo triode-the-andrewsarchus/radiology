@@ -630,19 +630,17 @@ impl SemanticIndex {
             0 => self.default_encoding,
             explicit => explicit,
         };
-        let position = |line: i32, column: i32| -> Option<usize> {
-            let line = usize::try_from(line).ok()?.checked_add(1)?;
-            let column = usize::try_from(column).ok()?;
-            if line > buffer.line_count() {
-                return None;
-            }
-            let text = buffer.line_text(line);
-            let offset = match encoding {
-                2 => encoded_column(text, column, char::len_utf16)?,
-                3 => encoded_column(text, column, |_| 1)?,
-                _ => (column <= text.len() && text.is_char_boundary(column)).then_some(column)?,
-            };
-            Some(buffer.line_byte_range(line).start + offset)
+        let encoding = match encoding {
+            2 => crate::source::ColumnEncoding::Utf16,
+            3 => crate::source::ColumnEncoding::Utf32,
+            _ => crate::source::ColumnEncoding::Utf8,
+        };
+        let position = |line: i32, column: i32| {
+            buffer.byte_offset_encoded(
+                usize::try_from(line).ok()?.checked_add(1)?,
+                usize::try_from(column).ok()?,
+                encoding,
+            )
         };
         let start = position(range.start_line, range.start_col)?;
         let end = position(range.end_line, range.end_col)?;
@@ -667,17 +665,6 @@ impl SemanticIndex {
             .min_by_key(|(size, _)| *size)
             .map(|(_, occurrence)| occurrence)
     }
-}
-
-fn encoded_column(text: &str, column: usize, width: impl Fn(char) -> usize) -> Option<usize> {
-    let mut units = 0;
-    for (byte, ch) in text.char_indices() {
-        if units == column {
-            return Some(byte);
-        }
-        units += width(ch);
-    }
-    (units == column).then_some(text.len())
 }
 
 #[cfg(test)]

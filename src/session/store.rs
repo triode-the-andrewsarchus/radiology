@@ -85,7 +85,10 @@ impl SessionStore {
     /// Loads the persisted session from `~/.config/radiology/session.json`.
     #[must_use]
     pub fn load() -> Self {
-        Self::session_file_path().map_or_else(Self::default, Self::load_from)
+        let mut store = Self::session_file_path().map_or_else(Self::default, Self::load_from);
+        // Only an explicit host override redirects cache storage beside settings.
+        store.storage_path = None;
+        store
     }
 
     /// Loads settings from an explicit file and keeps subsequent saves there.
