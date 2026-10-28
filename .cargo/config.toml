@@ -1,0 +1,3 @@
+[build]
+# Half of this development system's 32 available logical CPUs.
+jobs = 16
