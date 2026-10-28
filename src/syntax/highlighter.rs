@@ -157,10 +157,26 @@ impl SyntaxHighlighter {
         text: &str,
         dark_mode: bool,
     ) -> Vec<Vec<HighlightedSpan>> {
+        self.highlight_document_cancellable(syntax_ref, text, dark_mode, || false)
+            .unwrap_or_default()
+    }
+
+    /// Highlights original lines, checking request retirement between line parses.
+    #[must_use]
+    pub fn highlight_document_cancellable(
+        &self,
+        syntax_ref: Option<&SyntaxReference>,
+        text: &str,
+        dark_mode: bool,
+        cancelled: impl Fn() -> bool,
+    ) -> Option<Vec<Vec<HighlightedSpan>>> {
         let mut out = Vec::new();
         if let Some(syntax) = syntax_ref {
             let mut hl = HighlightLines::new(syntax, self.theme(dark_mode));
             for line in syntect::util::LinesWithEndings::from(text) {
+                if cancelled() {
+                    return None;
+                }
                 out.push(self.highlight_line(&mut hl, line));
             }
         } else {
@@ -170,6 +186,9 @@ impl SyntaxHighlighter {
                 Color32::from_rgb(30, 30, 30)
             };
             for line in text.lines() {
+                if cancelled() {
+                    return None;
+                }
                 out.push(vec![HighlightedSpan {
                     bytes: 0..line.len(),
                     text: line.to_string(),
@@ -179,7 +198,7 @@ impl SyntaxHighlighter {
                 }]);
             }
         }
-        out
+        (!cancelled()).then_some(out)
     }
 }
 

@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-28 — Background source preparation foundation (Codex)
+
+Added `SourceLoader`: exact checkout/pinned-review reads, destination decoding
+(bytes, scalar positions, declared index encoding, bookmark relocation), shared
+structural analysis, cancellable per-line highlighting, and file-specific diffs
+run on the existing four-worker pool. Prepared source is immutable and published
+as one payload. Existing-buffer recoloring shares its Arc and skips structural
+parsing and filesystem reads. Retired requests cannot publish.
+
+Extracted the actual cancellation/channel ownership shared with local find into
+`LatestRead`; no second retirement protocol is retained. Real-source tests cover
+replacement, exact Unicode coordinates, failures and recoloring after the backing
+file was removed. Verified 74 application tests, 5 reader-text tests, 30 doctests;
+formatting and Clippy with warnings denied pass. Architecture flags remain the
+previous two test-only clones and review-preparation structural finding.
+
+This commit is the backend foundation: the reader still uses synchronous source
+opening until the next integration change. [Source loading contract and remaining
+integration](plans/rust-source-loading.md) records publication/history requirements,
+worker cancellation limits, and remaining repository/index work.
+
 ## 2026-10-28 — Inline Hide Tests and navigation integration (Codex)
 
 - Native grammars committed as `9330a1c`; AST rules committed as `230e092`.
