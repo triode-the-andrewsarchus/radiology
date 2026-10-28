@@ -564,3 +564,103 @@ fn tool_probes_publish_real_versions_and_are_retired_on_repository_changes() {
     settle(&mut app);
     assert!(app.tool_availability(Indexer::Rust).is_none());
 }
+
+#[cfg(unix)]
+#[test]
+fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires_on_switch() {
+    use std::os::unix::fs::PermissionsExt;
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    let next = dir.path().join("next");
+    repository(&root);
+    repository(&next);
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname='fixture'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    let executable = dir.path().join("settings/tools/bin/rust-analyzer");
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    std::fs::write(
+        &executable,
+        r#"#!/bin/sh
+if [ "${1:-}" = --version ]; then printf 'rust-analyzer fixture\n'; exit 0; fi
+while [ "$#" -gt 0 ]; do case "$1" in --output) shift; output=$1;; esac; shift; done
+printf artifact > artifact.bin
+printf '\022\006\012\004a.rs' > "$output"
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let ctx = Context::default();
+    app.open_repository(&root);
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    assert!(app.index_generator.is_running());
+    assert!(app.semantic_index.is_none());
+    settle(&mut app);
+    assert_eq!(app.generation_report().unwrap().documents, 1);
+    let digest = app.semantic_index.as_ref().unwrap().source_digests["a.rs"].clone();
+    assert!(!root.join("artifact.bin").exists());
+    std::fs::write(root.join("a.rs"), "fn changed() {}\n").unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadSource);
+    settle(&mut app);
+    assert!(!app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .matches_buffer(app.open_buffer.as_ref().unwrap()));
+    std::fs::write(&executable, "#!/bin/sh\nif [ \"${1:-}\" = --version ]; then printf 'rust-analyzer fixture\\n'; exit 0; fi\nprintf failure >&2; exit 9\n").unwrap();
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    settle(&mut app);
+    assert_eq!(app.generation_report().unwrap().documents, 0);
+    assert_eq!(
+        app.semantic_index.as_ref().unwrap().source_digests["a.rs"],
+        digest
+    );
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    app.execute_command(&ctx, ToolbarAction::CancelIndexGeneration);
+    assert!(app.index_generator.was_cancelled());
+    assert!(app.semantic_index.is_some());
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    app.open_repository(&next);
+    settle(&mut app);
+    assert!(app.semantic_index.is_none());
+    assert!(app.generation_report().is_none());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn idle_reader_construction_does_not_create_default_configuration() {
+    const MARKER: &str = "RADIOLOGY_TEST_IDLE_CONFIG";
+    if let Some(directory) = std::env::var_os(MARKER) {
+        let directory = PathBuf::from(directory);
+        let app = RadiologyApp::from_session(SessionStore::default());
+        assert!(app.repository_root.is_none());
+        assert_eq!(
+            app.index_tools.managed,
+            Some(directory.join("radiology/tools"))
+        );
+        assert!(!directory.exists());
+        return;
+    }
+    let owner = tempfile::tempdir().unwrap();
+    let directory = owner.path().join("uncreated-config");
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "ui::app::tests::idle_reader_construction_does_not_create_default_configuration",
+            "--nocapture",
+        ])
+        .env("XDG_CONFIG_HOME", &directory)
+        .env(MARKER, &directory)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!directory.exists());
+}

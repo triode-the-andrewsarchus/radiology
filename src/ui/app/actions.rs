@@ -6,10 +6,30 @@ impl RadiologyApp {
     pub(super) fn execute_command(&mut self, ctx: &Context, command: ToolbarAction) {
         use ToolbarAction::*;
         match command {
+            ReloadSource => {
+                if let Some(buffer) = &self.open_buffer {
+                    let location = buffer
+                        .location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col));
+                    let target = crate::source::loader::SourceTarget::Byte(location.byte_offset);
+                    self.request_navigation(
+                        location,
+                        target,
+                        source::NavigationIntent {
+                            force_read: true,
+                            reveal: true,
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+            GenerateIndex => self.generate_index(),
+            CancelIndexGeneration => self.index_generator.stop(),
             CheckIndexTools => self.check_index_tools(),
             CancelIndexToolCheck => self.tool_probe_job.stop(),
             ReloadIndexImport if self.review.is_none() => {
                 if let Some(root) = &self.repository_root {
+                    self.index_generator = Default::default();
+                    self.generation_report = None;
                     self.index_importer.start(root.clone());
                 }
             }

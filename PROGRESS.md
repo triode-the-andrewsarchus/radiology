@@ -1,5 +1,42 @@
 # Progress
 
+## 2026-10-28 — Generate/Reindex reader integration and native acceptance (Codex)
+
+Integrated backend `88bbc95` and Python identity fix `e4a94ed` into shared reader
+commands. Index Projects exposes Generate/Reindex/Cancel, last-run coverage and
+bounded diagnostics. Working-tree source drift, failed/all-failed runs and retained
+prior data remain explicit. Imports and generation retire each other's jobs;
+repository/review changes retire generation and clear reports. Hosts can configure
+`index_tools`, drive `poll_index`, or use the independent generator directly.
+
+Mismatched open source has a Reload Source action. Inspector availability now
+requires document coverage and matching bytes. Repository/cache acquisition is
+shared with PR preparation. Tool-path setup is pure: config-path discovery no
+longer creates directories, and an isolated subprocess test verifies idle default
+reader construction leaves configuration absent.
+
+Native isolated Weston/Niri acceptance used a fixture indexer: Generate published
+semantic data, Reindex retained the reader, Find stayed responsive with a real
+highlighted match while the indexer ran, and Cancel stopped the process, removed
+the private workspace and retained the prior index. Actual command environment
+used 16 Cargo jobs and a target directory inside the private copy; no artifact was
+written into the viewed fixture. App and both compositors exited zero. Captures
+and limits: [indexing parity](plans/rust-indexing-parity.md).
+
+Final verification: 120 application tests, 5 reader-text tests, 30 doctests, fmt,
+Clippy with warnings denied and binary build pass. One earlier probe-test failure
+was not reproduced in 20 parallel library-suite runs; enhanced diagnostics remain,
+not a speculative fix. Architecture comparison still reports REGRESSION for two
+known test-only clones and review/workspace/generation orchestration structural
+flags; no newly excessive CCN or product clone remains. Full parity is open.
+
+Next requirements include persistent validated caches, private provisioning,
+real compiler-indexer acceptance, C/C++ rebasing, pinned After generation, refresh
+lifecycle and complete semantic destination checks. Global symbol-palette and
+caller-row navigation still need the shared encoded/digest-checked destination
+path; F12 definitions already use it. Critical Lens, parsed call graphs, inspector
+previews and final full acceptance remain in the original parity ledger.
+
 ## 2026-10-28 — Stable Python project identity in isolated runs (Codex)
 
 Fixed Python's `--project-name` to use the original repository/project directory,
@@ -7,7 +44,7 @@ not the randomly named build copy. `CommandPaths` now carries the original root;
 a real fixture subprocess records argv to verify identity survives isolation and
 literal source paths. Workspace tests, including pending reader integration,
 pass 119 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy.
-No real compiler indexer is installed for acceptance on this machine yet.
+The rust-analyzer component is missing on this machine; real compiler-indexer acceptance remains pending.
 
 ## 2026-10-28 — Isolated checkout index generation service (Codex)
 

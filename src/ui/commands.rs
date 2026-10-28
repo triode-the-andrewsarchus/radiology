@@ -43,6 +43,12 @@ pub enum ReaderCommand {
     PreviousFindMatch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Reloads current source bytes while preserving the caret destination.
+    ReloadSource,
+    /// Generates a fresh index in isolated build-input workspaces.
+    GenerateIndex,
+    /// Cancels index generation while retaining published semantic data.
+    CancelIndexGeneration,
     /// Probes executable versions for the detected indexing tools.
     CheckIndexTools,
     /// Stops pending executable version probes.
