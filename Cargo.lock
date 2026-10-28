@@ -2531,6 +2531,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
+ "shlex",
  "syntect",
  "tempfile",
  "thiserror 1.0.69",

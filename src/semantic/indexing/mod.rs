@@ -5,6 +5,7 @@
 
 pub mod cache;
 pub mod command;
+pub mod compilation_database;
 pub mod inventory;
 pub mod process;
 pub mod service;
