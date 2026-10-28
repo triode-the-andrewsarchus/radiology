@@ -1,277 +1,320 @@
-//! AST-aware inline test region detection for source files.
+//! Conservative inline test detection from native grammar nodes.
 //!
-//! Detects inline test modules, unit test functions, and test fixtures across Rust,
-//! Python, TypeScript/JavaScript, and Kotlin, allowing them to be automatically folded
-//! or receded when the "Hide Tests" filter is active.
+//! Rules mirror the Swift reader. Comments, strings, macro token trees and
+//! production-reachable Rust cfg predicates never become tests by text scanning.
 
-use crate::source::buffer::SourceBuffer;
-use crate::syntax::language::{LanguageRegistry, SupportedGrammar};
+mod kotlin;
+mod rust;
+mod script;
+
+use super::language::{LanguageRegistry, SupportedGrammar};
+use crate::source::SourceBuffer;
 use std::ops::Range;
+use tree_sitter::Node;
 
-/// Represents an inline test region (e.g. `mod tests { ... }` or `#[test] fn ...`).
+/// One disjoint outer test region in canonical source coordinates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestRegion {
-    /// Absolute UTF-8 byte range of the test region in the buffer.
+    /// Exact source bytes, expanded only where the declaration owns its line.
     pub byte_range: Range<usize>,
-    /// 1-based line number range spanning the entire test region.
+    /// One-based canonical lines, with an exclusive upper bound.
     pub line_range: Range<usize>,
-    /// 1-based line number of the test region's header line.
+    /// First visible line retained when test bodies are hidden.
     pub header_line: usize,
 }
 
-/// Detects inline test code blocks within source buffers.
+/// Test regions and document-level compile gating for an exact source snapshot.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TestDetection {
+    /// Normalized outer regions, merging whitespace-adjacent test declarations.
+    pub regions: Vec<TestRegion>,
+    /// Rust's leading inner cfg excludes the entire file from production.
+    pub is_test_only_document: bool,
+}
+
+/// Detects inline tests using native Rust, Kotlin, Python and ECMAScript trees.
 pub struct TestRegionDetector;
 
 impl TestRegionDetector {
-    /// Detects all inline test regions in `buffer`.
+    /// Detects inline regions and whole-file test-only gating.
+    #[must_use]
+    pub fn detect(buffer: &SourceBuffer) -> TestDetection {
+        let Some(grammar) = LanguageRegistry::for_path(&buffer.path).grammar else {
+            return TestDetection::default();
+        };
+        let Some(tree) = grammar.parse(&buffer.data) else {
+            return TestDetection::default();
+        };
+        let detector = Detector { buffer };
+        let root = tree.root_node();
+        let mut result = TestDetection::default();
+        match grammar {
+            SupportedGrammar::Rust => {
+                result.is_test_only_document = detector.rust_body_test_only(root);
+                if !result.is_test_only_document {
+                    detector.rust_regions(root, &mut result.regions);
+                }
+            }
+            SupportedGrammar::Python => detector.python_regions(root, &mut result.regions),
+            SupportedGrammar::Kotlin => detector.kotlin_regions(root, &mut result.regions),
+            SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx => {
+                detector.script_regions(root, &mut result.regions)
+            }
+            _ => {}
+        }
+        result.regions = detector.normalize(result.regions);
+        result
+    }
+
+    /// Returns inline regions; use [`Self::detect`] for document-level cfg gating.
     #[must_use]
     pub fn detect_test_regions(buffer: &SourceBuffer) -> Vec<TestRegion> {
-        let lang = LanguageRegistry::for_path(&buffer.path);
-        match lang.grammar {
-            Some(SupportedGrammar::Rust) => Self::detect_rust_tests(buffer),
-            Some(SupportedGrammar::Python) => Self::detect_python_tests(buffer),
-            Some(
-                SupportedGrammar::TypeScript | SupportedGrammar::Tsx | SupportedGrammar::JavaScript,
-            ) => Self::detect_js_tests(buffer),
-            _ => Self::detect_generic_tests(buffer),
+        Self::detect(buffer).regions
+    }
+}
+
+struct Detector<'a> {
+    buffer: &'a SourceBuffer,
+}
+
+fn children(node: Node<'_>) -> Vec<Node<'_>> {
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor).collect()
+}
+
+/// One iterative traversal policy shared by attribute-based detectors.
+fn walk_regions<'tree>(root: Node<'tree>, mut visit: impl FnMut(&[Node<'tree>], usize) -> bool) {
+    let mut pending = vec![root];
+    while let Some(parent) = pending.pop() {
+        let siblings = children(parent);
+        for (index, node) in siblings.iter().copied().enumerate() {
+            if is_comment(node)
+                || matches!(
+                    node.kind(),
+                    "token_tree"
+                        | "string_literal"
+                        | "raw_string_literal"
+                        | "multiline_string_literal"
+                )
+            {
+                continue;
+            }
+            if visit(&siblings, index) {
+                pending.push(node);
+            }
+        }
+    }
+}
+
+impl Detector<'_> {
+    fn text(&self, node: Node<'_>) -> &str {
+        &self.buffer.text[node.byte_range()]
+    }
+
+    fn region(&self, siblings: &[Node<'_>], mut first: usize, last: usize) -> TestRegion {
+        while first > 0
+            && self.doc_comment(siblings[first - 1])
+            && self
+                .buffer
+                .line_at_byte(siblings[first - 1].end_byte().saturating_sub(1))
+                + 1
+                >= self.buffer.line_at_byte(siblings[first].start_byte())
+        {
+            first -= 1;
+        }
+        let mut start = siblings[first].start_byte();
+        let mut end = siblings[last].end_byte();
+        if let Some(comment) = siblings.get(last + 1).filter(|node| is_comment(**node)) {
+            if self.buffer.line_at_byte(comment.start_byte())
+                == self.buffer.line_at_byte(end.saturating_sub(1))
+            {
+                end = comment.end_byte();
+            }
+        }
+        while end > start && matches!(self.buffer.data[end - 1], b'\r' | b'\n') {
+            end -= 1;
+        }
+        let line = self.buffer.line_byte_range(self.buffer.line_at_byte(start));
+        if self.buffer.data[line.start..start]
+            .iter()
+            .all(|byte| matches!(byte, b' ' | b'\t'))
+        {
+            start = line.start;
+        }
+        let line = self
+            .buffer
+            .line_byte_range(self.buffer.line_at_byte(end.saturating_sub(1)));
+        if end <= line.end
+            && self.buffer.data[end..line.end]
+                .iter()
+                .all(|byte| matches!(byte, b' ' | b'\t'))
+        {
+            end = line.end;
+        }
+        self.range(start..end)
+    }
+
+    fn range(&self, bytes: Range<usize>) -> TestRegion {
+        let header_line = self.buffer.line_at_byte(bytes.start);
+        let last_line = self.buffer.line_at_byte(bytes.end.saturating_sub(1));
+        TestRegion {
+            byte_range: bytes,
+            line_range: header_line..last_line + 1,
+            header_line,
         }
     }
 
-    fn detect_rust_tests(buffer: &SourceBuffer) -> Vec<TestRegion> {
-        let mut regions = Vec::new();
-        let total_lines = buffer.line_count();
-        let mut line = 1;
+    fn doc_comment(&self, node: Node<'_>) -> bool {
+        let text = self.text(node);
+        is_comment(node)
+            && ((text.starts_with("///") && !text.starts_with("////"))
+                || (text.starts_with("/**") && !text.starts_with("/**/")))
+    }
 
-        while line <= total_lines {
-            let text = buffer.line_text(line).trim();
-
-            // Detect #[cfg(test)] mod tests { ... }
-            if text.contains("#[cfg(test)]") || text.contains("#![cfg(test)]") {
-                let start_line = line;
-                let mut brace_count = 0;
-                let mut found_open = false;
-                let mut end_line = line;
-
-                for cur in line..=total_lines {
-                    let cur_text = buffer.line_text(cur);
-                    for ch in cur_text.chars() {
-                        if ch == '{' {
-                            brace_count += 1;
-                            found_open = true;
-                        } else if ch == '}' && found_open {
-                            brace_count -= 1;
-                            if brace_count == 0 {
-                                end_line = cur;
-                                break;
-                            }
-                        }
-                    }
-                    if found_open && brace_count == 0 {
-                        break;
-                    }
-                }
-
-                if end_line >= start_line {
-                    let start_byte = buffer.byte_offset(start_line, 0);
-                    let end_byte = buffer.byte_offset(end_line + 1, 0);
-                    regions.push(TestRegion {
-                        byte_range: start_byte..end_byte,
-                        line_range: start_line..(end_line + 1),
-                        header_line: start_line,
-                    });
-                    line = end_line + 1;
+    fn normalize(&self, mut regions: Vec<TestRegion>) -> Vec<TestRegion> {
+        regions.retain(|region| !region.byte_range.is_empty());
+        regions.sort_by_key(|region| {
+            (
+                region.byte_range.start,
+                std::cmp::Reverse(region.byte_range.end),
+            )
+        });
+        let mut output: Vec<TestRegion> = Vec::new();
+        for region in regions {
+            if let Some(previous) = output.last_mut() {
+                let adjacent = previous.byte_range.end >= region.byte_range.start
+                    || self.buffer.data[previous.byte_range.end..region.byte_range.start]
+                        .iter()
+                        .all(u8::is_ascii_whitespace);
+                if adjacent {
+                    *previous = self.range(
+                        previous.byte_range.start
+                            ..previous.byte_range.end.max(region.byte_range.end),
+                    );
                     continue;
                 }
             }
-
-            // Detect standalone #[test] / #[tokio::test] functions
-            if text.starts_with("#[test]")
-                || text.starts_with("#[tokio::test]")
-                || text.starts_with("#[rstest]")
-            {
-                let start_line = line;
-                let mut brace_count = 0;
-                let mut found_open = false;
-                let mut end_line = line;
-
-                for cur in line..=total_lines {
-                    let cur_text = buffer.line_text(cur);
-                    for ch in cur_text.chars() {
-                        if ch == '{' {
-                            brace_count += 1;
-                            found_open = true;
-                        } else if ch == '}' && found_open {
-                            brace_count -= 1;
-                            if brace_count == 0 {
-                                end_line = cur;
-                                break;
-                            }
-                        }
-                    }
-                    if found_open && brace_count == 0 {
-                        break;
-                    }
-                }
-
-                if end_line >= start_line {
-                    let start_byte = buffer.byte_offset(start_line, 0);
-                    let end_byte = buffer.byte_offset(end_line + 1, 0);
-                    regions.push(TestRegion {
-                        byte_range: start_byte..end_byte,
-                        line_range: start_line..(end_line + 1),
-                        header_line: start_line,
-                    });
-                    line = end_line + 1;
-                    continue;
-                }
-            }
-
-            line += 1;
+            output.push(region);
         }
-
-        regions
+        output
     }
+}
 
-    fn detect_python_tests(buffer: &SourceBuffer) -> Vec<TestRegion> {
-        let mut regions = Vec::new();
-        let total_lines = buffer.line_count();
-        let mut line = 1;
-
-        while line <= total_lines {
-            let raw_text = buffer.line_text(line);
-            let trimmed = raw_text.trim();
-
-            if trimmed.starts_with("def test_") || trimmed.starts_with("class Test") {
-                let start_line = line;
-                let base_indent = raw_text.chars().take_while(|c| c.is_whitespace()).count();
-                let mut end_line = line;
-
-                for cur in (line + 1)..=total_lines {
-                    let cur_raw = buffer.line_text(cur);
-                    if cur_raw.trim().is_empty() {
-                        continue;
-                    }
-                    let cur_indent = cur_raw.chars().take_while(|c| c.is_whitespace()).count();
-                    if cur_indent <= base_indent {
-                        break;
-                    }
-                    end_line = cur;
-                }
-
-                let start_byte = buffer.byte_offset(start_line, 0);
-                let end_byte = buffer.byte_offset(end_line + 1, 0);
-                regions.push(TestRegion {
-                    byte_range: start_byte..end_byte,
-                    line_range: start_line..(end_line + 1),
-                    header_line: start_line,
-                });
-                line = end_line + 1;
-                continue;
-            }
-
-            line += 1;
-        }
-
-        regions
-    }
-
-    fn detect_js_tests(buffer: &SourceBuffer) -> Vec<TestRegion> {
-        let mut regions = Vec::new();
-        let total_lines = buffer.line_count();
-        let mut line = 1;
-
-        while line <= total_lines {
-            let trimmed = buffer.line_text(line).trim();
-
-            if trimmed.starts_with("describe(")
-                || trimmed.starts_with("it(")
-                || trimmed.starts_with("test(")
-                || trimmed.starts_with("suite(")
-            {
-                let start_line = line;
-                let mut paren_count = 0;
-                let mut found_open = false;
-                let mut end_line = line;
-
-                for cur in line..=total_lines {
-                    let cur_text = buffer.line_text(cur);
-                    for ch in cur_text.chars() {
-                        if ch == '(' {
-                            paren_count += 1;
-                            found_open = true;
-                        } else if ch == ')' && found_open {
-                            paren_count -= 1;
-                            if paren_count == 0 {
-                                end_line = cur;
-                                break;
-                            }
-                        }
-                    }
-                    if found_open && paren_count == 0 {
-                        break;
-                    }
-                }
-
-                let start_byte = buffer.byte_offset(start_line, 0);
-                let end_byte = buffer.byte_offset(end_line + 1, 0);
-                regions.push(TestRegion {
-                    byte_range: start_byte..end_byte,
-                    line_range: start_line..(end_line + 1),
-                    header_line: start_line,
-                });
-                line = end_line + 1;
-                continue;
-            }
-
-            line += 1;
-        }
-
-        regions
-    }
-
-    fn detect_generic_tests(buffer: &SourceBuffer) -> Vec<TestRegion> {
-        let mut regions = Vec::new();
-        let total_lines = buffer.line_count();
-
-        for line in 1..=total_lines {
-            let text = buffer.line_text(line).trim();
-            if text.starts_with("@Test") {
-                let start_byte = buffer.byte_offset(line, 0);
-                let end_byte = buffer.byte_offset(line + 1, 0);
-                regions.push(TestRegion {
-                    byte_range: start_byte..end_byte,
-                    line_range: line..(line + 1),
-                    header_line: line,
-                });
-            }
-        }
-
-        regions
-    }
+fn is_comment(node: Node<'_>) -> bool {
+    node.kind() == "comment" || node.kind().ends_with("_comment")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_detect_rust_test_module() {
-        let code = r#"
-fn prod() -> i32 { 1 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_prod() {
-        assert_eq!(prod(), 1);
+    fn detected(path: &str, source: &str) -> TestDetection {
+        let buffer = SourceBuffer::from_str(path, source);
+        let grammar = LanguageRegistry::for_path(path).grammar.unwrap();
+        let tree = grammar.parse(&buffer.data).unwrap();
+        assert!(
+            !tree.root_node().has_error(),
+            "{}",
+            tree.root_node().to_sexp()
+        );
+        TestRegionDetector::detect(&buffer)
     }
-}
-"#;
-        let buf = SourceBuffer::from_str("src/lib.rs", code);
-        let regions = TestRegionDetector::detect_test_regions(&buf);
-        assert!(!regions.is_empty());
-        assert_eq!(regions[0].header_line, 4);
+
+    #[test]
+    fn rust_cfg_requires_test_only_reachability_and_ignores_strings_and_macros() {
+        for predicate in [
+            "test",
+            "all(test, feature = \"optional\")",
+            "not(not(test))",
+            "doctest",
+        ] {
+            let text = format!("#[cfg({predicate})]\nmod checks {{ const S: &str = \"}}\"; }}\nfn production() {{}}\n");
+            let result = detected("lib.rs", &text);
+            assert_eq!(result.regions.len(), 1, "{predicate}");
+            let region = &result.regions[0];
+            assert!(text[region.byte_range.clone()].contains("const S"));
+            assert!(!text[region.byte_range.clone()].contains("production"));
+        }
+        for predicate in [
+            "any(test, feature = \"optional\")",
+            "not(test)",
+            "all(test, not(test))",
+            "any()",
+            "feature = \"test\"",
+        ] {
+            let text = format!("#[cfg({predicate})]\nfn production() {{}}\n");
+            assert!(detected("lib.rs", &text).regions.is_empty(), "{predicate}");
+        }
+        assert!(detected("lib.rs", "const S: &str = \"#[cfg(test)] mod fake {}\";\nmacro_rules! fake { () => { #[test] fn absent() {} }; }\n").regions.is_empty());
+        let file = detected(
+            "lib.rs",
+            "// leading comment\n#![cfg(test)]\nfn only_tests() {}\n",
+        );
+        assert!(file.is_test_only_document);
+        assert!(file.regions.is_empty());
+    }
+
+    #[test]
+    fn rust_attributes_doc_comments_and_crlf_ranges_preserve_neighbor_code() {
+        let text = "fn production() {}\r\n/// retained documentation\r\n#[tokio::test]\r\nasync fn check() { let text = \"}\"; } // test comment\r\nfn next() {}\r\n";
+        let result = detected("lib.rs", text);
+        assert_eq!(result.regions.len(), 1);
+        let region = &result.regions[0];
+        assert_eq!(region.header_line, 2);
+        assert!(text[region.byte_range.clone()].starts_with("///"));
+        assert!(text[region.byte_range.clone()].ends_with("// test comment"));
+        assert!(!text[region.byte_range.clone()].contains("fn next"));
+    }
+
+    #[test]
+    fn python_requires_framework_evidence_and_only_module_definitions_count() {
+        assert!(detected(
+            "normal.py",
+            "def test_connection():\n    return True\nclass TestConnection:\n    pass\n"
+        )
+        .regions
+        .is_empty());
+        let pytest = detected("mixed.py", "import pytest\n\n@pytest.fixture\ndef connection():\n    return 1\n\ndef production():\n    def test_nested():\n        pass\n    return 1\n\ndef test_read():\n    assert True\n");
+        assert_eq!(pytest.regions.len(), 2);
+        assert_eq!(detected("mixed.py", "import unittest\nclass Checks(unittest.TestCase):\n    def test_read(self):\n        pass\n").regions.len(), 1);
+    }
+
+    #[test]
+    fn ecmascript_checks_callbacks_bindings_chains_and_vitest_guard() {
+        assert!(detected(
+            "normal.ts",
+            "function test(name: string, callback: () => void) {}\ntest('production', () => {});\n"
+        )
+        .regions
+        .is_empty());
+        assert!(detected("normal.js", "const test = factory();\ntest('production', () => {});\nconst text = \"describe('fake', () => {})\";\n").regions.is_empty());
+        for path in ["mixed.js", "mixed.ts", "mixed.tsx"] {
+            let source = "import { test, describe } from 'vitest';\ndescribe.each([1])('group', () => { test('case', () => {}); });\nconst production = 1;\nif (import.meta.vitest) { const value = ')'; }\n";
+            assert_eq!(detected(path, source).regions.len(), 2);
+        }
+        assert!(detected(
+            "normal.js",
+            "test('no callback');\nif (import.meta.vitest) {} else { production(); }\n"
+        )
+        .regions
+        .is_empty());
+    }
+
+    #[test]
+    fn kotlin_annotations_own_whole_classes_and_real_function_bodies() {
+        let text = "class Production {\n fun read() = \"@Test fake()\"\n}\nclass Checks {\n @org.junit.Test\n fun verifies() { println(\"}\") }\n}\nfun unrelated() = 1\n";
+        let result = detected("Mixed.kt", text);
+        assert_eq!(result.regions.len(), 1);
+        assert!(text[result.regions[0].byte_range.clone()].starts_with("class Checks"));
+        assert!(!text[result.regions[0].byte_range.clone()].contains("unrelated"));
+        assert_eq!(
+            detected(
+                "Spec.kt",
+                "class Reading : StringSpec({ \"reads\" { println(1) } })\n"
+            )
+            .regions
+            .len(),
+            1
+        );
     }
 }
