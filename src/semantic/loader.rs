@@ -9,7 +9,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const MAX_INDEX_BYTES: u64 = 256 * 1024 * 1024;
+pub(crate) const MAX_INDEX_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Lifecycle of an imported index, independent of any desktop toolkit.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -138,24 +138,9 @@ pub(crate) fn read_generated(path: &Path, cancel: &AtomicBool) -> Result<ScipInd
 }
 
 pub(crate) fn read_scip(path: &Path, cancel: &AtomicBool) -> Result<Option<ScipIndex>, String> {
-    let file = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-    };
-    if file.metadata().map_err(|e| e.to_string())?.len() > MAX_INDEX_BYTES {
-        return Err("Index exceeds the 256 MiB import limit".into());
-    }
-    let mut bytes = Vec::new();
-    file.take(MAX_INDEX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() as u64 > MAX_INDEX_BYTES {
-        return Err("Index exceeds the 256 MiB import limit".into());
-    }
-    if cancel.load(Ordering::Relaxed) {
+    let Some(bytes) = read_index_bytes(path, cancel)? else {
         return Ok(None);
-    }
+    };
     let scip = ScipIndex::decode(&bytes).map_err(|e| e.to_string())?;
     if scip.documents.is_empty() {
         return Err("Index contains no documents".into());
@@ -170,6 +155,53 @@ pub(crate) fn read_scip(path: &Path, cancel: &AtomicBool) -> Result<Option<ScipI
         return Ok(None);
     }
     Ok(Some(scip))
+}
+
+/// Opens a regular file without following its final symlink or blocking on a FIFO.
+pub(crate) fn open_regular_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::File::options();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::other("Index/input is not a regular file"));
+    }
+    Ok(file)
+}
+
+/// Reads bounded index data for both SCIP imports and persisted normalized indexes.
+pub(crate) fn read_index_bytes(
+    path: &Path,
+    cancel: &AtomicBool,
+) -> Result<Option<Vec<u8>>, String> {
+    let file = match open_regular_file(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    if file.metadata().map_err(|e| e.to_string())?.len() > MAX_INDEX_BYTES {
+        return Err("Index exceeds the 256 MiB limit".into());
+    }
+    let mut reader = file.take(MAX_INDEX_BYTES + 1);
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 64 * 1024];
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("Index read was cancelled".into());
+        }
+        let count = reader.read(&mut chunk).map_err(|e| e.to_string())?;
+        if count == 0 {
+            return Ok(Some(bytes));
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+        if bytes.len() as u64 > MAX_INDEX_BYTES {
+            return Err("Index exceeds the 256 MiB limit".into());
+        }
+    }
 }
 
 #[cfg(test)]

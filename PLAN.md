@@ -28,6 +28,10 @@ records asynchronous SCIP imports, project strategies, tool probes, cancellable
 processes, real-input workspaces, Generate/Reindex controls, native fixture
 acceptance and remaining cache/provisioning/snapshot integration.
 
+[Persistent semantic index cache](plans/rust-index-cache.md)
+records atomic storage, source provenance, background loading and remaining
+reader/cache lifecycle integration.
+
 [Semantic coordinate validation and shared navigation](plans/rust-semantic-navigation.md)
 records canonical definitions, exact reference coordinates, source identity and
 palette/inspector navigation acceptance.

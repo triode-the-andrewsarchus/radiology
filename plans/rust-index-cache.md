@@ -1,0 +1,48 @@
+# Persistent Rust semantic indexes
+
+## Backend contract (2026-10-28)
+
+Generated normalized SCIP data, exact source SHA-256 digests, the build-input
+inventory and complete bounded coverage/diagnostic report are persisted together
+in a format-versioned JSON entry. Canonical repository paths have distinct SHA-256
+cache keys even when an embedded host shares a cache parent. Cache writes stay
+outside the viewed repository, stream through a bounded buffered writer, sync and
+atomically replace one file. Failed, empty, cancelled or stale generations never
+replace the previous entry. A write failure retains usable in-memory semantics and
+reports a cache warning.
+
+`IndexGenerator::start_cached` uses the existing cancellable worker ownership; it
+never invokes tools, copies inputs or creates directories. Hosts can distinguish
+missing, loaded, failed and cancelled cache requests through `CacheLoadStatus`.
+Original source digests survive reload, including stale reloads. Changed inputs
+are explicitly stale; source destinations still reject differing bytes. Metadata
+is never relabeled with a fresh digest. Missing caches can fall back to explicitly
+unverified repository imports.
+
+Cache reads reject unknown formats, foreign roots, inconsistent inventory/plan/
+coverage, duplicate/escaping document paths, unsupported encodings, malformed
+ranges and missing/invalid source digests. The shared SCIP/cache binary reader
+rejects final symlinks/nonregular files, limits reads to 256 MiB and checks
+cancellation between chunks. Input fingerprints share generation's byte/type/mode
+identity calculation and read limits without materializing workspaces.
+
+Tests cover partial-report and scoped-definition round trips with tools removed,
+source/build/inventory drift, original digest retention, distinct repository
+roots, malformed metadata/ranges/paths, truncated JSON, symlink/oversized entries,
+failed generation preserving prior cache and write errors preserving memory data.
+Read-only fingerprints match copied-workspace identities and detect mode/link
+changes while enforcing limits and cancellation.
+
+Backend validation: 133 application tests, 5 reader-text tests, 30 doctests, fmt,
+Clippy with warnings denied and binary build. Architecture comparison removes
+initial production-reader duplication and new CCN hotspots; the final comparison
+still reports REGRESSION for a six-line test-fixture clone (77 vs 76 groups).
+Maximum CCN remains 100 and there are no new dependency cycles.
+
+## Integration and remaining Swift requirements
+
+The backend is implemented; automatic reader reopen/fallback/status integration
+is the next commit. Per-project incremental cache reuse, cross-revision reuse,
+validated tool-version refresh policy, retention controls and pinned PR cache
+namespaces remain required. Swift's cache is a behavioral reference; these entries
+are Rust-private normalized data, not a promise of Swift disk-format compatibility.

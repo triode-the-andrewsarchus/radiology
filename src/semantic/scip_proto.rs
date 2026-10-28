@@ -215,7 +215,7 @@ impl<'a> ProtobufReader<'a> {
 }
 
 /// Decoded top-level SCIP index representation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipIndex {
     /// Default column encoding from index metadata (1 UTF-8, 2 UTF-16).
     pub text_document_encoding: i32,
@@ -226,7 +226,7 @@ pub struct ScipIndex {
 }
 
 /// Decoded SCIP document with occurrences and symbols.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipDocument {
     /// Column encoding (1 UTF-8, 2 UTF-16, 3 UTF-32; zero inherits metadata).
     pub position_encoding: i32,
@@ -241,7 +241,7 @@ pub struct ScipDocument {
 }
 
 /// Half-open character coordinate range `[start_line:start_col, end_line:end_col)`.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipRange {
     /// Zero-based starting line.
     pub start_line: i32,
@@ -290,7 +290,7 @@ pub const SCIP_ROLE_WRITE: i32 = 1 << 2;
 pub const SCIP_ROLE_READ: i32 = 1 << 3;
 
 /// An occurrence of a symbol at a specific range in a document.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipOccurrence {
     /// Source coordinate range.
     pub range: Option<ScipRange>,
@@ -311,7 +311,7 @@ impl ScipOccurrence {
 }
 
 /// Describes a relationship between two symbols (e.g. implementation, reference).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ScipRelationship {
     /// Related symbol string identifier.
     pub symbol: String,
@@ -326,7 +326,7 @@ pub struct ScipRelationship {
 }
 
 /// Metadata and documentation for a semantic symbol.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipSymbolInformation {
     /// Unique SCIP symbol string identifier.
     pub symbol: String,

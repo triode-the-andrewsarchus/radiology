@@ -147,7 +147,10 @@ fn generates_isolated_projects_with_encoded_scoped_documents_and_partial_failure
         .any(|outcome| outcome.strategy.indexer == Indexer::Go && outcome.failure.is_some()));
     assert!(!fixture.source.join("rust/artifact.bin").exists());
     assert!(!fixture.source.join("web/artifact.bin").exists());
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 0);
+    let persisted: Vec<_> = fs::read_dir(&fixture.cache).unwrap().collect();
+    assert_eq!(persisted.len(), 1);
+    assert!(persisted[0].as_ref().unwrap().path().is_file());
+    assert!(generated.report.cache_warning.is_none());
     assert!(generated.report.stale_reason.is_none());
 }
 
@@ -284,4 +287,154 @@ fn python_project_identity_uses_original_name_instead_of_random_workspace_name()
         fixture.source.file_name().unwrap().to_str().unwrap()
     );
     assert!(!arguments[3].starts_with("radiology-build-inputs-"));
+}
+
+fn cache_file(fixture: &Fixture) -> PathBuf {
+    fs::read_dir(&fixture.cache)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .expect("persisted index")
+}
+
+#[test]
+fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_without_tools() {
+    let fixture = Fixture::new(&[
+        ("Cargo.toml", "[package]\nname='fixture'"),
+        ("lib.rs", "a"),
+        ("orphan.rs", "b"),
+    ]);
+    fixture.tool(Indexer::Rust, &["lib.rs"], "printf compiler-note >&2");
+    let generated = run(fixture.request());
+    assert!(generated.report.cache_warning.is_none());
+    let original_bytes = fs::read(cache_file(&fixture)).unwrap();
+    fs::remove_dir_all(&fixture.bin).unwrap();
+    let mut generator = IndexGenerator::default();
+    generator.start_cached(fixture.request());
+    let cached = settle(&mut generator);
+    assert_eq!(generator.cache_status(), &CacheLoadStatus::Loaded);
+    assert!(cached.report.cached);
+    assert!(cached.report.is_partial());
+    assert!(cached.report.summary().starts_with("Partial cached index"));
+    assert_eq!(cached.report.fingerprint, generated.report.fingerprint);
+    let outcome = &cached.report.outcomes[0];
+    assert_eq!(outcome.version.as_deref(), Some("rust-analyzer fixture-1"));
+    assert_eq!(outcome.missing_paths, ["orphan.rs"]);
+    assert!(outcome.diagnostics.contains("compiler-note"));
+    let index = cached.index.unwrap();
+    assert_eq!(index.definitions.len(), 1);
+    assert_eq!(
+        index.source_digests,
+        generated.index.unwrap().source_digests
+    );
+    assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
+    assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 1);
+
+    // A different root sharing the same cache never borrows another repository's data.
+    let other = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);
+    let mut request = other.request();
+    request.cache = fixture.cache.clone();
+    assert!(super::super::cache::load(&request, &AtomicBool::new(false))
+        .unwrap()
+        .is_none());
+}
+
+#[test]
+fn stale_cache_retains_generation_identity_and_refuses_changed_source_destinations() {
+    let fixture = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);
+    fixture.tool(Indexer::Rust, &["lib.rs"], "");
+    let generated = run(fixture.request());
+    let pristine = fs::read(cache_file(&fixture)).unwrap();
+    // Build inputs count even when the source document itself has not changed.
+    fs::write(
+        fixture.source.join("Cargo.toml"),
+        "[package]\nname='changed'",
+    )
+    .unwrap();
+    let cached = super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(cached.report.summary().starts_with("Stale cached index"));
+    assert_eq!(cached.report.fingerprint, generated.report.fingerprint);
+    assert!(cached
+        .index
+        .unwrap()
+        .matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
+    fs::write(fixture.source.join("lib.rs"), "z").unwrap(); // same size as the original
+    fs::write(fixture.source.join("added.rs"), "c").unwrap();
+    let cached = super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    let index = cached.index.unwrap();
+    assert!(!index.matches_buffer(&SourceBuffer::from_str("lib.rs", "z")));
+    assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
+    assert!(!index.matches_buffer(&SourceBuffer::from_str("added.rs", "c")));
+    assert_eq!(fs::read(cache_file(&fixture)).unwrap(), pristine);
+}
+
+#[test]
+fn invalid_cache_formats_ranges_paths_and_provenance_never_publish() {
+    let fixture = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);
+    fixture.tool(Indexer::Rust, &["lib.rs"], "");
+    run(fixture.request());
+    let path = cache_file(&fixture);
+    let pristine: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    for (pointer, replacement) in [
+        ("/format", serde_json::json!(999)),
+        ("/root", serde_json::json!("/different/root")),
+        (
+            "/scip/documents/0/relative_path",
+            serde_json::json!("../escape.rs"),
+        ),
+        (
+            "/scip/documents/0/occurrences/0/range/start_col",
+            serde_json::json!(-1),
+        ),
+        ("/scip/documents/0/position_encoding", serde_json::json!(99)),
+        ("/source_digests/lib.rs", serde_json::json!("invalid")),
+        ("/report/documents", serde_json::json!(99)),
+    ] {
+        let mut invalid = pristine.clone();
+        *invalid.pointer_mut(pointer).expect(pointer) = replacement;
+        fs::write(&path, serde_json::to_vec(&invalid).unwrap()).unwrap();
+        assert!(
+            super::super::cache::load(&fixture.request(), &AtomicBool::new(false)).is_err(),
+            "{pointer}"
+        );
+    }
+    fs::write(&path, b"{truncated").unwrap();
+    assert!(super::super::cache::load(&fixture.request(), &AtomicBool::new(false)).is_err());
+    fs::remove_file(&path).unwrap();
+    std::os::unix::fs::symlink(fixture.source.join("lib.rs"), &path).unwrap();
+    assert!(super::super::cache::load(&fixture.request(), &AtomicBool::new(false)).is_err());
+    fs::remove_file(&path).unwrap();
+    let sparse = fs::File::create(&path).unwrap();
+    sparse.set_len(256 * 1024 * 1024 + 1).unwrap();
+    assert!(super::super::cache::load(&fixture.request(), &AtomicBool::new(false)).is_err());
+}
+
+#[test]
+fn failed_generation_and_cancelled_cache_load_preserve_the_last_persisted_index() {
+    let fixture = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);
+    fixture.tool(Indexer::Rust, &["lib.rs"], "");
+    run(fixture.request());
+    let path = cache_file(&fixture);
+    let pristine = fs::read(&path).unwrap();
+    fixture.tool(Indexer::Rust, &["lib.rs"], "exit 1");
+    assert!(run(fixture.request()).index.is_none());
+    assert_eq!(fs::read(&path).unwrap(), pristine);
+    assert!(super::super::cache::load(&fixture.request(), &AtomicBool::new(true)).is_err());
+    assert_eq!(fs::read(&path).unwrap(), pristine);
+    // Cache failures must not discard usable freshly generated data.
+    fs::remove_file(&path).unwrap();
+    fs::create_dir(&path).unwrap();
+    fixture.tool(Indexer::Rust, &["lib.rs"], "");
+    let generated = run(fixture.request());
+    assert!(generated.index.is_some());
+    assert!(generated.report.cache_warning.is_some());
+    assert!(path.is_dir());
 }

@@ -42,7 +42,7 @@ pub struct GenerationProgress {
 }
 
 /// Outcome of one independently isolated project run.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct StrategyOutcome {
     /// Detected project and source coverage denominator.
     pub strategy: IndexingStrategy,
@@ -65,7 +65,7 @@ pub struct StrategyOutcome {
 }
 
 /// Provenance and coverage of the last completed generation.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct GenerationReport {
     /// Plan derived from the full build-input inventory.
     pub plan: IndexPlan,
@@ -81,6 +81,10 @@ pub struct GenerationReport {
     pub overlapping_documents: usize,
     /// Distinct navigable source documents after project merging.
     pub documents: usize,
+    /// Data was restored from this repository's persistent cache.
+    pub cached: bool,
+    /// Persistence failed; this session's generated data remains usable.
+    pub cache_warning: Option<String>,
 }
 
 impl GenerationReport {
@@ -104,10 +108,16 @@ impl GenerationReport {
             .iter()
             .filter(|outcome| outcome.failure.is_none())
             .count();
-        let state = if self.stale_reason.is_some() {
+        let state = if self.stale_reason.is_some() && self.cached {
+            "Stale cached index"
+        } else if self.stale_reason.is_some() {
             "Stale generated index"
         } else if documents == 0 {
             "No index generated"
+        } else if self.cached && self.is_partial() {
+            "Partial cached index"
+        } else if self.cached {
+            "Cached index"
         } else if self.is_partial() {
             "Partial generated index"
         } else {
@@ -130,10 +140,29 @@ pub struct GeneratedIndex {
     pub report: GenerationReport,
 }
 
+/// State of a cache-only request, allowing hosts to choose an import fallback.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum CacheLoadStatus {
+    /// No cache load has been requested.
+    #[default]
+    Idle,
+    /// Reading and validating persisted data and source inputs.
+    Loading,
+    /// No persisted index exists for this repository.
+    Missing,
+    /// A current or explicitly stale index was published.
+    Loaded,
+    /// The persisted data could not be read or validated.
+    Failed(String),
+    /// The host cancelled the load.
+    Cancelled,
+}
+
 /// Generation ownership shared by standalone readers and embedded hosts.
 #[derive(Default)]
 pub struct IndexGenerator {
-    job: LatestRead<Result<GeneratedIndex, String>>,
+    job: LatestRead<Result<Option<GeneratedIndex>, String>>,
+    cache_status: CacheLoadStatus,
     progress: Arc<Mutex<GenerationProgress>>,
     error: Option<String>,
     cancelled: bool,
@@ -143,6 +172,7 @@ impl IndexGenerator {
     /// Starts generation and retires any older process/publication.
     pub fn start(&mut self, request: GenerationRequest) {
         self.error = None;
+        self.cache_status = CacheLoadStatus::Idle;
         self.cancelled = false;
         self.progress = Arc::new(Mutex::new(GenerationProgress {
             message: "Discovering build inputs…".into(),
@@ -150,7 +180,26 @@ impl IndexGenerator {
         }));
         let progress = self.progress.clone();
         self.job
-            .spawn(move |cancel| generate(request, cancel, &progress));
+            .spawn(move |cancel| generate(request, cancel, &progress).map(Some));
+    }
+
+    /// Starts a cache-only load; never executes an indexer or creates a workspace.
+    pub fn start_cached(&mut self, request: GenerationRequest) {
+        self.error = None;
+        self.cancelled = false;
+        self.cache_status = CacheLoadStatus::Loading;
+        self.progress = Arc::new(Mutex::new(GenerationProgress {
+            message: "Loading cached index…".into(),
+            ..Default::default()
+        }));
+        self.job
+            .spawn(move |cancel| super::cache::load(&request, cancel));
+    }
+
+    /// Returns the cache lifecycle independently of tool generation errors.
+    #[must_use]
+    pub fn cache_status(&self) -> &CacheLoadStatus {
+        &self.cache_status
     }
 
     /// Cancels processes and publication; previously published semantic data is host-owned.
@@ -158,6 +207,9 @@ impl IndexGenerator {
         if self.job.is_running() {
             self.job.stop();
             self.cancelled = true;
+            if self.cache_status == CacheLoadStatus::Loading {
+                self.cache_status = CacheLoadStatus::Cancelled;
+            }
         }
     }
 
@@ -191,13 +243,29 @@ impl IndexGenerator {
     /// Polls only the current generation, retaining preparation errors for the UI.
     pub fn poll(&mut self) -> Option<GeneratedIndex> {
         match self.job.poll() {
-            Ok(Some(Ok(generated))) => Some(generated),
+            Ok(Some(Ok(generated))) => {
+                if self.cache_status == CacheLoadStatus::Loading {
+                    self.cache_status = if generated.is_some() {
+                        CacheLoadStatus::Loaded
+                    } else {
+                        CacheLoadStatus::Missing
+                    };
+                }
+                generated
+            }
             Ok(Some(Err(error))) => {
+                if self.cache_status == CacheLoadStatus::Loading {
+                    self.cache_status = CacheLoadStatus::Failed(error.clone());
+                }
                 self.error = Some(error);
                 None
             }
             Ok(None) => None,
             Err(_) => {
+                if self.cache_status == CacheLoadStatus::Loading {
+                    self.cache_status =
+                        CacheLoadStatus::Failed("Cache worker stopped unexpectedly".into());
+                }
                 self.error = Some("Index generation stopped unexpectedly".into());
                 None
             }
@@ -234,6 +302,8 @@ fn generate(
         stale_reason: None,
         overlapping_documents: 0,
         documents: 0,
+        cached: false,
+        cache_warning: None,
     };
     let mut merged = ScipIndex::default();
     let mut documents = HashSet::new();
@@ -269,16 +339,19 @@ fn generate(
     }
     check_cancel(cancel)?;
     progress(state, "Verifying source provenance…");
-    baseline.verify_inputs(cancel)?;
-    report.stale_reason = baseline.verify_source(cancel).err();
-    if report.stale_reason.is_none()
-        && InputInventory::discover(&request.root, cancel)? != inventory
-    {
-        report.stale_reason =
-            Some("Repository inputs were added or removed during generation".into());
-    }
+    report.stale_reason = source_staleness(&request, &inventory, &baseline, cancel)?;
     check_cancel(cancel)?;
     report.documents = merged.documents.len();
+    report.cache_warning = super::cache::save(
+        &request,
+        &inventory,
+        &merged,
+        &source_digests,
+        &report,
+        cancel,
+    )
+    .err();
+    check_cancel(cancel)?;
     let index = if merged.documents.is_empty() {
         None
     } else {
@@ -287,6 +360,22 @@ fn generate(
         Some(index)
     };
     Ok(GeneratedIndex { index, report })
+}
+
+fn source_staleness(
+    request: &GenerationRequest,
+    inventory: &InputInventory,
+    baseline: &IndexingWorkspace,
+    cancel: &AtomicBool,
+) -> Result<Option<String>, String> {
+    baseline.verify_inputs(cancel)?;
+    if let Err(reason) = baseline.verify_source(cancel) {
+        return Ok(Some(reason));
+    }
+    Ok(
+        (InputInventory::discover(&request.root, cancel)? != *inventory)
+            .then(|| "Repository inputs were added or removed during generation".into()),
+    )
 }
 
 fn run_strategy(
