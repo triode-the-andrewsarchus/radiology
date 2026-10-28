@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-28 — Canonical semantic coordinates and cache-aware destinations (Codex)
+
+Search labels, definition resolution and relationship fallback now use the same
+canonical definition ordering. Caller nodes retain full SCIP reference ranges,
+not just display lines. Display-line conversion avoids signed integer overflow.
+Packed and typed ranges reject negative/reversed coordinates while preserving
+explicit typed-field precedence; unknown encodings are no longer guessed as UTF-8.
+
+Destination provenance is shared by worker resolution and the same-buffer fast
+path. When an index describes newer bytes than a cached same-path buffer, the
+reader now rereads the source and checks that digest instead of rejecting the
+cache mismatch without reading. Stale freshly read bytes still fail safely.
+
+Core regressions and in-progress UI integration currently pass 128 application
+tests, 5 reader-text tests, 30 doctests, fmt, Clippy with warnings denied and binary
+build. Typed palette/caller actions and their native acceptance follow in the next
+commit. Full parity remains open. See [semantic navigation](plans/rust-semantic-navigation.md).
+
 ## 2026-10-28 — Generate/Reindex reader integration and native acceptance (Codex)
 
 Integrated backend `88bbc95` and Python identity fix `e4a94ed` into shared reader

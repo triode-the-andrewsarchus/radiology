@@ -460,10 +460,7 @@ impl SemanticIndex {
             if id.is_local() {
                 continue;
             }
-            if let Some((first_path, first_range)) = defs
-                .iter()
-                .min_by(|a, b| (a.0.as_str(), a.1.start_line).cmp(&(b.0.as_str(), b.1.start_line)))
-            {
+            if let Some((first_path, first_range)) = canonical_definition(defs) {
                 let sym_info = idx.symbols.get(id);
                 let name = sym_info
                     .map(|s| {
@@ -480,8 +477,8 @@ impl SemanticIndex {
                         id: id.clone(),
                         name,
                         kind: sym_info.map_or(0, |s| s.kind),
-                        path: first_path.clone(),
-                        line: (first_range.start_line + 1) as usize,
+                        path: first_path.to_owned(),
+                        line: first_range.start_line as usize + 1,
                         definition_count: defs.len(),
                     });
                 }
@@ -523,10 +520,12 @@ impl SemanticIndex {
     /// Resolves the canonical definition file path and coordinate range for `id`.
     #[must_use]
     pub fn find_definition_for_id(&self, id: &SemanticSymbolID) -> Option<(&str, &ScipRange)> {
-        if let Some(defs) = self.definitions.get(id) {
-            if let Some((p, r)) = defs.first() {
-                return Some((p.as_str(), r));
-            }
+        if let Some(definition) = self
+            .definitions
+            .get(id)
+            .and_then(|defs| canonical_definition(defs))
+        {
+            return Some(definition);
         }
         // Relationship fallback (Relationship.is_definition)
         if let Some(info) = self.symbols.get(id) {
@@ -536,10 +535,12 @@ impl SemanticIndex {
                         rel.symbol.clone(),
                         id.document.as_deref().unwrap_or(""),
                     );
-                    if let Some(defs) = self.definitions.get(&rel_id) {
-                        if let Some((p, r)) = defs.first() {
-                            return Some((p.as_str(), r));
-                        }
+                    if let Some(definition) = self
+                        .definitions
+                        .get(&rel_id)
+                        .and_then(|defs| canonical_definition(defs))
+                    {
+                        return Some(definition);
                     }
                 }
             }
@@ -628,11 +629,12 @@ impl SemanticIndex {
             0 => self.default_encoding,
             explicit => explicit,
         };
-        Some(match encoding {
-            2 => crate::source::ColumnEncoding::Utf16,
-            3 => crate::source::ColumnEncoding::Utf32,
-            _ => crate::source::ColumnEncoding::Utf8,
-        })
+        match encoding {
+            0 | 1 => Some(crate::source::ColumnEncoding::Utf8),
+            2 => Some(crate::source::ColumnEncoding::Utf16),
+            3 => Some(crate::source::ColumnEncoding::Utf32),
+            _ => None,
+        }
     }
 
     /// Returns whether semantic data can describe these exact source bytes.
@@ -688,6 +690,27 @@ impl SemanticIndex {
             .min_by_key(|(size, _)| *size)
             .map(|(_, occurrence)| occurrence)
     }
+}
+
+/// One canonical ordering for search labels, definitions and relationship fallbacks.
+fn canonical_definition(definitions: &[(String, ScipRange)]) -> Option<(&str, &ScipRange)> {
+    definitions
+        .iter()
+        .filter(|(path, range)| {
+            crate::source::SourceLocation::is_repository_path(path)
+                && range.start_line >= 0
+                && range.start_col >= 0
+        })
+        .min_by(|(a, ar), (b, br)| {
+            (a, ar.start_line, ar.start_col, ar.end_line, ar.end_col).cmp(&(
+                b,
+                br.start_line,
+                br.start_col,
+                br.end_line,
+                br.end_col,
+            ))
+        })
+        .map(|(path, range)| (path.as_str(), range))
 }
 
 #[cfg(test)]
@@ -870,5 +893,66 @@ mod tests {
             .contains("bytes changed"));
         index.source_digests.clear(); // An explicitly unverified imported index.
         assert!(index.matches_buffer(&changed));
+    }
+    #[test]
+    fn search_and_definition_resolution_share_a_deterministic_destination() {
+        let symbol = "scip test fixture 1 target().";
+        let mut index = SemanticIndex::from_scip(ScipIndex {
+            documents: ["z.ts", "a.ts"]
+                .into_iter()
+                .map(|path| ScipDocument {
+                    relative_path: path.into(),
+                    occurrences: vec![ScipOccurrence {
+                        symbol: symbol.into(),
+                        symbol_roles: 1,
+                        range: ScipRange::from_packed(&[1, 4, 10]),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        });
+        let (path, range) = index.find_definition(symbol).unwrap();
+        let entry = &index.search_symbols("", 1)[0];
+        assert_eq!(path, "a.ts");
+        assert_eq!(path, entry.path);
+        assert_eq!(range.start_line as usize + 1, entry.line);
+        let id = SemanticSymbolID::new(symbol, "");
+        index.definitions.get_mut(&id).unwrap().reverse();
+        assert_eq!(index.find_definition_for_id(&id).unwrap().0, "a.ts");
+        let boundary = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![ScipDocument {
+                relative_path: "edge.ts".into(),
+                occurrences: vec![ScipOccurrence {
+                    symbol: "edge".into(),
+                    symbol_roles: 1,
+                    range: ScipRange::from_packed(&[i32::MAX, 0, 1]),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert_eq!(
+            boundary.search_symbols("", 1)[0].line,
+            i32::MAX as usize + 1
+        );
+    }
+    #[test]
+    fn unsupported_document_encodings_are_not_guessed_as_utf8() {
+        let buffer = crate::source::SourceBuffer::from_str("a.rs", "abc");
+        let mut index = SemanticIndex::default();
+        index.documents.insert(
+            "a.rs".into(),
+            ScipDocument {
+                position_encoding: 99,
+                ..Default::default()
+            },
+        );
+        assert!(index.column_encoding("a.rs").is_none());
+        assert!(index
+            .byte_range(&buffer, &ScipRange::from_packed(&[0, 0, 1]).unwrap())
+            .is_none());
     }
 }

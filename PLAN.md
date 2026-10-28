@@ -28,6 +28,10 @@ records asynchronous SCIP imports, project strategies, tool probes, cancellable
 processes, real-input workspaces, Generate/Reindex controls, native fixture
 acceptance and remaining cache/provisioning/snapshot integration.
 
+[Semantic coordinate validation and shared navigation](plans/rust-semantic-navigation.md)
+records canonical definitions, exact reference coordinates, source identity and
+palette/inspector navigation acceptance.
+
 **Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
 The source audit and headless probes at `fd421e1` found 17 groups of functional,
 interaction, UI, and validation gaps. In particular, PR review reads checkout

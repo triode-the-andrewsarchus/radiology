@@ -95,17 +95,22 @@ pub enum SourceTarget {
 }
 
 impl SourceTarget {
+    /// Whether these bytes satisfy the destination's optional provenance.
+    pub(crate) fn accepts_source_identity(&self, buffer: &SourceBuffer) -> bool {
+        match self {
+            Self::Encoded {
+                content_digest: Some(expected),
+                ..
+            } => expected == buffer.content_digest(),
+            _ => true,
+        }
+    }
+
     pub(crate) fn resolve(&self, buffer: &SourceBuffer) -> Result<SourceLocation, String> {
-        if let Self::Encoded {
-            content_digest: Some(expected),
-            ..
-        } = self
-        {
-            if expected != buffer.content_digest() {
-                return Err(
-                    "Indexed source bytes changed; regenerate the index before navigating".into(),
-                );
-            }
+        if !self.accepts_source_identity(buffer) {
+            return Err(
+                "Indexed source bytes changed; regenerate the index before navigating".into(),
+            );
         }
         let byte = match self {
             Self::Byte(byte) => buffer.clamp_to_char_boundary((*byte).min(buffer.byte_len())),
