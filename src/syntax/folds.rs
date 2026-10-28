@@ -91,6 +91,15 @@ impl FoldStore {
     pub fn unfold_all(&mut self) {
         self.folded_lines.clear();
     }
+
+    /// Reveals a canonical source line without expanding unrelated folds.
+    pub fn reveal_line(&mut self, line: usize, ranges: &[FoldRange]) {
+        for fold in ranges {
+            if line > fold.start_line && line <= fold.end_line {
+                self.folded_lines.remove(&fold.start_line);
+            }
+        }
+    }
 }
 
 /// Detects foldable regions from document symbols and multi-line comments.

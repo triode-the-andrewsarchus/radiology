@@ -48,6 +48,25 @@ pub struct SourceBuffer {
 }
 
 impl SourceBuffer {
+    /// Reads bounded UTF-8 source without allocating an oversized file first.
+    ///
+    /// # Errors
+    /// Returns an error for missing, oversized, binary, or invalid UTF-8 files.
+    pub fn read(
+        path: &std::path::Path,
+        relative_path: &str,
+        revision: Option<ReviewRevision>,
+    ) -> Result<Self, SourceBufferError> {
+        use std::io::Read;
+        let file = std::fs::File::open(path)?;
+        if file.metadata()?.len() > Self::MAX_FILE_SIZE as u64 {
+            return Err(SourceBufferError::TooLarge);
+        }
+        let mut bytes = Vec::new();
+        file.take(Self::MAX_FILE_SIZE as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        Self::from_bytes(relative_path, bytes, revision)
+    }
     /// Maximum file size permitted for reading (16 MB).
     pub const MAX_FILE_SIZE: usize = 16 * 1024 * 1024;
     /// Maximum line length rendered in inline bookmark anchors.

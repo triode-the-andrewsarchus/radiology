@@ -74,11 +74,12 @@ impl BookmarkStore {
     /// Toggles a bookmark at `byte_offset` in `buffer`. Returns `true` if added, `false` if removed.
     pub fn toggle(&mut self, buffer: &SourceBuffer, byte_offset: usize) -> bool {
         let line = buffer.line_at_byte(byte_offset);
-        if let Some(pos) = self
-            .bookmarks
-            .iter()
-            .position(|b| b.path == buffer.path && b.line == line && b.revision == buffer.revision)
-        {
+        if let Some(pos) = self.bookmarks.iter().position(|bookmark| {
+            bookmark
+                .resolve(buffer)
+                .ok()
+                .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
+        }) {
             self.bookmarks.remove(pos);
             false
         } else {
@@ -114,39 +115,51 @@ impl BookmarkStore {
         self.bookmarks.get(index)
     }
 
-    fn storage_path_for_key(key: &str) -> Option<PathBuf> {
-        let config_dir = dirs::config_dir()?.join("radiology").join("bookmarks");
-        let _ = std::fs::create_dir_all(&config_dir);
-
+    fn storage_path_in(config_dir: &Path, key: &str) -> PathBuf {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         let filename = format!("{:x}.json", hasher.finish());
 
-        Some(config_dir.join(filename))
+        config_dir.join("bookmarks").join(filename)
     }
 
     /// Persists bookmarks for a given [`BookmarkScope`].
     pub fn save_scope(&self, scope: &BookmarkScope) {
-        if let Some(path) = Self::storage_path_for_key(&scope.key()) {
-            if let Ok(json) = serde_json::to_string_pretty(self) {
-                let _ = std::fs::write(path, json);
-            }
+        if let Some(dir) = dirs::config_dir() {
+            let _ = self.save_in(&dir.join("radiology"), scope);
         }
+    }
+
+    /// Saves bookmarks in a host-selected configuration directory.
+    ///
+    /// # Errors
+    /// Returns an error if serialization or writing the store fails.
+    pub fn save_in(&self, config_dir: &Path, scope: &BookmarkScope) -> std::io::Result<()> {
+        let path = Self::storage_path_in(config_dir, &scope.key());
+        std::fs::create_dir_all(config_dir.join("bookmarks"))?;
+        let json = serde_json::to_vec_pretty(self)?;
+        let temporary = path.with_extension("json.tmp");
+        std::fs::write(&temporary, json)?;
+        std::fs::rename(temporary, path)
     }
 
     /// Loads persisted bookmarks for a given [`BookmarkScope`].
     #[must_use]
     pub fn load_scope(scope: &BookmarkScope) -> Self {
-        if let Some(path) = Self::storage_path_for_key(&scope.key()) {
-            if let Ok(bytes) = std::fs::read(path) {
-                if let Ok(store) = serde_json::from_slice::<BookmarkStore>(&bytes) {
-                    return store;
-                }
-            }
-        }
-        Self::new()
+        dirs::config_dir().map_or_else(Self::new, |dir| {
+            Self::load_in(&dir.join("radiology"), scope)
+        })
+    }
+
+    /// Loads bookmarks from a host-selected configuration directory.
+    #[must_use]
+    pub fn load_in(config_dir: &Path, scope: &BookmarkScope) -> Self {
+        std::fs::read(Self::storage_path_in(config_dir, &scope.key()))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
     }
 
     /// Persists bookmarks to disk for the given repository and optional pull request number.

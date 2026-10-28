@@ -59,6 +59,14 @@ pub struct SourceLocation {
 }
 
 impl SourceLocation {
+    /// Checks that a path names content inside a repository, without parent traversal.
+    #[must_use]
+    pub fn is_repository_path(path: &str) -> bool {
+        !path.is_empty()
+            && std::path::Path::new(path)
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+    }
     /// Creates a new [`SourceLocation`] with no review revision.
     pub fn new(path: impl Into<String>, byte_offset: usize) -> Self {
         Self {

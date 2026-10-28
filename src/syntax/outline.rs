@@ -110,6 +110,11 @@ pub struct DocumentSymbol {
 }
 
 impl DocumentSymbol {
+    /// Returns whether this declaration is a function or method.
+    #[must_use]
+    pub fn is_callable(&self) -> bool {
+        matches!(self.kind, SymbolKind::Function | SymbolKind::Method)
+    }
     /// Returns `true` if this symbol's full range contains `byte`.
     #[must_use]
     pub fn contains_byte(&self, byte: usize) -> bool {
@@ -147,6 +152,58 @@ impl DocumentSymbol {
         let end = buffer.line_at_byte(self.range.end.saturating_sub(1));
         end.saturating_sub(start) + 1
     }
+}
+
+/// One outline row with its actual source span and presentation indentation.
+pub struct OutlineRow<'a> {
+    /// Original declaration; source identity and navigation ranges are preserved.
+    pub symbol: &'a DocumentSymbol,
+    /// Nesting depth in the non-callable declaration forest.
+    pub depth: usize,
+    /// Exact number of canonical source lines occupied by the declaration.
+    pub line_count: usize,
+}
+
+/// Orders functions largest first, followed by a hierarchy of other declarations.
+/// Callable containers are removed from that hierarchy, promoting their children.
+#[must_use]
+pub fn outline_rows<'a>(
+    symbols: &'a [DocumentSymbol],
+    buffer: &SourceBuffer,
+) -> Vec<OutlineRow<'a>> {
+    fn collect<'a>(
+        symbols: &'a [DocumentSymbol],
+        depth: usize,
+        buffer: &SourceBuffer,
+        functions: &mut Vec<OutlineRow<'a>>,
+        declarations: &mut Vec<OutlineRow<'a>>,
+    ) {
+        for symbol in symbols {
+            let callable = symbol.is_callable();
+            let row = OutlineRow {
+                symbol,
+                depth: if callable { 0 } else { depth },
+                line_count: symbol.line_count(buffer),
+            };
+            if callable {
+                functions.push(row);
+            } else {
+                declarations.push(row);
+            }
+            collect(
+                &symbol.children,
+                depth + usize::from(!callable),
+                buffer,
+                functions,
+                declarations,
+            );
+        }
+    }
+    let (mut functions, mut declarations) = (Vec::new(), Vec::new());
+    collect(symbols, 0, buffer, &mut functions, &mut declarations);
+    functions.sort_by_key(|row| (std::cmp::Reverse(row.line_count), row.symbol.range.start));
+    functions.extend(declarations);
+    functions
 }
 
 /// Extracts hierarchical document symbols using Tree-sitter parsers.
@@ -225,19 +282,21 @@ impl SymbolExtractor {
             (SupportedGrammar::Go, "type_spec") => (SymbolKind::Struct, "name"),
 
             (
-                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript,
+                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
                 "function_declaration",
             ) => (SymbolKind::Function, "name"),
-            (SupportedGrammar::JavaScript | SupportedGrammar::TypeScript, "class_declaration") => {
-                (SymbolKind::Class, "name")
-            }
-            (SupportedGrammar::JavaScript | SupportedGrammar::TypeScript, "method_definition") => {
-                (SymbolKind::Method, "name")
-            }
-            (SupportedGrammar::TypeScript, "interface_declaration") => {
+            (
+                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
+                "class_declaration",
+            ) => (SymbolKind::Class, "name"),
+            (
+                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
+                "method_definition",
+            ) => (SymbolKind::Method, "name"),
+            (SupportedGrammar::TypeScript | SupportedGrammar::Tsx, "interface_declaration") => {
                 (SymbolKind::Interface, "name")
             }
-            (SupportedGrammar::TypeScript, "type_alias_declaration") => {
+            (SupportedGrammar::TypeScript | SupportedGrammar::Tsx, "type_alias_declaration") => {
                 (SymbolKind::TypeAlias, "name")
             }
 
@@ -271,7 +330,11 @@ impl SymbolExtractor {
             selection_range,
             line,
             children,
-            detail: None,
+            detail: node.child_by_field_name("body").map(|body| {
+                buffer.text[node.start_byte()..body.start_byte()]
+                    .trim()
+                    .to_string()
+            }),
         })
     }
 
@@ -361,5 +424,26 @@ fn calculate() {
 
         assert_eq!(symbols[2].name, "calculate");
         assert_eq!(symbols[2].kind, SymbolKind::Function);
+    }
+    #[test]
+    fn tsx_structure_and_outline_order_use_real_source_spans() {
+        let source = "function short() { return <div/>; }\nfunction long() {\n const value = <div/>;\n return value;\n}\ninterface Widget { name: string }\n";
+        let buffer = SourceBuffer::from_str("view.tsx", source);
+        let symbols = SymbolExtractor::extract(&buffer);
+        let rows = outline_rows(&symbols, &buffer);
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["long", "short", "Widget"]
+        );
+        assert_eq!(rows[0].line_count, 4);
+        assert!(rows[0]
+            .symbol
+            .detail
+            .as_ref()
+            .unwrap()
+            .contains("function long()"));
+        assert!(!crate::syntax::folds::FoldDetector::detect_folds(&buffer).is_empty());
     }
 }

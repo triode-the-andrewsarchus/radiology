@@ -359,6 +359,8 @@ impl SymbolSearch {
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
+    /// Default column encoding for documents without an explicit encoding.
+    pub default_encoding: i32,
     /// Documents keyed by repository-relative path.
     pub documents: HashMap<String, ScipDocument>,
     /// Definition location table: `symbol_id -> [(path, range)]`.
@@ -377,7 +379,10 @@ impl SemanticIndex {
     /// Builds an indexed [`SemanticIndex`] from a decoded [`ScipIndex`].
     #[must_use]
     pub fn from_scip(scip: ScipIndex) -> Self {
-        let mut idx = Self::default();
+        let mut idx = Self {
+            default_encoding: scip.text_document_encoding,
+            ..Default::default()
+        };
 
         for sym in scip.external_symbols {
             let id = SemanticSymbolID::new(sym.symbol.clone(), "");
@@ -596,25 +601,83 @@ impl SemanticIndex {
     #[must_use]
     pub fn occurrence_at(&self, path: &str, line: usize, col: usize) -> Option<&ScipOccurrence> {
         let doc = self.documents.get(path)?;
-        let line = line as i32;
-        let col = col as i32;
-
-        for occ in &doc.occurrences {
-            if let Some(r) = &occ.range {
-                if r.start_line == line && col >= r.start_col && col <= r.end_col {
-                    return Some(occ);
-                }
-                if r.start_line <= line
-                    && r.end_line >= line
-                    && (line > r.start_line || col >= r.start_col)
-                    && (line < r.end_line || col <= r.end_col)
-                {
-                    return Some(occ);
-                }
-            }
-        }
-        None
+        let point = (line as i32, col as i32);
+        doc.occurrences
+            .iter()
+            .filter(|occ| {
+                occ.range.as_ref().is_some_and(|range| {
+                    (range.start_line, range.start_col) <= point
+                        && point < (range.end_line, range.end_col)
+                })
+            })
+            .min_by_key(|occ| {
+                let range = occ.range.as_ref().expect("range checked");
+                (
+                    range.end_line - range.start_line,
+                    range.end_col - range.start_col,
+                )
+            })
     }
+
+    /// Converts an indexed range to exact canonical bytes using its document encoding.
+    #[must_use]
+    pub fn byte_range(
+        &self,
+        buffer: &crate::source::SourceBuffer,
+        range: &ScipRange,
+    ) -> Option<std::ops::Range<usize>> {
+        let encoding = match self.documents.get(&buffer.path)?.position_encoding {
+            0 => self.default_encoding,
+            explicit => explicit,
+        };
+        let position = |line: i32, column: i32| -> Option<usize> {
+            let line = usize::try_from(line).ok()?.checked_add(1)?;
+            let column = usize::try_from(column).ok()?;
+            if line > buffer.line_count() {
+                return None;
+            }
+            let text = buffer.line_text(line);
+            let offset = match encoding {
+                2 => encoded_column(text, column, char::len_utf16)?,
+                3 => encoded_column(text, column, |_| 1)?,
+                _ => (column <= text.len() && text.is_char_boundary(column)).then_some(column)?,
+            };
+            Some(buffer.line_byte_range(line).start + offset)
+        };
+        let start = position(range.start_line, range.start_col)?;
+        let end = position(range.end_line, range.end_col)?;
+        (start <= end).then_some(start..end)
+    }
+
+    /// Finds the narrowest indexed occurrence at a canonical source byte.
+    #[must_use]
+    pub fn occurrence_at_byte(
+        &self,
+        buffer: &crate::source::SourceBuffer,
+        byte: usize,
+    ) -> Option<&ScipOccurrence> {
+        self.documents
+            .get(&buffer.path)?
+            .occurrences
+            .iter()
+            .filter_map(|occurrence| {
+                let range = self.byte_range(buffer, occurrence.range.as_ref()?)?;
+                range.contains(&byte).then_some((range.len(), occurrence))
+            })
+            .min_by_key(|(size, _)| *size)
+            .map(|(_, occurrence)| occurrence)
+    }
+}
+
+fn encoded_column(text: &str, column: usize, width: impl Fn(char) -> usize) -> Option<usize> {
+    let mut units = 0;
+    for (byte, ch) in text.char_indices() {
+        if units == column {
+            return Some(byte);
+        }
+        units += width(ch);
+    }
+    (units == column).then_some(text.len())
 }
 
 #[cfg(test)]

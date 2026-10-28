@@ -17,8 +17,11 @@ use std::path::{Path, PathBuf};
 /// session.record_repository("/home/user/project");
 /// assert_eq!(session.last_repository, Some("/home/user/project".to_string()));
 /// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionStore {
+    /// Explicit settings file for embedded hosts and isolated test sessions.
+    #[serde(skip)]
+    storage_path: Option<PathBuf>,
     /// Canonical path of the most recently browsed repository.
     pub last_repository: Option<String>,
     /// Chronological list of recently opened repository paths (most recent first, capped at 8).
@@ -30,6 +33,27 @@ pub struct SessionStore {
     /// Whether source code lines wrap at the viewport boundary or scroll horizontally.
     #[serde(default)]
     pub wrap_lines: bool,
+    /// Whether the reader uses dark appearance.
+    #[serde(default = "default_dark")]
+    pub dark_mode: bool,
+}
+
+impl Default for SessionStore {
+    fn default() -> Self {
+        Self {
+            storage_path: None,
+            last_repository: None,
+            recent_repositories: Vec::new(),
+            active_pr: None,
+            source_filters: SourceFilters::default(),
+            wrap_lines: false,
+            dark_mode: true,
+        }
+    }
+}
+
+fn default_dark() -> bool {
+    true
 }
 
 impl SessionStore {
@@ -61,16 +85,44 @@ impl SessionStore {
     /// Loads the persisted session from `~/.config/radiology/session.json`.
     #[must_use]
     pub fn load() -> Self {
-        if let Some(path) = Self::session_file_path() {
-            if let Ok(bytes) = std::fs::read(path) {
-                if let Ok(store) = serde_json::from_slice::<SessionStore>(&bytes) {
-                    if store.is_valid() {
-                        return store;
-                    }
-                }
-            }
-        }
-        Self::default()
+        Self::session_file_path().map_or_else(Self::default, Self::load_from)
+    }
+
+    /// Loads settings from an explicit file and keeps subsequent saves there.
+    #[must_use]
+    pub fn load_from(path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+        let mut store = std::fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Self>(&bytes).ok())
+            .filter(Self::is_valid)
+            .unwrap_or_default();
+        store.storage_path = Some(path);
+        store
+    }
+
+    /// Returns the directory containing this host's reader settings and bookmarks.
+    pub fn config_directory(&self) -> Option<PathBuf> {
+        self.storage_path
+            .clone()
+            .or_else(Self::session_file_path)
+            .and_then(|path| path.parent().map(Path::to_path_buf))
+    }
+
+    /// Returns a stable private cache directory for an attached repository.
+    pub fn repository_cache(&self, root: &Path) -> Option<PathBuf> {
+        use std::hash::{Hash, Hasher};
+        let mut identity = std::collections::hash_map::DefaultHasher::new();
+        root.hash(&mut identity);
+        let cache = match &self.storage_path {
+            Some(path) => path.parent()?.join("cache"),
+            None => dirs::cache_dir()?.join("radiology"),
+        };
+        Some(
+            cache
+                .join("repositories")
+                .join(format!("{:x}", identity.finish())),
+        )
     }
 
     /// Saves the current session state to disk if valid.
@@ -78,7 +130,10 @@ impl SessionStore {
         if !self.is_valid() {
             return;
         }
-        if let Some(path) = Self::session_file_path() {
+        if let Some(path) = self.storage_path.clone().or_else(Self::session_file_path) {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
             if let Ok(json) = serde_json::to_string_pretty(self) {
                 let _ = std::fs::write(path, json);
             }

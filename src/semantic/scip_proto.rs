@@ -217,6 +217,8 @@ impl<'a> ProtobufReader<'a> {
 /// Decoded top-level SCIP index representation.
 #[derive(Debug, Clone, Default)]
 pub struct ScipIndex {
+    /// Default column encoding from index metadata (1 UTF-8, 2 UTF-16).
+    pub text_document_encoding: i32,
     /// Documents contained in the index.
     pub documents: Vec<ScipDocument>,
     /// External package symbol metadata.
@@ -226,6 +228,8 @@ pub struct ScipIndex {
 /// Decoded SCIP document with occurrences and symbols.
 #[derive(Debug, Clone, Default)]
 pub struct ScipDocument {
+    /// Column encoding (1 UTF-8, 2 UTF-16, 3 UTF-32; zero inherits metadata).
+    pub position_encoding: i32,
     /// Repository-relative path of the indexed file.
     pub relative_path: String,
     /// Language identifier reported by the indexer.
@@ -347,6 +351,10 @@ impl ScipIndex {
 
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
+                (1, WireType::LengthDelimited) => {
+                    index.text_document_encoding =
+                        Self::decode_encoding(reader.read_length_delimited()?)?;
+                }
                 (2, WireType::LengthDelimited) => {
                     let doc_bytes = reader.read_length_delimited()?;
                     index.documents.push(Self::decode_document(doc_bytes)?);
@@ -362,6 +370,19 @@ impl ScipIndex {
         }
 
         Ok(index)
+    }
+
+    fn decode_encoding(bytes: &[u8]) -> Result<i32, ProtobufError> {
+        let mut reader = ProtobufReader::new(bytes);
+        let mut encoding = 0;
+        while let Some((field, wire)) = reader.read_tag()? {
+            if field == 4 && wire == WireType::Varint {
+                encoding = reader.read_int32()?;
+            } else {
+                reader.skip_field(wire)?;
+            }
+        }
+        Ok(encoding)
     }
 
     fn decode_document(bytes: &[u8]) -> Result<ScipDocument, ProtobufError> {
@@ -384,6 +405,7 @@ impl ScipIndex {
                 (4, WireType::LengthDelimited) => {
                     doc.language = reader.read_string()?;
                 }
+                (6, WireType::Varint) => doc.position_encoding = reader.read_int32()?,
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
@@ -679,5 +701,11 @@ mod tests {
         assert_eq!(info.display_name, "foo");
         assert_eq!(info.signature, "fn foo() -> i32");
         assert_eq!(info.enclosing_symbol, "scip-rust/Bar");
+    }
+    #[test]
+    fn document_and_metadata_encoding_tags_are_preserved() {
+        let index = ScipIndex::decode(&[10, 2, 32, 2, 18, 2, 48, 3]).unwrap();
+        assert_eq!(index.text_document_encoding, 2);
+        assert_eq!(index.documents[0].position_encoding, 3);
     }
 }
