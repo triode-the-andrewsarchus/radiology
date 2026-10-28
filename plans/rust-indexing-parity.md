@@ -64,6 +64,36 @@ multilingual ordering/counts/evidence, manifest nesting and sibling boundaries,
 repository isolation. No fresh native visual acceptance was performed. Architecture
 comparison retains only the previously documented findings.
 
+## Indexer process runner (2026-10-28)
+
+`semantic::indexing::process::run` executes structured commands on a blocking
+worker. stdin is closed; both output pipes are nonblocking and drained with a
+per-turn budget. Each stream retains at most 32 KiB of first bytes plus 32 KiB
+of last bytes, with total counts and an omission marker. No unbounded output
+files or pipe-reader threads are created. Deadlines and owner cancellation are
+checked every polling turn, including under continuous output.
+
+Every child has its own POSIX process group. All completion paths kill remaining
+group members and reap the leader, including a normally exiting tool that leaves
+a child holding its pipes open. The leader remains waitable with `waitid` and
+`WNOWAIT` until group cleanup, reserving its identity during the final signal.
+Cancellation currently uses SIGKILL for prompt termination; graceful SIGTERM
+escalation is a possible refinement. Children that deliberately escape the group
+are not contained; this is process lifecycle management, not an OS sandbox.
+Non-POSIX platforms return an explicit unsupported error.
+
+Nonzero exits and signals are completed results; cancellation/deadline/I/O errors
+carry bounded diagnostics. Resource materialization and input isolation remain
+caller responsibilities. `libc` is now a direct dependency for POSIX descriptor,
+wait and signal operations, reusing the existing locked version.
+
+Fresh verification for this stage: 96 application tests, 5 reader-text tests and
+30 doctests; fmt and Clippy with warnings denied pass. Real fixture subprocesses
+exercise large simultaneous streams, nonzero/signal/spawn failures, prelaunch
+retirement, live cancellation, timeout with TERM-ignoring descendants, and cleanup
+of children after normal tool exit. Linux `/proc` evidence checks that descendant
+processes stop. Architecture retains only the previously documented findings.
+
 ## Swift behavior still required
 
 The authoritative implementations are `SemanticIndexService.swift`,
