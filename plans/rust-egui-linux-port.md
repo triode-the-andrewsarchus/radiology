@@ -1,5 +1,11 @@
 # Rust & EGUI Linux Native Port Plan
 
+> **Status correction, 2026-10-27:** the full-parity statuses below are historical
+> implementation claims and are not current acceptance results. The independent
+> [Rust/Swift parity review](rust-swift-parity-review-2026-10-27.md) found substantial
+> missing and broken workflows and provides the current repair gates. Keep the
+> app standalone while preparing focused reuse with little-screen-clip.
+
 ## Objective
 Re-write Radiology from Swift/macOS to a standalone, native Linux application written in Rust using EGUI (`eframe` 0.27 / `egui` 0.27). The application will retain all core capabilities of Radiology as a fast, read-only repository explorer for understanding unfamiliar codebases, while adopting modern Linux desktop ergonomics and ensuring future integration readiness with `~/little-screen-clip`.
 
