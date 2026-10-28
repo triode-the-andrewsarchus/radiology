@@ -18,3 +18,6 @@ pub use selection::{OccurrenceColor, OccurrencePinGroup, OccurrencePinStore};
 
 /// Test-region visibility and canonical byte projection.
 pub mod test_code;
+
+/// Owned off-thread source preparation and publication.
+pub mod loader;

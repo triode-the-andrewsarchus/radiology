@@ -18,6 +18,9 @@ records the standalone `reader-text` package extracted from existing host mechan
 records the native grammar and Hide Tests implementation, including remaining
 background-analysis and highlighting work.
 
+[Background source preparation and integration contract](plans/rust-source-loading.md)
+tracks the source worker foundation and the pending reader/navigation integration.
+
 **Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
 The source audit and headless probes at `fd421e1` found 17 groups of functional,
 interaction, UI, and validation gaps. In particular, PR review reads checkout

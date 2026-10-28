@@ -3,10 +3,7 @@
 use super::SourceBuffer;
 use reader_text::{FindOptions, MatchSpool};
 use std::ops::Range;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc, Arc,
-};
+use std::sync::{atomic::Ordering, Arc};
 
 /// View-owned local search with complete bounded-memory result storage.
 #[derive(Default)]
@@ -19,8 +16,7 @@ pub struct SourceFind {
     pub error: Option<String>,
     matches: Option<MatchSpool>,
     active: Option<u64>,
-    receiver: Option<mpsc::Receiver<Result<MatchSpool, String>>>,
-    cancel: Arc<AtomicBool>,
+    job: crate::background::LatestRead<Result<MatchSpool, String>>,
 }
 
 impl SourceFind {
@@ -34,38 +30,22 @@ impl SourceFind {
             return;
         }
         let options = self.options.clone();
-        self.cancel = Arc::new(AtomicBool::new(false));
-        let cancel = self.cancel.clone();
-        let (sender, receiver) = mpsc::channel();
-        self.receiver = Some(receiver);
         self.busy = true;
-        crate::background::READ_WORKERS.spawn_blocking(move || {
-            if cancel.load(Ordering::Relaxed) {
-                return;
-            }
-            let matches =
-                MatchSpool::build(&source.text, &options, || cancel.load(Ordering::Relaxed));
-            if !cancel.load(Ordering::Relaxed) {
-                let _ = sender.send(matches);
-            }
+        self.job.spawn(move |cancel| {
+            MatchSpool::build(&source.text, &options, || cancel.load(Ordering::Relaxed))
         });
     }
 
     /// Retires pending work without letting its result enter another document.
     pub fn stop(&mut self) {
-        self.cancel.store(true, Ordering::Relaxed);
-        self.receiver = None;
+        self.job.stop();
         self.busy = false;
     }
 
     /// Publishes one completion. Returns true when new results are ready to reveal.
     pub fn poll(&mut self) -> bool {
-        let Some(receiver) = &self.receiver else {
-            return false;
-        };
-        match receiver.try_recv() {
-            Ok(result) => {
-                self.receiver = None;
+        match self.job.poll() {
+            Ok(Some(result)) => {
                 self.busy = false;
                 match result {
                     Ok(matches) => {
@@ -75,9 +55,8 @@ impl SourceFind {
                     Err(error) => self.error = Some(error),
                 }
             }
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => {
-                self.receiver = None;
+            Ok(None) => {}
+            Err(_) => {
                 self.busy = false;
                 self.error = Some("Local find worker stopped unexpectedly".into());
             }
@@ -132,12 +111,6 @@ impl SourceFind {
                 None
             }
         }
-    }
-}
-
-impl Drop for SourceFind {
-    fn drop(&mut self) {
-        self.stop();
     }
 }
 
