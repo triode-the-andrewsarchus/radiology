@@ -619,6 +619,20 @@ impl SemanticIndex {
             })
     }
 
+    /// Returns the declared column encoding for one indexed document.
+    #[must_use]
+    pub fn column_encoding(&self, path: &str) -> Option<crate::source::ColumnEncoding> {
+        let encoding = match self.documents.get(path)?.position_encoding {
+            0 => self.default_encoding,
+            explicit => explicit,
+        };
+        Some(match encoding {
+            2 => crate::source::ColumnEncoding::Utf16,
+            3 => crate::source::ColumnEncoding::Utf32,
+            _ => crate::source::ColumnEncoding::Utf8,
+        })
+    }
+
     /// Converts an indexed range to exact canonical bytes using its document encoding.
     #[must_use]
     pub fn byte_range(
@@ -626,15 +640,7 @@ impl SemanticIndex {
         buffer: &crate::source::SourceBuffer,
         range: &ScipRange,
     ) -> Option<std::ops::Range<usize>> {
-        let encoding = match self.documents.get(&buffer.path)?.position_encoding {
-            0 => self.default_encoding,
-            explicit => explicit,
-        };
-        let encoding = match encoding {
-            2 => crate::source::ColumnEncoding::Utf16,
-            3 => crate::source::ColumnEncoding::Utf32,
-            _ => crate::source::ColumnEncoding::Utf8,
-        };
+        let encoding = self.column_encoding(&buffer.path)?;
         let position = |line: i32, column: i32| {
             buffer.byte_offset_encoded(
                 usize::try_from(line).ok()?.checked_add(1)?,

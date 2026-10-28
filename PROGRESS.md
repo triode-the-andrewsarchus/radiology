@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-10-28 — Atomic asynchronous reader navigation (Codex)
+
+Integrated the source worker (`7b614ab`) into file opens, bookmarks, encoded
+definitions, revision changes and Back/Forward. Current bytes/caret/folds/pins/
+revision remain usable until replacement is ready. Pending path/cancel feedback
+is visible; failures preserve source/history. History commits only at successful
+publication and captures movement in the old source while loading. Existing-file
+navigation cancels an older replacement; repository/review transitions retire jobs.
+
+Pinned reviews and syntax resources now share Arcs. Theme changes retain pending
+navigation or recolor the same immutable source without rereading it, preserving
+view state. Semantic ranges and definition requests share one encoding lookup.
+Plain default file opens keep a first test region hidden; explicit destinations
+reveal it. Embedded hosts can call `poll_source` without an eframe window.
+
+All prior reader tests now poll actual worker completions. Added cancellation,
+failure, latest-departure, stale repository/current-document, appearance and
+first-test-region tests. Verified 78 application tests, 5 reader-text tests and
+30 doctests, fmt and Clippy with warnings denied. Native isolated smoke showed
+pending status over old source, usable file picker, retirement by returning to
+current source, and successful recoloring. Own window closed after capture.
+See [source loading](plans/rust-source-loading.md) for evidence and limits.
+
+Architecture comparison retains the two known test-only assertion clones and
+review-preparation structural flag; no new product duplication/CCN regression.
+Full parity remains open. Repository/index discovery, Git refresh, SCIP decoding,
+semantic context, finer native/child-process cancellation, Critical Lens,
+inspector/reference previews and final desktop acceptance are still required.
+
 ## 2026-10-28 — Background source preparation foundation (Codex)
 
 Added `SourceLoader`: exact checkout/pinned-review reads, destination decoding

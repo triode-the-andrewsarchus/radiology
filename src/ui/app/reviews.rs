@@ -89,18 +89,19 @@ impl RadiologyApp {
             .is_some_and(|old| old.head == snapshot.head && old.base == snapshot.base)
         {
             self.active_pr = Some(snapshot.summary.clone());
-            self.review = Some(snapshot);
+            self.review = Some(Arc::new(snapshot));
             return;
         }
         let location = self.open_buffer.as_ref().map(|buffer| {
             buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
         });
+        self.cancel_source_load();
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());
         self.session.set_active_pr(Some(snapshot.summary.number));
         self.all_files = snapshot.files.clone();
         self.pr_changes = snapshot.changes.clone();
-        self.review = Some(snapshot);
+        self.review = Some(Arc::new(snapshot));
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;
         self.semantic_index = None;
@@ -144,20 +145,5 @@ impl RadiologyApp {
         }
         location.revision = None;
         Ok(location)
-    }
-
-    pub(super) fn read_source(
-        &self,
-        root: &Path,
-        path: &str,
-        revision: Option<ReviewRevision>,
-    ) -> Result<SourceBuffer, String> {
-        if !SourceLocation::is_repository_path(path) {
-            return Err("Invalid repository-relative source path".into());
-        }
-        if let Some(review) = &self.review {
-            return review.read(path, revision.unwrap_or(ReviewRevision::After));
-        }
-        SourceBuffer::read(&root.join(path), path, None).map_err(|error| error.to_string())
     }
 }
