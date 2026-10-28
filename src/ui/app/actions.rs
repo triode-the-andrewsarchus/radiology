@@ -46,6 +46,10 @@ impl RadiologyApp {
             OpenGoToLine => self.modal = ActiveModal::GoToLine(GoToLineModal::default()),
             OpenGoToSymbol => self.modal = ActiveModal::GoToSymbol(GoToSymbolModal::default()),
             OpenPRDialog => self.modal = ActiveModal::PullRequest(PullRequestModal::default()),
+            FindInFile if self.open_buffer.is_some() => self.source_find.open(),
+            NextFindMatch if self.open_buffer.is_some() => self.source_find.request_step(true),
+            PreviousFindMatch if self.open_buffer.is_some() => self.source_find.request_step(false),
+            FindInFile | NextFindMatch | PreviousFindMatch => {}
             OpenSearch => {
                 self.sidebar_tab = SidebarTab::Search;
                 self.show_sidebar = true;

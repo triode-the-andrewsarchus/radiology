@@ -27,6 +27,10 @@ remains the requirement ledger; completing an initial package does not close it.
 - Simultaneous independently resizable declaration/references, definition/outline,
   and bookmark regions; exact function-first outline spans and working TSX
   declarations/folds. Files filter/recovery and filtered Changes counts are wired.
+- Local source find uses complete spillable results, literal/regex and case
+  controls, original-byte navigation, shared menu/keyboard commands, visible
+  errors, document-content invalidation, and shaped-glyph match highlights.
+  Repeated Return keeps query focus; closed find does not navigate new documents.
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -38,7 +42,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 - Background repository/source analysis and index lifecycle: all Swift project
   strategies, tools/provisioning, cache/provenance, stale/partial/error/cancel UI.
-- Full source viewport reuse/extraction: canonical selection/copy, local find,
+- Full source viewport reuse/extraction: canonical selection/copy, large-file find rendering,
   source zoom, variable-height wrapping/hit testing, long-line bounds, precise
   caret and destination affordances, content-keyed folds/pins and occurrence scope.
 - Swift/Kotlin grammars, broader query-based folds/scopes, syntax-aware inline

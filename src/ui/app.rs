@@ -79,6 +79,8 @@ pub struct RadiologyApp {
     pub caret_line: usize,
     /// 0-based column of the active caret.
     pub caret_col: usize,
+    /// Local-find controls and document-scoped results.
+    pub source_find: crate::ui::source_find::SourceFindPanel,
     /// Linear navigation history.
     pub history: NavigationHistory,
     /// Syntax highlighting engine.
@@ -171,6 +173,7 @@ impl RadiologyApp {
             open_buffer: None,
             caret_line: 1,
             caret_col: 0,
+            source_find: Default::default(),
             history: NavigationHistory::new(),
             highlighter: SyntaxHighlighter::new(),
             highlighted_lines: Vec::new(),
@@ -414,6 +417,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.source_find = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
         self.repository_root = None;
@@ -920,7 +924,17 @@ impl eframe::App for RadiologyApp {
             .frame(central_frame)
             .show(ctx, |ui| {
                 ui.set_clip_rect(ui.max_rect());
-                if let Some(buf) = &self.open_buffer {
+                if let Some(buf) = self.open_buffer.clone() {
+                    let found = ui
+                        .add_enabled_ui(matches!(self.modal, ActiveModal::None), |ui| {
+                            self.source_find.show(ui, &buf)
+                        })
+                        .inner;
+                    if let Some(range) = found {
+                        self.navigate(buf.location_at_byte(range.start), true);
+                        self.fold_store
+                            .reveal_line(buf.line_at_byte(range.end), &self.fold_ranges);
+                    }
                     let mut enclosing = Vec::new();
                     let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
                     for sym in &self.outline_symbols {
@@ -931,7 +945,7 @@ impl eframe::App for RadiologyApp {
                         ui,
                         &self.theme,
                         self.mode,
-                        buf,
+                        &buf,
                         &self.highlighted_lines,
                         &mut self.caret_line,
                         &mut self.caret_col,
@@ -945,6 +959,7 @@ impl eframe::App for RadiologyApp {
                         self.semantic_index.is_some()
                             && buf.revision != Some(ReviewRevision::Before),
                         matches!(self.modal, ActiveModal::None) && !ctx.wants_keyboard_input(),
+                        &mut self.source_find,
                     ) {
                         match action {
                             SourceViewAction::CaretMoved {

@@ -35,6 +35,12 @@ pub enum ReaderCommand {
     OpenGoToSymbol,
     /// Switches to the search tab in the sidebar.
     OpenSearch,
+    /// Opens local find in the current source document.
+    FindInFile,
+    /// Reveals the next local match.
+    NextFindMatch,
+    /// Reveals the previous local match.
+    PreviousFindMatch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
     /// Refreshes the currently reviewed pull request from GitHub.
@@ -111,6 +117,9 @@ fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderComman
         (true, false, false, Key::D) => Some(ToggleBookmark),
         (true, false, false, Key::OpenBracket) => Some(NavigateBack),
         (true, false, false, Key::CloseBracket) => Some(NavigateForward),
+        (true, false, false, Key::F) => Some(FindInFile),
+        (true, false, false, Key::G) => Some(NextFindMatch),
+        (true, false, true, Key::G) => Some(PreviousFindMatch),
         (true, false, true, Key::F) => Some(OpenSearch),
         (true, false, true, Key::Num0) => Some(CollapseFunctions),
         (true, true, false, Key::T) => Some(ToggleTheme),
