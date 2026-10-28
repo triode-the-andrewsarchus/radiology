@@ -379,6 +379,7 @@ fn prepare_and_run(
     let output = run.path().join("index.scip");
     let mut command = strategy.command(CommandPaths {
         workspace: workspace.root(),
+        source_root: &request.root,
         executable: &executable,
         output: &output,
         run: run.path(),

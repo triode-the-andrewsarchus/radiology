@@ -25,6 +25,8 @@ pub struct IndexCommand {
 pub struct CommandPaths<'a> {
     /// Root of the input workspace, with repository-relative paths preserved.
     pub workspace: &'a Path,
+    /// Original repository root supplying stable project identity.
+    pub source_root: &'a Path,
     /// Executable selected by a successful version probe.
     pub executable: &'a Path,
     /// Absolute output index path, outside the viewed repository.
@@ -48,9 +50,12 @@ impl IndexingStrategy {
         if !self.directory.is_empty() && !SourceLocation::is_repository_path(&self.directory) {
             return Err("Invalid repository-relative project directory".into());
         }
-        if !paths.workspace.is_absolute() || !paths.output.is_absolute() || !paths.run.is_absolute()
+        if !paths.workspace.is_absolute()
+            || !paths.source_root.is_absolute()
+            || !paths.output.is_absolute()
+            || !paths.run.is_absolute()
         {
-            return Err("Index workspace, output and run paths must be absolute".into());
+            return Err("Index source, workspace, output and run paths must be absolute".into());
         }
         if self
             .evidence
@@ -102,7 +107,12 @@ impl IndexingStrategy {
                 "index".into(),
                 ".".into(),
                 "--project-name".into(),
-                project.file_name().unwrap_or_default().to_owned(),
+                paths
+                    .source_root
+                    .join(&self.directory)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_owned(),
                 "--output".into(),
                 output,
                 "--quiet".into(),

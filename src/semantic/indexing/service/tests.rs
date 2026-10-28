@@ -53,7 +53,19 @@ impl Fixture {
         }
         fs::write(&payload, index).unwrap();
         let executable = self.bin.join(indexer.id());
-        let script = format!("#!/bin/sh\nif [ \"${{1:-}}\" = --version ]; then printf '{} fixture-1\\n'; exit 0; fi\noutput=''\nwhile [ \"$#\" -gt 0 ]; do case \"$1\" in --output) shift; output=$1;; esac; shift; done\n{before_output}\n/bin/cat {} > \"$output\"\n", indexer.id(), quote(&payload));
+        let script = format!(
+            r#"#!/bin/sh
+if [ "${{1:-}}" = --version ]; then printf '{} fixture-1\n'; exit 0; fi
+printf '%s\n' "$@" > {}
+output=''
+while [ "$#" -gt 0 ]; do case "$1" in --output) shift; output=$1;; esac; shift; done
+{before_output}
+/bin/cat {} > "$output"
+"#,
+            indexer.id(),
+            quote(&self.bin.join(format!("{}.args", indexer.id()))),
+            quote(&payload)
+        );
         fs::write(&executable, script).unwrap();
         fs::set_permissions(executable, fs::Permissions::from_mode(0o755)).unwrap();
     }
@@ -254,4 +266,22 @@ fn an_indexer_deadline_is_a_project_failure_with_bounded_diagnostics() {
         .contains("timed out"));
     assert!(generated.report.outcomes[0].diagnostics.contains("waiting"));
     assert_eq!(fs::read_dir(fixture.cache).unwrap().count(), 0);
+}
+
+#[test]
+fn python_project_identity_uses_original_name_instead_of_random_workspace_name() {
+    let fixture = Fixture::new(&[
+        ("pyproject.toml", "[project]\nname='fixture'"),
+        ("main.py", "a"),
+    ]);
+    fixture.tool(Indexer::Python, &["main.py"], "");
+    let generated = run(fixture.request());
+    assert_eq!(generated.report.documents, 1);
+    let arguments = fs::read_to_string(fixture.bin.join("scip-python.args")).unwrap();
+    let arguments: Vec<_> = arguments.lines().collect();
+    assert_eq!(
+        arguments[3],
+        fixture.source.file_name().unwrap().to_str().unwrap()
+    );
+    assert!(!arguments[3].starts_with("radiology-build-inputs-"));
 }

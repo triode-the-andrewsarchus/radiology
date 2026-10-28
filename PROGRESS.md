@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-28 — Stable Python project identity in isolated runs (Codex)
+
+Fixed Python's `--project-name` to use the original repository/project directory,
+not the randomly named build copy. `CommandPaths` now carries the original root;
+a real fixture subprocess records argv to verify identity survives isolation and
+literal source paths. Workspace tests, including pending reader integration,
+pass 119 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy.
+No real compiler indexer is installed for acceptance on this machine yet.
+
 ## 2026-10-28 — Isolated checkout index generation service (Codex)
 
 Added GUI-independent `IndexGenerator` using `LatestRead`, bounded live progress

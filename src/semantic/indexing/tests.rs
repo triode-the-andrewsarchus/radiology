@@ -159,6 +159,7 @@ fn structured_commands_retain_literal_paths_and_language_specific_options() {
         let command = strategy
             .command(CommandPaths {
                 workspace: root,
+                source_root: root,
                 executable,
                 output,
                 run,
@@ -196,6 +197,7 @@ fn command_rejects_escaping_strategy_inputs() {
     assert!(strategy
         .command(CommandPaths {
             workspace: Path::new("/work"),
+            source_root: Path::new("/original"),
             executable: Path::new("tool"),
             output: Path::new("/output.scip"),
             run: Path::new("/run"),
