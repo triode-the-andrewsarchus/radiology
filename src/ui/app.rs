@@ -36,7 +36,7 @@ use crate::ui::modals::{
     GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,
 };
 use crate::ui::sidebar::{Sidebar, SidebarAction, SidebarTab};
-use crate::ui::source_view::{SourceView, SourceViewAction};
+use crate::ui::source_view::{SourceView, SourceViewAction, SourceViewContent};
 use crate::ui::toolbar::{Toolbar, ToolbarAction};
 
 /// Active modal sheet displayed over the main window.
@@ -81,6 +81,8 @@ pub struct RadiologyApp {
     pub caret_col: usize,
     /// Local-find controls and document-scoped results.
     pub source_find: crate::ui::source_find::SourceFindPanel,
+    /// Measured source geometry and original-byte selection.
+    pub source_viewport: crate::ui::source_view::SourceViewport,
     /// Linear navigation history.
     pub history: NavigationHistory,
     /// Syntax highlighting engine.
@@ -174,6 +176,7 @@ impl RadiologyApp {
             caret_line: 1,
             caret_col: 0,
             source_find: Default::default(),
+            source_viewport: Default::default(),
             history: NavigationHistory::new(),
             highlighter: SyntaxHighlighter::new(),
             highlighted_lines: Vec::new(),
@@ -418,6 +421,7 @@ impl RadiologyApp {
 
     fn reset_repository_state(&mut self) {
         self.source_find = Default::default();
+        self.source_viewport = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
         self.repository_root = None;
@@ -589,9 +593,11 @@ impl RadiologyApp {
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
-        for command in
-            super::commands::take_shortcuts(ctx, !matches!(self.modal, ActiveModal::None))
-        {
+        for command in super::commands::take_shortcuts(
+            ctx,
+            !matches!(self.modal, ActiveModal::None),
+            self.source_viewport.has_focus(ctx),
+        ) {
             self.execute_command(ctx, command);
         }
     }
@@ -944,22 +950,26 @@ impl eframe::App for RadiologyApp {
                     if let Some(action) = SourceView::show(
                         ui,
                         &self.theme,
-                        self.mode,
-                        &buf,
-                        &self.highlighted_lines,
-                        &mut self.caret_line,
-                        &mut self.caret_col,
-                        &self.fold_ranges,
-                        &mut self.fold_store,
-                        self.line_changes.as_ref(),
-                        &mut self.pin_store,
-                        self.session.wrap_lines,
-                        &enclosing,
-                        &mut self.scroll_to_line,
-                        self.semantic_index.is_some()
-                            && buf.revision != Some(ReviewRevision::Before),
-                        matches!(self.modal, ActiveModal::None) && !ctx.wants_keyboard_input(),
-                        &mut self.source_find,
+                        SourceViewContent {
+                            mode: self.mode,
+                            buffer: &buf,
+                            highlighted_lines: &self.highlighted_lines,
+                            caret_line: &mut self.caret_line,
+                            caret_col: &mut self.caret_col,
+                            fold_ranges: &self.fold_ranges,
+                            fold_store: &mut self.fold_store,
+                            line_changes: self.line_changes.as_ref(),
+                            pin_store: &self.pin_store,
+                            wrap_lines: self.session.wrap_lines,
+                            enclosing_symbols: &enclosing,
+                            scroll_to_line: &mut self.scroll_to_line,
+                            has_semantic_index: self.semantic_index.is_some()
+                                && buf.revision != Some(ReviewRevision::Before),
+                            keyboard_enabled: matches!(self.modal, ActiveModal::None),
+                            find: &mut self.source_find,
+                            font_size: self.session.source_font_size,
+                        },
+                        &mut self.source_viewport,
                     ) {
                         match action {
                             SourceViewAction::CaretMoved {
@@ -994,9 +1004,7 @@ impl eframe::App for RadiologyApp {
                                     self.navigate(buffer.location_at_byte(byte), true);
                                 }
                             }
-                            SourceViewAction::PinOccurrence { symbol, ranges } => {
-                                self.pin_store.toggle_pin(&symbol, ranges);
-                            }
+                            SourceViewAction::PinAtByte(byte) => self.pin_at_byte(byte),
                             SourceViewAction::OpenGoToLine => {
                                 self.modal = ActiveModal::GoToLine(GoToLineModal::default());
                             }

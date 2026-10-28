@@ -8,6 +8,8 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 /// A styled segment of text within a highlighted line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HighlightedSpan {
+    /// UTF-8 byte range within the original source line.
+    pub bytes: std::ops::Range<usize>,
     /// Text content of this token or span.
     pub text: String,
     /// EGUI text color mapped from the active syntax theme.
@@ -110,6 +112,7 @@ impl SyntaxHighlighter {
         highlighter: &mut HighlightLines,
         line: &str,
     ) -> Vec<HighlightedSpan> {
+        let mut offset = 0;
         match highlighter.highlight_line(line, &self.syntax_set) {
             Ok(ranges) => ranges
                 .into_iter()
@@ -125,7 +128,10 @@ impl SyntaxHighlighter {
                     let is_italic = style
                         .font_style
                         .contains(syntect::highlighting::FontStyle::ITALIC);
+                    let bytes = offset..offset + text.len();
+                    offset = bytes.end;
                     HighlightedSpan {
+                        bytes,
                         text: text.to_string(),
                         color,
                         is_bold,
@@ -134,6 +140,7 @@ impl SyntaxHighlighter {
                 })
                 .collect(),
             Err(_) => vec![HighlightedSpan {
+                bytes: 0..line.len(),
                 text: line.to_string(),
                 color: Color32::from_rgb(220, 220, 220),
                 is_bold: false,
@@ -164,6 +171,7 @@ impl SyntaxHighlighter {
             };
             for line in text.lines() {
                 out.push(vec![HighlightedSpan {
+                    bytes: 0..line.len(),
                     text: line.to_string(),
                     color: default_color,
                     is_bold: false,
@@ -188,9 +196,13 @@ mod tests {
         let theme = hl.theme(true);
         let mut highlighter = HighlightLines::new(syntax, theme);
 
-        let spans = hl.highlight_line(&mut highlighter, "fn main() {\n");
+        let line = "fn café() { /* 😀 */ }\r\n";
+        let spans = hl.highlight_line(&mut highlighter, line);
         assert!(!spans.is_empty());
         let joined: String = spans.iter().map(|s| s.text.as_str()).collect();
-        assert_eq!(joined, "fn main() {\n");
+        assert_eq!(joined, line);
+        for span in &spans {
+            assert_eq!(&line[span.bytes.clone()], span.text);
+        }
     }
 }

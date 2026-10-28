@@ -33,6 +33,9 @@ pub struct SessionStore {
     /// Whether source code lines wrap at the viewport boundary or scroll horizontally.
     #[serde(default)]
     pub wrap_lines: bool,
+    /// Source font size in points; metadata typography remains independent.
+    #[serde(default = "default_source_font_size")]
+    pub source_font_size: f32,
     /// Whether the reader uses dark appearance.
     #[serde(default = "default_dark")]
     pub dark_mode: bool,
@@ -47,9 +50,14 @@ impl Default for SessionStore {
             active_pr: None,
             source_filters: SourceFilters::default(),
             wrap_lines: false,
+            source_font_size: default_source_font_size(),
             dark_mode: true,
         }
     }
+}
+
+fn default_source_font_size() -> f32 {
+    14.0
 }
 
 fn default_dark() -> bool {
@@ -100,6 +108,11 @@ impl SessionStore {
             .and_then(|bytes| serde_json::from_slice::<Self>(&bytes).ok())
             .filter(Self::is_valid)
             .unwrap_or_default();
+        store.source_font_size = if store.source_font_size.is_finite() {
+            store.source_font_size.clamp(8.0, 32.0)
+        } else {
+            default_source_font_size()
+        };
         store.storage_path = Some(path);
         store
     }

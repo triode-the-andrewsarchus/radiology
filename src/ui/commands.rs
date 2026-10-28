@@ -69,6 +69,12 @@ pub enum ReaderCommand {
     ToggleCurrentRevision,
     /// Clears repository source filters.
     ShowAllFiles,
+    /// Increases only the source font size.
+    IncreaseSourceFont,
+    /// Decreases only the source font size.
+    DecreaseSourceFont,
+    /// Restores the default source font size.
+    ResetSourceFont,
     /// Toggles whether long source code lines are soft-wrapped.
     ToggleWrapLines,
 }
@@ -77,11 +83,11 @@ pub enum ReaderCommand {
 ///
 /// Bare keys belong to the focused control. While a sheet is open its input is
 /// exclusive, so typing in it cannot invoke commands in the source behind it.
-pub fn take_shortcuts(ctx: &Context, modal_open: bool) -> Vec<ReaderCommand> {
+pub fn take_shortcuts(ctx: &Context, modal_open: bool, source_focused: bool) -> Vec<ReaderCommand> {
     if modal_open {
         return Vec::new();
     }
-    let typing = ctx.wants_keyboard_input();
+    let typing = ctx.wants_keyboard_input() && !source_focused;
     let mut commands = Vec::new();
     ctx.input_mut(|input| {
         input.events.retain(|event| {
@@ -117,6 +123,10 @@ fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderComman
         (true, false, false, Key::D) => Some(ToggleBookmark),
         (true, false, false, Key::OpenBracket) => Some(NavigateBack),
         (true, false, false, Key::CloseBracket) => Some(NavigateForward),
+        (true, false, false, Key::Plus | Key::Equals)
+        | (true, false, true, Key::Plus | Key::Equals) => Some(IncreaseSourceFont),
+        (true, false, false, Key::Minus) => Some(DecreaseSourceFont),
+        (true, true, false, Key::Equals) => Some(ResetSourceFont),
         (true, false, false, Key::F) => Some(FindInFile),
         (true, false, false, Key::G) => Some(NextFindMatch),
         (true, false, true, Key::G) => Some(PreviousFindMatch),
@@ -176,7 +186,7 @@ mod tests {
                 ..Default::default()
             },
             |ctx| {
-                result = take_shortcuts(ctx, modal);
+                result = take_shortcuts(ctx, modal, false);
                 if !modal {
                     assert!(!ctx.input(|input| input.key_pressed(key)));
                 }

@@ -22,5 +22,5 @@ pub use modals::{
     GoToLineModal, GoToSymbolModal, ModalAction, PullRequestModal, QuickFilePickerModal,
 };
 pub use sidebar::{Sidebar, SidebarAction, SidebarTab};
-pub use source_view::{SourceView, SourceViewAction};
+pub use source_view::{SourceView, SourceViewAction, SourceViewContent, SourceViewport};
 pub use toolbar::{Toolbar, ToolbarAction};
