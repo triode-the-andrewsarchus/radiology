@@ -1,9 +1,10 @@
 # Background source loading
 
 `source::loader::SourceLoader` prepares immutable source on the existing bounded
-blocking pool. This backend is implemented and tested; UI navigation is not yet
-routed through it. Do not treat this document as proof that file opening is
-already nonblocking.
+blocking pool. The reader now routes file opens, bookmarks, encoded definitions, revision
+changes and new-document history navigation through this worker. Theme changes
+recolor immutable current bytes or restart the pending destination with the new
+appearance. Repository discovery/index loading remain separate work below.
 
 ## Implemented contracts
 
@@ -24,7 +25,7 @@ already nonblocking.
   parser progress cancellation remain open. Repository discovery, existing SCIP
   decoding and repository-wide Git refresh remain separate outstanding work.
 
-## Reader integration requirements
+## Reader integration invariants (implemented)
 
 1. Keep the current source, caret, pins, folds and revision until replacement is
    ready. Publish all new source-derived facts together; show pending path/cancel
@@ -53,3 +54,36 @@ Arc after deleting its backing file. Existing local-find worker replacement and
 focus tests pass through the shared retirement mechanism. The full suite has
 74 application tests, 5 reader-text tests and 30 doctests passing, with formatting
 and Clippy warnings denied.
+
+## Reader verification (2026-10-28)
+
+`RadiologyApp::poll_source` is available to embedded hosts and called by the native
+frame loop. A pending strip names the destination and offers cancellation while
+all current source-derived facts remain attached to the old buffer. Publication
+commits history and source together. Back/Forward advance their cursor only on
+success; cancellations/errors leave it intact. Departure coordinates are captured
+at publication, including movement made while another file was preparing.
+Returning to the current document retires a pending replacement. Repository and
+changed review snapshots retire queued source work. Pinned reviews/highlighters
+are shared through Arc; no synchronous bookmark/definition/revision pre-read is
+retained. Index byte conversion and definition requests use one encoding lookup.
+
+The existing reader tests now poll real asynchronous completions. Added tests cover
+retained source/history during pending/cancel/failure, latest departure movement,
+current-document and repository supersession, pending navigation across appearance
+changes, recoloring after deleting the backing file, and default opens versus
+explicit navigation into a first test region. Latest suite: 78 application tests,
+5 reader-text tests, 30 doctests; formatting and Clippy warnings denied pass.
+
+Native Niri smoke used an isolated settings directory and a 100,000-statement
+fixture. `/tmp/radiology-native-source-loading-pending.png` shows the opening strip
+with the prior source/outline intact. The file picker remained usable; returning
+to the current source retired the replacement, and a subsequent appearance change
+published correct colors. `/tmp/radiology-native-source-loading-theme-settled.png`
+retains the resulting source. This is smoke evidence, not a benchmark or a claim
+that every analysis stage is immediately interruptible.
+
+Repository discovery, branch/status/diff refresh, existing SCIP decoding and
+semantic context/caller computation can still block the UI. Native parser/analysis
+stages and Git child processes still finish their current stage after retirement;
+finer cancellation and process deadlines remain required for full acceptance.

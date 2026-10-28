@@ -2,6 +2,7 @@
 
 mod actions;
 mod reviews;
+mod source;
 #[cfg(test)]
 mod tests;
 
@@ -86,7 +87,7 @@ pub struct RadiologyApp {
     /// Linear navigation history.
     pub history: NavigationHistory,
     /// Syntax highlighting engine.
-    pub highlighter: SyntaxHighlighter,
+    pub highlighter: Arc<SyntaxHighlighter>,
     /// Cached highlighted lines for active source buffer.
     pub highlighted_lines: Vec<Vec<HighlightedSpan>>,
     /// Foldable line ranges in the open file.
@@ -106,7 +107,7 @@ pub struct RadiologyApp {
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
-    pub review: Option<ReviewSnapshot>,
+    pub review: Option<Arc<ReviewSnapshot>>,
     /// Review preparation currently running outside the UI thread.
     review_rx: Option<std::sync::mpsc::Receiver<Result<ReviewSnapshot, String>>>,
     /// Pull request being prepared while the current reader remains usable.
@@ -131,6 +132,8 @@ pub struct RadiologyApp {
     pub bookmarks: BookmarkStore,
     /// Active modal dialog sheet.
     pub modal: ActiveModal,
+    source_loader: crate::source::loader::SourceLoader,
+    pending_navigation: Option<source::PendingNavigation>,
     /// Target line to scroll and center into view in the code editor.
     pub scroll_to_line: Option<usize>,
     /// Most recent recoverable error shown in the reader.
@@ -180,7 +183,7 @@ impl RadiologyApp {
             source_find: Default::default(),
             source_viewport: Default::default(),
             history: NavigationHistory::new(),
-            highlighter: SyntaxHighlighter::new(),
+            highlighter: Arc::new(SyntaxHighlighter::new()),
             highlighted_lines: Vec::new(),
             fold_ranges: Vec::new(),
             fold_store: FoldStore::new(),
@@ -203,6 +206,8 @@ impl RadiologyApp {
             repository_search: RepositorySearch::default(),
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
+            source_loader: Default::default(),
+            pending_navigation: None,
             scroll_to_line: None,
             error: None,
             show_sidebar: true,
@@ -216,6 +221,9 @@ impl RadiologyApp {
     }
 
     /// Opens the repository located at `path`, discovering files and restoring bookmarks.
+    ///
+    /// Initial source preparation is asynchronous; hosts drive [`Self::poll_source`]
+    /// or the normal frame loop to publish the selected document.
     pub fn open_repository(&mut self, path: &Path) {
         let root = RepositoryDiscovery::find_root(path);
         let files = match RepositoryDiscovery::discover_files(&root) {
@@ -285,52 +293,16 @@ impl RadiologyApp {
         self.file_tree = FileNode::build_tree(&filtered);
     }
 
-    /// Reads and displays the file at `rel_path`.
+    /// Requests a file while keeping the current document usable until publication.
     pub fn open_file(&mut self, rel_path: &str) {
-        self.navigate(SourceLocation::with_revision(rel_path, 0, None), true);
-    }
-
-    fn open_file_internal(&mut self, rel_path: &str, record_history: bool) -> bool {
-        let Some(root) = &self.repository_root else {
-            return false;
-        };
-        let buffer = match self.read_source(root, rel_path, self.active_revision) {
-            Ok(buffer) => buffer,
-            Err(error) => {
-                self.error = Some(format!("{rel_path}: {error}"));
-                return false;
-            }
-        };
-        self.error = None;
-        self.selected_path = Some(rel_path.to_string());
-        self.caret_line = 1;
-        self.caret_col = 0;
-        self.scroll_to_line = Some(1);
-        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
-        self.outline_symbols = syntax.symbols;
-        self.fold_ranges = syntax.folds;
-        self.test_code.load(
-            &buffer,
-            syntax.tests,
-            self.session.source_filters.hides_tests,
+        self.request_navigation(
+            SourceLocation::with_revision(rel_path, 0, None),
+            crate::source::loader::SourceTarget::Byte(0),
+            source::NavigationIntent {
+                record_history: true,
+                ..Default::default()
+            },
         );
-        self.fold_store.unfold_all();
-        self.pin_store.clear();
-        self.rehighlight(&buffer);
-        if record_history {
-            self.history.visit(buffer.location_at_byte(0));
-        }
-        self.open_buffer = Some(Arc::new(buffer));
-        self.refresh_current_diff();
-        self.refresh_symbol_context();
-        true
-    }
-
-    fn rehighlight(&mut self, buffer: &SourceBuffer) {
-        let syntax = self.highlighter.find_syntax_for_path(&buffer.path);
-        self.highlighted_lines =
-            self.highlighter
-                .highlight_document(syntax, &buffer.text, self.theme.is_dark);
     }
 
     fn record_departure(&mut self) {
@@ -341,7 +313,10 @@ impl RadiologyApp {
         }
     }
 
-    /// Navigates to exact canonical bytes, retaining the revision and departure.
+    /// Requests exact canonical bytes, retaining the revision and departure.
+    ///
+    /// Existing-document navigation is immediate; new documents publish atomically
+    /// through [`Self::poll_source`] after their read and analysis finish.
     pub fn navigate(&mut self, location: SourceLocation, record_history: bool) {
         self.navigate_target(location, None, record_history);
     }
@@ -352,42 +327,19 @@ impl RadiologyApp {
         line: Option<usize>,
         record_history: bool,
     ) {
-        let location = match self.resolve_location(location) {
-            Ok(location) => location,
-            Err(error) => {
-                self.error = Some(error);
-                return;
-            }
-        };
-        if record_history {
-            self.record_departure();
-        }
-        let changed = self.open_buffer.as_ref().is_none_or(|buffer| {
-            buffer.path != location.path || buffer.revision != location.revision
-        });
-        if changed {
-            let previous_revision = self.active_revision;
-            self.active_revision = location.revision;
-            if !self.open_file_internal(&location.path, false) {
-                self.active_revision = previous_revision;
-                return;
-            }
-        }
-        let Some(buffer) = &self.open_buffer else {
-            return;
-        };
-        let byte = line.map_or(location.byte_offset, |line| buffer.byte_offset(line, 0));
-        let byte = buffer.clamp_to_char_boundary(byte.min(buffer.byte_len()));
-        self.test_code.reveal_byte(buffer, byte);
-        self.caret_line = buffer.line_at_byte(byte);
-        self.caret_col = buffer.column_at_byte(byte);
-        self.scroll_to_line = Some(self.caret_line);
-        self.fold_store
-            .reveal_line(self.caret_line, &self.fold_ranges);
-        if record_history {
-            self.history.visit(buffer.location_at_byte(byte));
-        }
-        self.refresh_symbol_context();
+        let target = line.map_or(
+            crate::source::loader::SourceTarget::Byte(location.byte_offset),
+            |line| crate::source::loader::SourceTarget::LineColumn { line, column: 0 },
+        );
+        self.request_navigation(
+            location,
+            target,
+            source::NavigationIntent {
+                record_history,
+                reveal: true,
+                ..Default::default()
+            },
+        );
     }
 
     /// Navigates directly to a file, line number, and optional exact byte offset.
@@ -430,6 +382,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.cancel_source_load();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.test_code = Default::default();
@@ -492,16 +445,18 @@ impl RadiologyApp {
         let Some(bookmark) = self.bookmarks.get_by_index(index).cloned() else {
             return;
         };
-        let Some(root) = &self.repository_root else {
-            return;
-        };
-        let result = self
-            .read_source(root, &bookmark.path, bookmark.revision)
-            .and_then(|buffer| bookmark.resolve(&buffer).map_err(str::to_string));
-        match result {
-            Ok(location) => self.navigate(location, true),
-            Err(error) => self.error = Some(format!("Bookmark: {error}")),
-        }
+        let location =
+            SourceLocation::with_revision(&bookmark.path, bookmark.byte_offset, bookmark.revision);
+        self.request_navigation(
+            location,
+            crate::source::loader::SourceTarget::Bookmark(bookmark),
+            source::NavigationIntent {
+                record_history: true,
+                reveal: true,
+                force_read: true,
+                ..Default::default()
+            },
+        );
     }
 
     /// Refreshes working tree Git changes when no pull request is actively being reviewed.
@@ -617,6 +572,7 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_review(ctx);
+        self.poll_source(ctx);
         if self.repository_search.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
@@ -740,6 +696,8 @@ impl eframe::App for RadiologyApp {
                 });
             });
         }
+
+        self.show_source_loading(ctx);
 
         if let Some(error) = self.error.clone() {
             TopBottomPanel::top("reader_notice").show(ctx, |ui| {

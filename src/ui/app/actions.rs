@@ -193,26 +193,27 @@ impl RadiologyApp {
         } else {
             egui::Visuals::light()
         });
-        if let Some(buffer) = self.open_buffer.clone() {
-            self.rehighlight(&buffer);
-        }
+        self.queue_rehighlight();
     }
 
     fn navigate_history(&mut self, forward: bool) {
-        self.record_departure();
-        let previous = self.history.clone();
+        let mut history = self.history.clone();
         let location = if forward {
-            self.history.forward()
+            history.forward()
         } else {
-            self.history.back()
+            history.back()
         };
         if let Some(location) = location {
-            self.navigate(location.clone(), false);
-            if self.open_buffer.as_ref().is_none_or(|buffer| {
-                buffer.path != location.path || buffer.revision != location.revision
-            }) {
-                self.history = previous;
-            }
+            let byte = location.byte_offset;
+            self.request_navigation(
+                location,
+                crate::source::loader::SourceTarget::Byte(byte),
+                source::NavigationIntent {
+                    reveal: true,
+                    history_step: Some(forward),
+                    ..Default::default()
+                },
+            );
         }
     }
 
@@ -246,18 +247,29 @@ impl RadiologyApp {
         let Some((path, range)) = index.find_definition_for_id(&id) else {
             return;
         };
-        let Some(root) = &self.repository_root else {
+        let (Some(line), Ok(column), Some(encoding)) = (
+            usize::try_from(range.start_line)
+                .ok()
+                .and_then(|line| line.checked_add(1)),
+            usize::try_from(range.start_col),
+            index.column_encoding(path),
+        ) else {
             return;
         };
-        let target = self.read_source(root, path, buffer.revision);
-        match target {
-            Ok(target) => {
-                if let Some(byte) = index.byte_range(&target, range).map(|range| range.start) {
-                    self.navigate(target.location_at_byte(byte), true);
-                }
-            }
-            Err(error) => self.error = Some(format!("Definition: {error}")),
-        }
+        let location = SourceLocation::with_revision(path, 0, buffer.revision);
+        self.request_navigation(
+            location,
+            crate::source::loader::SourceTarget::Encoded {
+                line,
+                column,
+                encoding,
+            },
+            source::NavigationIntent {
+                record_history: true,
+                reveal: true,
+                ..Default::default()
+            },
+        );
     }
 
     fn change_revision(&mut self, revision: ReviewRevision) {
@@ -267,28 +279,29 @@ impl RadiologyApp {
         if self.active_pr.is_none() {
             return;
         }
-        let requested = SourceLocation::with_revision(&buffer.path, 0, Some(revision));
-        let result = self.resolve_location(requested).and_then(|location| {
-            let root = self
-                .repository_root
-                .as_deref()
-                .ok_or("No repository is open")?;
-            let target = self.read_source(root, &location.path, location.revision)?;
-            let line = self
-                .line_changes
-                .as_ref()
-                .map_or(self.caret_line, |changes| {
-                    changes.map_line(
-                        self.caret_line,
-                        buffer.revision.unwrap_or(ReviewRevision::After),
-                    )
-                });
-            Ok(target.location_at_byte(target.byte_offset(line, self.caret_col)))
-        });
-        match result {
-            Ok(location) => self.navigate(location, true),
-            Err(error) => self.error = Some(error),
-        }
+        let location = SourceLocation::with_revision(&buffer.path, 0, Some(revision));
+        let line = self
+            .line_changes
+            .as_ref()
+            .map_or(self.caret_line, |changes| {
+                changes.map_line(
+                    self.caret_line,
+                    buffer.revision.unwrap_or(ReviewRevision::After),
+                )
+            });
+        let target = crate::source::loader::SourceTarget::LineColumn {
+            line,
+            column: self.caret_col,
+        };
+        self.request_navigation(
+            location,
+            target,
+            source::NavigationIntent {
+                record_history: true,
+                reveal: true,
+                ..Default::default()
+            },
+        );
     }
 
     fn refresh(&mut self) {

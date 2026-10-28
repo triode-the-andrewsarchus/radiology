@@ -43,6 +43,11 @@ remains the requirement ledger; completing an initial package does not close it.
   preservation, filtered inspector outline, readable explicit test documents,
   and automatic reveal through navigation/local find. Structural facts share one
   native parse. [Evidence and boundaries](rust-inline-test-parity.md).
+- Asynchronous source reads/analysis/highlights/diffs publish atomically with
+  exact navigation and history. Pending/cancel feedback preserves the current
+  reader; bookmark/definition/revision pre-reads are removed. Theme recoloring
+  shares immutable source; repository/review transitions retire stale reads.
+  [Source integration and limits](rust-source-loading.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -52,8 +57,10 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
-- Background repository/source analysis and index lifecycle: all Swift project
-  strategies, tools/provisioning, cache/provenance, stale/partial/error/cancel UI.
+- Background repository discovery/Git refresh/SCIP decode and semantic context;
+  complete index lifecycle with all Swift project strategies, provisioning,
+  cache/provenance and stale/partial/error/cancel UI. Source/native stage and Git
+  subprocess cancellation still need finer interruption/deadlines.
 - Remaining source presentation: content-keyed fold/pin restoration, unlimited pin
   groups/legend, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
