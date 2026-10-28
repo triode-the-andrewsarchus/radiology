@@ -205,6 +205,55 @@ pre-existing workspace materialization body as a structural hotspot, in addition
 to the previously recorded findings. No product clone/CCN threshold regression
 was introduced by the digest boundary.
 
+## Checkout generation service (2026-10-28)
+
+`service::IndexGenerator` is independent of egui. Requests capture a root, private
+cache parent, explicit tool lookup context, process deadline and copy limits.
+It uses `LatestRead` for generation ownership and a bounded shared progress
+snapshot, without an event backlog. Starting, cancelling or dropping a request
+retires its publication and cancels its process group.
+
+Generation discovers/replans against full inputs and keeps a pristine baseline.
+Each project runs in its own disposable copy of that baseline, so build outputs
+from another project cannot change its inputs. Probe/execution working directories
+use the copy. Command resources and output are private; Cargo target output is
+redirected there, with jobs capped at half available logical CPUs. Real source
+bytes are never replaced with synthetic manifests. Known output controls are not
+an OS sandbox for arbitrary build scripts.
+
+After success, input type/mode/bytes are checked and the common bounded SCIP
+reader decodes only regular generated output files. Project-relative documents
+are rebased; column encoding is made explicit before merging. Non-source,
+non-input and symbolic-link-text documents are filtered. Local IDs remain scoped
+by document. Overlapping documents retain the first document and make the report
+partial; they are not silently merged across unrelated local scopes. Actual
+source digests populate the semantic provenance boundary. Missing path counts
+are complete, with at most 100 names retained per project. Process diagnostics
+remain bounded; Kotlin partial-build markers are detected across all streamed
+stderr bytes even when omitted from retained logs.
+
+The final pristine baseline is checked against current viewed inputs and a fresh
+inventory. Changed, added or removed inputs produce a stale report. Individual
+project failures preserve successful projects. The host decides whether to replace
+its previous index; an all-failed run carries no replacement. This stage does not
+persist generated output across app restarts or claim full dependency resolution.
+
+Current capability limits: checkout generation only; C/C++ is gated until its
+compilation database can be rebased to copied paths. Kotlin requires an installed
+compiler distribution and executable project wrapper (fallback Gradle selection
+is not connected). Ignored dependency environments, submodules, linked source
+coverage, Rust extra feature cfg injection, validated cache reuse, private tool
+installation and real compiler-indexer acceptance remain open.
+
+Six backend fixture tests cover isolation, project failures, exact source guards,
+encodings/local scopes, stale source, cancellation/replacement, invalid/linked
+output, timeouts and bounded partial-build diagnostics. Workspace validation with
+reader changes in progress: 118 application + 5 reader-text tests, 30 doctests,
+format and Clippy pass. One probe test failed once and did not reproduce in 20
+parallel library-suite repetitions; enhanced failure diagnostics were retained.
+Architecture reports only previously documented clone/structural findings after
+removing new product duplication and excessive generation complexity.
+
 ## Next generation integration contract
 
 The workspace/process foundations are committed, but Generate/Reindex must still

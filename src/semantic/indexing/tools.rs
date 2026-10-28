@@ -312,8 +312,15 @@ mod tests {
             &root.path().join("scip-python"),
             "printf 'python-indexer 1.0' >&2",
         );
+        let available = tools.probe(
+            Indexer::Python,
+            root.path(),
+            &AtomicBool::new(false),
+            Duration::from_secs(5),
+        );
         assert!(
-            matches!(tools.probe(Indexer::Python, root.path(), &AtomicBool::new(false), Duration::from_secs(5)), ToolAvailability::Available { version, .. } if version == "python-indexer 1.0")
+            matches!(&available, ToolAvailability::Available { version, .. } if version == "python-indexer 1.0"),
+            "{available:?}"
         );
         script(&root.path().join("scip-python"), "while :; do :; done");
         assert!(

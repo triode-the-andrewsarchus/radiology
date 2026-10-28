@@ -14,7 +14,7 @@ const MAX_PATH_BYTES: usize = 64 * 1024 * 1024;
 const MAX_FILES: usize = 200_000;
 
 /// Real paths needed to reproduce a repository's build inputs.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InputInventory {
     /// Sorted repository-relative regular-file and symbolic-link candidates.
     pub paths: Vec<String>,
