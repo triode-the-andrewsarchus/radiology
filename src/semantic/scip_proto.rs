@@ -254,24 +254,29 @@ pub struct ScipRange {
 }
 
 impl ScipRange {
-    /// Decodes a packed integer range array (3 or 4 elements).
+    /// Decodes 3/4 packed coordinates, rejecting negative or reversed positions.
     #[must_use]
     pub fn from_packed(vals: &[i32]) -> Option<Self> {
-        match vals.len() {
-            3 => Some(Self {
-                start_line: vals[0],
-                start_col: vals[1],
-                end_line: vals[0],
-                end_col: vals[2],
-            }),
-            4 => Some(Self {
-                start_line: vals[0],
-                start_col: vals[1],
-                end_line: vals[2],
-                end_col: vals[3],
-            }),
-            _ => None,
-        }
+        let range = match vals {
+            [line, start, end] => Self {
+                start_line: *line,
+                start_col: *start,
+                end_line: *line,
+                end_col: *end,
+            },
+            [line, start, end_line, end] => Self {
+                start_line: *line,
+                start_col: *start,
+                end_line: *end_line,
+                end_col: *end,
+            },
+            _ => return None,
+        };
+        (range.start_line >= 0
+            && range.start_col >= 0
+            && range.end_col >= 0
+            && (range.start_line, range.start_col) <= (range.end_line, range.end_col))
+            .then_some(range)
     }
 }
 
@@ -418,8 +423,8 @@ impl ScipIndex {
         let mut occ = ScipOccurrence::default();
         let mut packed_range: Vec<i32> = Vec::new();
         let mut packed_enclosing: Vec<i32> = Vec::new();
-        let mut typed_range: Option<ScipRange> = None;
-        let mut typed_enclosing: Option<ScipRange> = None;
+        let mut typed_range: Option<Option<ScipRange>> = None;
+        let mut typed_enclosing: Option<Option<ScipRange>> = None;
 
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
@@ -437,27 +442,28 @@ impl ScipIndex {
                 }
                 (8, WireType::LengthDelimited) => {
                     let msg = reader.read_length_delimited()?;
-                    typed_range = Self::decode_single_line_range(msg)?;
+                    typed_range = Some(Self::decode_single_line_range(msg)?);
                 }
                 (9, WireType::LengthDelimited) => {
                     let msg = reader.read_length_delimited()?;
-                    typed_range = Self::decode_multi_line_range(msg)?;
+                    typed_range = Some(Self::decode_multi_line_range(msg)?);
                 }
                 (10, WireType::LengthDelimited) => {
                     let msg = reader.read_length_delimited()?;
-                    typed_enclosing = Self::decode_single_line_range(msg)?;
+                    typed_enclosing = Some(Self::decode_single_line_range(msg)?);
                 }
                 (11, WireType::LengthDelimited) => {
                     let msg = reader.read_length_delimited()?;
-                    typed_enclosing = Self::decode_multi_line_range(msg)?;
+                    typed_enclosing = Some(Self::decode_multi_line_range(msg)?);
                 }
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
 
         // Typed ranges take precedence over the packed form.
-        occ.range = typed_range.or_else(|| ScipRange::from_packed(&packed_range));
-        occ.enclosing_range = typed_enclosing.or_else(|| ScipRange::from_packed(&packed_enclosing));
+        occ.range = typed_range.unwrap_or_else(|| ScipRange::from_packed(&packed_range));
+        occ.enclosing_range =
+            typed_enclosing.unwrap_or_else(|| ScipRange::from_packed(&packed_enclosing));
 
         Ok(occ)
     }
@@ -475,12 +481,7 @@ impl ScipIndex {
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
-        Ok(Some(ScipRange {
-            start_line: line,
-            start_col: start,
-            end_line: line,
-            end_col: end,
-        }))
+        Ok(ScipRange::from_packed(&[line, start, end]))
     }
 
     fn decode_multi_line_range(bytes: &[u8]) -> Result<Option<ScipRange>, ProtobufError> {
@@ -498,12 +499,9 @@ impl ScipIndex {
                 (_, wire) => reader.skip_field(wire)?,
             }
         }
-        Ok(Some(ScipRange {
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-        }))
+        Ok(ScipRange::from_packed(&[
+            start_line, start_col, end_line, end_col,
+        ]))
     }
 
     fn decode_symbol_info(bytes: &[u8]) -> Result<ScipSymbolInformation, ProtobufError> {
@@ -707,5 +705,34 @@ mod tests {
         let index = ScipIndex::decode(&[10, 2, 32, 2, 18, 2, 48, 3]).unwrap();
         assert_eq!(index.text_document_encoding, 2);
         assert_eq!(index.documents[0].position_encoding, 3);
+    }
+    #[test]
+    fn packed_ranges_reject_negative_and_reversed_coordinates() {
+        for values in [
+            &[-1, 0, 1][..],
+            &[0, -1, 2],
+            &[0, 5, 4],
+            &[4, 0, 3, 8],
+            &[0, 0, 1, -1],
+        ] {
+            assert!(
+                ScipRange::from_packed(values).is_none(),
+                "accepted {values:?}"
+            );
+        }
+        assert!(ScipRange::from_packed(&[0, 1, 1]).is_some());
+        let typed_over_packed =
+            ScipIndex::decode_occurrence(&[0x0a, 3, 0, 0, 1, 0x42, 4, 0x10, 5, 0x18, 4]).unwrap();
+        assert!(
+            typed_over_packed.range.is_none(),
+            "invalid typed coordinates must not fall back to a conflicting packed range"
+        );
+        assert!(ScipRange::from_packed(&[i32::MAX, 0, 1]).is_some());
+        assert!(ScipIndex::decode_single_line_range(&[0x10, 5, 0x18, 4])
+            .unwrap()
+            .is_none());
+        assert!(ScipIndex::decode_multi_line_range(&[0x08, 4, 0x18, 1])
+            .unwrap()
+            .is_none());
     }
 }

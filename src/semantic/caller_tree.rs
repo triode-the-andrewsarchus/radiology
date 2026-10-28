@@ -61,6 +61,8 @@ pub struct ReferenceCallerNode {
     pub path: String,
     /// 1-based line number of the call site.
     pub line: usize,
+    /// Exact reference coordinates in the containing document's SCIP encoding.
+    pub range: crate::semantic::ScipRange,
     /// Depth within the caller tree (0 is direct caller).
     pub depth: usize,
     /// Deterministic color slot index (0..12).
@@ -111,6 +113,12 @@ impl CallerTreeBuilder {
         let mut nodes = Vec::new();
 
         for (ref_path, ref_range) in refs {
+            let Some(line) = usize::try_from(ref_range.start_line)
+                .ok()
+                .and_then(|line| line.checked_add(1))
+            else {
+                continue;
+            };
             let caller_sym = Self::find_enclosing_symbol(index, ref_path, ref_range.start_line);
             let caller_name = caller_sym
                 .as_ref()
@@ -123,7 +131,8 @@ impl CallerTreeBuilder {
             let mut node = ReferenceCallerNode {
                 name: caller_name.to_string(),
                 path: ref_path.to_string(),
-                line: (ref_range.start_line + 1) as usize,
+                line,
+                range: ref_range.clone(),
                 depth,
                 color_slot: slot,
                 is_recursive,

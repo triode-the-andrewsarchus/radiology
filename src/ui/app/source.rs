@@ -32,7 +32,9 @@ impl RadiologyApp {
         };
         if !intent.force_read {
             if let Some(buffer) = self.open_buffer.as_ref().filter(|buffer| {
-                buffer.path == location.path && buffer.revision == location.revision
+                buffer.path == location.path
+                    && buffer.revision == location.revision
+                    && target.accepts_source_identity(buffer)
             }) {
                 let result = target.resolve(buffer);
                 if self.pending_navigation.is_some() {
