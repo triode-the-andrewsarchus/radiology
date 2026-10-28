@@ -189,6 +189,42 @@ workspace setup/materialization complexity and stream-drain duplication were
 removed before acceptance. No native app generation acceptance was performed:
 Generate/Reindex is not connected yet.
 
+## Next generation integration contract
+
+The workspace/process foundations are committed, but Generate/Reindex must still
+be connected. Preserve these publication rules while doing so:
+
+- Discover/replan on the worker using the full input inventory. Keep one pristine
+  baseline copy alive for the run; create an independent build copy per strategy
+  so generated files from one tool do not influence another tool's inputs.
+- Reuse `LatestRead` for replacement/cancellation and the existing process runner
+  for both probes and execution. Live progress needs bounded shared state, not
+  another retirement protocol or unbounded event queue.
+- Materialize each command's resources in a private run directory. Override known
+  build output paths (especially Cargo target directories); retain the half-core
+  Cargo build limit. Do not create shadow manifests or missing submodule contents.
+- Share the importer's bounded SCIP read/decode path. Rebase project-relative
+  documents, set explicit per-document encodings before merging, filter documents
+  to real input paths, preserve local symbol scopes, and report overlapping or
+  missing document coverage instead of claiming a complete workspace.
+- Verify each build copy after its tool exits. Before publication, compare the
+  pristine baseline to the viewed inputs and a fresh inventory, including newly
+  added/deleted paths. Keep source changes and partial builds visible in status.
+- Carry source-byte provenance into generated semantic data. A loaded immutable
+  source buffer may predate a run even when disk inputs were current at indexing
+  time. Caret lookups and navigation must reject mismatched buffer bytes; caching
+  source digests avoids hashing whole files on each UI interaction.
+- Keep useful previously published data during failure/cancellation, with explicit
+  stale/unverified status. Do not let imports and generated results race to
+  overwrite each other. Repository/review transitions retire every indexing job.
+- Add Generate/Reindex/Cancel controls and per-strategy outcome/diagnostic views;
+  preserve independent-host polling APIs and keep source navigation responsive.
+- Pinned review generation must verify the worktree against exact Git object
+  inventories. Checkout imports must never be applied to Before/After by accident.
+- Persist only validated outputs with tool/config/content provenance and atomic
+  publication. Cache reuse must be measured against the full repository context,
+  including sibling dependencies. Generation alone does not finish cache parity.
+
 ## Swift behavior still required
 
 The authoritative implementations are `SemanticIndexService.swift`,
