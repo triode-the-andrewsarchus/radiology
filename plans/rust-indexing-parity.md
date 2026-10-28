@@ -24,6 +24,46 @@ are reported; a failed first candidate still permits the second to load. Native
 protobuf decoding/table building currently run to completion once entered;
 cancellation prevents publication but does not interrupt those stages.
 
+## Project strategies and commands (2026-10-28)
+
+`semantic::indexing::IndexPlan` detects Cargo, Go, TypeScript/JavaScript, Python,
+C/C++ compilation databases and Gradle Kotlin/Java projects from the unfiltered
+repository inventory. Nested manifests are suppressed per adapter. Source counts
+include tests regardless of reader filters. TypeScript configs take precedence
+over package roots under the same configured directory. Plans sort by project
+depth, registry priority and path, select at most 32 projects and retain skipped
+projects explicitly. Invalid and duplicate inventory paths do not create work.
+Python markers are considered together to avoid duplicate nested Python runs
+when a parent uses a different manifest type from its child.
+
+The app computes plans on `LatestRead`, retires them on repository/review changes,
+and publishes via `poll_index`. The Index Projects menu shows project evidence,
+languages, counts and cap omissions. Tool availability is not implied by a plan;
+generation is still explicitly unavailable in the current app.
+
+`IndexingStrategy::command` describes all six adapter invocations using argument
+vectors. Paths with spaces or shell punctuation remain literal arguments. The
+Kotlin command embeds the existing Swift shell/Gradle compiler integration as
+per-run resources, avoiding a second implementation. Resource files are returned
+as data; this planning stage writes nothing and launches no tools. Rust disables
+build scripts/proc macros and requests all features, with debug/miri cfgs. Explicit
+per-manifest feature cfg injection remains to be ported. Kotlin provisioning also
+requires replacing the Swift installer's macOS-only `ditto` copy operation.
+
+An isolated workspace, validated tool executable, private run directory and output
+path are caller requirements. The process runner/workspace/service must enforce
+them before connecting Generate/Reindex. In particular, C/C++ compilation database
+absolute paths require rebasing to isolated inputs; planning alone does not solve
+that. Repository discovery currently omits build directories, so a compilation
+database there may require the broader build-input inventory used by Swift.
+
+Fresh verification for this round: 89 application tests, 5 reader-text tests,
+30 doctests; formatting and Clippy with warnings denied pass. New tests cover
+multilingual ordering/counts/evidence, manifest nesting and sibling boundaries,
+32-project overflow, invalid/duplicate paths, structured commands, and app filter/
+repository isolation. No fresh native visual acceptance was performed. Architecture
+comparison retains only the previously documented findings.
+
 ## Swift behavior still required
 
 The authoritative implementations are `SemanticIndexService.swift`,
@@ -31,9 +71,9 @@ The authoritative implementations are `SemanticIndexService.swift`,
 `IndexingWorkspace.swift`, `IndexerProcess.swift` and the six indexer adapters.
 The import lifecycle above is only part of R4 in the independent parity review.
 
-- Detect project strategies for rust-analyzer, scip-go, scip-typescript,
-  scip-python, scip-clang and scip-kotlin, with nested project suppression,
-  evidence, language/source coverage counts and the 32-strategy cap.
+- Expand build-input discovery to include compilation databases omitted by the
+  browser inventory, and integrate generated document coverage counts. Project
+  strategy detection and the 32-strategy cap are implemented above.
 - Probe actual executable/version availability, including missing rustup proxies;
   expose tool-specific installation plans and private provisioning.
 - Generate indexes with cancellable bounded-diagnostic child processes, deadlines,
@@ -46,9 +86,9 @@ The import lifecycle above is only part of R4 in the independent parity review.
   Before must remain isolated from After semantic data.
 - Move remaining repository discovery/Git refresh/context work off the UI thread.
 
-## Verification
+## Import-stage verification
 
-Fresh workspace run: 82 application tests, 5 reader-text tests, 30 doctests;
+Previous import-stage workspace run: 82 application tests, 5 reader-text tests, 30 doctests;
 formatting and Clippy with warnings denied pass. New tests cover corrupt-primary
 fallback, file provenance/diagnostics, replace/cancel publication, missing/empty/
 oversized/escaping imports, real app publication, failed reload retention and

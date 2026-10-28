@@ -97,11 +97,14 @@ impl RadiologyApp {
         });
         self.cancel_source_load();
         self.index_importer = Default::default();
+        self.index_plan_job.stop();
+        self.index_plan = Default::default();
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());
         self.session.set_active_pr(Some(snapshot.summary.number));
         self.all_files = snapshot.files.clone();
         self.pr_changes = snapshot.changes.clone();
+        self.inspect_index_projects();
         self.review = Some(Arc::new(snapshot));
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;
