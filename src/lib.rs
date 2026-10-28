@@ -30,6 +30,7 @@
 //! assert_eq!(buffer.line_text(1), "fn main() {");
 //! ```
 
+mod background;
 pub mod bookmarks;
 pub mod critical;
 pub mod pull_request;

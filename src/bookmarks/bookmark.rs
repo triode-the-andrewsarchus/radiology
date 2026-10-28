@@ -78,11 +78,7 @@ impl SourceBookmark {
             None
         };
 
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        buffer.data.hash(&mut hasher);
-        let digest = format!("{:x}", hasher.finish());
+        let digest = format!("{:x}", buffer.content_identity());
 
         Self {
             id: Uuid::new_v4(),
@@ -116,11 +112,7 @@ impl SourceBookmark {
             return Err("Bookmark belongs to another document");
         }
 
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        buffer.data.hash(&mut hasher);
-        let curr_digest = format!("{:x}", hasher.finish());
+        let curr_digest = format!("{:x}", buffer.content_identity());
 
         if curr_digest == self.digest {
             return Ok(buffer.location_at_byte(self.byte_offset));

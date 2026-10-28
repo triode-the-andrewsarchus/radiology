@@ -45,6 +45,7 @@ pub struct SourceBuffer {
     pub line_starts: Vec<usize>,
     /// Pull request review revision, or `None` for standard checkout files.
     pub revision: Option<ReviewRevision>,
+    content_identity: u64,
 }
 
 impl SourceBuffer {
@@ -101,41 +102,40 @@ impl SourceBuffer {
             return Err(SourceBufferError::BinaryOrInvalidUtf8);
         }
         let text = String::from_utf8(bytes).map_err(|_| SourceBufferError::BinaryOrInvalidUtf8)?;
+        Ok(Self::from_text(path.into(), text, revision))
+    }
+
+    /// Creates a source buffer from valid UTF-8 text without applying file-size limits.
+    #[must_use]
+    pub fn from_str(path: impl Into<String>, text: &str) -> Self {
+        Self::from_text(path.into(), text.to_string(), None)
+    }
+
+    fn from_text(path: String, text: String, revision: Option<ReviewRevision>) -> Self {
+        use std::hash::{Hash, Hasher};
         let data = text.as_bytes().to_vec();
-
         let mut line_starts = vec![0];
-        for (i, &b) in data.iter().enumerate() {
-            if b == b'\n' {
-                line_starts.push(i + 1);
-            }
-        }
-
-        Ok(Self {
-            path: path.into(),
+        line_starts.extend(
+            data.iter()
+                .enumerate()
+                .filter_map(|(index, &byte)| (byte == b'\n').then_some(index + 1)),
+        );
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        data.hash(&mut hash);
+        Self {
+            path,
             text,
             data,
             line_starts,
             revision,
-        })
+            content_identity: hash.finish(),
+        }
     }
 
-    /// Creates a [`SourceBuffer`] directly from a valid UTF-8 string slice.
+    /// Returns the immutable byte identity used by document presentation and bookmarks.
     #[must_use]
-    pub fn from_str(path: impl Into<String>, text: &str) -> Self {
-        let bytes = text.as_bytes().to_vec();
-        let mut line_starts = vec![0];
-        for (i, &b) in bytes.iter().enumerate() {
-            if b == b'\n' {
-                line_starts.push(i + 1);
-            }
-        }
-        Self {
-            path: path.into(),
-            text: text.to_string(),
-            data: bytes,
-            line_starts,
-            revision: None,
-        }
+    pub fn content_identity(&self) -> u64 {
+        self.content_identity
     }
 
     /// Returns the total number of lines in the buffer.

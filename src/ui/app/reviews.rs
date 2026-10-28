@@ -51,7 +51,7 @@ impl RadiologyApp {
         self.review_rx = Some(receiver);
         self.pending_pr = Some(number);
         self.error = None;
-        std::thread::spawn(move || {
+        crate::background::READ_WORKERS.spawn_blocking(move || {
             let result = GitHubClient::view_pull_request(&root, number)
                 .and_then(|summary| ReviewSnapshot::prepare(&root, summary, &cache));
             let _ = sender.send(result);

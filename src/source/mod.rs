@@ -6,6 +6,7 @@
 //! and [`OccurrencePinStore`] manages multi-occurrence token highlighting groups.
 
 pub mod buffer;
+pub mod find;
 pub mod history;
 pub mod location;
 pub mod selection;
