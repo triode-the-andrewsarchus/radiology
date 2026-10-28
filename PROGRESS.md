@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-10-27 — Source find UI integration (Codex)
+
+- Committed backend work as `4dbb17e`. Integrated a local-find strip and shared
+  menu/shortcut commands (Ctrl+F, Ctrl+G, Ctrl+Shift+G), literal/regex and case
+  options, complete counts, exact match navigation/reveal, and shaped-glyph
+  highlights. Return/Shift+Return keep focus in the query. Modal sheets disable
+  find input and defer navigation. Closed find does not move a newly opened file.
+- Native isolated Niri smoke checks showed both matches, next-match movement,
+  and invalid-regex feedback. `/tmp/radiology-native-find.png`,
+  `/tmp/radiology-native-find-next.png`, and
+  `/tmp/radiology-native-find-error-final.png` retain evidence. Input automation
+  requires a frame delay after requesting query focus.
+- Verified 59 application unit tests, 5 reader-text tests, and 30 doctests;
+  rustfmt and Clippy with warnings denied pass. Tests include content replacement
+  at the same path and repeated Return through real shortcut/TextEdit handling.
+- Architecture comparison still reports REGRESSION from an 8-line test-only
+  painted-text extraction clone between the existing inspector/source regression
+  tests, plus the previously recorded review-preparation structural flag. New
+  find/control complexity flags were resolved by simplifying interval predicates
+  and separating query lifecycle from controls; the toolbar shares data-driven
+  search-menu dispatch. Duplication is 1.02% (baseline 1.38%), max CCN 100 (125).
+  The test assertion clone is intentionally retained; no duplicated product
+  mechanism was introduced to satisfy source find.
+- Full source selection/copy, wrapping geometry, bounded long-line layout, zoom,
+  content-scoped pins/folds, indexing, semantic Critical Lens, complete PR refresh,
+  and remaining inspector/language acceptance are still open. See PLAN.md.
+
 ## 2026-10-27 — Owned asynchronous source find (Codex)
 
 - Added `SourceFind` over immutable source snapshots, with query replacement,

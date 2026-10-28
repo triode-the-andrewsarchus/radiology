@@ -96,6 +96,7 @@ impl SourceView {
         scroll_to_line: &mut Option<usize>,
         has_semantic_index: bool,
         keyboard_enabled: bool,
+        find: &mut crate::ui::source_find::SourceFindPanel,
     ) -> Option<SourceViewAction> {
         let mut action = None;
 
@@ -470,6 +471,22 @@ impl SourceView {
                     let galley = code_painter.layout_job(job);
                     let text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
                     let text_origin = pos2(code_start_x, text_y);
+                    let line_start = buffer.byte_offset(line_num, 0);
+                    for (range, active) in find.matches(line_start..line_start + line_text.len()) {
+                        paint_match(
+                            &code_painter,
+                            &galley,
+                            text_origin,
+                            line_text,
+                            line_start,
+                            range,
+                            if active {
+                                theme.accent.gamma_multiply(0.45)
+                            } else {
+                                Color32::from_rgba_unmultiplied(220, 170, 40, 60)
+                            },
+                        );
+                    }
                     code_painter.galley(text_origin, galley.clone(), theme.text_primary);
 
                     let pointer_column =
@@ -642,6 +659,38 @@ impl SourceView {
     }
 }
 
+/// Paints exact source matches using shaped glyph positions, including Unicode.
+fn paint_match(
+    painter: &egui::Painter,
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    text: &str,
+    start_byte: usize,
+    range: std::ops::Range<usize>,
+    color: Color32,
+) {
+    let start = range.start.saturating_sub(start_byte).min(text.len());
+    let end = range.end.saturating_sub(start_byte).min(text.len());
+    let first = text[..start].chars().count();
+    let last = text[..end].chars().count();
+    let mut row_start = 0;
+    for row in &galley.rows {
+        let row_end = row_start + row.char_count_including_newline();
+        let from = first.clamp(row_start, row_end) - row_start;
+        let to = last.clamp(row_start, row_end) - row_start;
+        if from < to || (range.is_empty() && first >= row_start && first <= row_end) {
+            let min = origin + egui::vec2(row.x_offset(from), row.min_y());
+            let max = origin + egui::vec2(row.x_offset(to), row.max_y());
+            painter.rect_filled(
+                Rect::from_min_max(min, pos2(max.x.max(min.x + 2.0), max.y)),
+                1.0,
+                color,
+            );
+        }
+        row_start = row_end;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,6 +743,7 @@ mod tests {
                         &mut scroll,
                         false,
                         false,
+                        &mut Default::default(),
                     );
                 });
             },

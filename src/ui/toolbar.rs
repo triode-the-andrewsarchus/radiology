@@ -237,26 +237,9 @@ impl Toolbar {
                 }
             });
 
-            // Search Menu (macOS Swift SourceSearchMenu parity)
-            ui.menu_button("Search", |ui| {
-                if ui.button("Go to File… (Ctrl+K)").clicked() {
-                    action = Some(ToolbarAction::OpenQuickFilePicker);
-                    ui.close_menu();
-                }
-                if ui.button("Go to Symbol… (Ctrl+T)").clicked() {
-                    action = Some(ToolbarAction::OpenGoToSymbol);
-                    ui.close_menu();
-                }
-                if ui.button("Go to Line… (Ctrl+L)").clicked() {
-                    action = Some(ToolbarAction::OpenGoToLine);
-                    ui.close_menu();
-                }
-                ui.separator();
-                if ui.button("Search Repository (Ctrl+Shift+F)").clicked() {
-                    action = Some(ToolbarAction::OpenSearch);
-                    ui.close_menu();
-                }
-            });
+            if let Some(command) = search_menu(ui) {
+                action = Some(command);
+            }
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -281,4 +264,40 @@ impl Toolbar {
 
         action
     }
+}
+
+/// Search and navigation menu shares one data-driven command dispatch.
+fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
+    let mut action = None;
+    ui.menu_button("Search", |ui| {
+        let groups = [
+            &[
+                ("Find in File (Ctrl+F)", ToolbarAction::FindInFile),
+                ("Next Match (Ctrl+G)", ToolbarAction::NextFindMatch),
+                (
+                    "Previous Match (Ctrl+Shift+G)",
+                    ToolbarAction::PreviousFindMatch,
+                ),
+            ][..],
+            &[
+                ("Go to File… (Ctrl+K)", ToolbarAction::OpenQuickFilePicker),
+                ("Go to Symbol… (Ctrl+T)", ToolbarAction::OpenGoToSymbol),
+                ("Go to Line… (Ctrl+L)", ToolbarAction::OpenGoToLine),
+            ][..],
+            &[(
+                "Search Repository (Ctrl+Shift+F)",
+                ToolbarAction::OpenSearch,
+            )][..],
+        ];
+        for group in groups {
+            for (label, command) in group {
+                if ui.button(*label).clicked() {
+                    action = Some(command.clone());
+                    ui.close_menu();
+                }
+            }
+            ui.separator();
+        }
+    });
+    action
 }

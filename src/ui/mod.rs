@@ -11,6 +11,7 @@ pub mod context_inspector;
 pub mod icons;
 pub mod modals;
 pub mod sidebar;
+pub mod source_find;
 pub mod source_view;
 pub mod toolbar;
 
