@@ -1,5 +1,7 @@
 //! Multi-occurrence token highlighting and pin group management.
 
+use super::SourceBuffer;
+use std::collections::HashMap;
 use std::ops::Range;
 
 /// The four distinct occurrence pin colors supported in Radiology.
@@ -36,13 +38,15 @@ impl OccurrenceColor {
 pub struct OccurrencePinGroup {
     /// Identifier or symbol name being highlighted.
     pub symbol_name: String,
+    /// Source spelling displayed by the group controls.
+    pub label: String,
     /// Byte ranges in the file corresponding to occurrences.
     pub ranges: Vec<Range<usize>>,
     /// Theme color assigned to this group.
     pub color: OccurrenceColor,
 }
 
-/// Stores and manages up to four persistent pinned occurrence groups and ephemeral highlights.
+/// Stores unlimited session pin groups with stable colors and exact document identity.
 ///
 /// # Examples
 ///
@@ -61,6 +65,15 @@ pub struct OccurrencePinStore {
     pub groups: Vec<OccurrencePinGroup>,
     /// Ephemeral highlight for the currently hovered or single-clicked symbol.
     pub ephemeral: Option<(String, Vec<Range<usize>>)>,
+    documents: HashMap<String, DocumentPins>,
+    active_document: Option<(String, String)>,
+    next_color_slot: usize,
+}
+
+#[derive(Debug, Clone)]
+struct DocumentPins {
+    digest: String,
+    groups: Vec<OccurrencePinGroup>,
 }
 
 impl OccurrencePinStore {
@@ -68,6 +81,32 @@ impl OccurrencePinStore {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Activates a document, restoring pins only for identical bytes and revision.
+    ///
+    /// Call this only when a source read successfully publishes. Ephemeral highlights
+    /// do not cross documents. A changed digest discards the older document's pins.
+    pub fn activate(&mut self, buffer: &SourceBuffer) {
+        let identity = (buffer.position_key(), buffer.content_digest().to_owned());
+        if self.active_document.as_ref() == Some(&identity) {
+            return;
+        }
+        if let Some((key, digest)) = self.active_document.take() {
+            let groups = std::mem::take(&mut self.groups);
+            if !groups.is_empty() {
+                self.documents.insert(key, DocumentPins { digest, groups });
+            }
+        } else {
+            self.groups.clear();
+        }
+        self.groups = self
+            .documents
+            .remove(&identity.0)
+            .filter(|document| document.digest == identity.1)
+            .map_or_else(Vec::new, |document| document.groups);
+        self.ephemeral = None;
+        self.active_document = Some(identity);
     }
 
     /// Returns `true` if no symbols are pinned and no ephemeral highlight is active.
@@ -82,28 +121,55 @@ impl OccurrencePinStore {
         self.groups.iter().any(|g| g.symbol_name == symbol)
     }
 
-    /// Toggles pinning for a symbol, adding it with the next free color or removing it.
+    /// Toggles a group using its identity as its display label.
     pub fn toggle_pin(&mut self, symbol: &str, ranges: Vec<Range<usize>>) {
-        if let Some(pos) = self.groups.iter().position(|g| g.symbol_name == symbol) {
-            self.groups.remove(pos);
-        } else {
-            let used_colors: Vec<OccurrenceColor> = self.groups.iter().map(|g| g.color).collect();
-            let next_color = OccurrenceColor::ALL
-                .iter()
-                .copied()
-                .find(|c| !used_colors.contains(c))
-                .unwrap_or(OccurrenceColor::Teal);
+        let clicked = ranges.first().map_or(0, |range| range.start);
+        self.toggle_labeled_pin(symbol, symbol, ranges, clicked);
+    }
 
-            if self.groups.len() >= 4 {
-                self.groups.remove(0);
-            }
-
+    /// Toggles a source group without evicting or recoloring existing pins.
+    ///
+    /// Equivalent canonical ranges reconcile a lexical group that later gains a
+    /// semantic identity. Colors advance for each new group and cycle freely.
+    pub fn toggle_labeled_pin(
+        &mut self,
+        symbol: &str,
+        label: &str,
+        mut ranges: Vec<Range<usize>>,
+        clicked: usize,
+    ) {
+        ranges.retain(|range| range.start < range.end);
+        ranges.sort_unstable_by_key(|range| (range.start, range.end));
+        ranges.dedup();
+        let existing = self.groups.iter().position(|group| {
+            group.symbol_name == symbol
+                || (group.ranges == ranges && ranges.iter().any(|range| range.contains(&clicked)))
+        });
+        if let Some(position) = existing {
+            self.groups.remove(position);
+        } else if !ranges.is_empty() {
+            let color = OccurrenceColor::ALL[self.next_color_slot % OccurrenceColor::ALL.len()];
+            self.next_color_slot = self.next_color_slot.wrapping_add(1);
             self.groups.push(OccurrencePinGroup {
-                symbol_name: symbol.to_string(),
+                symbol_name: symbol.to_owned(),
+                label: label.to_owned(),
                 ranges,
-                color: next_color,
+                color,
             });
         }
+    }
+
+    /// Removes a group by its stable identity; returns whether it was present.
+    pub fn remove(&mut self, symbol: &str) -> bool {
+        let length = self.groups.len();
+        self.groups.retain(|group| group.symbol_name != symbol);
+        self.groups.len() != length
+    }
+
+    /// Clears pins in the active document, retaining other documents and color slots.
+    pub fn clear_current(&mut self) {
+        self.groups.clear();
+        self.ephemeral = None;
     }
 
     /// Unpins any active occurrence group containing the given byte offset.
@@ -122,8 +188,7 @@ impl OccurrencePinStore {
 
     /// Clears all pinned groups and ephemeral highlights.
     pub fn clear(&mut self) {
-        self.groups.clear();
-        self.ephemeral = None;
+        *self = Self::default();
     }
 }
 
@@ -151,5 +216,83 @@ mod tests {
 
         assert!(store.unpin_group_containing(21));
         assert_eq!(store.groups.len(), 0);
+    }
+    #[test]
+    fn pin_groups_have_no_eviction_limit_and_removal_does_not_recolor_survivors() {
+        let mut store = OccurrencePinStore::new();
+        for number in 0..12 {
+            store.toggle_pin(
+                &format!("symbol-{number}"),
+                std::iter::once(number * 10..number * 10 + 3).collect(),
+            );
+        }
+        assert_eq!(store.groups.len(), 12);
+        let colors: Vec<_> = store
+            .groups
+            .iter()
+            .map(|group| (group.symbol_name.clone(), group.color))
+            .collect();
+        assert!(store.remove("symbol-3"));
+        assert!(!store.remove("absent"));
+        for group in &store.groups {
+            assert!(colors.contains(&(group.symbol_name.clone(), group.color)));
+        }
+        store.toggle_pin("new", std::iter::once(200..203).collect());
+        assert_eq!(store.groups.last().unwrap().color, OccurrenceColor::Teal);
+        assert!(store.is_pinned("symbol-0"));
+    }
+
+    #[test]
+    fn document_restoration_requires_identical_content_and_revision_and_clears_ephemeral_state() {
+        use crate::source::location::ReviewRevision;
+        let a = SourceBuffer::from_str("a.rs", "same source");
+        let b = SourceBuffer::from_str("b.rs", "same source");
+        let mut store = OccurrencePinStore::new();
+        store.activate(&a);
+        store.toggle_pin("a", std::iter::once(0..4).collect());
+        let color = store.groups[0].color;
+        store.ephemeral = Some(("temporary".into(), std::iter::once(5..11).collect()));
+        store.activate(&b);
+        assert!(store.is_empty());
+        store.toggle_pin("b", std::iter::once(5..11).collect());
+        store.activate(&a);
+        assert!(store.is_pinned("a"));
+        assert_eq!(store.groups[0].color, color);
+        let before = SourceBuffer::from_bytes(
+            "a.rs",
+            b"same source".to_vec(),
+            Some(ReviewRevision::Before),
+        )
+        .unwrap();
+        store.activate(&before);
+        assert!(store.is_empty());
+        store.toggle_pin("before", std::iter::once(0..4).collect());
+        store.activate(&a);
+        assert!(store.is_pinned("a"));
+        let changed = SourceBuffer::from_str("a.rs", "new! source"); // Same byte length.
+        store.activate(&changed);
+        assert!(store.is_empty());
+        store.activate(&a);
+        assert!(store.is_empty()); // Returning to old bytes does not resurrect discarded pins.
+        store.activate(&b);
+        assert!(store.is_pinned("b"));
+        store.clear_current();
+        store.activate(&before);
+        assert!(store.is_pinned("before"));
+        store.clear();
+        store.activate(&b);
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn canonical_ranges_reconcile_lexical_and_semantic_groups_without_duplicate_highlights() {
+        let mut store = OccurrencePinStore::new();
+        store.toggle_labeled_pin("word@0", "word", vec![10..14, 1..5, 10..14], 2);
+        assert_eq!(store.groups[0].label, "word");
+        assert_eq!(store.groups[0].ranges, vec![1..5, 10..14]);
+        store.toggle_labeled_pin("scip-package word.", "word", vec![1..5, 10..14], 11);
+        assert!(store.is_empty());
+        store.toggle_labeled_pin("empty", "empty", std::iter::once(4..4).collect(), 4);
+        assert!(store.is_empty());
     }
 }

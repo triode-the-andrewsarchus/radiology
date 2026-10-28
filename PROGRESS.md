@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-28 — Unlimited document-scoped pin store (Codex)
+
+Removed pin eviction at four groups. Palette slots advance monotonically, while
+removal leaves surviving colors unchanged. Document activation retains pins by
+path/revision and exact SHA-256 bytes; changed content discards stale ranges and
+ephemeral highlights do not cross documents. Equivalent sorted/deduplicated ranges
+reconcile fallback and semantic identities. Labels are independent of identities.
+
+Store regression tests pass; architecture comparison is neutral. Reader activation
+and remove/clear controls follow separately. AST-aware fallback and PR refresh
+restoration remain open. [Pin parity](plans/rust-occurrence-pins.md).
+
 ## 2026-10-28 — C/C++ generation integration and native acceptance (Codex)
 
 Connected backend `574f68d` to generation: supported C/C++ compilation databases
