@@ -6,6 +6,7 @@
 pub mod command;
 pub mod inventory;
 pub mod process;
+pub mod service;
 pub mod tools;
 pub mod workspace;
 
@@ -66,6 +67,18 @@ impl Indexer {
             Self::Clang => &["c", "h", "cpp", "cc", "cxx", "hpp", "hh", "hxx"],
             Self::Kotlin => &["kt", "java"],
         }
+    }
+
+    /// Returns whether a path's extension belongs to this adapter's source languages.
+    #[must_use]
+    pub fn covers_path(self, path: &str) -> bool {
+        Path::new(path)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                self.extensions()
+                    .contains(&extension.to_ascii_lowercase().as_str())
+            })
     }
 
     /// Returns the column encoding when the index omits an explicit encoding.
@@ -224,17 +237,7 @@ fn contains(directory: &str, path: &str) -> bool {
 fn source_count(paths: &BTreeSet<&str>, indexer: Indexer, directory: &str) -> usize {
     paths
         .iter()
-        .filter(|path| {
-            contains(directory, path)
-                && Path::new(path)
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .is_some_and(|ext| {
-                        indexer
-                            .extensions()
-                            .contains(&ext.to_ascii_lowercase().as_str())
-                    })
-        })
+        .filter(|path| contains(directory, path) && indexer.covers_path(path))
         .count()
 }
 

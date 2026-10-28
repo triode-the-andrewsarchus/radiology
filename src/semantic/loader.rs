@@ -110,8 +110,13 @@ fn import(root: &Path, cancel: &AtomicBool) -> Result<Option<ImportedIndex>, Str
         if cancel.load(Ordering::Relaxed) {
             return Ok(None);
         }
-        match read_index(&path, cancel) {
-            Ok(Some(index)) => return Ok(Some(ImportedIndex { index, path })),
+        match read_scip(&path, cancel) {
+            Ok(Some(scip)) => {
+                return Ok(Some(ImportedIndex {
+                    index: SemanticIndex::from_scip(scip),
+                    path,
+                }))
+            }
             Ok(None) => {}
             Err(error) => failures.push(format!("{}: {error}", path.display())),
         }
@@ -123,7 +128,16 @@ fn import(root: &Path, cancel: &AtomicBool) -> Result<Option<ImportedIndex>, Str
     }
 }
 
-fn read_index(path: &Path, cancel: &AtomicBool) -> Result<Option<SemanticIndex>, String> {
+pub(crate) fn read_generated(path: &Path, cancel: &AtomicBool) -> Result<ScipIndex, String> {
+    let metadata =
+        std::fs::symlink_metadata(path).map_err(|e| format!("No regular index output: {e}"))?;
+    if !metadata.is_file() {
+        return Err("Generated index output must be a regular file".into());
+    }
+    read_scip(path, cancel)?.ok_or("Indexer did not write index.scip".into())
+}
+
+pub(crate) fn read_scip(path: &Path, cancel: &AtomicBool) -> Result<Option<ScipIndex>, String> {
     let file = match std::fs::File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -155,7 +169,7 @@ fn read_index(path: &Path, cancel: &AtomicBool) -> Result<Option<SemanticIndex>,
     if cancel.load(Ordering::Relaxed) {
         return Ok(None);
     }
-    Ok(Some(SemanticIndex::from_scip(scip)))
+    Ok(Some(scip))
 }
 
 #[cfg(test)]

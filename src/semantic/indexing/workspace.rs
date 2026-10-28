@@ -145,6 +145,15 @@ impl IndexingWorkspace {
         self.directory.path()
     }
 
+    /// Returns the exact digest for a regular source input, excluding link text.
+    #[must_use]
+    pub fn source_digest(&self, path: &str) -> Option<&str> {
+        self.inputs
+            .get(path)
+            .filter(|input| !input.original.link)
+            .map(|input| input.original.sha256.as_str())
+    }
+
     /// Returns a deterministic SHA-256 fingerprint of original paths, bytes and modes.
     #[must_use]
     pub fn fingerprint(&self) -> String {

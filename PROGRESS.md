@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-28 — Isolated checkout index generation service (Codex)
+
+Added GUI-independent `IndexGenerator` using `LatestRead`, bounded live progress
+and per-strategy outcomes. It replans from full build inputs, retains a pristine
+baseline, creates independent strategy copies, probes real tool versions, writes
+auxiliary resources privately, runs cancellable processes and verifies inputs.
+Cargo target output is isolated and build jobs use half available logical CPUs.
+Shared bounded SCIP decoding rebases real source documents, sets per-document
+encodings, merges scoped symbols and attaches exact source digests. Missing,
+overlapping and partial coverage and source drift remain explicit in the report.
+
+Backend fixture tests cover real subprocess execution, output isolation, mixed
+success/failure, encodings/local IDs, invalid or linked output, rewritten inputs,
+source additions/edits, replacement/cancellation, deadlines and partial-build
+markers beyond retained diagnostic bounds. Current workspace verification,
+including reader integration in progress, passes 118 application tests, 5 reader-
+text tests and 30 doctests, fmt and Clippy. One version-probe test failed once;
+20 subsequent parallel library-suite runs did not reproduce it. Its assertion now
+prints the full probe result for diagnosis; no speculative production fix was made.
+
+Architecture retains the known test clones and review/workspace structural flags;
+new generation CCN and product clones were removed. C/C++ generation is explicitly
+gated pending compilation-database rebasing. Cache persistence, provisioning,
+pinned-review generation and full parity remain open. Reader/native integration
+is the next commit. See [indexing parity](plans/rust-indexing-parity.md).
+
 ## 2026-10-28 — Semantic coordinate provenance boundary (Codex)
 
 Source buffers now cache a SHA-256 digest alongside the existing bookmark/find
