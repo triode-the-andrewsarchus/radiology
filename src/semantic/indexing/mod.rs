@@ -4,8 +4,10 @@
 //! No command is executed and no repository file is changed during inspection.
 
 pub mod command;
+pub mod inventory;
 pub mod process;
 pub mod tools;
+pub mod workspace;
 
 use crate::source::location::SourceLocation;
 use std::collections::BTreeSet;

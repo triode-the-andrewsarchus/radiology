@@ -87,9 +87,43 @@ pub fn run(
     cancel: &AtomicBool,
     timeout: Duration,
 ) -> Result<RunOutput, RunFailure> {
+    run_observed(command, cancel, timeout, |_, _| Ok(()))
+}
+
+/// Identifies one drained subprocess output stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputStream {
+    /// Standard output.
+    Stdout,
+    /// Standard error.
+    Stderr,
+}
+
+/// Runs a command while delivering complete byte chunks to a bounded consumer.
+///
+/// Captured diagnostics remain bounded independently of this observer. The
+/// observer must return promptly and enforce its own domain limits. Returning an
+/// I/O error aborts the child group; no truncated stream is reported as complete.
+///
+/// # Errors
+///
+/// Returns process failures from [`run`] or an observer's error.
+pub fn run_observed(
+    command: &IndexCommand,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    mut observer: impl FnMut(OutputStream, &[u8]) -> io::Result<()>,
+) -> Result<RunOutput, RunFailure> {
     let mut stdout = Capture::default();
     let mut stderr = Capture::default();
-    let result = run_inner(command, cancel, timeout, &mut stdout, &mut stderr);
+    let result = run_inner(
+        command,
+        cancel,
+        timeout,
+        &mut stdout,
+        &mut stderr,
+        &mut observer,
+    );
     let stdout = stdout.finish();
     let stderr = stderr.finish();
     match result {
@@ -155,6 +189,7 @@ fn run_inner(
     timeout: Duration,
     out: &mut Capture,
     err: &mut Capture,
+    observer: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<(Option<i32>, Option<i32>, Duration), RunFailureKind> {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
@@ -181,8 +216,7 @@ fn run_inner(
     nonblocking(&stdout).map_err(io_failure)?;
     nonblocking(&stderr).map_err(io_failure)?;
     loop {
-        drain(&mut stdout, out).map_err(io_failure)?;
-        drain(&mut stderr, err).map_err(io_failure)?;
+        drain_streams(&mut stdout, &mut stderr, out, err, observer).map_err(io_failure)?;
         if cancel.load(Ordering::Relaxed) {
             return Err(RunFailureKind::Cancelled);
         }
@@ -191,8 +225,7 @@ fn run_inner(
         }
         if let Some((code, signal)) = poll_exit(&group.0).map_err(io_failure)? {
             // Read bytes emitted between the preceding drain and process exit.
-            drain(&mut stdout, out).map_err(io_failure)?;
-            drain(&mut stderr, err).map_err(io_failure)?;
+            drain_streams(&mut stdout, &mut stderr, out, err, observer).map_err(io_failure)?;
             return Ok((code, signal, started.elapsed()));
         }
         std::thread::sleep(Duration::from_millis(10));
@@ -270,13 +303,38 @@ impl Drop for ProcessGroup {
 }
 
 #[cfg(unix)]
-fn drain(reader: &mut impl Read, capture: &mut Capture) -> io::Result<()> {
+fn drain_streams(
+    stdout: &mut std::process::ChildStdout,
+    stderr: &mut std::process::ChildStderr,
+    out: &mut Capture,
+    err: &mut Capture,
+    observer: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,
+) -> io::Result<()> {
+    let streams: [(&mut dyn Read, &mut Capture, OutputStream); 2] = [
+        (stdout, out, OutputStream::Stdout),
+        (stderr, err, OutputStream::Stderr),
+    ];
+    for (reader, capture, stream) in streams {
+        drain(reader, capture, &mut |bytes| observer(stream, bytes))?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn drain(
+    reader: &mut (impl Read + ?Sized),
+    capture: &mut Capture,
+    observe: &mut impl FnMut(&[u8]) -> io::Result<()>,
+) -> io::Result<()> {
     let mut buffer = [0_u8; 8192];
     // Bound each turn even when a child continuously fills either stream.
     for _ in 0..32 {
         match reader.read(&mut buffer) {
             Ok(0) => return Ok(()),
-            Ok(count) => capture.push(&buffer[..count]),
+            Ok(count) => {
+                capture.push(&buffer[..count]);
+                observe(&buffer[..count])?;
+            }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(error),
@@ -292,6 +350,7 @@ fn run_inner(
     _: Duration,
     _: &mut Capture,
     _: &mut Capture,
+    _: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<(Option<i32>, Option<i32>, Duration), RunFailureKind> {
     Err(RunFailureKind::Io(
         "Indexer process groups require a POSIX host".into(),

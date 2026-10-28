@@ -155,3 +155,36 @@ fn normal_exit_cleans_up_descendants_holding_output_pipes() {
     assert_eq!(output.stdout.text, "done");
     assert_child_stopped(root.path());
 }
+
+#[test]
+fn observed_stream_is_complete_even_when_diagnostics_truncate() {
+    let root = tempfile::tempdir().unwrap();
+    let command = shell(root.path(), "head -c 200000 /dev/zero; printf end");
+    let mut count = 0;
+    let output = run_observed(
+        &command,
+        &AtomicBool::new(false),
+        Duration::from_secs(5),
+        |stream, bytes| {
+            if stream == OutputStream::Stdout {
+                count += bytes.len();
+            }
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert!(output.succeeded());
+    assert_eq!(count, 200003);
+    assert_eq!(output.stdout.total_bytes, count as u64);
+    assert!(output.stdout.truncated);
+    let failure = run_observed(
+        &shell(root.path(), "printf ready; sleep 30"),
+        &AtomicBool::new(false),
+        Duration::from_secs(5),
+        |_, _| Err(io::Error::other("consumer refused output")),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(failure.kind, RunFailureKind::Io(message) if message.contains("consumer refused"))
+    );
+}
