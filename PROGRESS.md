@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-10-27 — Independent Rust/Swift parity review (Codex)
+
+Reviewed `rust-egui-port` at `fd421e1` against the existing Swift source and test
+contracts. **The port does not yet have feature/UI parity.** Earlier completion
+and full-parity entries below are historical claims superseded by this audit.
+
+Full handoff: [feature matrix, 17 finding groups, prioritized repair plan, and
+acceptance gates](plans/rust-swift-parity-review-2026-10-27.md).
+
+- Highest-impact gaps: checkout bytes presented as PR revisions; aggregate and
+  contextual hunks applied to individual files; no index generation lifecycle;
+  color-based Critical Lens disconnected from policy; stale state across roots;
+  broken exact navigation/fold reveal; conflicting global keyboard handlers;
+  bookmark persistence/relocation/scope paths bypassed; missing syntax/test-code
+  hiding; tabbed inspector instead of simultaneous resizable regions.
+- Headless probes confirmed local-symbol UI lookup failure, TSX empty outline/folds,
+  Ctrl+Alt+T double toggle plus symbol modal, stale index/pins/revision/history after
+  root switch, lost target column, hidden navigation destinations, contextual
+  multi-file diff contamination, and source arrows reacting while a text field
+  is focused. Temporary probe/config/logs are under `/tmp/radiology-parity-*`.
+- Current checks: 38 unit tests + 30 doctests PASS; rustfmt PASS; resource lookup
+  check PASS with limited scope. Clippy with warnings denied FAILS on three
+  `float_literal_f32_fallback` errors with rustc 1.98.1. No Swift/AppKit runtime or
+  side-by-side desktop acceptance on Linux.
+- Architecture review measured existing hotspots: shortcuts CCN 125, update 76,
+  source rendering 80. Neutral comparison to clean HEAD does not establish parity.
+- User clarified future integration target:
+  `~/Documents/git/local/little-screen-clip`; **keep Radiology independent now**,
+  favor substantial shared mechanisms/tie-ins and compatible broad UI conventions.
+  Read-only inspection found egui 0.27 alignment, shared palette/fonts/shell,
+  byte-based text selection/find/variable-row layout, immutable source sharing,
+  bounded jobs, and the separate file-manager/shared-library pattern. Some reuse
+  needs focused extraction because workbench internals are private and its full
+  dependency graph is heavy. No sibling repository files were changed.
+- Documentation-only review. No product fixes, commits, pushes, or merges performed.
+
 ## 2026-10-27 — Deduplicated Status Bar Remediation (Antigravity)
 
 Resolved defect where the bottom status bar appeared duplicated:

@@ -1,5 +1,10 @@
 # Full-Coverage Swift vs. Rust Parity Audit & Implementation Plan
 
+> **Superseded acceptance claims, 2026-10-27:** this document records earlier
+> implementation work. It did not establish full behavioral or UI parity. Use the
+> [independent parity review](rust-swift-parity-review-2026-10-27.md) for the current
+> feature matrix, confirmed defects, integration direction, and repair gates.
+
 ## 1. Overview & Context
 
 This document records the exhaustive audit of all original Swift source files (`Sources/Radiology/` ~120 files) and tests (`Tests/RadiologyTests/`) against the Rust + EGUI implementation in `src/`.

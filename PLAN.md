@@ -4,6 +4,29 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
+The source audit and headless probes at `fd421e1` found 17 groups of functional,
+interaction, UI, and validation gaps. In particular, PR review reads checkout
+bytes rather than pinned revisions; indexing generation is absent; Critical Lens
+policy is disconnected from rendering; navigation, keyboard focus, bookmarks,
+repository transitions, syntax coverage, and the inspector require repair.
+Earlier full-parity/completion claims below are historical implementation reports,
+not the current acceptance verdict.
+
+- [Current parity matrix, prioritized findings, evidence, and repair gates](plans/rust-swift-parity-review-2026-10-27.md)
+- Validation: 38 unit tests and 30 doctests pass; rustfmt and the current resource
+  lookup check pass. Clippy with `-D warnings` fails on three float-literal warnings
+  with Rust 1.98.1. Swift runtime and side-by-side visual acceptance remain unverified.
+- User direction: Radiology remains independently buildable/runnable now, while
+  preparing for integration with `~/Documents/git/local/little-screen-clip`.
+  Favor shared source-view, palette, typography, shell, and job mechanisms; retain
+  Swift's functional workflow and align broad Linux UI conventions with that host.
+  The review identifies concrete reuse candidates and dependency boundaries.
+- This review changed documentation only. The repair packages are proposed work,
+  not implemented fixes.
+
+## Historical implementation reports (parity claims superseded by review above)
+
 **Deduplicated Status Bar Remediation (2026-10-27):**
 Eliminated duplicated status bar at the bottom of the application:
 - Removed extraneous window-level `TopBottomPanel::bottom("status_bar")` from [`RadiologyApp::update`](file:///home/vcarlson/radiology/src/ui/app.rs).
