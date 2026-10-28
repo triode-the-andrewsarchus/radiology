@@ -1,3 +1,7 @@
+[workspace]
+members = ["crates/reader-text"]
+resolver = "2"
+
 [package]
 name = "radiology"
 version = "0.2.0"
@@ -15,6 +19,7 @@ name = "radiology"
 path = "src/main.rs"
 
 [dependencies]
+reader-text = { path = "crates/reader-text" }
 eframe = { version = "0.27", default-features = false, features = ["default_fonts", "glow", "wayland"] }
 egui = "0.27"
 egui_extras = { version = "0.27", features = ["svg"] }
