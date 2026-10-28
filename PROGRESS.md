@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-28 — Real build inputs and disposable indexing workspaces (Codex)
+
+Added full Git tracked/unignored input discovery, retaining tracked build/vendor/
+Cargo configuration files hidden by the reader. Git inventory streams complete
+NUL-delimited bytes through the existing cancellable process runner; diagnostic
+truncation cannot drop paths. Worktrees are supported and submodule directories
+are reported as omitted. Non-Git discovery retains Cargo configuration, enforces
+file/path limits and reports enumeration failures.
+
+Disposable workspaces preserve bytes/modes, redirect internal links, literalize
+external Markdown links and reject external source links and linked parents.
+Cache destinations inside the viewed tree are rejected before creation. Bounded,
+cancellable copies clean up on failure/drop. SHA-256 fingerprints and type/mode/
+byte checks detect source/build rewrites; Git-compatible blob IDs support exact
+snapshot checks. `tempfile` now manages production workspace lifetime; SHA-1/SHA-2
+crates were added without updating existing locked dependency versions.
+
+Verified 110 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy
+with warnings denied. Actual Git/filesystem/process fixtures cover large streamed
+inventories, worktrees/submodules, bytes/modes/links, provenance, limits, live copy
+cancellation and cleanup. Architecture comparison retains only the known findings
+after simplifying workspace stages and shared stream draining. No native index
+generation run yet. [Indexing parity](plans/rust-indexing-parity.md) records scope
+and limits. Generate/Reindex integration, caches, provisioning and full parity
+remain open.
+
 ## 2026-10-28 — Actual indexer availability and native status controls (Codex)
 
 Connected managed/PATH executable discovery and real version probes to Check

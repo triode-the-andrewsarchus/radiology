@@ -133,6 +133,62 @@ both compositors exited with status zero. Captures are under
 `checks-complete.png`, `checks-lower-projects.png`, `checks-running.png`, and
 `checks-cancelled.png`. Native evidence used fake indexers, not live generation.
 
+## Build-input inventory and isolated workspaces (2026-10-28)
+
+`InputInventory::discover` uses the full Git tracked/unignored inventory, including
+tracked `.cargo`, build and vendor files omitted by the browser. Deleted files are
+dropped; listed directories/submodules are reported as omitted, never fabricated.
+Detached Git worktrees are supported. Non-Git folders use a non-following walk,
+retaining `.cargo` configuration while excluding build/dependency output trees.
+UTF-8 paths are validated, deduplicated and sorted. Discovery is cancellable and
+bounded to 200,000 inputs and 64 MiB of path data. Unreadable/enumeration failures
+are errors rather than silently complete inventories.
+
+The process runner now supports `run_observed`: consumers receive every raw output
+chunk while retained diagnostics remain bounded. Git inventory parsing streams
+NUL-delimited paths through this mechanism, so large inventories do not silently
+truncate at the 64 KiB diagnostic limit. Consumer errors terminate the child group.
+
+`IndexingWorkspace` owns a unique disposable directory outside the viewed tree.
+Cache-parent symlinks are resolved before writes; an internal parent is rejected.
+Copies preserve source bytes and permission modes. Paths traversing symlink
+directories are rejected. Regular-file opens do not follow leaf links on POSIX.
+Internal symbolic links are redirected within the copy; dangling internal links
+remain dangling. External Markdown links become literal link text without reading
+the external target. External source/build links fail explicitly. Cleanup runs on
+success, errors, cancellation and owner drop.
+
+The copy defaults to 256 MiB per file and 2 GiB of input bytes, configurable through
+`WorkspaceLimits`. Cancellation is checked between files and each 64 KiB read.
+Input identities include type, mode, SHA-256 bytes and Git-compatible SHA-1 blob
+IDs. The SHA-256 repository fingerprint covers original paths, bytes and modes,
+independently of random workspace paths. `verify_inputs` detects build rewrites;
+`verify_source` detects edits to copied inputs in the viewed tree;
+`verify_snapshot` compares exact SHA-1 Git blob inventories. A fresh inventory is
+also required to detect additions before claiming a current index. Snapshot
+inventories using other Git object formats are not yet supported here.
+
+This is filesystem isolation, not an OS sandbox: arbitrary build scripts could
+still reference absolute external paths. The generation service must control
+known output directories, validate provenance and reject modified inputs. Full
+dependency environments, submodule materialization, C/C++ compilation database
+rebasing and pinned-snapshot inventory routing remain service integration work.
+SHA-1 is used only for Git/Swift identity interoperability; mutation verification
+and repository fingerprints use SHA-256. `sha1`/`sha2` are direct dependencies;
+`tempfile` is promoted from test-only use for workspace lifetime management. No
+pre-existing locked dependency versions changed.
+
+Fresh verification: 110 application tests, 5 reader-text tests and 30 doctests;
+fmt and Clippy with warnings denied pass. Real Git/process/filesystem fixtures
+cover inventories beyond the diagnostic cap, tracked build/config inputs, ignored
+and deleted files, worktrees, omitted submodules, exact Git blob identities,
+permissions, internal/dangling/external links, input rewrites, source edits, cache
+parent links, limits, cancellation after workspace creation and drop cleanup.
+Architecture comparison retains the previously documented flags; the initial
+workspace setup/materialization complexity and stream-drain duplication were
+removed before acceptance. No native app generation acceptance was performed:
+Generate/Reindex is not connected yet.
+
 ## Swift behavior still required
 
 The authoritative implementations are `SemanticIndexService.swift`,
@@ -140,13 +196,13 @@ The authoritative implementations are `SemanticIndexService.swift`,
 `IndexingWorkspace.swift`, `IndexerProcess.swift` and the six indexer adapters.
 The import lifecycle above is only part of R4 in the independent parity review.
 
-- Expand build-input discovery to include compilation databases omitted by the
-  browser inventory, and integrate generated document coverage counts. Project
-  strategy detection and the 32-strategy cap are implemented above.
+- Connect full build-input discovery and project replanning to generation, then
+  integrate generated document coverage counts. Strategy detection, full input
+  inventory and the 32-strategy cap are implemented above.
 - Add tool-specific installation plans, prerequisite checks and private
   provisioning. Executable/version availability probes are implemented above.
-- Connect generated indexes to the cancellable bounded-diagnostic process runner,
-  with isolated build inputs/workspaces and no writes to viewed trees.
+- Connect generated indexes to the cancellable process runner and isolated
+  workspaces; control known output paths and verify inputs before publication.
 - Validate per-strategy fingerprints/tool versions/content digests; atomically
   cache and merge independently scoped projects with partial/stale outcomes.
 - Reindex and refresh lifecycles; preserve useful prior data while reporting
