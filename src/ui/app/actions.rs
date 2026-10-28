@@ -6,6 +6,8 @@ impl RadiologyApp {
     pub(super) fn execute_command(&mut self, ctx: &Context, command: ToolbarAction) {
         use ToolbarAction::*;
         match command {
+            CheckIndexTools => self.check_index_tools(),
+            CancelIndexToolCheck => self.tool_probe_job.stop(),
             ReloadIndexImport if self.review.is_none() => {
                 if let Some(root) = &self.repository_root {
                     self.index_importer.start(root.clone());

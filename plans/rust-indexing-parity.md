@@ -37,7 +37,7 @@ Python markers are considered together to avoid duplicate nested Python runs
 when a parent uses a different manifest type from its child.
 
 The app computes plans on `LatestRead`, retires them on repository/review changes,
-and publishes via `poll_index`. The Index Projects menu shows project evidence,
+and publishes via `poll_index`. The Index Projects view shows project evidence,
 languages, counts and cap omissions. Tool availability is not implied by a plan;
 generation is still explicitly unavailable in the current app.
 
@@ -94,6 +94,45 @@ retirement, live cancellation, timeout with TERM-ignoring descendants, and clean
 of children after normal tool exit. Linux `/proc` evidence checks that descendant
 processes stop. Architecture retains only the previously documented findings.
 
+## Tool availability and native status (2026-10-28)
+
+`ToolDirectory` captures managed/user/PATH lookup locations explicitly. Managed
+Go/npm/Clang/Kotlin tools take precedence; conventional Cargo and Go locations
+remain supported. Lookup checks executable bits and regular-file targets rather
+than mere existence. Version probes use the bounded process runner with a
+10-second deadline. Empty/nonzero/unexpected Rust responses are unavailable,
+including rustup proxies whose rust-analyzer component is missing. Rustup symlink
+identity is preserved for argv[0] dispatch; Kotlin resolves its actual distribution
+for plugin discovery. Child PATH matches the lookup context.
+
+Index Projects is now a resizable window with a scrollable project list and
+persistent Check Tools/Cancel Checks controls. A popup at the bottom status bar
+was found to clip its controls in native testing and was replaced. Checks run on
+`LatestRead`, deduplicate adapters, preserve previous results during cancellation,
+and retire on repository/review transitions through shared index-state reset.
+`poll_index` publishes checks; independent hosts can query `tool_availability`.
+Opening a repository does not launch version probes automatically. In reviews,
+checks use the pinned After workspace's directory. Tool installation and generation
+are still unavailable; no successful probe is treated as a generated index.
+
+Fresh verification: 100 application tests, 5 reader-text tests, 30 doctests; fmt,
+Clippy with warnings denied and the native binary build pass. Fixture tests cover
+managed precedence, symlink dispatch, missing components, empty responses,
+nonexecutables, stderr versions, deadlines, app publication/cancellation and stale
+repository retirement. Architecture retains only the previously documented flags.
+
+Native acceptance reused little-screen-clip's existing private-compositor and
+virtual-pointer **test helpers only**, via a temporary driver; no sibling source
+or runtime dependency was added. In a private 1280×900 Weston/Niri session:
+opened Index Projects, invoked Check Tools on six managed fixture executables,
+verified successful versions and a Python status-7 failure, scrolled to C/C++ and
+Kotlin, observed running/cancel controls, invoked Cancel Checks for a slow fixture
+and confirmed its process stopped. Current source remained visible. The app and
+both compositors exited with status zero. Captures are under
+`/tmp/radiology-index-tools-native-window/`: `projects.png`,
+`checks-complete.png`, `checks-lower-projects.png`, `checks-running.png`, and
+`checks-cancelled.png`. Native evidence used fake indexers, not live generation.
+
 ## Swift behavior still required
 
 The authoritative implementations are `SemanticIndexService.swift`,
@@ -104,10 +143,10 @@ The import lifecycle above is only part of R4 in the independent parity review.
 - Expand build-input discovery to include compilation databases omitted by the
   browser inventory, and integrate generated document coverage counts. Project
   strategy detection and the 32-strategy cap are implemented above.
-- Probe actual executable/version availability, including missing rustup proxies;
-  expose tool-specific installation plans and private provisioning.
-- Generate indexes with cancellable bounded-diagnostic child processes, deadlines,
-  isolated build inputs/workspaces where required, and no writes to viewed trees.
+- Add tool-specific installation plans, prerequisite checks and private
+  provisioning. Executable/version availability probes are implemented above.
+- Connect generated indexes to the cancellable bounded-diagnostic process runner,
+  with isolated build inputs/workspaces and no writes to viewed trees.
 - Validate per-strategy fingerprints/tool versions/content digests; atomically
   cache and merge independently scoped projects with partial/stale outcomes.
 - Reindex and refresh lifecycles; preserve useful prior data while reporting

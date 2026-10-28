@@ -43,6 +43,10 @@ pub enum ReaderCommand {
     PreviousFindMatch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Probes executable versions for the detected indexing tools.
+    CheckIndexTools,
+    /// Stops pending executable version probes.
+    CancelIndexToolCheck,
     /// Reloads a repository-provided SCIP index in the background.
     ReloadIndexImport,
     /// Cancels an import while retaining any published semantic data.

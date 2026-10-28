@@ -5,6 +5,7 @@
 
 pub mod command;
 pub mod process;
+pub mod tools;
 
 use crate::source::location::SourceLocation;
 use std::collections::BTreeSet;

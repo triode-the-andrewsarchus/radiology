@@ -23,8 +23,8 @@ records the integrated source worker, atomic navigation/history publication, and
 remaining repository/index/background cancellation work.
 
 [Rust indexing lifecycle and remaining Swift requirements](plans/rust-indexing-parity.md)
-records asynchronous SCIP imports, project strategies and adapter commands,
-truthful freshness/errors and the remaining generation/cache lifecycle.
+records asynchronous SCIP imports, project strategies, adapter commands and actual
+tool probes, native status controls and the remaining generation/cache lifecycle.
 
 **Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
 The source audit and headless probes at `fd421e1` found 17 groups of functional,

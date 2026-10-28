@@ -96,9 +96,7 @@ impl RadiologyApp {
             buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
         });
         self.cancel_source_load();
-        self.index_importer = Default::default();
-        self.index_plan_job.stop();
-        self.index_plan = Default::default();
+        self.reset_index_state();
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());
         self.session.set_active_pr(Some(snapshot.summary.number));
@@ -108,7 +106,6 @@ impl RadiologyApp {
         self.review = Some(Arc::new(snapshot));
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;
-        self.semantic_index = None;
         self.history.clear();
         self.pin_store.clear();
         self.open_buffer = None;
