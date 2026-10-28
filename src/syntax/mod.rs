@@ -15,3 +15,37 @@ pub use highlighter::{HighlightedSpan, SyntaxHighlighter};
 pub use language::{LanguageInfo, LanguageRegistry, SupportedGrammar};
 pub use outline::{DocumentSymbol, SymbolExtractor, SymbolKind};
 pub use test_detector::{TestDetection, TestRegion, TestRegionDetector};
+
+/// Immutable structural facts derived from one parse of an exact source buffer.
+pub struct DocumentSyntax {
+    /// Full outline, unaffected by source presentation filters.
+    pub symbols: Vec<DocumentSymbol>,
+    /// Manual fold candidates from declarations and comments.
+    pub folds: Vec<FoldRange>,
+    /// Conservative test-only regions and file-level gating.
+    pub tests: TestDetection,
+}
+
+impl DocumentSyntax {
+    /// Computes outline, folds and tests from one shared native tree.
+    #[must_use]
+    pub fn analyze(buffer: &crate::source::SourceBuffer) -> Self {
+        let parsed = LanguageRegistry::for_path(&buffer.path)
+            .grammar
+            .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
+        let (symbols, tests) = if let Some((grammar, tree)) = parsed {
+            (
+                SymbolExtractor::from_tree(buffer, grammar, tree.root_node()),
+                TestRegionDetector::from_tree(buffer, grammar, tree.root_node()),
+            )
+        } else {
+            (SymbolExtractor::extract(buffer), TestDetection::default())
+        };
+        let folds = FoldDetector::from_symbols(buffer, &symbols);
+        Self {
+            symbols,
+            folds,
+            tests,
+        }
+    }
+}

@@ -170,7 +170,11 @@ impl RadiologyApp {
             .toggle_pin(&format!("{word}@{}", scope.start), ranges);
     }
 
-    fn filters_changed(&mut self) {
+    pub(super) fn filters_changed(&mut self) {
+        if let Some(buffer) = &self.open_buffer {
+            self.test_code
+                .set_enabled(buffer, self.session.source_filters.hides_tests);
+        }
         self.refresh_file_tree();
         self.session.save();
     }

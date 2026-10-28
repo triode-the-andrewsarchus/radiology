@@ -38,6 +38,11 @@ remains the requirement ledger; completing an initial package does not close it.
   use exact semantic occurrences; lexical fallback is scoped to enclosing functions.
 - Native Swift/Kotlin grammars, nested declaration outlines and source-span folds
   are registered and tested; detailed highlighting/query coverage remains open.
+- Conservative AST test detection and independent Hide Tests projection are
+  integrated: owned headers/controls/status, exact source copy, manual-fold
+  preservation, filtered inspector outline, readable explicit test documents,
+  and automatic reveal through navigation/local find. Structural facts share one
+  native parse. [Evidence and boundaries](rust-inline-test-parity.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -53,8 +58,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   groups/legend, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit.
-- Swift/Kotlin highlighting and broader declaration/query-based folds/scopes, syntax-aware inline
-  test detection/presentation, and hidden-test navigation/outline behavior.
+- Swift/Kotlin highlighting and broader declaration/query-based folds/scopes;
+  broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,
   independent inspector keyboard preview/commit behavior.

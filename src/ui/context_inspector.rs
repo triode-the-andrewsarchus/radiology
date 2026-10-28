@@ -46,6 +46,8 @@ pub struct InspectorContent<'a> {
     pub callers: &'a [ReferenceCallerNode],
     /// Original structural symbols in source order.
     pub outline: &'a [DocumentSymbol],
+    /// Current test-region projection for outline visibility.
+    pub test_code: Option<&'a crate::source::test_code::TestCodePresentation>,
     /// Bookmarks in the active checkout or PR scope.
     pub bookmarks: &'a BookmarkStore,
     /// Visible checkout or PR scope title.
@@ -191,7 +193,15 @@ impl ContextInspector {
                                 ui.label(doc);
                             }
                         } else if let Some(buffer) = content.buffer {
-                            for row in outline_rows(content.outline, buffer) {
+                            for row in
+                                outline_rows(content.outline, buffer)
+                                    .into_iter()
+                                    .filter(|row| {
+                                        !content.test_code.is_some_and(|tests| {
+                                            tests.hides_declaration(&row.symbol.range)
+                                        })
+                                    })
+                            {
                                 if let Some(next) =
                                     Self::render_outline_row(ui, row, content.declaration)
                                 {
@@ -334,6 +344,7 @@ mod tests {
                             buffer: None,
                             callers: &[],
                             outline: &[],
+                            test_code: None,
                             bookmarks: &bookmarks,
                             scope: "Checkout",
                             indexed: false,

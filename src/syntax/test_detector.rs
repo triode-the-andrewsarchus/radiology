@@ -45,8 +45,15 @@ impl TestRegionDetector {
         let Some(tree) = grammar.parse(&buffer.data) else {
             return TestDetection::default();
         };
+        Self::from_tree(buffer, grammar, tree.root_node())
+    }
+
+    pub(crate) fn from_tree(
+        buffer: &SourceBuffer,
+        grammar: SupportedGrammar,
+        root: Node<'_>,
+    ) -> TestDetection {
         let detector = Detector { buffer };
-        let root = tree.root_node();
         let mut result = TestDetection::default();
         match grammar {
             SupportedGrammar::Rust => {

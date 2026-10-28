@@ -109,7 +109,13 @@ impl FoldDetector {
     /// Detects all foldable line ranges within the given [`SourceBuffer`].
     #[must_use]
     pub fn detect_folds(buffer: &SourceBuffer) -> Vec<FoldRange> {
-        let symbols = SymbolExtractor::extract(buffer);
+        Self::from_symbols(buffer, &SymbolExtractor::extract(buffer))
+    }
+
+    pub(crate) fn from_symbols(
+        buffer: &SourceBuffer,
+        symbols: &[DocumentSymbol],
+    ) -> Vec<FoldRange> {
         let mut folds = Vec::new();
 
         fn add_symbol_folds(
@@ -132,7 +138,7 @@ impl FoldDetector {
             }
         }
 
-        add_symbol_folds(&symbols, buffer, &mut folds);
+        add_symbol_folds(symbols, buffer, &mut folds);
         Self::detect_comment_folds(buffer, &mut folds);
 
         folds.sort_by(|a, b| {

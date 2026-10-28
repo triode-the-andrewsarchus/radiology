@@ -34,6 +34,8 @@ pub enum SourceViewAction {
     JumpToDefinition,
     /// Requests expanding or collapsing the code fold starting at the given line number.
     ToggleFold(usize),
+    /// Toggles one detected test region without changing manual folds.
+    ToggleTestRegion(usize),
     /// Requests jumping to the next modified hunk in the active pull request review.
     NextChangeBlock,
     /// Requests jumping to the previous modified hunk in the active pull request review.
@@ -82,6 +84,8 @@ pub struct SourceViewContent<'a> {
     pub keyboard_enabled: bool,
     /// Local-find state and highlights.
     pub find: &'a mut crate::ui::source_find::SourceFindPanel,
+    /// Inline-test presentation from the exact source analysis.
+    pub test_code: &'a crate::source::test_code::TestCodePresentation,
     /// Source font size, independent of interface labels.
     pub font_size: f32,
 }
@@ -117,6 +121,7 @@ impl SourceView {
             keyboard_enabled,
             find,
             font_size,
+            test_code,
         } = content;
         let mut action = None;
 
@@ -229,6 +234,7 @@ impl SourceView {
                     target: scroll_to_line,
                     keyboard_enabled,
                     find,
+                    test_code,
                 },
             ) {
                 action = Some(event);
@@ -247,6 +253,10 @@ impl SourceView {
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
+                if let Some(status) = test_code.status() {
+                    ui.colored_label(theme.text_muted, "·");
+                    ui.colored_label(theme.text_muted, status);
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(8.0);
@@ -380,6 +390,7 @@ mod tests {
                             keyboard_enabled: false,
                             find: &mut Default::default(),
                             font_size: 14.0,
+                            test_code: &Default::default(),
                         },
                         &mut Default::default(),
                     );
