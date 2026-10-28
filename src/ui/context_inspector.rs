@@ -88,6 +88,7 @@ impl ContextInspector {
                 ui.separator();
                 ui.label(RichText::new(format!("References · {}", content.callers.len())).strong());
                 ScrollArea::vertical()
+                    .auto_shrink([false, false])
                     .id_source("declaration_references")
                     .show(ui, |ui| {
                         if !content.indexed {
@@ -116,6 +117,7 @@ impl ContextInspector {
                     ui.colored_label(theme.text_muted, content.scope);
                 });
                 ScrollArea::vertical()
+                    .auto_shrink([false, false])
                     .id_source("reader_bookmarks")
                     .show(ui, |ui| {
                         if content.bookmarks.bookmarks.is_empty() {
@@ -172,6 +174,7 @@ impl ContextInspector {
                 };
                 ui.label(RichText::new(heading).strong());
                 ScrollArea::vertical()
+                    .auto_shrink([false, false])
                     .id_source("definition_or_outline")
                     .show(ui, |ui| {
                         if let Some(symbol) = content.current_symbol {
@@ -350,5 +353,20 @@ mod tests {
         for heading in ["Declaration", "Outline", "Bookmarks", "Checkout"] {
             assert!(text.contains(&heading), "missing {heading}: {text:?}");
         }
+        let y = |heading| {
+            output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text == heading => Some(text.pos.y),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        assert!(
+            y("Outline") > 250.0,
+            "declaration region collapsed around its content"
+        );
+        assert!(y("Bookmarks") > y("Outline") + 100.0);
     }
 }

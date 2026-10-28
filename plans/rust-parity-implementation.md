@@ -67,6 +67,13 @@ Do not merge to main. Initial commits:
 - `8b199d2` — core coordinates, bounded reads, persistence, folds, TSX/outline data.
 - `b87494d` — immutable private PR snapshots and exact per-file diffs.
 - `72bba06` — cancellable repository search ownership and error handling.
+- `011072d` — shared reader commands, exact app workflows, search/inspector UI.
+- `b2b6134` — Cargo build jobs limited to 16 on the 32-CPU development system.
+
+Native Wayland smoke checks now supplement the headless tests: all three Context
+regions reserve their space, CRLF source renders without newline-box glyphs,
+and Ctrl+Alt+T changes appearance once without also opening Go to Symbol. Broad
+desktop interaction and side-by-side Swift acceptance remain required.
 
 Architecture measurements use `.fitness/baselines/parity-implementation-start.json`
 (ignored local artifacts). The original shortcut hotspot had CCN 125. Actual

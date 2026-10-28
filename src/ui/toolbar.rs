@@ -56,7 +56,7 @@ impl Toolbar {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
 
-            // Toggle Navigation Sidebar (⌃⌘S / Ctrl+Alt+S)
+            // Toggle Navigation Sidebar (Ctrl+Ctrl+S / Ctrl+Alt+S)
             let sidebar_btn = ui
                 .selectable_label(show_sidebar, "Sidebar")
                 .on_hover_text("Show or Hide Navigation Sidebar (Ctrl+Alt+S)");
@@ -70,7 +70,7 @@ impl Toolbar {
             ui.add_enabled_ui(history.can_go_back(), |ui| {
                 if Icon::ArrowLeft
                     .button(ui, 12.0, theme.text_primary)
-                    .on_hover_text("Back (⌘[)")
+                    .on_hover_text("Back (Ctrl+[)")
                     .clicked()
                 {
                     action = Some(ToolbarAction::NavigateBack);
@@ -79,7 +79,7 @@ impl Toolbar {
             ui.add_enabled_ui(history.can_go_forward(), |ui| {
                 if Icon::ArrowRight
                     .button(ui, 12.0, theme.text_primary)
-                    .on_hover_text("Forward (⌘])")
+                    .on_hover_text("Forward (Ctrl+])")
                     .clicked()
                 {
                     action = Some(ToolbarAction::NavigateForward);
@@ -91,7 +91,7 @@ impl Toolbar {
             // Repository Menu (macOS Swift RepositoryMenu parity)
             if let Some(name) = repo_name {
                 ui.menu_button(RichText::new(name).strong().size(13.0), |ui| {
-                    if ui.button("Open Repository… (⌘O)").clicked() {
+                    if ui.button("Open Repository… (Ctrl+O)").clicked() {
                         action = Some(ToolbarAction::OpenRepositoryDialog);
                         ui.close_menu();
                     }
@@ -116,7 +116,7 @@ impl Toolbar {
                 if let Some(branch) = branch_name {
                     ui.colored_label(theme.text_secondary, RichText::new(branch).size(10.5));
                 }
-            } else if ui.button("Open Repository… (⌘O)").clicked() {
+            } else if ui.button("Open Repository… (Ctrl+O)").clicked() {
                 action = Some(ToolbarAction::OpenRepositoryDialog);
             }
 
@@ -126,11 +126,11 @@ impl Toolbar {
             if let Some(pr) = active_pr {
                 let pr_title = format!("#{} · {}", pr.number, pr.title);
                 ui.menu_button(RichText::new(&pr_title).size(12.0), |ui| {
-                    if ui.button("Refresh PR (⌘R)").clicked() {
+                    if ui.button("Refresh PR (Ctrl+R)").clicked() {
                         action = Some(ToolbarAction::RefreshPR);
                         ui.close_menu();
                     }
-                    if ui.button("Open Another PR… (⌘P)").clicked() {
+                    if ui.button("Open Another PR… (Ctrl+P)").clicked() {
                         action = Some(ToolbarAction::OpenPRDialog);
                         ui.close_menu();
                     }
@@ -144,21 +144,21 @@ impl Toolbar {
                 // Change navigation buttons
                 if Icon::ArrowUp
                     .button(ui, 11.0, theme.text_primary)
-                    .on_hover_text("Previous Change Block (⌥↑)")
+                    .on_hover_text("Previous Change Block (Alt+↑)")
                     .clicked()
                 {
                     action = Some(ToolbarAction::PrevChangeBlock);
                 }
                 if Icon::ArrowDown
                     .button(ui, 11.0, theme.text_primary)
-                    .on_hover_text("Next Change Block (⌥↓)")
+                    .on_hover_text("Next Change Block (Alt+↓)")
                     .clicked()
                 {
                     action = Some(ToolbarAction::NextChangeBlock);
                 }
             } else {
                 ui.menu_button("Pull Request", |ui| {
-                    if ui.button("Open Pull Request… (⌘P)").clicked() {
+                    if ui.button("Open Pull Request… (Ctrl+P)").clicked() {
                         action = Some(ToolbarAction::OpenPRDialog);
                         ui.close_menu();
                     }
@@ -214,6 +214,23 @@ impl Toolbar {
                     action = Some(ToolbarAction::ToggleHideTests);
                 }
                 ui.separator();
+                for (label, next) in [
+                    (
+                        "Fold to Definitions (Ctrl+Alt+0)",
+                        ToolbarAction::FoldToDefinitions,
+                    ),
+                    (
+                        "Collapse Functions (Ctrl+Shift+0)",
+                        ToolbarAction::CollapseFunctions,
+                    ),
+                    ("Show All Files", ToolbarAction::ShowAllFiles),
+                ] {
+                    if ui.button(label).clicked() {
+                        action = Some(next);
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
                 if ui.button("Bookmark Location (Ctrl+D)").clicked() {
                     action = Some(ToolbarAction::ToggleBookmark);
                     ui.close_menu();
@@ -222,20 +239,20 @@ impl Toolbar {
 
             // Search Menu (macOS Swift SourceSearchMenu parity)
             ui.menu_button("Search", |ui| {
-                if ui.button("Go to File… (⌘K)").clicked() {
+                if ui.button("Go to File… (Ctrl+K)").clicked() {
                     action = Some(ToolbarAction::OpenQuickFilePicker);
                     ui.close_menu();
                 }
-                if ui.button("Go to Symbol… (⌘T)").clicked() {
+                if ui.button("Go to Symbol… (Ctrl+T)").clicked() {
                     action = Some(ToolbarAction::OpenGoToSymbol);
                     ui.close_menu();
                 }
-                if ui.button("Go to Line… (⌘L)").clicked() {
+                if ui.button("Go to Line… (Ctrl+L)").clicked() {
                     action = Some(ToolbarAction::OpenGoToLine);
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button("Search Repository (⇧⌘F)").clicked() {
+                if ui.button("Search Repository (Ctrl+Shift+F)").clicked() {
                     action = Some(ToolbarAction::OpenSearch);
                     ui.close_menu();
                 }
@@ -243,7 +260,7 @@ impl Toolbar {
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Toggle Context Inspector (⌥⌘I / Ctrl+Alt+I)
+                // Toggle Context Inspector (Alt+Ctrl+I / Ctrl+Alt+I)
                 let inspector_btn = ui
                     .selectable_label(show_inspector, "Inspector")
                     .on_hover_text("Show or Hide Context Inspector (Ctrl+Alt+I)");
@@ -258,16 +275,6 @@ impl Toolbar {
                     .clicked()
                 {
                     action = Some(ToolbarAction::ToggleTheme);
-                }
-
-                if ui.button("Symbol ⌘T").clicked() {
-                    action = Some(ToolbarAction::OpenGoToSymbol);
-                }
-                if ui.button("Line ⌘L").clicked() {
-                    action = Some(ToolbarAction::OpenGoToLine);
-                }
-                if ui.button("File ⌘K").clicked() {
-                    action = Some(ToolbarAction::OpenQuickFilePicker);
                 }
             });
         });
