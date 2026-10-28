@@ -68,16 +68,7 @@ impl ReviewSnapshot {
                 .arg(&head_root)
                 .arg(&head))?;
         }
-        let paths = store.bytes(&["ls-tree", "-rz", "--name-only", &head])?;
-        let files = paths
-            .split(|byte| *byte == 0)
-            .filter(|path| !path.is_empty())
-            .map(|path| {
-                String::from_utf8(path.to_vec())
-                    .map(RepositoryFile::new)
-                    .map_err(|error| error.to_string())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let files = store.files(&head)?;
         let mut snapshot = Self {
             summary,
             head,
@@ -238,6 +229,21 @@ impl GitStore<'_> {
             .map(|text| text.trim_end().to_string())
             .map_err(|error| error.to_string())
     }
+    fn files(&self, commit: &str) -> Result<Vec<RepositoryFile>, String> {
+        let paths = self.bytes(&["ls-tree", "-rz", "--name-only", commit])?;
+        paths
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+            .map(|path| {
+                let path = std::str::from_utf8(path).map_err(|error| error.to_string())?;
+                if !SourceLocation::is_repository_path(path) {
+                    return Err("Invalid path in review tree".into());
+                }
+                Ok(RepositoryFile::new(path))
+            })
+            .collect()
+    }
+
     fn fetch(&self, origin: &str, oid: &str, number: Option<usize>) -> Result<(), String> {
         if self.text(&["cat-file", "-t", oid]).is_ok() {
             return Ok(());

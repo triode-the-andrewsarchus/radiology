@@ -1,6 +1,6 @@
 //! UTF-8 source text buffer with line-start indexing and coordinate conversion.
 
-use crate::source::location::{ReviewRevision, SourceLocation};
+use crate::source::location::{ColumnEncoding, ReviewRevision, SourceLocation};
 use std::ops::Range;
 use thiserror::Error;
 
@@ -196,7 +196,7 @@ impl SourceBuffer {
     /// Returns the 1-based line number containing the given byte offset.
     #[must_use]
     pub fn line_at_byte(&self, byte_offset: usize) -> usize {
-        let clamped = byte_offset.min(self.data.len());
+        let clamped = self.clamp_to_char_boundary(byte_offset.min(self.data.len()));
         match self.line_starts.binary_search(&clamped) {
             Ok(idx) => idx + 1,
             Err(idx) => idx,
@@ -208,7 +208,7 @@ impl SourceBuffer {
     pub fn column_at_byte(&self, byte_offset: usize) -> usize {
         let line = self.line_at_byte(byte_offset);
         let start = self.line_starts[line - 1];
-        let clamped = byte_offset.min(self.data.len());
+        let clamped = self.clamp_to_char_boundary(byte_offset.min(self.data.len()));
         if clamped <= start {
             return 0;
         }
@@ -219,28 +219,41 @@ impl SourceBuffer {
     /// Converts a 1-based line number and 0-based character column into a canonical byte offset.
     #[must_use]
     pub fn byte_offset(&self, line: usize, column: usize) -> usize {
-        if self.line_starts.is_empty() {
-            return 0;
+        if line > self.line_count() {
+            return self.byte_len();
         }
-        let line_idx = line.saturating_sub(1).min(self.line_starts.len() - 1);
-        let line_start = self.line_starts[line_idx];
-        let line_end = if line_idx + 1 < self.line_starts.len() {
-            self.line_starts[line_idx + 1].saturating_sub(1)
-        } else {
-            self.data.len()
-        };
+        let line = line.max(1);
+        self.byte_offset_encoded(line, column, ColumnEncoding::Utf32)
+            .unwrap_or_else(|| self.line_byte_range(line).end)
+    }
 
-        if column == 0 {
-            return line_start;
+    /// Converts an encoded column on a 1-based line to an exact source byte.
+    /// Returns `None` for invalid lines, split scalars/surrogates, or oversized columns.
+    #[must_use]
+    pub fn byte_offset_encoded(
+        &self,
+        line: usize,
+        column: usize,
+        encoding: ColumnEncoding,
+    ) -> Option<usize> {
+        let start = *self.line_starts.get(line.checked_sub(1)?)?;
+        let text = self.line_text(line);
+        if encoding == ColumnEncoding::Utf8 {
+            return (column <= text.len() && text.is_char_boundary(column))
+                .then_some(start + column);
         }
-
-        let slice = &self.text[line_start..line_end];
-        for (char_count, (byte_idx, _)) in slice.char_indices().enumerate() {
-            if char_count == column {
-                return line_start + byte_idx;
+        let mut units = 0;
+        for (byte, ch) in text.char_indices() {
+            if units == column {
+                return Some(start + byte);
             }
+            units += if encoding == ColumnEncoding::Utf16 {
+                ch.len_utf16()
+            } else {
+                1
+            };
         }
-        line_end
+        (units == column).then_some(start + text.len())
     }
 
     /// Returns the byte range of a 1-based line, excluding trailing `\n` or `\r\n`.
@@ -331,5 +344,24 @@ mod tests {
         assert_eq!(buf.column_at_byte(char_start), 6);
         let after_char = char_start + 4;
         assert_eq!(buf.column_at_byte(after_char), 7);
+    }
+    #[test]
+    fn encoded_coordinates_reject_split_surrogates_and_utf8_scalars() {
+        let buffer = SourceBuffer::from_str("unicode.rs", "😀éx\r\nlast");
+        assert_eq!(
+            buffer.byte_offset_encoded(1, 2, ColumnEncoding::Utf16),
+            Some(4)
+        );
+        assert_eq!(
+            buffer.byte_offset_encoded(1, 1, ColumnEncoding::Utf16),
+            None
+        );
+        assert_eq!(buffer.byte_offset_encoded(1, 3, ColumnEncoding::Utf8), None);
+        assert_eq!(
+            buffer.byte_offset_encoded(1, 2, ColumnEncoding::Utf32),
+            Some(6)
+        );
+        assert_eq!(buffer.column_at_byte(3), 0);
+        assert_eq!(buffer.byte_offset(3, 0), buffer.byte_len());
     }
 }

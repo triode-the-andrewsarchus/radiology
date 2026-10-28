@@ -12,5 +12,5 @@ pub mod selection;
 
 pub use buffer::{SourceBuffer, SourceBufferError};
 pub use history::NavigationHistory;
-pub use location::{ReviewRevision, SourceLocation};
+pub use location::{ColumnEncoding, ReviewRevision, SourceLocation};
 pub use selection::{OccurrenceColor, OccurrencePinGroup, OccurrencePinStore};

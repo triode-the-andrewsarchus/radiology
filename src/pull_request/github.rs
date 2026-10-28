@@ -67,8 +67,9 @@ impl GitHubClient {
         root: &Path,
         limit: usize,
     ) -> Result<Vec<PullRequestSummary>, String> {
-        let output = Command::new("gh")
-            .args([
+        Self::query(
+            root,
+            &[
                 "pr",
                 "list",
                 "--state",
@@ -77,18 +78,8 @@ impl GitHubClient {
                 &limit.to_string(),
                 "--json",
                 "number,title,state,baseRefName,headRefName,updatedAt",
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|e| format!("Failed to run gh CLI: {e}"))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(stderr.trim().to_string());
-        }
-
-        serde_json::from_slice(&output.stdout)
-            .map_err(|e| format!("Failed to parse PR list JSON: {e}"))
+            ],
+        )
     }
 
     /// Fetches details for a specific pull request number.
@@ -97,24 +88,16 @@ impl GitHubClient {
     ///
     /// Returns an error message string if `gh pr view` fails or cannot find the pull request.
     pub fn view_pull_request(root: &Path, number: usize) -> Result<PullRequestSummary, String> {
-        let output = Command::new("gh")
-            .args([
+        Self::query(
+            root,
+            &[
                 "pr",
                 "view",
                 &number.to_string(),
                 "--json",
                 "number,title,state,baseRefName,baseRefOid,headRefName,headRefOid,updatedAt",
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|e| format!("Failed to run gh CLI: {e}"))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(stderr.trim().to_string());
-        }
-
-        serde_json::from_slice(&output.stdout).map_err(|e| format!("Failed to parse PR JSON: {e}"))
+            ],
+        )
     }
 
     /// Fetches the unified diff text for a given pull request number.
@@ -123,17 +106,23 @@ impl GitHubClient {
     ///
     /// Returns an error message string if `gh pr diff` fails.
     pub fn get_pr_diff(root: &Path, number: usize) -> Result<String, String> {
+        String::from_utf8(Self::request(root, &["pr", "diff", &number.to_string()])?)
+            .map_err(|error| format!("Invalid UTF-8 diff output: {error}"))
+    }
+    fn query<T: serde::de::DeserializeOwned>(root: &Path, arguments: &[&str]) -> Result<T, String> {
+        serde_json::from_slice(&Self::request(root, arguments)?)
+            .map_err(|error| format!("Invalid GitHub JSON: {error}"))
+    }
+
+    fn request(root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
         let output = Command::new("gh")
-            .args(["pr", "diff", &number.to_string()])
+            .args(arguments)
             .current_dir(root)
             .output()
-            .map_err(|e| format!("Failed to run gh CLI: {e}"))?;
-
+            .map_err(|error| format!("Failed to run gh CLI: {error}"))?;
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(stderr.trim().to_string());
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
         }
-
-        String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 diff output: {e}"))
+        Ok(output.stdout)
     }
 }
