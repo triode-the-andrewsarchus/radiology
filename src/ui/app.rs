@@ -104,6 +104,8 @@ pub struct RadiologyApp {
     /// SCIP semantic index if loaded.
     pub semantic_index: Option<SemanticIndex>,
     index_importer: crate::semantic::loader::IndexImporter,
+    index_plan: crate::semantic::indexing::IndexPlan,
+    index_plan_job: crate::background::LatestRead<crate::semantic::indexing::IndexPlan>,
     /// Backward caller tree nodes for the symbol under caret.
     pub caller_tree: Vec<ReferenceCallerNode>,
     /// Active pull request summary during PR review.
@@ -194,6 +196,8 @@ impl RadiologyApp {
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
             index_importer: Default::default(),
+            index_plan: Default::default(),
+            index_plan_job: Default::default(),
             caller_tree: Vec::new(),
             active_pr: None,
             review: None,
@@ -268,6 +272,7 @@ impl RadiologyApp {
         self.load_bookmarks();
 
         self.index_importer.start(root.clone());
+        self.inspect_index_projects();
 
         let first_file = self
             .all_files
@@ -381,6 +386,8 @@ impl RadiologyApp {
     fn reset_repository_state(&mut self) {
         self.cancel_source_load();
         self.index_importer = Default::default();
+        self.index_plan_job.stop();
+        self.index_plan = Default::default();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.test_code = Default::default();

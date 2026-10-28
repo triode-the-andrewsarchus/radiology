@@ -490,3 +490,33 @@ fn imported_indexes_publish_asynchronously_and_failed_reload_keeps_prior_data() 
     assert_eq!(app.index_import_status(), &IndexImportStatus::Missing);
     assert!(app.semantic_index.is_none());
 }
+
+#[test]
+fn index_planning_uses_unfiltered_inventory_and_retires_previous_repository() {
+    let (dir, mut app) = reader();
+    let first = dir.path().join("rust");
+    let second = dir.path().join("go");
+    repository(&first);
+    std::fs::write(
+        first.join("Cargo.toml"),
+        "[package]\nname = 'fixture'\nversion = '0.1.0'\n",
+    )
+    .unwrap();
+    std::fs::create_dir(first.join("tests")).unwrap();
+    std::fs::write(first.join("tests/unit.rs"), "#[test] fn works() {}\n").unwrap();
+    std::fs::create_dir(&second).unwrap();
+    std::fs::write(second.join("go.mod"), "module fixture\n").unwrap();
+    std::fs::write(second.join("main.go"), "package main\n").unwrap();
+    app.open_repository(&first);
+    settle(&mut app);
+    let plan = app.index_plan().clone();
+    assert_eq!(plan.selected[0].source_files, 3);
+    app.execute_command(&Context::default(), ToolbarAction::ToggleHideTests);
+    assert_eq!(app.index_plan(), &plan);
+    app.inspect_index_projects();
+    app.open_repository(&second);
+    settle(&mut app);
+    assert_eq!(app.index_plan().selected.len(), 1);
+    assert_eq!(app.index_plan().selected[0].id(), "scip-go");
+    assert_eq!(app.index_plan().selected[0].source_files, 1);
+}

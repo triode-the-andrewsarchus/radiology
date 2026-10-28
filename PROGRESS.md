@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-28 — Project strategy planning and adapter command definitions (Codex)
+
+Added deterministic project planning for all six Swift indexers, using build-file
+evidence and source inventory independently of reader filters. Plans suppress
+nested projects, count covered extensions, order by depth/registry/path, cap runs
+at 32 and retain skipped projects. Background planning retires stale repository/
+review results; the Index Projects menu displays the current plan.
+
+Structured command definitions keep repository paths out of shell interpolation.
+Kotlin reuses Swift's compiler script and Gradle init resource byte for byte.
+Commands are not launched yet; the UI explicitly reports generation unavailable.
+Private provisioning, isolated workspace/process execution, Rust feature cfg
+injection, generated coverage, validated caches and snapshot indexing remain.
+
+Verified 89 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy
+with warnings denied. Architecture comparison retains only the known test clones
+and review-preparation structural flag. No fresh native visual acceptance in this
+round. See [indexing parity](plans/rust-indexing-parity.md) for precise limits and
+next requirements. Full parity remains open.
+
 ## 2026-10-28 — Background semantic imports with honest status (Codex)
 
 Moved existing checkout SCIP imports off the UI thread using the shared
