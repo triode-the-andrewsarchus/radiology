@@ -164,6 +164,7 @@ fn structured_commands_retain_literal_paths_and_language_specific_options() {
                 output,
                 run,
                 gradle: None,
+                compilation_database: Some(&run.join("compile_commands.json")),
             })
             .unwrap();
         assert_eq!(command.directory, root);
@@ -201,7 +202,44 @@ fn command_rejects_escaping_strategy_inputs() {
             executable: Path::new("tool"),
             output: Path::new("/output.scip"),
             run: Path::new("/run"),
-            gradle: None
+            gradle: None,
+            compilation_database: None,
         })
         .is_err());
+}
+
+#[test]
+fn clang_command_requires_a_prepared_absolute_database_in_the_private_run() {
+    let strategy = IndexPlan::inspect(["build/compile_commands.json", "main.c"])
+        .selected
+        .remove(0);
+    let workspace = Path::new("/private/workspace");
+    let run = workspace.join(".run");
+    let prepared = run.join("compile_commands.json");
+    let escape = run.join("../compile_commands.json");
+    for database in [
+        None,
+        Some(Path::new("build/compile_commands.json")),
+        Some(Path::new("/original/compile_commands.json")),
+        Some(escape.as_path()),
+        Some(prepared.as_path()),
+    ] {
+        let command = strategy.command(CommandPaths {
+            workspace,
+            source_root: Path::new("/original"),
+            executable: Path::new("/tools/scip-clang"),
+            output: &run.join("index.scip"),
+            run: &run,
+            gradle: None,
+            compilation_database: database,
+        });
+        if database == Some(prepared.as_path()) {
+            let command = command.unwrap();
+            assert_eq!(command.arguments[0], "--compdb-path");
+            assert_eq!(command.arguments[1], prepared.as_os_str());
+            assert_eq!(command.directory, workspace);
+        } else {
+            assert!(command.is_err());
+        }
+    }
 }
