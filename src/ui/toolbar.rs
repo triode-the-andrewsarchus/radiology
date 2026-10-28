@@ -12,56 +12,7 @@ use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
 use egui::{RichText, Ui};
 
-/// Actions triggered by interacting with controls in the top [`Toolbar`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ToolbarAction {
-    /// Opens the native directory chooser dialog to select a repository root.
-    OpenRepositoryDialog,
-    /// Opens a recent repository path.
-    OpenRecentRepo(String),
-    /// Copies the repository root canonical path to clipboard.
-    CopyRepoPath,
-    /// Toggles visibility of the left navigation sidebar.
-    ToggleSidebar,
-    /// Toggles visibility of the right context inspector.
-    ToggleInspector,
-    /// Navigates backwards in the file and caret navigation history.
-    NavigateBack,
-    /// Navigates forward in the file and caret navigation history.
-    NavigateForward,
-    /// Requests jumping to the next modified hunk in the active pull request review.
-    NextChangeBlock,
-    /// Requests jumping to the previous modified hunk in the active pull request review.
-    PrevChangeBlock,
-    /// Toggles a bookmark on the currently focused source line.
-    ToggleBookmark,
-    /// Opens the quick file picker modal dialog (Ctrl/Cmd+K).
-    OpenQuickFilePicker,
-    /// Opens the jump-to-line modal dialog (Ctrl/Cmd+L).
-    OpenGoToLine,
-    /// Opens the jump-to-symbol outline search dialog (Ctrl/Cmd+T).
-    OpenGoToSymbol,
-    /// Switches to the search tab in the sidebar.
-    OpenSearch,
-    /// Opens the pull request number prompt dialog.
-    OpenPRDialog,
-    /// Refreshes the currently reviewed pull request from GitHub.
-    RefreshPR,
-    /// Exits the active pull request review session and clears diff overlays.
-    ExitPRReview,
-    /// Changes the active [`SourceMode`] (e.g. Normal vs Critical lens).
-    ToggleMode(SourceMode),
-    /// Switches the active review revision (Before vs After).
-    ToggleRevision(ReviewRevision),
-    /// Toggles the filter to hide non-source code files.
-    ToggleSourceFilesOnly,
-    /// Toggles the filter to hide test directories and test files.
-    ToggleHideTests,
-    /// Toggles between dark and light appearance themes.
-    ToggleTheme,
-    /// Toggles whether long source code lines are soft-wrapped.
-    ToggleWrapLines,
-}
+pub use super::commands::ReaderCommand as ToolbarAction;
 
 /// Renders the top horizontal toolbar in the Radiology desktop interface.
 pub struct Toolbar;

@@ -9,3 +9,6 @@ __pycache__/
 
 # Inherited, inactive starter copy; the root Swift package is the project.
 /repo/
+
+# Local architecture measurements
+.fitness/

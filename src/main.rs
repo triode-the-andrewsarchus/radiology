@@ -121,27 +121,7 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
             let mut app = RadiologyApp::new(cc);
-            if let Some(path) = initial_path {
-                app.open_repository(&path);
-            }
-            if let Some(pr_num) = initial_pr {
-                if let Some(root) = &app.repository_root {
-                    if let Ok(pr) =
-                        radiology::pull_request::GitHubClient::view_pull_request(root, pr_num)
-                    {
-                        app.active_pr = Some(pr);
-                        if let Ok(diff) =
-                            radiology::pull_request::GitHubClient::get_pr_diff(root, pr_num)
-                        {
-                            app.line_changes =
-                                Some(radiology::pull_request::UnifiedDiffParser::parse(&diff));
-                        }
-                    }
-                }
-            }
-            if let Some(file) = initial_file {
-                app.open_file(&file);
-            }
+            app.launch(initial_path.as_deref(), initial_pr, initial_file.as_deref());
             Box::new(app)
         }),
     )

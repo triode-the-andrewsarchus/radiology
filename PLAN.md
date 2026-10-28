@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+**Parity implementation underway (2026-10-27):** initial correctness, private PR
+snapshots, cancellable search, and inspector integration are implemented with
+regression tests. [Implementation status and remaining acceptance queue](plans/rust-parity-implementation.md).
+The full parity objective remains open; the review below describes the pre-fix
+snapshot. The user requests incremental commits as work progresses.
+
 **Independent Rust/Swift parity review (2026-10-27): parity is incomplete.**
 The source audit and headless probes at `fd421e1` found 17 groups of functional,
 interaction, UI, and validation gaps. In particular, PR review reads checkout

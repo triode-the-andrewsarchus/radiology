@@ -4,10 +4,12 @@
 //! files with Git status badges, and performing ripgrep-powered repository-wide text searches.
 
 use crate::pull_request::change::FileChange;
+use crate::pull_request::change::ReviewChangesPresentation;
 use crate::pull_request::github::PullRequestSummary;
 use crate::repository::file_node::FileNode;
+use crate::repository::filters::SourceFilters;
 use crate::search::match_item::SearchMatch;
-use crate::search::ripgrep::SearchOptions;
+use crate::search::{RepositorySearch, SearchOptions};
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
 use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
@@ -36,375 +38,261 @@ pub enum SidebarAction {
     StartSearch,
     /// Clears active search query and results list.
     ClearSearch,
+    /// Stops the current search while keeping completed matches.
+    StopSearch,
+    /// Rebuilds the Files tree after its filter query changes.
+    FiltersChanged,
+    /// Resets the source/test/path filters when they exclude all rows.
+    ShowAllFiles,
 }
 
 /// Renders the collapsible left sidebar panel in the Radiology desktop UI.
 pub struct Sidebar;
 
 impl Sidebar {
-    /// Renders the sidebar tabs, file tree, changed files, and ripgrep search controls.
-    ///
-    /// # Arguments
-    ///
-    /// * `ui` - EGUI UI layout context.
-    /// * `theme` - Visual color palette.
-    /// * `active_tab` - Mutable reference to the currently selected sidebar tab.
-    /// * `file_tree` - Hierarchical file tree nodes discovered in the repository.
-    /// * `expanded_dirs` - Set of directory paths currently expanded by the user.
-    /// * `selected_path` - Path of the currently focused source file, if any.
-    /// * `active_pr` - Metadata of the currently reviewed pull request, if any.
-    /// * `pr_changes` - List of modified files in the active pull request review.
-    /// * `search_options` - Mutable search query and regex/case options.
-    /// * `search_matches` - Matches found from previous search execution.
-    /// * `is_searching` - Whether a ripgrep background process is currently streaming hits.
-    /// * `visible_file_count` - Number of files currently visible after applying source filters.
-    /// * `total_file_count` - Total number of repository files discovered.
-    /// * `branch_name` - Current Git branch name, if any.
+    /// Renders navigation modes with independent query and search controls.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
         active_tab: &mut SidebarTab,
         file_tree: &[FileNode],
+        filters: &mut SourceFilters,
         expanded_dirs: &mut HashSet<String>,
         selected_path: Option<&str>,
         active_pr: Option<&PullRequestSummary>,
-        pr_changes: &[FileChange],
+        all_changes: &[FileChange],
         search_options: &mut SearchOptions,
-        search_matches: &[SearchMatch],
-        is_searching: bool,
-        visible_file_count: usize,
-        total_file_count: usize,
-        branch_name: Option<&str>,
+        search: &RepositorySearch,
+        visible_count: usize,
+        total_count: usize,
+        branch: Option<&str>,
     ) -> Option<SidebarAction> {
         let mut action = None;
-
-        ui.style_mut().interaction.selectable_labels = false;
-
-        ui.vertical(|ui| {
-            // Tab Selector
-            ui.horizontal(|ui| {
-                if ui
-                    .selectable_label(*active_tab == SidebarTab::Files, "Files")
-                    .clicked()
-                {
-                    *active_tab = SidebarTab::Files;
-                }
-                let changes_label = if pr_changes.is_empty() {
-                    "Changes".to_string()
-                } else {
-                    format!("Changes ({})", pr_changes.len())
-                };
-                if ui
-                    .selectable_label(*active_tab == SidebarTab::Changes, changes_label)
-                    .clicked()
-                {
-                    *active_tab = SidebarTab::Changes;
-                }
-                let search_label = if search_matches.is_empty() {
-                    "Search".to_string()
-                } else {
-                    format!("Search ({})", search_matches.len())
-                };
-                if ui
-                    .selectable_label(*active_tab == SidebarTab::Search, search_label)
-                    .clicked()
-                {
-                    *active_tab = SidebarTab::Search;
-                }
-            });
-
-            ui.separator();
-
-            let scroll_area_height = (ui.available_height() - 28.0).max(100.0);
-
-            match active_tab {
-                SidebarTab::Files => {
-                    let changed_paths: HashSet<&str> =
-                        pr_changes.iter().map(|c| c.path.as_str()).collect();
-                    ScrollArea::vertical()
-                        .max_height(scroll_area_height)
-                        .show(ui, |ui| {
-                            for node in file_tree {
-                                if let Some(act) = Self::render_tree_node(
-                                    ui,
-                                    theme,
-                                    node,
-                                    expanded_dirs,
-                                    selected_path,
-                                    &changed_paths,
-                                    0,
-                                ) {
-                                    action = Some(act);
-                                }
-                            }
-                        });
-                }
-                SidebarTab::Changes => {
-                    let total_add: usize = pr_changes.iter().map(|c| c.additions).sum();
-                    let total_del: usize = pr_changes.iter().map(|c| c.deletions).sum();
-
-                    if let Some(pr) = active_pr {
-                        ui.vertical(|ui| {
-                            ui.add_space(2.0);
-                            ui.label(RichText::new(&pr.title).strong().size(13.0));
-                            ui.add_space(2.0);
-                            ui.horizontal(|ui| {
-                                let state_str = if pr.is_open() { "Open" } else { &pr.state };
-                                ui.colored_label(
-                                    theme.text_secondary,
-                                    format!("#{} · {} · {} files", pr.number, state_str, pr_changes.len()),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.colored_label(
-                                            Color32::from_rgb(239, 68, 68),
-                                            format!("−{total_del}"),
-                                        );
-                                        ui.colored_label(
-                                            Color32::from_rgb(34, 197, 94),
-                                            format!("+{total_add}"),
-                                        );
-                                    },
-                                );
-                            });
-                            ui.add_space(4.0);
-                            ui.separator();
-                        });
-                    } else {
-                        ui.vertical(|ui| {
-                            ui.add_space(2.0);
-                            let title = branch_name
-                                .map(|b| format!("{b} (Working Tree)"))
-                                .unwrap_or_else(|| "Working Tree Changes".to_string());
-                            ui.label(RichText::new(title).strong().size(13.0));
-                            ui.add_space(2.0);
-                            ui.horizontal(|ui| {
-                                ui.colored_label(
-                                    theme.text_secondary,
-                                    format!("{} changed files", pr_changes.len()),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if total_del > 0 {
-                                            ui.colored_label(
-                                                Color32::from_rgb(239, 68, 68),
-                                                format!("−{total_del}"),
-                                            );
-                                        }
-                                        if total_add > 0 {
-                                            ui.colored_label(
-                                                Color32::from_rgb(34, 197, 94),
-                                                format!("+{total_add}"),
-                                            );
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(4.0);
-                            ui.separator();
-                        });
-                    }
-
-                    if pr_changes.is_empty() {
-                        ui.vertical_centered(|ui| {
-                            ui.add_space(30.0);
-                            Icon::Check.ui(ui, 24.0, Color32::from_rgb(34, 197, 94));
-                            ui.add_space(8.0);
-                            ui.colored_label(
-                                theme.text_secondary,
-                                RichText::new("Working Tree is Clean").strong(),
-                            );
-                            ui.add_space(4.0);
-                            ui.colored_label(
-                                theme.text_muted,
-                                RichText::new("No uncommitted changes in git repository").size(11.0),
-                            );
-                        });
-                    } else {
-                        ScrollArea::vertical()
-                            .max_height(scroll_area_height)
-                            .show(ui, |ui| {
-                                for change in pr_changes {
-                                    let is_selected = selected_path == Some(&change.path);
-                                    let bg = if is_selected {
-                                        if theme.is_dark {
-                                            Color32::from_rgba_unmultiplied(255, 255, 255, 22)
-                                        } else {
-                                            Color32::from_rgb(229, 229, 234)
-                                        }
-                                    } else {
-                                        Color32::TRANSPARENT
-                                    };
-
-                                    let filename = std::path::Path::new(&change.path)
-                                        .file_name()
-                                        .map(|s| s.to_string_lossy().to_string())
-                                        .unwrap_or_else(|| change.path.clone());
-                                    let dir = std::path::Path::new(&change.path)
-                                        .parent()
-                                        .map(|p| p.to_string_lossy().to_string())
-                                        .unwrap_or_default();
-
-                                    let resp = egui::Frame::none()
-                                        .fill(bg)
-                                        .inner_margin(egui::Margin::symmetric(6.0, 4.0))
-                                        .rounding(4.0)
-                                        .show(ui, |ui| {
-                                            ui.horizontal(|ui| {
-                                                let (status_color, badge) = match change.status {
-                                                    crate::pull_request::change::FileChangeStatus::Added => {
-                                                        (Color32::from_rgb(34, 197, 94), "A")
-                                                    }
-                                                    crate::pull_request::change::FileChangeStatus::Modified => {
-                                                        (Color32::from_rgb(234, 179, 8), "M")
-                                                    }
-                                                    crate::pull_request::change::FileChangeStatus::Deleted => {
-                                                        (Color32::from_rgb(239, 68, 68), "D")
-                                                    }
-                                                    crate::pull_request::change::FileChangeStatus::Renamed { .. } => {
-                                                        (theme.accent, "R")
-                                                    }
-                                                    crate::pull_request::change::FileChangeStatus::Copied => {
-                                                        (theme.accent, "C")
-                                                    }
-                                                    _ => (theme.text_muted, "?"),
-                                                };
-
-                                                // Clean badge with background tint
-                                                egui::Frame::none()
-                                                    .fill(status_color.linear_multiply(0.18))
-                                                    .inner_margin(egui::Margin::symmetric(5.0, 1.5))
-                                                    .rounding(3.0)
-                                                    .show(ui, |ui| {
-                                                        ui.colored_label(
-                                                            status_color,
-                                                            RichText::new(badge).strong().size(11.0),
-                                                        );
-                                                    });
-
-                                                ui.vertical(|ui| {
-                                                    ui.horizontal(|ui| {
-                                                        let text = if is_selected {
-                                                            RichText::new(&filename).strong().size(12.5)
-                                                        } else {
-                                                            RichText::new(&filename).size(12.5)
-                                                        };
-                                                        ui.label(text);
-
-                                                        ui.with_layout(
-                                                            egui::Layout::right_to_left(egui::Align::Center),
-                                                            |ui| {
-                                                                if change.deletions > 0 {
-                                                                    ui.colored_label(
-                                                                        Color32::from_rgb(239, 68, 68),
-                                                                        format!("−{}", change.deletions),
-                                                                    );
-                                                                }
-                                                                if change.additions > 0 {
-                                                                    ui.colored_label(
-                                                                        Color32::from_rgb(34, 197, 94),
-                                                                        format!("+{}", change.additions),
-                                                                    );
-                                                                }
-                                                            },
-                                                        );
-                                                    });
-
-                                                    if !dir.is_empty() {
-                                                        ui.colored_label(
-                                                            theme.text_muted,
-                                                            RichText::new(&dir).size(10.5),
-                                                        );
-                                                    }
-                                                });
-                                            });
-                                        })
-                                        .response;
-
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-
-                                    if resp.interact(egui::Sense::click()).clicked() {
-                                        action = Some(SidebarAction::OpenFile(change.path.clone()));
-                                    }
-                                }
-                            });
-                    }
-                }
-                SidebarTab::Search => {
-                    ui.horizontal(|ui| {
-                        let edit = TextEdit::singleline(&mut search_options.query)
-                            .hint_text("Search repository (ripgrep)...")
-                            .desired_width(ui.available_width() - 60.0);
-                        let resp = ui.add(edit);
-                        if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            action = Some(SidebarAction::StartSearch);
-                        }
-
-                        if ui.button(if is_searching { "..." } else { "Go" }).clicked() {
-                            action = Some(SidebarAction::StartSearch);
-                        }
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut search_options.case_sensitive, "Case");
-                        ui.checkbox(&mut search_options.is_regex, "Regex");
-                    });
-
-                    ui.separator();
-
-                    ScrollArea::vertical().show(ui, |ui| {
-                        for m in search_matches {
-                            let resp = egui::Frame::none()
-                                .inner_margin(egui::Margin::symmetric(6.0, 4.0))
-                                .rounding(3.0)
-                                .show(ui, |ui| {
-                                    ui.vertical(|ui| {
-                                        ui.horizontal(|ui| {
-                                            ui.colored_label(
-                                                theme.accent,
-                                                RichText::new(format!("{}:{}", m.path, m.line))
-                                                    .monospace()
-                                                    .strong(),
-                                            );
-                                        });
-                                        ui.label(
-                                            RichText::new(&m.preview)
-                                                .monospace()
-                                                .color(theme.text_secondary),
-                                        );
-                                    });
-                                })
-                                .response;
-
-                            if resp.interact(egui::Sense::click()).clicked() {
-                                action = Some(SidebarAction::OpenSearchMatch(m.clone()));
-                            }
-                        }
-                    });
-                }
+        let mut change_filters = filters.clone();
+        change_filters.path_query.clear();
+        let changes = ReviewChangesPresentation::new(all_changes, &change_filters);
+        ui.horizontal(|ui| {
+            for (tab, title) in [
+                (SidebarTab::Files, "Files"),
+                (SidebarTab::Changes, "Changes"),
+                (SidebarTab::Search, "Search"),
+            ] {
+                ui.selectable_value(active_tab, tab, title);
             }
-
-            // Bottom sidebar footer matching native macOS RepositorySidebar
-            ui.add_space(2.0);
-            ui.separator();
-            ui.horizontal(|ui| {
-                let footer_text = if visible_file_count < total_file_count {
-                    format!("{visible_file_count} of {total_file_count} files")
-                } else {
-                    format!("{total_file_count} files")
-                };
-                ui.colored_label(theme.text_secondary, RichText::new(footer_text).size(11.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    Icon::Diff.ui(ui, 12.0, theme.text_muted);
-                });
-            });
         });
+        ui.separator();
+        let count = match active_tab {
+            SidebarTab::Changes => changes.file_count_label(),
+            SidebarTab::Search => format!("{} matches", search.matches.len()),
+            SidebarTab::Files => format!("{visible_count} of {total_count} files"),
+        };
+        egui::TopBottomPanel::bottom("repository_footer").show_inside(ui, |ui| {
+            ui.colored_label(theme.text_secondary, count);
+        });
+        match active_tab {
+            SidebarTab::Files => {
+                let changed: HashSet<&str> = all_changes
+                    .iter()
+                    .map(|change| change.path.as_str())
+                    .collect();
+                if ui
+                    .add(TextEdit::singleline(&mut filters.path_query).hint_text("Filter files"))
+                    .changed()
+                {
+                    action = Some(SidebarAction::FiltersChanged);
+                }
+                if selected_path.is_some_and(|path| !filters.includes_path(path)) {
+                    ui.colored_label(
+                        theme.text_muted,
+                        "The open file is excluded by these filters.",
+                    );
+                }
+                if file_tree.is_empty() && total_count > 0 {
+                    action = Self::filtered_empty(ui, theme);
+                }
+                ScrollArea::vertical()
+                    .id_source("repository_files")
+                    .show(ui, |ui| {
+                        for node in file_tree {
+                            if let Some(next) = Self::render_tree_node(
+                                ui,
+                                theme,
+                                node,
+                                expanded_dirs,
+                                selected_path,
+                                &changed,
+                                0,
+                            ) {
+                                action = Some(next);
+                            }
+                        }
+                    });
+            }
+            SidebarTab::Changes => {
+                action = Self::changes(ui, theme, active_pr, &changes, selected_path, branch);
+            }
+            SidebarTab::Search => {
+                action = Self::search(ui, theme, search_options, search);
+            }
+        }
+        action
+    }
 
+    fn filtered_empty(ui: &mut Ui, theme: &AppTheme) -> Option<SidebarAction> {
+        ui.colored_label(theme.text_muted, "No files match the current filters.");
+        ui.button("Show All Files")
+            .clicked()
+            .then_some(SidebarAction::ShowAllFiles)
+    }
+
+    fn changes(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        pr: Option<&PullRequestSummary>,
+        presentation: &ReviewChangesPresentation,
+        selected: Option<&str>,
+        branch: Option<&str>,
+    ) -> Option<SidebarAction> {
+        let mut action = None;
+        let title = pr.map_or_else(
+            || branch.unwrap_or("Working Tree").to_string(),
+            |pr| format!("#{} · {}", pr.number, pr.title),
+        );
+        ui.label(RichText::new(title).strong());
+        ui.horizontal(|ui| {
+            ui.colored_label(
+                Color32::from_rgb(34, 197, 94),
+                format!("+{}", presentation.additions()),
+            );
+            ui.colored_label(
+                Color32::from_rgb(239, 68, 68),
+                format!("−{}", presentation.deletions()),
+            );
+        });
+        ui.separator();
+        if presentation.is_filtered_empty() {
+            return Self::filtered_empty(ui, theme);
+        }
+        if presentation.is_genuinely_empty() {
+            ui.colored_label(theme.text_muted, "No changed files.");
+        }
+        ScrollArea::vertical()
+            .id_source("repository_changes")
+            .show(ui, |ui| {
+                for change in &presentation.changes {
+                    if Self::change_row(ui, theme, change, selected) {
+                        action = Some(SidebarAction::OpenFile(change.path.clone()));
+                    }
+                }
+            });
+        action
+    }
+
+    fn change_row(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        change: &FileChange,
+        selected: Option<&str>,
+    ) -> bool {
+        use crate::pull_request::change::FileChangeStatus;
+        let color = match change.status {
+            FileChangeStatus::Added => Color32::from_rgb(34, 197, 94),
+            FileChangeStatus::Deleted => Color32::from_rgb(239, 68, 68),
+            FileChangeStatus::Modified => Color32::from_rgb(234, 179, 8),
+            _ => theme.accent,
+        };
+        let response = egui::Frame::none()
+            .inner_margin(6.0)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.colored_label(color, change.status.badge_letter());
+                    ui.label(
+                        RichText::new(
+                            std::path::Path::new(&change.path)
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy(),
+                        )
+                        .strong(),
+                    );
+                    ui.colored_label(
+                        theme.text_secondary,
+                        format!("+{} −{}", change.additions, change.deletions),
+                    );
+                });
+                let path = change.old_path.as_ref().map_or_else(
+                    || change.path.clone(),
+                    |old| format!("{old} → {}", change.path),
+                );
+                ui.colored_label(theme.text_muted, path);
+            })
+            .response;
+        let response = response.interact(egui::Sense::click());
+        if selected == Some(change.path.as_str()) || response.hovered() {
+            ui.painter()
+                .rect_stroke(response.rect, 3.0, egui::Stroke::new(1.0_f32, theme.border));
+        }
+        response.clicked()
+    }
+
+    fn search(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        options: &mut SearchOptions,
+        search: &RepositorySearch,
+    ) -> Option<SidebarAction> {
+        let mut action = None;
+        let response =
+            ui.add(TextEdit::singleline(&mut options.query).hint_text("Search repository"));
+        if response.lost_focus()
+            && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+        {
+            action = Some(SidebarAction::StartSearch);
+        }
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut options.case_sensitive, "Case");
+            ui.checkbox(&mut options.is_regex, "Regex");
+            if ui.button("Go").clicked() {
+                action = Some(SidebarAction::StartSearch);
+            }
+            if search.running && ui.button("Stop").clicked() {
+                action = Some(SidebarAction::StopSearch);
+            }
+        });
+        ui.add(
+            TextEdit::singleline(&mut options.include_glob).hint_text("Include glob, e.g. *.rs"),
+        );
+        ui.add(
+            TextEdit::singleline(&mut options.exclude_glob)
+                .hint_text("Exclude glob, e.g. tests/**"),
+        );
+        if let Some(error) = &search.error {
+            ui.colored_label(Color32::from_rgb(220, 90, 60), error);
+        }
+        if search.limited {
+            ui.label("First 5,000 matches. Narrow the query to see more.");
+        }
+        ui.separator();
+        ScrollArea::vertical()
+            .id_source("repository_search")
+            .show_rows(ui, 42.0, search.matches.len(), |ui, rows| {
+                for index in rows {
+                    let hit = &search.matches[index];
+                    let preview: String = hit.preview.trim().chars().take(180).collect();
+                    let label = format!("{}:{}\n{preview}", hit.path, hit.line);
+                    if ui
+                        .add_sized(
+                            [ui.available_width(), 42.0],
+                            egui::Button::new(RichText::new(label).color(theme.text_secondary))
+                                .frame(false),
+                        )
+                        .clicked()
+                    {
+                        action = Some(SidebarAction::OpenSearchMatch(hit.clone()));
+                    }
+                }
+            });
         action
     }
 
