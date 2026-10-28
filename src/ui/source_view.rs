@@ -48,6 +48,10 @@ pub enum SourceViewAction {
     JumpToSymbol(usize),
     /// Pins the indexed symbol or scoped lexical identifier at original bytes.
     PinAtByte(usize),
+    /// Removes the pin group identified by this document-scoped symbol key.
+    RemovePin(String),
+    /// Removes all pins from the current document.
+    ClearPins,
     /// Requests opening the Go To Line modal dialog.
     OpenGoToLine,
 }
@@ -212,6 +216,7 @@ impl SourceView {
             });
 
             ui.separator();
+            action = show_pin_groups(ui, theme, pin_store).or(action.take());
 
             let changed_lines = line_changes
                 .map(|diff| diff.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))
@@ -335,9 +340,120 @@ fn paint_match(
     }
 }
 
+fn show_pin_groups(
+    ui: &mut Ui,
+    theme: &AppTheme,
+    pins: &OccurrencePinStore,
+) -> Option<SourceViewAction> {
+    if pins.groups.is_empty() {
+        return None;
+    }
+    let mut action = None;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Pins").color(theme.text_secondary));
+        if ui
+            .small_button("Clear Pins")
+            .on_hover_text("Remove pins from this document")
+            .clicked()
+        {
+            action = Some(SourceViewAction::ClearPins);
+        }
+        egui::ScrollArea::horizontal()
+            .id_source("source_pin_groups")
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for group in &pins.groups {
+                        let mut spelling: String = group.label.chars().take(40).collect();
+                        if spelling.len() < group.label.len() {
+                            spelling.push('…');
+                        }
+                        let label = format!("{spelling} · {} ×", group.ranges.len());
+                        let button = egui::Button::new(label)
+                            .small()
+                            .fill(theme.occurrence_tint(group.color));
+                        if ui
+                            .add(button)
+                            .on_hover_text(format!(
+                                "{}: {} occurrences. Click to remove this pin.",
+                                group.label,
+                                group.ranges.len()
+                            ))
+                            .clicked()
+                        {
+                            action = Some(SourceViewAction::RemovePin(group.symbol_name.clone()));
+                        }
+                    }
+                });
+            });
+    });
+    ui.separator();
+    action
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pin_group_controls_emit_remove_and_clear_actions_from_pointer_input() {
+        let ctx = egui::Context::default();
+        let theme = AppTheme::dark();
+        let mut pins = OccurrencePinStore::new();
+        pins.toggle_pin("alpha", std::iter::once(0..5).collect());
+        let frame = |events: Vec<egui::Event>| {
+            let mut action = None;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(700.0, 200.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        action = show_pin_groups(ui, &theme, &pins);
+                    });
+                },
+            );
+            (output, action)
+        };
+        frame(Vec::new());
+        let (output, _) = frame(Vec::new());
+        for (label, expected) in [
+            ("alpha · 1 ×", SourceViewAction::RemovePin("alpha".into())),
+            ("Clear Pins", SourceViewAction::ClearPins),
+        ] {
+            let position = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text) if text.galley.text() == label => {
+                        Some(text.pos + text.galley.size() / 2.0)
+                    }
+                    _ => None,
+                })
+                .expect(label);
+            frame(vec![
+                egui::Event::PointerMoved(position),
+                egui::Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: Default::default(),
+                },
+            ]);
+            let (_, action) = frame(vec![egui::Event::PointerButton {
+                pos: position,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: Default::default(),
+            }]);
+            assert_eq!(action, Some(expected));
+        }
+    }
 
     #[test]
     fn source_does_not_handle_arrows_when_another_control_owns_input() {

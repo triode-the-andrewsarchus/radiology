@@ -820,3 +820,45 @@ fn indexed_symbol_and_reference_navigation_share_encoding_fresh_reads_and_proven
     assert!(!app.is_source_loading());
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
 }
+
+#[test]
+fn occurrence_pins_restore_on_return_and_invalidate_only_after_successful_changed_source() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text =
+        "fn alpha() { let one = 1; let two = 2; let three = 3; let four = 4; let five = 5; }\n";
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    for word in ["one", "two", "three", "four", "five"] {
+        app.pin_at_byte(text.find(word).unwrap());
+    }
+    assert_eq!(app.pin_store.groups.len(), 5);
+    assert_eq!(app.pin_store.groups[0].label, "one");
+    let original = app.pin_store.groups.clone();
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app.pin_store.groups.is_empty());
+    app.pin_at_byte("fn ".len());
+    assert_eq!(app.pin_store.groups.len(), 1);
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(app.pin_store.groups, original);
+    app.open_file("missing.rs");
+    settle(&mut app);
+    assert_eq!(app.pin_store.groups, original);
+    std::fs::write(root.join("a.rs"), text.replace("one", "new")).unwrap();
+    app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
+    settle(&mut app);
+    assert!(app.pin_store.groups.is_empty());
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert_eq!(app.pin_store.groups[0].label, "beta");
+    app.pin_store.clear_current();
+    app.open_file("a.rs");
+    settle(&mut app);
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app.pin_store.groups.is_empty());
+}

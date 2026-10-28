@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-28 — Reader pin restoration and group controls (Codex)
+
+Integrated store `8987675` at atomic source publication: leaving/returning restores
+pins only for identical document/revision/bytes; failed reads preserve the visible
+pins. Semantic and fallback groups have readable source labels. A compact scrolling
+row shows color, spelling and count, supports group removal and Clear Pins for
+the current document. Existing source actions, type scale and palette are reused.
+
+Verification: 147 application tests, 5 reader-text tests and 30 doctests pass,
+with fmt, Clippy and binary build. Application tests cover five groups, navigation,
+failed reads and changed bytes; pointer tests cover remove/clear controls. Private
+native Weston/Niri checks verify five groups, restoration, unchanged surviving
+colors after middle removal and clearing. App/compositors exit zero. Architecture
+has no new product clone/hotspot/cycle, but two test input-replay clones remain
+reported. [Pin parity and evidence](plans/rust-occurrence-pins.md).
+
+Full parity remains open. AST-aware fallback, full decorations, fold restoration,
+PR-refresh restoration, indexing/provisioning, Critical Lens, call graphs and final
+Swift/runtime acceptance still require work. Pin state is session memory, matching
+Swift, not persistence across app restarts.
+
 ## 2026-10-28 — Unlimited document-scoped pin store (Codex)
 
 Removed pin eviction at four groups. Palette slots advance monotonically, while
