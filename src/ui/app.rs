@@ -1028,6 +1028,10 @@ impl eframe::App for RadiologyApp {
                                 }
                             }
                             SourceViewAction::PinAtByte(byte) => self.pin_at_byte(byte),
+                            SourceViewAction::RemovePin(symbol) => {
+                                self.pin_store.remove(&symbol);
+                            }
+                            SourceViewAction::ClearPins => self.pin_store.clear_current(),
                             SourceViewAction::OpenGoToLine => {
                                 self.modal = ActiveModal::GoToLine(GoToLineModal::default());
                             }

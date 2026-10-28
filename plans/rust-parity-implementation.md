@@ -64,6 +64,10 @@ and the remaining generation/cache requirements.
   files, preserving source input verification, UTF-8 coordinates and cache reports.
   Real Clang compiles the rebased fixture with original sources unavailable;
   native generation uses fixture SCIP output. [C/C++ limits](rust-clang-indexing.md).
+- Occurrence pins have unlimited groups with stable cyclic colors. Exact
+  document/revision/content activation restores them after navigation and rejects
+  changed bytes. Scrollable group controls remove individual/current-document
+  pins. [Pin acceptance and remaining scope](rust-occurrence-pins.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -78,8 +82,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
-- Remaining source presentation: content-keyed fold/pin restoration, unlimited pin
-  groups/legend, AST-aware fallback occurrence scope, enclosing-function body
+- Remaining source presentation: content-keyed fold and exact PR-refresh pin
+  restoration, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit.
 - Swift/Kotlin highlighting and broader declaration/query-based folds/scopes;

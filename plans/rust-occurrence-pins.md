@@ -17,6 +17,34 @@ resets the entire repository session.
 
 Backend regression tests cover twelve groups without eviction, stable colors,
 restoration/revision/content isolation, changed-then-reverted bytes, ephemeral
-reset and lexical/semantic range reconciliation. Reader activation and compact
-remove/clear controls follow in the next commit. AST-aware fallback occurrence
-scope and exact PR-refresh restoration remain separate open requirements.
+reset and lexical/semantic range reconciliation.
+
+## Reader integration and acceptance
+
+Successful source publication activates the pin document; failed/cancelled reads
+leave the visible document's pins intact. Source labels use the clicked spelling,
+while identities continue to select the group. A compact horizontal scrolling row
+shows each group's color, spelling and count; clicking removes that group. Clear
+Pins affects only the active document. Long labels are shortened in the row and
+retain full hover details. This is a Rust reader control, not a claim that Swift
+has the same legend row. Existing type scale/palette and source action routing
+are reused without a sibling checkout dependency.
+
+Application regression tests cover five groups, file departure/return, failed
+reads, changed bytes and retained other-document groups. Headless pointer tests
+exercise actual remove/clear widgets. Private native Weston/Niri checks verify
+five highlighted groups (palette cycling), file switching/restoration, middle-group
+removal without recoloring and Clear Pins removing the row/highlights. Local
+captures: `/tmp/radiology-pins-native/{five-groups,restored-five-groups,removed-middle-group,cleared-groups}.png`.
+App and both compositors exit zero.
+
+Validation: 147 application tests, 5 reader-text tests, 30 doctests, fmt, Clippy
+with warnings denied and binary build pass. The pre-existing real-Clang test is
+ignored by default; this pin work does not change that compiler adapter. Architecture
+comparison has unchanged maximum CCN 100 and no new product clone/hotspot/cycle;
+it still reports REGRESSION for two GUI test input-replay clones (8 and 7 lines).
+
+AST-aware fallback occurrence scope (comments/strings/shadowed bindings), full
+occurrence decoration parity, content-bound fold restoration and exact PR-refresh
+restoration remain open. The unlimited/session restoration work does not close
+the full source presentation or Swift parity requirement.

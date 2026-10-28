@@ -149,7 +149,14 @@ impl RadiologyApp {
                                 .and_then(|range| index.byte_range(buffer, range))
                         })
                         .collect();
-                    self.pin_store.toggle_pin(&occurrence.symbol, ranges);
+                    let label = occurrence
+                        .range
+                        .as_ref()
+                        .and_then(|range| index.byte_range(buffer, range))
+                        .and_then(|range| buffer.text.get(range))
+                        .unwrap_or(&occurrence.symbol);
+                    self.pin_store
+                        .toggle_labeled_pin(&occurrence.symbol, label, ranges, byte);
                     return;
                 }
             }
@@ -197,7 +204,7 @@ impl RadiologyApp {
             .map(|matched| scope.start + matched.start()..scope.start + matched.end())
             .collect();
         self.pin_store
-            .toggle_pin(&format!("{word}@{}", scope.start), ranges);
+            .toggle_labeled_pin(&format!("{word}@{}", scope.start), word, ranges, byte);
     }
 
     pub(super) fn filters_changed(&mut self) {

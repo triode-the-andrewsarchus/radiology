@@ -129,7 +129,7 @@ impl RadiologyApp {
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
         self.fold_store.unfold_all();
-        self.pin_store.clear();
+        self.pin_store.activate(&prepared.buffer);
         self.test_code.load(
             &prepared.buffer,
             syntax.tests,
