@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-27 — Native Swift/Kotlin syntax foundations (Codex)
+
+Added statically linked Swift 0.7.4 and Kotlin-ng 1.1.0 grammars (MIT), with
+one shared grammar/parse route instead of a second parser dispatch. Outline
+extraction now recognizes native Swift declarations and Kotlin classes/functions,
+preserving exact identifier/body ranges, nested declarations and fold spans.
+Source language labels use the same registry. Real Swift/Kotlin fixtures parse
+without error and verify nested source spans/signatures/folds. This does not yet
+complete highlighting/query coverage or inline test detection/presentation.
+
+Verified 65 application tests, 5 reader-text tests and 30 doctests; formatting and
+Clippy with warnings denied pass. Architecture comparison retains only the
+previously recorded test clone and review-preparation structural flags.
+
 ## 2026-10-27 — Measured selectable source viewport and zoom (Codex)
 
 - Replaced fixed 22-point source rows with `SourceViewport`, using the extracted

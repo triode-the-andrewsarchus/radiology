@@ -239,21 +239,8 @@ impl SourceView {
             ui.separator();
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
-                let ext = std::path::Path::new(&buffer.path)
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Text");
-                let lang_label = match ext {
-                    "rs" => "Rust",
-                    "py" => "Python",
-                    "js" => "JavaScript",
-                    "ts" | "tsx" => "TypeScript",
-                    "go" => "Go",
-                    "c" => "C",
-                    "cpp" => "C++",
-                    "swift" => "Swift",
-                    _ => ext,
-                };
+                let language = crate::syntax::language::LanguageRegistry::for_path(&buffer.path);
+                let lang_label = language.display_name;
                 ui.colored_label(theme.text_secondary, lang_label);
                 ui.colored_label(theme.text_muted, "·");
                 ui.colored_label(

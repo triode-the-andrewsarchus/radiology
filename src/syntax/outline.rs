@@ -4,7 +4,7 @@ use crate::source::buffer::SourceBuffer;
 use crate::syntax::language::{LanguageRegistry, SupportedGrammar};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
-use tree_sitter::{Node, Parser};
+use tree_sitter::Node;
 
 /// Enumerates kinds of declarations extracted into the document outline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -218,22 +218,7 @@ impl SymbolExtractor {
             return Self::extract_fallback(buffer);
         };
 
-        let mut parser = Parser::new();
-        let ts_language = match grammar {
-            SupportedGrammar::Rust => tree_sitter_rust::LANGUAGE.into(),
-            SupportedGrammar::Python => tree_sitter_python::LANGUAGE.into(),
-            SupportedGrammar::Go => tree_sitter_go::LANGUAGE.into(),
-            SupportedGrammar::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
-            SupportedGrammar::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-            SupportedGrammar::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
-            SupportedGrammar::C => tree_sitter_c::LANGUAGE.into(),
-        };
-
-        if parser.set_language(&ts_language).is_err() {
-            return Self::extract_fallback(buffer);
-        }
-
-        let Some(tree) = parser.parse(&buffer.data, None) else {
+        let Some(tree) = grammar.parse(&buffer.data) else {
             return Self::extract_fallback(buffer);
         };
 
@@ -300,6 +285,31 @@ impl SymbolExtractor {
                 (SymbolKind::TypeAlias, "name")
             }
 
+            (
+                SupportedGrammar::Swift,
+                "function_declaration" | "init_declaration" | "deinit_declaration",
+            ) => (SymbolKind::Function, "name"),
+            (SupportedGrammar::Swift, "class_declaration") => {
+                let kind = node
+                    .child_by_field_name("declaration_kind")
+                    .map(|node| node_text(node, buffer));
+                (
+                    match kind.as_deref() {
+                        Some("struct") => SymbolKind::Struct,
+                        Some("enum") => SymbolKind::Enum,
+                        _ => SymbolKind::Class,
+                    },
+                    "name",
+                )
+            }
+            (SupportedGrammar::Swift, "protocol_declaration") => (SymbolKind::Trait, "name"),
+            (SupportedGrammar::Swift, "typealias_declaration") => (SymbolKind::TypeAlias, "name"),
+            (SupportedGrammar::Kotlin, "function_declaration") => (SymbolKind::Function, "name"),
+            (SupportedGrammar::Kotlin, "class_declaration" | "object_declaration") => {
+                (SymbolKind::Class, "name")
+            }
+            (SupportedGrammar::Kotlin, "type_alias") => (SymbolKind::TypeAlias, "type"),
+
             (SupportedGrammar::C, "function_definition") => (SymbolKind::Function, "declarator"),
             (SupportedGrammar::C, "struct_specifier") => (SymbolKind::Struct, "name"),
             (SupportedGrammar::C, "enum_specifier") => (SymbolKind::Enum, "name"),
@@ -330,11 +340,23 @@ impl SymbolExtractor {
             selection_range,
             line,
             children,
-            detail: node.child_by_field_name("body").map(|body| {
-                buffer.text[node.start_byte()..body.start_byte()]
-                    .trim()
-                    .to_string()
-            }),
+            detail: node
+                .child_by_field_name("body")
+                .or_else(|| {
+                    let mut cursor = node.walk();
+                    let body = node.named_children(&mut cursor).find(|child| {
+                        matches!(
+                            child.kind(),
+                            "function_body" | "class_body" | "enum_class_body"
+                        )
+                    });
+                    body
+                })
+                .map(|body| {
+                    buffer.text[node.start_byte()..body.start_byte()]
+                        .trim()
+                        .to_string()
+                }),
         })
     }
 
@@ -445,5 +467,39 @@ fn calculate() {
             .unwrap()
             .contains("function long()"));
         assert!(!crate::syntax::folds::FoldDetector::detect_folds(&buffer).is_empty());
+    }
+    #[test]
+    fn swift_and_kotlin_use_native_structural_ranges_and_headers() {
+        for (path, source, expected) in [
+            (
+                "Reader.swift",
+                "struct Reader {\n func read(value: Int) -> Int {\n value + 1\n }\n}\n",
+                "Reader",
+            ),
+            (
+                "Reader.kt",
+                "class Reader {\n fun read(value: Int): Int {\n return value + 1\n }\n}\n",
+                "Reader",
+            ),
+        ] {
+            let buffer = SourceBuffer::from_str(path, source);
+            let grammar = LanguageRegistry::for_path(path).grammar.unwrap();
+            let tree = grammar.parse(&buffer.data).unwrap();
+            assert!(
+                !tree.root_node().has_error(),
+                "{}",
+                tree.root_node().to_sexp()
+            );
+            let symbols = SymbolExtractor::extract(&buffer);
+            assert_eq!(symbols[0].name, expected);
+            assert_eq!(symbols[0].line_count(&buffer), 5);
+            let function = &symbols[0].children[0];
+            assert_eq!(function.name, "read");
+            assert_eq!(&source[function.selection_range.clone()], "read");
+            assert_eq!(function.line_count(&buffer), 3);
+            assert!(function.detail.as_deref().unwrap().contains("value"));
+            assert!(!function.detail.as_deref().unwrap().contains("+ 1"));
+            assert!(!crate::syntax::folds::FoldDetector::detect_folds(&buffer).is_empty());
+        }
     }
 }
