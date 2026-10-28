@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-28 — Semantic coordinate provenance boundary (Codex)
+
+Source buffers now cache a SHA-256 digest alongside the existing bookmark/find
+identity. Generated semantic indexes can carry per-document source digests;
+occurrence/range lookup rejects a mismatched immutable buffer without hashing it
+on each caret movement. Encoded definition requests carry the target digest and
+reject changed target bytes after the worker reads them. Source semantic status
+also requires matching bytes. Imports retain explicit unknown-freshness behavior.
+
+Verified 111 application tests, 5 reader-text tests, 30 doctests, fmt and Clippy
+with warnings denied. The new test checks coordinate and destination rejection
+and import compatibility. Architecture comparison retains known test clones and
+review preparation, and now also ranks the existing workspace materialization
+function as a structural hotspot; no new product clone/CCN threshold regression.
+Generation publication must populate these digests before its UI is enabled.
+Full parity remains open.
+
 ## 2026-10-28 — Real build inputs and disposable indexing workspaces (Codex)
 
 Added full Git tracked/unignored input discovery, retaining tracked build/vendor/

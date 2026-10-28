@@ -87,6 +87,8 @@ pub enum SourceTarget {
         line: usize,
         column: usize,
         encoding: ColumnEncoding,
+        /// Exact source identity when supplied by a generated index.
+        content_digest: Option<String>,
     },
     /// Persisted anchor relocation against the newly read exact source.
     Bookmark(SourceBookmark),
@@ -94,6 +96,17 @@ pub enum SourceTarget {
 
 impl SourceTarget {
     pub(crate) fn resolve(&self, buffer: &SourceBuffer) -> Result<SourceLocation, String> {
+        if let Self::Encoded {
+            content_digest: Some(expected),
+            ..
+        } = self
+        {
+            if expected != buffer.content_digest() {
+                return Err(
+                    "Indexed source bytes changed; regenerate the index before navigating".into(),
+                );
+            }
+        }
         let byte = match self {
             Self::Byte(byte) => buffer.clamp_to_char_boundary((*byte).min(buffer.byte_len())),
             Self::LineColumn { line, column } => buffer.byte_offset(*line, *column),
@@ -101,6 +114,7 @@ impl SourceTarget {
                 line,
                 column,
                 encoding,
+                ..
             } => buffer
                 .byte_offset_encoded(*line, *column, *encoding)
                 .ok_or("Indexed source position is not valid in this snapshot")?,
@@ -259,6 +273,7 @@ mod tests {
                     line: 1,
                     column: 7,
                     encoding: ColumnEncoding::Utf16,
+                    content_digest: None,
                 },
             ),
             highlighter.clone(),

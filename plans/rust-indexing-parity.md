@@ -189,6 +189,22 @@ workspace setup/materialization complexity and stream-drain duplication were
 removed before acceptance. No native app generation acceptance was performed:
 Generate/Reindex is not connected yet.
 
+## Semantic source provenance boundary (2026-10-28)
+
+`SourceBuffer::content_digest` caches the exact SHA-256 byte identity during source
+preparation. `SemanticIndex::source_digests` can associate generated documents with
+those bytes. Occurrence/range queries reject mismatched buffers; encoded definition
+navigation carries the target digest and checks it after reading the destination.
+Imports with no digest map preserve their explicitly unverified behavior. The
+source footer requires coverage and matching bytes. Generation must populate the
+map; this boundary alone does not create an index or complete source refresh.
+
+Fresh verification for this step: 111 application tests, 5 reader-text tests,
+30 doctests, fmt and Clippy pass. Architecture comparison now also ranks the
+pre-existing workspace materialization body as a structural hotspot, in addition
+to the previously recorded findings. No product clone/CCN threshold regression
+was introduced by the digest boundary.
+
 ## Next generation integration contract
 
 The workspace/process foundations are committed, but Generate/Reindex must still

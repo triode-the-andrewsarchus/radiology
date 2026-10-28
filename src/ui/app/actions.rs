@@ -265,6 +265,7 @@ impl RadiologyApp {
         ) else {
             return;
         };
+        let content_digest = index.source_digests.get(path).cloned();
         let location = SourceLocation::with_revision(path, 0, buffer.revision);
         self.request_navigation(
             location,
@@ -272,6 +273,7 @@ impl RadiologyApp {
                 line,
                 column,
                 encoding,
+                content_digest,
             },
             source::NavigationIntent {
                 record_history: true,
