@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-28 — C/C++ compilation database rebase backend (Codex)
+
+Added bounded compilation-command rebasing for private inputs: argument arrays and
+quoted commands, split/joined path flags, literal macros, output redirection,
+duplicate configurations and recursive GNU response files. Existing workspace
+normalization/file reads are reused; no shell evaluation is introduced. The
+already locked shlex dependency handles POSIX command quoting.
+
+Six backend tests pass; an explicit real-Clang acceptance test also passes with
+the original repository moved away and object output confined to the private copy.
+The full suite currently passes 139 application tests, 5 reader-text tests and
+30 doctests (Clang acceptance ignored by default), with fmt/Clippy. Generation
+integration follows in a separate commit; `scip-clang` is absent on this machine.
+Full parity remains open. Details: [C/C++ indexing](plans/rust-clang-indexing.md).
+
 ## 2026-10-28 — Cached-index reader reopen, fallback and native acceptance (Codex)
 
 Integrated backend `f51ab3d`: repository opening and Reload Index try persistent

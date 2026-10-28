@@ -431,7 +431,7 @@ fn reject_link_parents(root: &Path, path: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn normalize(path: &Path) -> Result<PathBuf, String> {
+pub(super) fn normalize(path: &Path) -> Result<PathBuf, String> {
     let mut normalized = PathBuf::new();
     for part in path.components() {
         match part {
