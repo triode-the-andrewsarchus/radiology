@@ -43,6 +43,10 @@ pub enum ReaderCommand {
     PreviousFindMatch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Reloads a repository-provided SCIP index in the background.
+    ReloadIndexImport,
+    /// Cancels an import while retaining any published semantic data.
+    CancelIndexImport,
     /// Refreshes the currently reviewed pull request from GitHub.
     RefreshPR,
     /// Exits the active pull request review session and clears diff overlays.

@@ -1,6 +1,7 @@
 //! Main application model and EGUI event loop lifecycle.
 
 mod actions;
+mod indexing;
 mod reviews;
 mod source;
 #[cfg(test)]
@@ -102,6 +103,7 @@ pub struct RadiologyApp {
     pub pin_store: OccurrencePinStore,
     /// SCIP semantic index if loaded.
     pub semantic_index: Option<SemanticIndex>,
+    index_importer: crate::semantic::loader::IndexImporter,
     /// Backward caller tree nodes for the symbol under caret.
     pub caller_tree: Vec<ReferenceCallerNode>,
     /// Active pull request summary during PR review.
@@ -191,6 +193,7 @@ impl RadiologyApp {
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
+            index_importer: Default::default(),
             caller_tree: Vec::new(),
             active_pr: None,
             review: None,
@@ -223,7 +226,8 @@ impl RadiologyApp {
     /// Opens the repository located at `path`, discovering files and restoring bookmarks.
     ///
     /// Initial source preparation is asynchronous; hosts drive [`Self::poll_source`]
-    /// or the normal frame loop to publish the selected document.
+    /// or the normal frame loop to publish the selected document. Semantic index
+    /// imports also run asynchronously; hosts drive [`Self::poll_index`].
     pub fn open_repository(&mut self, path: &Path) {
         let root = RepositoryDiscovery::find_root(path);
         let files = match RepositoryDiscovery::discover_files(&root) {
@@ -263,14 +267,7 @@ impl RadiologyApp {
         self.refresh_file_tree();
         self.load_bookmarks();
 
-        for scip_candidate in [root.join("index.scip"), root.join(".scip")] {
-            if scip_candidate.exists() {
-                if let Ok(idx) = SemanticIndex::load_file(&scip_candidate) {
-                    self.semantic_index = Some(idx);
-                    break;
-                }
-            }
-        }
+        self.index_importer.start(root.clone());
 
         let first_file = self
             .all_files
@@ -383,6 +380,7 @@ impl RadiologyApp {
 
     fn reset_repository_state(&mut self) {
         self.cancel_source_load();
+        self.index_importer = Default::default();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.test_code = Default::default();
@@ -573,6 +571,7 @@ impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_review(ctx);
         self.poll_source(ctx);
+        self.poll_index(ctx);
         if self.repository_search.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
@@ -698,6 +697,7 @@ impl eframe::App for RadiologyApp {
         }
 
         self.show_source_loading(ctx);
+        self.show_index_status(ctx);
 
         if let Some(error) = self.error.clone() {
             TopBottomPanel::top("reader_notice").show(ctx, |ui| {
@@ -934,7 +934,10 @@ impl eframe::App for RadiologyApp {
                             wrap_lines: self.session.wrap_lines,
                             enclosing_symbols: &enclosing,
                             scroll_to_line: &mut self.scroll_to_line,
-                            has_semantic_index: self.semantic_index.is_some()
+                            has_semantic_index: self
+                                .semantic_index
+                                .as_ref()
+                                .is_some_and(|index| index.documents.contains_key(&buf.path))
                                 && buf.revision != Some(ReviewRevision::Before),
                             keyboard_enabled: matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,

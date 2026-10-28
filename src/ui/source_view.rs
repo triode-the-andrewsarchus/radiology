@@ -241,7 +241,7 @@ impl SourceView {
             }
 
             // Status Bar at bottom (matching screenshot: "Rust · 815 lines" on left,
-            // "ⓘ Index Ready · Line 564 · After · UTF-8 · Read Only" on right)
+            // "ⓘ Semantic data · Line 564 · After · UTF-8 · Read Only" on right)
             ui.separator();
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
@@ -284,7 +284,7 @@ impl SourceView {
 
                     ui.colored_label(theme.text_muted, "·");
                     if has_semantic_index {
-                        ui.colored_label(Color32::from_rgb(34, 197, 94), "Index Ready");
+                        ui.colored_label(Color32::from_rgb(34, 197, 94), "Semantic data");
                     } else {
                         ui.colored_label(
                             theme.text_muted,

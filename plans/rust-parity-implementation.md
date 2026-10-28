@@ -5,6 +5,9 @@ architecture, and keep Radiology standalone while preparing focused reuse with
 little-screen-clip. The [independent review](rust-swift-parity-review-2026-10-27.md)
 remains the requirement ledger; completing an initial package does not close it.
 
+See also [indexing lifecycle](rust-indexing-parity.md) for background imports
+and the remaining generation/cache requirements.
+
 ## Implemented and covered by current tests
 
 - One command type and consumed shortcut path for buttons, menus, and keys;

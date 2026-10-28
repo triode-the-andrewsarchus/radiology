@@ -11,8 +11,9 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
-    while app.is_source_loading() {
+    while app.is_source_loading() || app.is_index_loading() {
         app.poll_source(&ctx);
+        app.poll_index(&ctx);
         assert!(
             std::time::Instant::now() < deadline,
             "source preparation timed out"
@@ -436,4 +437,56 @@ fn a_default_file_open_keeps_first_test_region_hidden_until_explicit_navigation(
     );
     app.jump_to_location("mixed.rs", 1, 0);
     assert!(app.test_code.status().is_none());
+}
+
+#[test]
+fn imported_indexes_publish_asynchronously_and_failed_reload_keeps_prior_data() {
+    use crate::semantic::loader::IndexImportStatus;
+    let (dir, mut app) = reader();
+    let first = dir.path().join("first");
+    let second = dir.path().join("second");
+    repository(&first);
+    repository(&second);
+    let path = first.join("index.scip");
+    // A SCIP document with the repository-relative path a.rs.
+    std::fs::write(&path, [0x12, 6, 0x0a, 4, b'a', b'.', b'r', b's']).unwrap();
+    let ctx = Context::default();
+    app.open_repository(&first);
+    assert!(app.semantic_index.is_none());
+    assert!(app.is_index_loading());
+    settle(&mut app);
+    assert!(app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .documents
+        .contains_key("a.rs"));
+    assert!(matches!(
+        app.index_import_status(),
+        IndexImportStatus::Imported { documents: 1, .. }
+    ));
+
+    std::fs::write(&path, [0xff]).unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+    settle(&mut app);
+    assert!(matches!(
+        app.index_import_status(),
+        IndexImportStatus::Failed(_)
+    ));
+    assert!(app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .documents
+        .contains_key("a.rs"));
+    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+    app.execute_command(&ctx, ToolbarAction::CancelIndexImport);
+    assert_eq!(app.index_import_status(), &IndexImportStatus::Cancelled);
+    assert!(app.semantic_index.is_some());
+
+    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+    app.open_repository(&second);
+    settle(&mut app);
+    assert_eq!(app.index_import_status(), &IndexImportStatus::Missing);
+    assert!(app.semantic_index.is_none());
 }
