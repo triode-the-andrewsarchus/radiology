@@ -46,6 +46,7 @@ pub struct SourceBuffer {
     /// Pull request review revision, or `None` for standard checkout files.
     pub revision: Option<ReviewRevision>,
     content_identity: u64,
+    content_digest: String,
 }
 
 impl SourceBuffer {
@@ -112,6 +113,7 @@ impl SourceBuffer {
     }
 
     fn from_text(path: String, text: String, revision: Option<ReviewRevision>) -> Self {
+        use sha2::{Digest, Sha256};
         use std::hash::{Hash, Hasher};
         let data = text.as_bytes().to_vec();
         let mut line_starts = vec![0];
@@ -122,6 +124,7 @@ impl SourceBuffer {
         );
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         data.hash(&mut hash);
+        let content_digest = format!("{:x}", Sha256::digest(&data));
         Self {
             path,
             text,
@@ -129,6 +132,7 @@ impl SourceBuffer {
             line_starts,
             revision,
             content_identity: hash.finish(),
+            content_digest,
         }
     }
 
@@ -136,6 +140,12 @@ impl SourceBuffer {
     #[must_use]
     pub fn content_identity(&self) -> u64 {
         self.content_identity
+    }
+
+    /// Returns the cached SHA-256 identity for semantic source provenance.
+    #[must_use]
+    pub fn content_digest(&self) -> &str {
+        &self.content_digest
     }
 
     /// Returns the total number of lines in the buffer.

@@ -952,11 +952,10 @@ impl eframe::App for RadiologyApp {
                             wrap_lines: self.session.wrap_lines,
                             enclosing_symbols: &enclosing,
                             scroll_to_line: &mut self.scroll_to_line,
-                            has_semantic_index: self
-                                .semantic_index
-                                .as_ref()
-                                .is_some_and(|index| index.documents.contains_key(&buf.path))
-                                && buf.revision != Some(ReviewRevision::Before),
+                            has_semantic_index: self.semantic_index.as_ref().is_some_and(|index| {
+                                index.documents.contains_key(&buf.path)
+                                    && index.matches_buffer(&buf)
+                            }) && buf.revision != Some(ReviewRevision::Before),
                             keyboard_enabled: matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,
                             font_size: self.session.source_font_size,

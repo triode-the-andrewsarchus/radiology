@@ -361,6 +361,8 @@ impl SymbolSearch {
 pub struct SemanticIndex {
     /// Default column encoding for documents without an explicit encoding.
     pub default_encoding: i32,
+    /// Exact source SHA-256 identities for generated documents; absent for unverified imports.
+    pub source_digests: HashMap<String, String>,
     /// Documents keyed by repository-relative path.
     pub documents: HashMap<String, ScipDocument>,
     /// Definition location table: `symbol_id -> [(path, range)]`.
@@ -633,6 +635,18 @@ impl SemanticIndex {
         })
     }
 
+    /// Returns whether semantic data can describe these exact source bytes.
+    ///
+    /// Imports without provenance remain usable with their unknown-freshness status.
+    #[must_use]
+    pub fn matches_buffer(&self, buffer: &crate::source::SourceBuffer) -> bool {
+        self.source_digests.is_empty()
+            || self
+                .source_digests
+                .get(&buffer.path)
+                .is_some_and(|digest| digest == buffer.content_digest())
+    }
+
     /// Converts an indexed range to exact canonical bytes using its document encoding.
     #[must_use]
     pub fn byte_range(
@@ -640,6 +654,9 @@ impl SemanticIndex {
         buffer: &crate::source::SourceBuffer,
         range: &ScipRange,
     ) -> Option<std::ops::Range<usize>> {
+        if !self.matches_buffer(buffer) {
+            return None;
+        }
         let encoding = self.column_encoding(&buffer.path)?;
         let position = |line: i32, column: i32| {
             buffer.byte_offset_encoded(
@@ -815,5 +832,43 @@ mod tests {
         assert!(matches
             .iter()
             .any(|m| m.name == "CustomerAccountLifecycle" && m.tier == 2));
+    }
+    #[test]
+    fn generated_coordinates_require_exact_buffer_and_destination_bytes() {
+        use crate::source::{loader::SourceTarget, ColumnEncoding, SourceBuffer};
+        let original = SourceBuffer::from_str("a.rs", "café\r\n");
+        let changed = SourceBuffer::from_str("a.rs", "nope\r\n");
+        let range = ScipRange::from_packed(&[0, 0, 5]).unwrap();
+        let mut index = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![ScipDocument {
+                relative_path: "a.rs".into(),
+                occurrences: vec![ScipOccurrence {
+                    range: Some(range.clone()),
+                    symbol: "value".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        index
+            .source_digests
+            .insert("a.rs".into(), original.content_digest().into());
+        assert!(index.occurrence_at_byte(&original, 1).is_some());
+        assert!(index.occurrence_at_byte(&changed, 1).is_none());
+        assert!(index.byte_range(&changed, &range).is_none());
+        let target = SourceTarget::Encoded {
+            line: 1,
+            column: 0,
+            encoding: ColumnEncoding::Utf8,
+            content_digest: Some(original.content_digest().into()),
+        };
+        assert_eq!(target.resolve(&original).unwrap().byte_offset, 0);
+        assert!(target
+            .resolve(&changed)
+            .unwrap_err()
+            .contains("bytes changed"));
+        index.source_digests.clear(); // An explicitly unverified imported index.
+        assert!(index.matches_buffer(&changed));
     }
 }
