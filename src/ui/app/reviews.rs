@@ -96,6 +96,7 @@ impl RadiologyApp {
             buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
         });
         self.cancel_source_load();
+        self.index_importer = Default::default();
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());
         self.session.set_active_pr(Some(snapshot.summary.number));

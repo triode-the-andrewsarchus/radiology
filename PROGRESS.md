@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-28 — Background semantic imports with honest status (Codex)
+
+Moved existing checkout SCIP imports off the UI thread using the shared
+`LatestRead` worker protocol. Added bounded reads, fallback/error reporting,
+repository-relative path validation and empty-index rejection. Import status
+exposes file provenance and explicitly unknown freshness. Reload/Cancel commands
+retain prior data on failure/cancellation; repository/review changes retire jobs.
+Source semantic status now requires actual document coverage. Embedded hosts can
+poll index publication independently of eframe.
+
+Verified 82 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy
+with warnings denied. New backend/app tests exercise imports, fallback, limits,
+errors, cancellation/replacement and repository transitions. Architecture retains
+only the already documented findings. No new native visual acceptance yet.
+
+See [indexing parity](plans/rust-indexing-parity.md). Strategy detection, generated
+indexes, provisioning, isolated workspaces, cache provenance and pinned revision
+indexing are still required; this commit does not complete R4 or full parity.
+
 ## 2026-10-28 — Atomic asynchronous reader navigation (Codex)
 
 Integrated the source worker (`7b614ab`) into file opens, bookmarks, encoded

@@ -6,6 +6,13 @@ impl RadiologyApp {
     pub(super) fn execute_command(&mut self, ctx: &Context, command: ToolbarAction) {
         use ToolbarAction::*;
         match command {
+            ReloadIndexImport if self.review.is_none() => {
+                if let Some(root) = &self.repository_root {
+                    self.index_importer.start(root.clone());
+                }
+            }
+            ReloadIndexImport => {}
+            CancelIndexImport => self.index_importer.stop(),
             ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             ToggleInspector => self.show_inspector = !self.show_inspector,
             OpenRecentRepo(path) => self.open_repository(Path::new(&path)),

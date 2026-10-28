@@ -7,6 +7,7 @@
 
 pub mod caller_tree;
 pub mod index;
+pub mod loader;
 pub mod scip_proto;
 
 pub use caller_tree::{
