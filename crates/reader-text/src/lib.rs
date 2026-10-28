@@ -1,6 +1,6 @@
 //! Source-byte selection and bounded geometry for independent reader hosts.
 //!
-//! This crate has no GUI framework, filesystem, configuration, or daemon dependency.
+//! This crate has no GUI framework, application configuration, or daemon dependency.
 //! Source bytes remain owned by the host; wrapping and continuation rows never
 //! change selection/copy coordinates.
 

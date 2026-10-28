@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-10-27 — Measured selectable source viewport and zoom (Codex)
+
+- Replaced fixed 22-point source rows with `SourceViewport`, using the extracted
+  bounded fragments, variable-height sums, and original-byte selection. Shaped
+  glyph positions drive pointer/Shift/drag selection, visual Up/Down, caret strokes,
+  find/pin highlights, and exact navigation reveal. Copy retains CRLF/hidden rows.
+  Input stays with its focused control; source focus supports shared shortcuts.
+- `SourceViewContent` groups frame borrows; source chrome, geometry preparation,
+  row painting, pointer handling, and copy have distinct responsibilities. Syntax
+  spans now retain line-relative byte ranges for bounded-fragment token lookup.
+  Diff gutter bars and fold controls remain; double-click pins use semantic
+  identity when indexed, whole lexical tokens in the parsed enclosing function
+  otherwise. AST-aware fallback resolution and persistent pin/fold scopes remain.
+- Added persisted source-only font size (14 default, 8–32), shared zoom menu/key
+  commands, and restore-default. Loaded sizes are normalized to the supported range.
+- Native Niri smoke: wrapping and two zoom increases rendered cleanly, settings
+  stored 16 points, and clipboard output exactly matched the 1,131-byte Unicode/
+  CRLF fixture. Screenshot `/tmp/radiology-native-viewport-wrap-settled.png`.
+  Own test window was closed afterward. Tests exercise glyph hit/drag copy,
+  wrapped visual arrows, folded copy, input exclusion, fragment navigation/zoom,
+  zoom persistence without changing interface fonts, and lexical pin scope.
+- Latest suite: 64 application tests, 5 reader-text tests, 30 doctests pass; fmt
+  and Clippy with warnings denied pass. Architecture checks removed the initial
+  viewport CCN 38 and duplicate byte-to-fragment lookup by making lifecycle and
+  rendering share explicit geometry and one canonical lookup. New functions are
+  below the excessive-complexity threshold. Existing test-only paint-text clone
+  and review-preparation structural flags remain (see previous entry).
+- Full parity is still open. Function-body shade/destination feedback, complete
+  source-state persistence, indexing/languages/test hiding, semantic Critical
+  Lens, PR lifecycle, inspector previews and broader desktop acceptance remain.
+
 ## 2026-10-27 — Source find UI integration (Codex)
 
 - Committed backend work as `4dbb17e`. Integrated a local-find strip and shared

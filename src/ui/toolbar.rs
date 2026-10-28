@@ -214,6 +214,26 @@ impl Toolbar {
                     action = Some(ToolbarAction::ToggleHideTests);
                 }
                 ui.separator();
+                for (label, command) in [
+                    (
+                        "Larger Source Text (Ctrl++)",
+                        ToolbarAction::IncreaseSourceFont,
+                    ),
+                    (
+                        "Smaller Source Text (Ctrl+-)",
+                        ToolbarAction::DecreaseSourceFont,
+                    ),
+                    (
+                        "Reset Source Text (Ctrl+Alt+=)",
+                        ToolbarAction::ResetSourceFont,
+                    ),
+                ] {
+                    if ui.button(label).clicked() {
+                        action = Some(command);
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
                 for (label, next) in [
                     (
                         "Fold to Definitions (Ctrl+Alt+0)",

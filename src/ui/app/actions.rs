@@ -85,8 +85,89 @@ impl RadiologyApp {
                 self.session.wrap_lines = !self.session.wrap_lines;
                 self.session.save();
             }
+            IncreaseSourceFont | DecreaseSourceFont | ResetSourceFont => {
+                self.session.source_font_size = match command {
+                    IncreaseSourceFont => (self.session.source_font_size + 1.0).min(32.0),
+                    DecreaseSourceFont => (self.session.source_font_size - 1.0).max(8.0),
+                    _ => 14.0,
+                };
+                self.session.save();
+            }
             ToggleTheme => self.toggle_theme(ctx),
         }
+    }
+
+    pub(super) fn pin_at_byte(&mut self, byte: usize) {
+        let Some(buffer) = &self.open_buffer else {
+            return;
+        };
+        if let Some(index) = self
+            .semantic_index
+            .as_ref()
+            .filter(|_| buffer.revision != Some(ReviewRevision::Before))
+        {
+            if let Some(occurrence) = index.occurrence_at_byte(buffer, byte) {
+                if let Some(document) = index.documents.get(&buffer.path) {
+                    let ranges = document
+                        .occurrences
+                        .iter()
+                        .filter(|candidate| candidate.symbol == occurrence.symbol)
+                        .filter_map(|candidate| {
+                            candidate
+                                .range
+                                .as_ref()
+                                .and_then(|range| index.byte_range(buffer, range))
+                        })
+                        .collect();
+                    self.pin_store.toggle_pin(&occurrence.symbol, ranges);
+                    return;
+                }
+            }
+        }
+        let Some(character) = buffer.text.get(byte..).and_then(|text| text.chars().next()) else {
+            return;
+        };
+        let identifier = |character: char| character.is_alphanumeric() || character == '_';
+        if !identifier(character) {
+            return;
+        }
+        let start = buffer.text[..byte]
+            .char_indices()
+            .rev()
+            .take_while(|(_, character)| identifier(*character))
+            .last()
+            .map_or(byte, |(index, _)| index);
+        let end = byte
+            + buffer.text[byte..]
+                .chars()
+                .take_while(|character| identifier(*character))
+                .map(char::len_utf8)
+                .sum::<usize>();
+        let word = &buffer.text[start..end];
+        let mut enclosing = Vec::new();
+        for symbol in &self.outline_symbols {
+            symbol.breadcrumbs(byte, &mut enclosing);
+        }
+        let scope = enclosing
+            .iter()
+            .rev()
+            .find(|symbol| {
+                matches!(
+                    symbol.kind,
+                    crate::syntax::outline::SymbolKind::Function
+                        | crate::syntax::outline::SymbolKind::Method
+                )
+            })
+            .map_or(0..buffer.byte_len(), |symbol| symbol.range.clone());
+        let Ok(pattern) = regex::Regex::new(&format!(r"\b{}\b", regex::escape(word))) else {
+            return;
+        };
+        let ranges = pattern
+            .find_iter(&buffer.text[scope.clone()])
+            .map(|matched| scope.start + matched.start()..scope.start + matched.end())
+            .collect();
+        self.pin_store
+            .toggle_pin(&format!("{word}@{}", scope.start), ranges);
     }
 
     fn filters_changed(&mut self) {

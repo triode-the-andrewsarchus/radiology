@@ -208,3 +208,39 @@ fn explicit_launch_root_supersedes_saved_review_without_starting_it() {
     assert!(app.pending_pr.is_none());
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
 }
+
+#[test]
+fn source_zoom_commands_persist_without_changing_other_ui_fonts() {
+    let (dir, mut app) = reader();
+    let ctx = Context::default();
+    let body = ctx.style().text_styles[&egui::TextStyle::Body].clone();
+    for _ in 0..3 {
+        app.execute_command(&ctx, ToolbarAction::IncreaseSourceFont);
+    }
+    assert_eq!(app.session.source_font_size, 17.0);
+    assert_eq!(
+        SessionStore::load_from(dir.path().join("settings/session.json")).source_font_size,
+        17.0
+    );
+    app.execute_command(&ctx, ToolbarAction::ResetSourceFont);
+    assert_eq!(app.session.source_font_size, 14.0);
+    assert_eq!(ctx.style().text_styles[&egui::TextStyle::Body], body);
+}
+
+#[test]
+fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
+    let (_dir, mut app) = reader();
+    let text = "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }";
+    let buffer = SourceBuffer::from_str("pins.rs", text);
+    app.outline_symbols = SymbolExtractor::extract(&buffer);
+    app.open_buffer = Some(Arc::new(buffer));
+    app.pin_at_byte(text.find("value").unwrap());
+    let ranges = &app.pin_store.groups[0].ranges;
+    assert_eq!(ranges.len(), 2);
+    assert!(ranges.iter().all(|range| &text[range.clone()] == "value"));
+    assert!(ranges
+        .iter()
+        .all(|range| range.end < text.find("fn second").unwrap()));
+    app.pin_at_byte(text.rfind("value").unwrap());
+    assert_eq!(app.pin_store.groups.len(), 2);
+}

@@ -14,6 +14,7 @@ pub struct SourceFindPanel {
     visible: bool,
     request_focus: bool,
     restart: bool,
+    selection_requested: bool,
     pending_step: Option<bool>,
     document: Option<(String, Option<crate::source::ReviewRevision>, u64)>,
 }
@@ -64,6 +65,7 @@ impl SourceFindPanel {
             .and_then(|forward| self.search.step(forward));
         if let Some(range) = &range {
             self.active_range = Some(range.clone());
+            self.selection_requested = true;
             ui.ctx().request_repaint();
         }
         range
@@ -146,6 +148,11 @@ impl SourceFindPanel {
         }
     }
 
+    /// Takes a one-shot request to select the newly revealed exact match.
+    pub fn take_selection_request(&mut self) -> bool {
+        std::mem::take(&mut self.selection_requested)
+    }
+
     /// Reads only the matches overlapping the displayed original-source range.
     pub fn matches(&mut self, fragment: Range<usize>) -> Vec<(Range<usize>, bool)> {
         if !self.visible {
@@ -226,7 +233,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    assert!(crate::ui::commands::take_shortcuts(ctx, false).is_empty());
+                    assert!(crate::ui::commands::take_shortcuts(ctx, false, false).is_empty());
                     egui::CentralPanel::default().show(ctx, |ui| {
                         range = panel.show(ui, &source);
                     });
