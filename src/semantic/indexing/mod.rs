@@ -4,6 +4,7 @@
 //! No command is executed and no repository file is changed during inspection.
 
 pub mod command;
+pub mod process;
 
 use crate::source::location::SourceLocation;
 use std::collections::BTreeSet;

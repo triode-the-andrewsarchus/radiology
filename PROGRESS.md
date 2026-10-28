@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-28 — Bounded cancellable indexer subprocesses (Codex)
+
+Added the POSIX process runner for index generation and version probes. It drains
+both nonblocking pipes with a per-turn budget, retains bounded first/last output,
+reports exit/signal/error diagnostics, enforces deadlines and owner cancellation,
+and kills/reaps the child process group on every completion path. Normal tool
+exit also cleans up children holding pipes open. Leader identity is reserved
+until cleanup using waitid/WNOWAIT. No pipe-reader threads or output files leak.
+
+Verified 96 application tests, 5 reader-text tests and 30 doctests, fmt and Clippy
+with warnings denied. Real process tests cover stream pressure, cancellation,
+deadlines, TERM-ignoring descendants, normal-exit descendants, signals and spawn
+failures. Architecture findings remain unchanged. Tool probes, generation,
+workspace isolation/cache provenance and full parity remain open; the next
+integration uses this runner rather than adding another subprocess mechanism.
+See [indexing parity](plans/rust-indexing-parity.md).
+
 ## 2026-10-28 — Project strategy planning and adapter command definitions (Codex)
 
 Added deterministic project planning for all six Swift indexers, using build-file

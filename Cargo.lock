@@ -2475,6 +2475,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_extras",
+ "libc",
  "reader-text",
  "regex",
  "rfd",
