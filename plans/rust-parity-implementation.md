@@ -36,6 +36,8 @@ remains the requirement ledger; completing an initial package does not close it.
   caret strokes, long-line destination reveal, and independently persisted source
   zoom are integrated. Source focus is separate from other controls. Indexed pins
   use exact semantic occurrences; lexical fallback is scoped to enclosing functions.
+- Native Swift/Kotlin grammars, nested declaration outlines and source-span folds
+  are registered and tested; detailed highlighting/query coverage remains open.
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -51,7 +53,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   groups/legend, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit.
-- Swift/Kotlin grammars, broader query-based folds/scopes, syntax-aware inline
+- Swift/Kotlin highlighting and broader declaration/query-based folds/scopes, syntax-aware inline
   test detection/presentation, and hidden-test navigation/outline behavior.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,

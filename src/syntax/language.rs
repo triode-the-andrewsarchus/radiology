@@ -17,8 +17,38 @@ pub enum SupportedGrammar {
     TypeScript,
     /// TSX and JSX language grammar with React element support.
     Tsx,
+    /// Swift language grammar.
+    Swift,
+    /// Kotlin language grammar.
+    Kotlin,
     /// C and C++ language grammar.
     C,
+}
+
+impl SupportedGrammar {
+    /// Returns the statically linked grammar used by all syntax analyses.
+    #[must_use]
+    pub fn language(self) -> tree_sitter::Language {
+        match self {
+            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
+            Self::Go => tree_sitter_go::LANGUAGE.into(),
+            Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+            Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            Self::C => tree_sitter_c::LANGUAGE.into(),
+            Self::Swift => tree_sitter_swift::LANGUAGE.into(),
+            Self::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
+        }
+    }
+
+    /// Parses exact source bytes, preserving Tree-sitter's original coordinates.
+    #[must_use]
+    pub fn parse(self, bytes: &[u8]) -> Option<tree_sitter::Tree> {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&self.language()).ok()?;
+        parser.parse(bytes, None)
+    }
 }
 
 /// Stores display metadata and associated parsing grammar for a language.
@@ -129,12 +159,12 @@ impl LanguageRegistry {
             "swift" => LanguageInfo {
                 id: "swift",
                 display_name: "Swift",
-                grammar: None,
+                grammar: Some(SupportedGrammar::Swift),
             },
             "kt" | "kts" => LanguageInfo {
                 id: "kotlin",
                 display_name: "Kotlin",
-                grammar: None,
+                grammar: Some(SupportedGrammar::Kotlin),
             },
             "java" => LanguageInfo {
                 id: "java",
