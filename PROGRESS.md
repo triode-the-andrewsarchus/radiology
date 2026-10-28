@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-27 — Limit Cargo build concurrency (Codex)
+
+User requested half the system's cores for builds. Both `nproc` and
+`_NPROCESSORS_ONLN` report 32 available CPUs. Added project Cargo configuration
+in `.cargo/config.toml` with `[build] jobs = 16`. Builds, checks, and test
+compilation inherit this limit unless explicitly overridden. Parity work continues.
+
 ## 2026-10-27 — Parity implementation: correctness, review snapshots, search, inspector (Codex)
 
 Full objective remains active. [Implementation handoff and remaining
