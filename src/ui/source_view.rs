@@ -422,15 +422,70 @@ impl SourceView {
 
                     // Caret click: calculate actual character column from mouse position
                     let code_start_x = rect.min.x + Self::GUTTER_WIDTH + 12.0;
-                    if line_response.clicked() && !chevron_clicked {
-                        *caret_line = line_num;
-                        let mut col = 0;
-                        if let Some(pos) = line_response.interact_pointer_pos() {
-                            if pos.x > code_start_x {
-                                col = ((pos.x - code_start_x) / char_width).floor() as usize;
-                                col = col.min(line_text.chars().count());
+                    // Assemble unified line LayoutJob so all tokens share the exact same typographic baseline
+                    let font_id = TextStyle::Monospace.resolve(ui.style());
+                    let mut job = LayoutJob {
+                        break_on_newline: false,
+                        ..Default::default()
+                    };
+                    if wrap_lines {
+                        job.wrap.max_width =
+                            (ui.available_width() - Self::GUTTER_WIDTH - 24.0).max(100.0);
+                    }
+
+                    if let Some(spans) = highlighted_lines.get(line_num.saturating_sub(1)) {
+                        if spans.is_empty() {
+                            job.append(
+                                line_text,
+                                0.0,
+                                TextFormat::simple(font_id.clone(), theme.text_primary),
+                            );
+                        } else {
+                            for span in spans {
+                                let mut color = span.color;
+                                if mode == SourceMode::Critical {
+                                    // In Critical Lens mode, recede non-critical tokens (keywords, punctuation, basic runtime plumbing)
+                                    let is_critical = span.color == theme.accent
+                                        || span.color == egui::Color32::from_rgb(224, 108, 117);
+                                    if !is_critical {
+                                        let factor = if theme.is_dark { 0.38 } else { 0.30 };
+                                        color = color.linear_multiply(factor);
+                                    }
+                                }
+                                job.append(
+                                    span.text.trim_end_matches(['\r', '\n']),
+                                    0.0,
+                                    TextFormat::simple(font_id.clone(), color),
+                                );
                             }
                         }
+                    } else {
+                        job.append(
+                            line_text,
+                            0.0,
+                            TextFormat::simple(font_id.clone(), theme.text_primary),
+                        );
+                    }
+
+                    let galley = code_painter.layout_job(job);
+                    let text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
+                    let text_origin = pos2(code_start_x, text_y);
+                    code_painter.galley(text_origin, galley.clone(), theme.text_primary);
+
+                    let pointer_column =
+                        line_response.interact_pointer_pos().map_or(0, |position| {
+                            galley
+                                .cursor_from_pos(position - text_origin)
+                                .ccursor
+                                .index
+                                .min(line_text.chars().count())
+                        });
+
+                    if (line_response.clicked() || line_response.secondary_clicked())
+                        && !chevron_clicked
+                    {
+                        *caret_line = line_num;
+                        let col = pointer_column;
                         *caret_col = col;
                         let offset = buffer.byte_offset(line_num, col);
                         action = Some(SourceViewAction::CaretMoved {
@@ -441,13 +496,7 @@ impl SourceView {
                     }
 
                     if line_response.double_clicked() && !chevron_clicked {
-                        let mut col = 0;
-                        if let Some(pos) = line_response.interact_pointer_pos() {
-                            if pos.x > code_start_x {
-                                col = ((pos.x - code_start_x) / char_width).floor() as usize;
-                                col = col.min(line_text.chars().count());
-                            }
-                        }
+                        let col = pointer_column;
                         let chars: Vec<char> = line_text.chars().collect();
                         if !chars.is_empty() {
                             let mut start_idx = col.min(chars.len() - 1);
@@ -493,57 +542,6 @@ impl SourceView {
                             ui.close_menu();
                         }
                     });
-
-                    // Assemble unified line LayoutJob so all tokens share the exact same typographic baseline
-                    let font_id = TextStyle::Monospace.resolve(ui.style());
-                    let mut job = LayoutJob {
-                        break_on_newline: false,
-                        ..Default::default()
-                    };
-                    if wrap_lines {
-                        job.wrap.max_width =
-                            (ui.available_width() - Self::GUTTER_WIDTH - 24.0).max(100.0);
-                    }
-
-                    if let Some(spans) = highlighted_lines.get(line_num.saturating_sub(1)) {
-                        if spans.is_empty() {
-                            job.append(
-                                line_text,
-                                0.0,
-                                TextFormat::simple(font_id.clone(), theme.text_primary),
-                            );
-                        } else {
-                            for span in spans {
-                                let mut color = span.color;
-                                if mode == SourceMode::Critical {
-                                    // In Critical Lens mode, recede non-critical tokens (keywords, punctuation, basic runtime plumbing)
-                                    let is_critical = span.color == theme.accent
-                                        || span.color == egui::Color32::from_rgb(224, 108, 117);
-                                    if !is_critical {
-                                        let factor = if theme.is_dark { 0.38 } else { 0.30 };
-                                        color = color.linear_multiply(factor);
-                                    }
-                                }
-                                job.append(
-                                    &span.text,
-                                    0.0,
-                                    TextFormat::simple(font_id.clone(), color),
-                                );
-                            }
-                        }
-                    } else {
-                        job.append(
-                            line_text,
-                            0.0,
-                            TextFormat::simple(font_id.clone(), theme.text_primary),
-                        );
-                    }
-
-                    if !job.is_empty() {
-                        let galley = code_painter.layout_job(job);
-                        let text_y = rect.min.y + ((row_height - galley.size().y) / 2.0).max(0.0);
-                        code_painter.galley(pos2(code_start_x, text_y), galley, theme.text_primary);
-                    }
 
                     // Draw occurrence pins if any exist on this line
                     if !pin_store.is_empty() {
@@ -656,7 +654,13 @@ mod tests {
         let mut folds = FoldStore::new();
         let mut pins = OccurrencePinStore::new();
         let mut scroll = None;
-        let _ = ctx.run(
+        let highlighter = crate::syntax::highlighter::SyntaxHighlighter::new();
+        let highlighted = highlighter.highlight_document(
+            highlighter.find_syntax_for_path("focus.rs"),
+            &buffer.text,
+            true,
+        );
+        let output = ctx.run(
             egui::RawInput {
                 screen_rect: Some(Rect::from_min_size(
                     egui::Pos2::ZERO,
@@ -678,7 +682,7 @@ mod tests {
                         &AppTheme::dark(),
                         SourceMode::Normal,
                         &buffer,
-                        &[],
+                        &highlighted,
                         &mut line,
                         &mut column,
                         &[],
@@ -695,5 +699,15 @@ mod tests {
             },
         );
         assert_eq!(line, 1);
+        let painted_text = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(painted_text.contains(&"one"));
+        assert!(painted_text.iter().all(|text| !text.contains(['\r', '\n'])));
     }
 }

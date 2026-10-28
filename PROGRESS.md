@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-27 — Native smoke checks and architectural consolidation (Codex)
+
+- UI integration committed as `011072d`. Subsequent consolidation reuses one
+  encoded-coordinate conversion in `SourceBuffer`, deduplicates GitHub transport
+  and exact-byte navigation routes, and removes duplicated local-file diff reads.
+- Native Niri/Wayland smoke launch used isolated settings/source fixtures. Window
+  screenshots caught newline terminators painted as squares and inspector regions
+  shrinking to content. Rendering now strips terminators for display only, uses
+  galley-based pointer columns, and reserves each inspector's scroll space. Added
+  regression assertions for terminator-free paint and minimum region geometry.
+- Native Ctrl+Alt+T switched to Light exactly once without opening a symbol sheet;
+  the isolated session persisted `dark_mode: false`. Dark and Light screenshots
+  are `/tmp/radiology-native-dark.png` and `/tmp/radiology-native-light.png`.
+  This is smoke evidence, not full desktop or Swift side-by-side acceptance.
+- Active-line color is precomposited to avoid gamma-amplified dark-mode washes;
+  removed duplicate quick buttons from the toolbar and exposed existing fold/reset
+  commands in its View menu with Linux shortcut labels.
+- Latest completed suite: 56 unit tests and 30 doctests pass; Clippy with warnings
+  denied passes. Architecture comparison to the original baseline is NEUTRAL:
+  duplication approximately 1.03% (was 1.38%), 78 clone groups (was 95), max measured
+  CCN 100 (was 125), shortcut CCN 2 (was 125), sidebar dispatcher 10 (was 33).
+  A structural review-preparation flag remains for necessary snapshot orchestration;
+  the source view and other existing hotspots still need further improvement.
+- Build limits were also applied to `/home/vega/.cargo/config.toml` (`jobs = 16`),
+  in addition to the committed project config (`b2b6134`).
+
 ## 2026-10-27 — Limit Cargo build concurrency (Codex)
 
 User requested half the system's cores for builds. Both `nproc` and

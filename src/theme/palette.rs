@@ -58,7 +58,8 @@ impl AppTheme {
             bg_surface: Color32::from_rgb(28, 28, 30),
             bg_sidebar: Color32::from_rgb(34, 34, 36),
             bg_gutter: Color32::from_rgb(28, 28, 30),
-            bg_active_line: Color32::from_rgba_unmultiplied(10, 132, 255, 14),
+            // Five-percent sRGB accent mix, precomposited to avoid gamma-amplified washes.
+            bg_active_line: Color32::from_rgb(27, 34, 42),
             border: Color32::from_rgb(56, 56, 58),
             text_primary: Color32::from_rgb(242, 242, 247),
             text_secondary: Color32::from_rgb(174, 174, 178),
@@ -79,7 +80,7 @@ impl AppTheme {
             bg_surface: Color32::from_rgb(255, 255, 255),
             bg_sidebar: Color32::from_rgb(246, 246, 248),
             bg_gutter: Color32::from_rgb(255, 255, 255),
-            bg_active_line: Color32::from_rgba_unmultiplied(0, 122, 255, 14),
+            bg_active_line: Color32::from_rgb(241, 248, 255),
             border: Color32::from_rgb(229, 229, 234),
             text_primary: Color32::from_rgb(28, 28, 30),
             text_secondary: Color32::from_rgb(99, 99, 102),

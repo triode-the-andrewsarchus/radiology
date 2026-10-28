@@ -140,7 +140,13 @@ impl RadiologyApp {
     #[must_use]
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
-        Self::from_session(SessionStore::load())
+        let app = Self::from_session(SessionStore::load());
+        cc.egui_ctx.set_visuals(if app.theme.is_dark {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        });
+        app
     }
 
     /// Creates an idle reader model without a window or startup side effects.
@@ -498,18 +504,6 @@ impl RadiologyApp {
             if output.status.success() {
                 let diff_text = String::from_utf8_lossy(&output.stdout);
                 changes = UnifiedDiffParser::parse_file_changes(&diff_text);
-                if let Some(buf) = &self.open_buffer {
-                    if let Ok(file_diff) = std::process::Command::new("git")
-                        .args(["diff", "-U0", "HEAD", "--", &buf.path])
-                        .current_dir(root)
-                        .output()
-                    {
-                        if file_diff.status.success() {
-                            let text = String::from_utf8_lossy(&file_diff.stdout);
-                            self.line_changes = Some(UnifiedDiffParser::parse(&text));
-                        }
-                    }
-                }
             }
         }
 
@@ -545,6 +539,7 @@ impl RadiologyApp {
         }
 
         self.pr_changes = changes;
+        self.refresh_current_diff();
     }
 
     /// Updates semantic caller context for the symbol at the caret or enclosing declaration.
@@ -660,10 +655,8 @@ impl eframe::App for RadiologyApp {
                             close_modal = true;
                         }
                         ModalAction::JumpToSymbol(byte) => {
-                            if let Some(buf) = &self.open_buffer {
-                                let line = buf.line_at_byte(byte);
-                                let p = buf.path.clone();
-                                self.jump_to_location(&p, line, byte);
+                            if let Some(buffer) = &self.open_buffer {
+                                self.navigate(buffer.location_at_byte(byte), true);
                             }
                             close_modal = true;
                         }
@@ -897,10 +890,8 @@ impl eframe::App for RadiologyApp {
                                 self.jump_to_location(&path, line, byte_offset);
                             }
                             InspectorAction::JumpToSymbol(byte) => {
-                                if let Some(buf) = &self.open_buffer {
-                                    let line = buf.line_at_byte(byte);
-                                    let p = buf.path.clone();
-                                    self.jump_to_location(&p, line, byte);
+                                if let Some(buffer) = &self.open_buffer {
+                                    self.navigate(buffer.location_at_byte(byte), true);
                                 }
                             }
                             InspectorAction::OpenBookmark(index) => self.open_bookmark(index),
@@ -984,10 +975,8 @@ impl eframe::App for RadiologyApp {
                                 self.execute_command(ctx, ToolbarAction::ToggleRevision(revision))
                             }
                             SourceViewAction::JumpToSymbol(byte) => {
-                                if let Some(buf) = &self.open_buffer {
-                                    let line = buf.line_at_byte(byte);
-                                    let p = buf.path.clone();
-                                    self.jump_to_location(&p, line, byte);
+                                if let Some(buffer) = &self.open_buffer {
+                                    self.navigate(buffer.location_at_byte(byte), true);
                                 }
                             }
                             SourceViewAction::PinOccurrence { symbol, ranges } => {
