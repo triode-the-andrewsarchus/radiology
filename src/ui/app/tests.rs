@@ -520,3 +520,47 @@ fn index_planning_uses_unfiltered_inventory_and_retires_previous_repository() {
     assert_eq!(app.index_plan().selected[0].id(), "scip-go");
     assert_eq!(app.index_plan().selected[0].source_files, 1);
 }
+
+#[cfg(unix)]
+#[test]
+fn tool_probes_publish_real_versions_and_are_retired_on_repository_changes() {
+    use crate::semantic::indexing::{
+        tools::{ToolAvailability, ToolDirectory},
+        Indexer,
+    };
+    use std::os::unix::fs::PermissionsExt;
+    let (dir, mut app) = reader();
+    let first = dir.path().join("first");
+    let next = dir.path().join("next");
+    repository(&first);
+    repository(&next);
+    std::fs::write(
+        first.join("Cargo.toml"),
+        "[package]\nname='fixture'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    let tools = ToolDirectory {
+        managed: None,
+        home: None,
+        search_path: vec![dir.path().join("bin")],
+    };
+    std::fs::create_dir(&tools.search_path[0]).unwrap();
+    let binary = tools.search_path[0].join("rust-analyzer");
+    std::fs::write(&binary, "#!/bin/sh\nprintf 'rust-analyzer fixture-1'\n").unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+    app.open_repository(&first);
+    settle(&mut app);
+    assert!(app.tool_availability(Indexer::Rust).is_none());
+    app.probe_index_tools(tools.clone(), first.clone());
+    settle(&mut app);
+    assert!(
+        matches!(app.tool_availability(Indexer::Rust), Some(ToolAvailability::Available { version, .. }) if version == "rust-analyzer fixture-1")
+    );
+    app.probe_index_tools(tools.clone(), first.clone());
+    app.execute_command(&Context::default(), ToolbarAction::CancelIndexToolCheck);
+    assert!(app.tool_availability(Indexer::Rust).is_some());
+    app.probe_index_tools(tools, first);
+    app.open_repository(&next);
+    settle(&mut app);
+    assert!(app.tool_availability(Indexer::Rust).is_none());
+}

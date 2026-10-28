@@ -47,19 +47,22 @@ impl RunOutput {
 }
 
 /// Why a subprocess could not complete.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RunFailureKind {
     /// The owner retired or explicitly cancelled the job.
+    #[error("cancelled")]
     Cancelled,
     /// The specified wall-clock deadline expired.
+    #[error("timed out")]
     TimedOut,
     /// Spawning, reading output or waiting failed.
+    #[error("{0}")]
     Io(String),
 }
 
 /// Process failure with diagnostics preserved through cancellation and timeout.
 #[derive(Debug, thiserror::Error)]
-#[error("{kind:?}")]
+#[error("{kind}")]
 pub struct RunFailure {
     /// Failure category.
     pub kind: RunFailureKind,

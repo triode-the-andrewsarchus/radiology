@@ -106,6 +106,17 @@ pub struct RadiologyApp {
     index_importer: crate::semantic::loader::IndexImporter,
     index_plan: crate::semantic::indexing::IndexPlan,
     index_plan_job: crate::background::LatestRead<crate::semantic::indexing::IndexPlan>,
+    index_projects_open: bool,
+    tool_probe_job: crate::background::LatestRead<
+        std::collections::BTreeMap<
+            crate::semantic::indexing::Indexer,
+            crate::semantic::indexing::tools::ToolAvailability,
+        >,
+    >,
+    tool_availability: std::collections::BTreeMap<
+        crate::semantic::indexing::Indexer,
+        crate::semantic::indexing::tools::ToolAvailability,
+    >,
     /// Backward caller tree nodes for the symbol under caret.
     pub caller_tree: Vec<ReferenceCallerNode>,
     /// Active pull request summary during PR review.
@@ -198,6 +209,9 @@ impl RadiologyApp {
             index_importer: Default::default(),
             index_plan: Default::default(),
             index_plan_job: Default::default(),
+            index_projects_open: false,
+            tool_probe_job: Default::default(),
+            tool_availability: Default::default(),
             caller_tree: Vec::new(),
             active_pr: None,
             review: None,
@@ -385,9 +399,7 @@ impl RadiologyApp {
 
     fn reset_repository_state(&mut self) {
         self.cancel_source_load();
-        self.index_importer = Default::default();
-        self.index_plan_job.stop();
-        self.index_plan = Default::default();
+        self.reset_index_state();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.test_code = Default::default();
@@ -407,7 +419,6 @@ impl RadiologyApp {
         self.fold_ranges.clear();
         self.outline_symbols.clear();
         self.highlighted_lines.clear();
-        self.semantic_index = None;
         self.caller_tree.clear();
         self.active_pr = None;
         self.review = None;

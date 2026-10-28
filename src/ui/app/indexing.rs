@@ -1,10 +1,58 @@
 //! Semantic import publication and its repository-scoped status controls.
 
 use super::*;
-use crate::semantic::indexing::IndexPlan;
+use crate::semantic::indexing::tools::{ToolAvailability, ToolDirectory};
+use crate::semantic::indexing::{IndexPlan, Indexer};
 use crate::semantic::loader::IndexImportStatus;
 
 impl RadiologyApp {
+    pub(super) fn reset_index_state(&mut self) {
+        self.index_importer = Default::default();
+        self.index_plan_job.stop();
+        self.tool_probe_job.stop();
+        self.index_plan = Default::default();
+        self.tool_availability.clear();
+        self.semantic_index = None;
+    }
+
+    pub(super) fn check_index_tools(&mut self) {
+        let Some(root) = self.search_root() else {
+            return;
+        };
+        let tools = ToolDirectory::from_environment(
+            self.session
+                .config_directory()
+                .map(|path| path.join("tools")),
+        );
+        self.probe_index_tools(tools, root);
+    }
+
+    pub(super) fn probe_index_tools(&mut self, tools: ToolDirectory, root: PathBuf) {
+        let indexers: std::collections::BTreeSet<_> = self
+            .index_plan
+            .selected
+            .iter()
+            .map(|strategy| strategy.indexer)
+            .collect();
+        self.tool_probe_job.spawn(move |cancel| {
+            indexers
+                .into_iter()
+                .take_while(|_| !cancel.load(std::sync::atomic::Ordering::Relaxed))
+                .map(|indexer| {
+                    let status =
+                        tools.probe(indexer, &root, cancel, std::time::Duration::from_secs(10));
+                    (indexer, status)
+                })
+                .collect()
+        });
+    }
+
+    /// Returns the most recent executable probe for one detected indexing tool.
+    #[must_use]
+    pub fn tool_availability(&self, indexer: Indexer) -> Option<&ToolAvailability> {
+        self.tool_availability.get(&indexer)
+    }
+
     pub(super) fn inspect_index_projects(&mut self) {
         let paths: Vec<_> = self
             .all_files
@@ -33,15 +81,22 @@ impl RadiologyApp {
             Ok(None) => {}
             Err(_) => self.error = Some("Index project inspection stopped unexpectedly".into()),
         }
+        match self.tool_probe_job.poll() {
+            Ok(Some(availability)) => self.tool_availability = availability,
+            Ok(None) => {}
+            Err(_) => self.error = Some("Indexer tool checks stopped unexpectedly".into()),
+        }
         if self.is_index_loading() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
     }
 
-    /// Returns whether the current repository import is still running.
+    /// Returns whether import, project inspection or tool probing is running.
     #[must_use]
     pub fn is_index_loading(&self) -> bool {
-        self.index_importer.is_running() || self.index_plan_job.is_running()
+        self.index_importer.is_running()
+            || self.index_plan_job.is_running()
+            || self.tool_probe_job.is_running()
     }
 
     /// Returns lifecycle and diagnostic information for the current import.
@@ -86,9 +141,9 @@ impl RadiologyApp {
                         });
                     }
                 }
-                ui.menu_button("Index Projects", |ui| {
-                    self.show_index_projects(ui);
-                });
+                if ui.small_button("Index Projects").clicked() {
+                    self.index_projects_open = true;
+                }
                 if self.index_importer.is_running() {
                     if ui.small_button("Cancel").clicked() {
                         command = Some(ToolbarAction::CancelIndexImport);
@@ -106,19 +161,32 @@ impl RadiologyApp {
                 }
             });
         });
+        if self.index_projects_open {
+            let mut open = true;
+            egui::Window::new("Index Projects")
+                .open(&mut open)
+                .min_width(360.0)
+                .default_width(420.0)
+                .show(ctx, |ui| {
+                    if let Some(action) = self.show_index_projects(ui) {
+                        command = Some(action);
+                    }
+                });
+            self.index_projects_open = open;
+        }
         if let Some(command) = command {
             self.execute_command(ctx, command);
         }
     }
 
-    fn show_index_projects(&self, ui: &mut egui::Ui) {
+    fn show_index_projects(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
         if self.index_plan_job.is_running() {
             ui.label("Inspecting build files…");
-            return;
+            return None;
         }
         if self.index_plan.selected.is_empty() {
             ui.label("No supported build files found");
-            return;
+            return None;
         }
         egui::ScrollArea::vertical()
             .max_height(300.0)
@@ -134,11 +202,31 @@ impl RadiologyApp {
                             .strong(),
                     );
                     ui.label(format!(
-                        "{} · {} source files",
+                        "{} · {} source file{}",
                         strategy.indexer.languages().join(", "),
-                        strategy.source_files
+                        strategy.source_files,
+                        if strategy.source_files == 1 { "" } else { "s" }
                     ));
                     ui.label(strategy.evidence.join(", "));
+                    match self.tool_availability.get(&strategy.indexer) {
+                        Some(ToolAvailability::Available {
+                            executable,
+                            version,
+                        }) => {
+                            ui.label(version)
+                                .on_hover_text(executable.display().to_string());
+                        }
+                        Some(ToolAvailability::Unavailable {
+                            reason,
+                            diagnostics,
+                            ..
+                        }) => {
+                            ui.label(reason).on_hover_text(diagnostics);
+                        }
+                        None => {
+                            ui.label("Tool availability unchecked");
+                        }
+                    }
                     ui.separator();
                 }
                 if !self.index_plan.skipped.is_empty() {
@@ -148,6 +236,18 @@ impl RadiologyApp {
                     ));
                 }
             });
+        if self.tool_probe_job.is_running() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Checking tool versions…");
+            });
+            if ui.button("Cancel Checks").clicked() {
+                return Some(ToolbarAction::CancelIndexToolCheck);
+            }
+        } else if ui.button("Check Tools").clicked() {
+            return Some(ToolbarAction::CheckIndexTools);
+        }
         ui.label("Index generation is unavailable in this build.");
+        None
     }
 }

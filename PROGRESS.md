@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-28 — Actual indexer availability and native status controls (Codex)
+
+Connected managed/PATH executable discovery and real version probes to Check
+Tools/Cancel Checks. Probes use the bounded process runner and shared latest-job
+retirement, recognize missing rustup components, retain dispatch symlinks, and
+report versions/failures. Index reset is shared by repository/review transitions;
+no stale tool results publish after a switch. Review probes use the pinned head
+workspace. Prior results remain available during cancelled checks.
+
+Native testing found bottom-menu clipping. Replaced it with a resizable Index
+Projects window whose list scrolls while actions remain visible. An isolated
+1280×900 Weston/Niri run exercised six managed fixture tools, failure/version
+status, scrolling and slow-probe cancel controls. The app and compositors exited
+zero. Reused sibling compositor/pointer test helpers through a temporary driver;
+Radiology has no new sibling dependency or sibling edits.
+
+Verified 100 application tests, 5 reader-text tests, 30 doctests, fmt, Clippy with
+warnings denied and native build. Architecture findings remain the known two
+test-only clones and review-preparation structural flag. See [indexing parity](plans/rust-indexing-parity.md) for evidence and limits. Generation, private
+installation, workspace isolation, cache provenance and full parity remain open.
+
 ## 2026-10-28 — Bounded cancellable indexer subprocesses (Codex)
 
 Added the POSIX process runner for index generation and version probes. It drains
