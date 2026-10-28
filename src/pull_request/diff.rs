@@ -71,24 +71,9 @@ impl FileLineChanges {
     /// Returns anchor line numbers suitable for jumping directly between change blocks.
     #[must_use]
     pub fn change_anchors(&self, revision: ReviewRevision) -> Vec<usize> {
-        self.hunks
-            .iter()
-            .map(|h| match revision {
-                ReviewRevision::After => {
-                    if h.after_count > 0 {
-                        h.after_start
-                    } else {
-                        (h.after_start + 1).max(1)
-                    }
-                }
-                ReviewRevision::Before => {
-                    if h.before_count > 0 {
-                        h.before_start
-                    } else {
-                        (h.before_start + 1).max(1)
-                    }
-                }
-            })
+        self.navigation_blocks(revision)
+            .into_iter()
+            .map(|range| range.start)
             .collect()
     }
 
@@ -111,28 +96,59 @@ impl FileLineChanges {
         current_line: usize,
         revision: ReviewRevision,
     ) -> Option<usize> {
-        let changed = self.changed_lines(revision);
-        let mut prev = None;
-        for range in changed {
-            if range.end <= current_line {
-                prev = Some(range.start);
-            } else if range.contains(&current_line) {
-                break;
-            }
-        }
-        prev
+        self.navigation_blocks(revision)
+            .into_iter()
+            .take_while(|range| range.end <= current_line)
+            .last()
+            .map(|range| range.start)
     }
 
     /// Returns the line number of the next changed hunk block after `current_line`.
     #[must_use]
     pub fn next_change_line(&self, current_line: usize, revision: ReviewRevision) -> Option<usize> {
-        let changed = self.changed_lines(revision);
-        for range in changed {
-            if range.start > current_line {
-                return Some(range.start);
+        self.change_anchors(revision)
+            .into_iter()
+            .find(|&line| line > current_line)
+    }
+
+    fn navigation_blocks(&self, revision: ReviewRevision) -> Vec<Range<usize>> {
+        self.hunks
+            .iter()
+            .map(|hunk| {
+                let range = match revision {
+                    ReviewRevision::Before => hunk.removed_lines(),
+                    ReviewRevision::After => hunk.added_lines(),
+                };
+                if range.is_empty() {
+                    let anchor = (range.start + 1).max(1);
+                    anchor..anchor + 1
+                } else {
+                    range
+                }
+            })
+            .collect()
+    }
+
+    /// Maps a canonical line into the other revision using exact zero-context hunks.
+    /// Lines replaced or deleted map to the nearest surviving destination line.
+    #[must_use]
+    pub fn map_line(&self, line: usize, from: ReviewRevision) -> usize {
+        let mut delta = 0_isize;
+        for hunk in &self.hunks {
+            let (source, target) = match from {
+                ReviewRevision::Before => (hunk.removed_lines(), hunk.added_lines()),
+                ReviewRevision::After => (hunk.added_lines(), hunk.removed_lines()),
+            };
+            if line < source.start {
+                break;
             }
+            if source.contains(&line) {
+                return (target.start + (line - source.start).min(target.len().saturating_sub(1)))
+                    .max(1);
+            }
+            delta += target.len() as isize - source.len() as isize;
         }
-        None
+        line.saturating_add_signed(delta).max(1)
     }
 }
 

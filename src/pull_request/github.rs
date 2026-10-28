@@ -22,6 +22,9 @@ pub struct PullRequestSummary {
     /// Commit hash of the pull request head.
     #[serde(rename = "headRefOid", default)]
     pub head_ref_oid: Option<String>,
+    /// Exact base branch commit used to prepare the review merge base.
+    #[serde(rename = "baseRefOid", default)]
+    pub base_ref_oid: Option<String>,
     /// Last update timestamp string.
     #[serde(rename = "updatedAt", default)]
     pub updated_at: String,
@@ -68,6 +71,8 @@ impl GitHubClient {
             .args([
                 "pr",
                 "list",
+                "--state",
+                "all",
                 "--limit",
                 &limit.to_string(),
                 "--json",
@@ -98,7 +103,7 @@ impl GitHubClient {
                 "view",
                 &number.to_string(),
                 "--json",
-                "number,title,state,baseRefName,headRefName,headRefOid,updatedAt",
+                "number,title,state,baseRefName,baseRefOid,headRefName,headRefOid,updatedAt",
             ])
             .current_dir(root)
             .output()

@@ -7,6 +7,7 @@
 pub mod change;
 pub mod diff;
 pub mod github;
+pub mod review;
 
 pub use change::{FileChange, FileChangeStatus, ReviewChangesPresentation};
 pub use diff::{DiffHunk, FileLineChanges, UnifiedDiffParser};
