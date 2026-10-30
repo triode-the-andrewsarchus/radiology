@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — PR menu tooltip overlap repair (Codex)
+
+Native chooser acceptance exposed the header tooltip covering open menu rows.
+The first guard in `cb106b0` used egui's returned inner value; in egui 0.27 that
+value stays empty while an open root menu is being drawn. The guard now observes
+whether contents actually render. A complete popup test verifies closed-header
+help remains available and is absent while rows are open. Four menu tests, strict
+Clippy, build and formatting pass. Native restart and final acceptance documentation
+follow. Full parity remains open; commit and push every increment.
+
 ## 2026-10-30 — Recent PR chooser and compact review controls (Codex)
 
 RecentPullRequests owns a cancellable repository-scoped 25-entry list independently
