@@ -594,7 +594,7 @@ impl RadiologyApp {
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
-            for action in crate::ui::reference_list::ReferenceViewport::take_actions(ctx) {
+            for action in self.reference_viewport.take_actions(ctx) {
                 self.handle_reference_action(action);
             }
             for action in ContextInspector::take_definition_actions(ctx) {

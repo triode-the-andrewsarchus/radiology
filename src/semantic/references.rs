@@ -268,12 +268,7 @@ impl ReferenceContext {
                         .inputs
                         .as_ref()
                         .and_then(|inputs| inputs.buffer.revision);
-                    for (path, digest) in &tree.source_identities {
-                        self.source_digests.insert(
-                            crate::source::SourceLocation::format_position_key(path, revision),
-                            digest.clone(),
-                        );
-                    }
+                    remember_sources(&mut self.source_digests, revision, &tree.source_identities);
                 }
             }
             changed |= published;
@@ -296,18 +291,30 @@ impl ReferenceContext {
             .into_iter()
             .filter_map(|(old, preview)| retained(old).map(|new| (new, preview)))
             .collect();
-        for (path, digest) in &results.source_identities {
-            let revision = self
-                .inputs
-                .as_ref()
-                .and_then(|inputs| inputs.buffer.revision);
-            self.source_digests.insert(
-                crate::source::SourceLocation::format_position_key(path, revision),
-                digest.clone(),
-            );
-        }
+        let revision = self
+            .inputs
+            .as_ref()
+            .and_then(|inputs| inputs.buffer.revision);
+        remember_sources(
+            &mut self.source_digests,
+            revision,
+            &results.source_identities,
+        );
         self.results = results;
     }
+}
+
+fn remember_sources(
+    ledger: &mut HashMap<String, String>,
+    revision: Option<ReviewRevision>,
+    sources: &BTreeMap<String, String>,
+) {
+    ledger.extend(sources.iter().map(|(path, digest)| {
+        (
+            crate::source::SourceLocation::format_position_key(path, revision),
+            digest.clone(),
+        )
+    }));
 }
 
 #[cfg(test)]

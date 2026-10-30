@@ -163,7 +163,9 @@ impl RadiologyApp {
             }
             ReferenceAction::SetSelectionExpanded(expanded) => {
                 if let Some(row) = self.reference_context.selected {
-                    self.reference_context.expand(row, expanded);
+                    if !expanded || !self.reference_viewport.focus_callers(row) {
+                        self.reference_context.expand(row, expanded);
+                    }
                 }
             }
             ReferenceAction::ClearSelection => self.reference_context.selected = None,
