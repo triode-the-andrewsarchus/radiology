@@ -176,6 +176,7 @@ impl RadiologyApp {
             source,
             location,
             target,
+            native_highlights: None,
         };
         self.source_loader.start(
             request.clone(),
@@ -269,6 +270,7 @@ impl RadiologyApp {
         self.active_revision = prepared.buffer.revision;
         self.call_sites = Arc::new(syntax.calls);
         self.syntactic_occurrences = syntax.occurrences;
+        self.native_highlights = syntax.native_highlights;
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
         self.fold_error = syntax.fold_error;
@@ -339,6 +341,7 @@ impl RadiologyApp {
                     source: SourceRead::Buffer(buffer.clone()),
                     location: buffer.location_at_byte(0),
                     target: SourceTarget::Byte(0),
+                    native_highlights: Some(self.native_highlights.clone()),
                 },
                 self.highlighter.clone(),
                 self.theme.is_dark,

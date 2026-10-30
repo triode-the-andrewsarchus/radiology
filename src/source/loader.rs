@@ -138,6 +138,8 @@ pub struct SourceLoadRequest {
     pub location: SourceLocation,
     /// Destination to resolve against those exact bytes.
     pub target: SourceTarget,
+    /// Retained exact-source native captures for recoloring without another parse.
+    pub native_highlights: Option<Arc<crate::syntax::native_highlights::NativeHighlights>>,
 }
 
 /// Source and derived facts published atomically by one completed request.
@@ -219,14 +221,22 @@ fn prepare(
     let syntax = (!matches!(request.source, SourceRead::Buffer(_)))
         .then(|| DocumentSyntax::analyze(&buffer));
     check()?;
-    let highlights = highlighter
-        .highlight_document_cancellable(
+    let native = syntax
+        .as_ref()
+        .map(|syntax| syntax.native_highlights.as_ref())
+        .or(request.native_highlights.as_deref())
+        .filter(|native| native.matches(&buffer));
+    let highlights = if let Some(native) = native {
+        native.recolor(&buffer, dark_mode, &cancelled)
+    } else {
+        highlighter.highlight_document_cancellable(
             highlighter.find_syntax_for_path(&buffer.path),
             &buffer.text,
             dark_mode,
             &cancelled,
         )
-        .ok_or("Source request cancelled")?;
+    }
+    .ok_or("Source request cancelled")?;
     check()?;
     let changes = request.source.changes(&request.location);
     check()?;
@@ -267,6 +277,42 @@ mod tests {
     }
 
     #[test]
+    fn native_theme_recolor_reuses_exact_captures_and_rejects_foreign_snapshots() {
+        let buffer = Arc::new(SourceBuffer::from_str(
+            "missing.kt",
+            "fun run() { val text = \"café 😀\" }\r\n",
+        ));
+        let facts = DocumentSyntax::analyze(&buffer).native_highlights;
+        assert!(facts.matches(&buffer));
+        let highlighter = Arc::new(SyntaxHighlighter::new());
+        let request = |native_highlights| SourceLoadRequest {
+            source: SourceRead::Buffer(buffer.clone()),
+            location: buffer.location_at_byte(0),
+            target: SourceTarget::Byte(0),
+            native_highlights,
+        };
+        let mut loader = SourceLoader::default();
+        loader.start(request(Some(facts.clone())), highlighter.clone(), true);
+        let dark = finish(&mut loader).unwrap();
+        assert!(dark.syntax.is_none());
+        assert!(Arc::ptr_eq(&dark.buffer, &buffer));
+        loader.start(request(Some(facts.clone())), highlighter.clone(), false);
+        let light = finish(&mut loader).unwrap();
+        assert!(light.syntax.is_none());
+        assert_ne!(light.highlights, dark.highlights);
+        assert!(facts.matches(&buffer));
+        let foreign = DocumentSyntax::analyze(&SourceBuffer::from_str("other.kt", &buffer.text))
+            .native_highlights;
+        loader.start(request(Some(foreign)), highlighter, true);
+        let fallback = finish(&mut loader).unwrap();
+        assert!(fallback.syntax.is_none());
+        assert_ne!(
+            fallback.highlights, dark.highlights,
+            "foreign captures must not recolor this buffer"
+        );
+    }
+
+    #[test]
     fn replacements_publish_only_current_source_and_report_read_failures() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("old.rs"), "fn old() {}\n".repeat(1000)).unwrap();
@@ -275,6 +321,7 @@ mod tests {
             source: SourceRead::Checkout(dir.path().to_path_buf()),
             location: SourceLocation::new(path, 0),
             target,
+            native_highlights: None,
         };
         let highlighter = Arc::new(SyntaxHighlighter::new());
         let mut loader = SourceLoader::default();
@@ -322,6 +369,7 @@ mod tests {
                 source: SourceRead::Buffer(prepared.buffer.clone()),
                 location: prepared.buffer.location_at_byte(0),
                 target: SourceTarget::Byte(0),
+                native_highlights: None,
             },
             highlighter.clone(),
             false,

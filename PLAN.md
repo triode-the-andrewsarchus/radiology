@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Native Swift/Kotlin source colors](plans/rust-native-highlights.md) records shared
+capture rules, precedence, exact-source recoloring and retained theme facts.
+
 [Transient occurrence selection and pin styling](plans/rust-occurrence-selection.md) records
 click-owned groups, shared resolution, shaped outlines and selection independence.
 

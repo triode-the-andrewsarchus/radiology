@@ -123,8 +123,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   fold restoration and initial body/PR defaults are integrated; see
   [acceptance](rust-fold-restoration.md). Typed structural folds and
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
-- Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
-  broader grammar/fixture acceptance beyond the implemented inline-test rules.
+- Broader Swift/Kotlin declaration/scope/grammar acceptance and grammar/fixture
+  coverage beyond the implemented rules. Native syntax colors are integrated;
+  see [capture/recolor contract](rust-native-highlights.md).
 - Remaining outline presentation and broader bookmark/accessibility parity,
   mixed-language and long-name corpus, pinned-review and light/dark/scaling acceptance.
   Background metadata, local/package explanations and impl/extension type links
