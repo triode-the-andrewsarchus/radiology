@@ -1252,8 +1252,9 @@ fn explicit_references_remain_independent_of_navigation_and_follow_latest_declar
     assert_eq!(app.history.current(), location.as_ref());
     assert_eq!(app.history.can_go_back(), can_back);
     assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
-    assert_eq!(app.reference_context.rows.len(), 1);
-    assert_eq!(app.reference_context.rows[0].path, "b.rs");
+    assert_eq!(app.reference_context.results.reference_count, 1);
+    assert_eq!(app.reference_context.results.definition_count, 1);
+    assert_eq!(app.reference_context.results.hits[1].path, "b.rs");
     // The enclosing declaration changes independently of explicit focus.
     app.jump_to_location("a.rs", 2, "fn alpha() {\n    ".len());
     settle(&mut app);
@@ -1266,7 +1267,7 @@ fn explicit_references_remain_independent_of_navigation_and_follow_latest_declar
     settle(&mut app);
     assert!(app.reference_context.explicit().is_none());
     assert_eq!(app.reference_context.target().unwrap().name, "beta");
-    assert!(app.reference_context.rows.is_empty());
+    assert_eq!(app.reference_context.results.reference_count, 0);
     assert_eq!(app.history.current(), location.as_ref());
     app.find_references_at_byte(buffer.text.find("alpha").unwrap());
     settle(&mut app);
@@ -1274,7 +1275,7 @@ fn explicit_references_remain_independent_of_navigation_and_follow_latest_declar
     app.open_repository(&root);
     settle(&mut app);
     assert!(app.reference_context.explicit().is_none());
-    assert!(app.reference_context.rows.is_empty());
+    assert!(app.reference_context.results.hits.is_empty());
 }
 
 #[test]
@@ -1297,7 +1298,7 @@ fn reference_commands_reject_stale_and_before_sources_without_replacing_pinned_f
     app.refresh_symbol_context();
     app.find_references_at_caret();
     assert!(!app.is_reference_loading());
-    assert!(app.reference_context.rows.is_empty());
+    assert!(app.reference_context.results.hits.is_empty());
     assert!(!app.reference_context.available());
     assert_eq!(app.reference_context.explicit(), target.as_ref());
 }
@@ -1366,11 +1367,12 @@ fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_comm
     let history = app.history.current().cloned();
     let ctx = Context::default();
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowDown));
-    assert_eq!(app.reference_context.selected, Some(0));
+    assert!(reference_key(&mut app, &ctx, egui::Key::ArrowDown));
+    assert_eq!(app.reference_context.selected, Some(1));
     assert!(app.reference_context.previews.is_empty());
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowRight));
     settle(&mut app);
-    let PreviewPhase::Loaded(preview) = app.reference_context.previews[&0].phase() else {
+    let PreviewPhase::Loaded(preview) = app.reference_context.previews[&1].phase() else {
         panic!("reference preview did not load");
     };
     assert_eq!(preview.path, "b.rs");
@@ -1425,22 +1427,22 @@ fn explicit_reference_selection_and_disclosures_survive_unchanged_file_navigatio
     let (_dir, mut app) = reader_with_reference_index();
     app.find_references_at_caret();
     settle(&mut app);
-    app.reference_context.expand(0, true);
+    app.reference_context.expand(1, true);
     settle(&mut app);
-    let original = app.reference_context.previews[&0].phase().clone();
+    let original = app.reference_context.previews[&1].phase().clone();
     app.open_file("b.rs");
     settle(&mut app);
-    assert_eq!(app.reference_context.selected, Some(0));
-    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+    assert_eq!(app.reference_context.selected, Some(1));
+    assert_eq!(app.reference_context.previews[&1].phase(), &original);
     assert!(!app.reference_context.is_running());
     app.open_file("a.rs");
     settle(&mut app);
-    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+    assert_eq!(app.reference_context.previews[&1].phase(), &original);
     app.handle_reference_action(crate::ui::reference_list::ReferenceAction::Commit(None));
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
-    assert_eq!(app.reference_context.selected, Some(0));
-    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+    assert_eq!(app.reference_context.selected, Some(1));
+    assert_eq!(app.reference_context.previews[&1].phase(), &original);
 }
 
 #[test]
@@ -1448,10 +1450,10 @@ fn changed_preview_destination_invalidates_disclosures_on_first_reader_visit() {
     let (dir, mut app) = reader_with_reference_index();
     app.find_references_at_caret();
     settle(&mut app);
-    app.reference_context.expand(0, true);
+    app.reference_context.expand(1, true);
     settle(&mut app);
     assert!(matches!(
-        app.reference_context.previews[&0].phase(),
+        app.reference_context.previews[&1].phase(),
         crate::source::preview::PreviewPhase::Loaded(_)
     ));
     // b.rs has been read by the preview worker, but never opened by the reader.

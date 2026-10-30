@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Grouped source-line reference reader (Codex)
+
+Connected source-backed results to the reference controller and inspector. Rows
+show real code with measured match reveal, file headers/site counts and definition
+badges; the References count excludes definitions. Coverage and Load More are
+wired, and valid selection/previews survive larger queries. A shared captured
+configuration removes split index/storage inputs; pending query reads retire on
+source changes. The source ledger includes unmapped files, and newly readable
+files refresh coverage. Controller tests now exercise actual source results,
+scoped IDs, replacement indexes, load-more retention and unavailable-file recovery.
+Full gates pass 244 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build
+and rustdoc. No new product hotspot/cycle; short clone reports remain. Native
+acceptance is underway; parsed trees and full parity stay open.
+[Contract](plans/rust-reference-results.md).
+
 ## 2026-10-30 — Source-backed reference query (Codex)
 
 Added a toolkit-independent grouped query for definitions and uses, with shared

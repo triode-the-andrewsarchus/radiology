@@ -57,7 +57,7 @@ pub(super) fn show(ui: &mut Ui, theme: &AppTheme, phase: &PreviewPhase) {
     }
 }
 
-fn line_job(line: &PreviewLine, theme: &AppTheme) -> LayoutJob {
+pub(super) fn line_job(line: &PreviewLine, theme: &AppTheme) -> LayoutJob {
     let normal = TextFormat {
         font_id: FontId::monospace(12.0),
         color: theme.text_primary,

@@ -5,28 +5,17 @@ use super::*;
 impl RadiologyApp {
     /// Updates enclosing-declaration references without rebuilding on each caret move.
     pub fn refresh_symbol_context(&mut self) {
-        let index = self
-            .open_buffer
-            .as_ref()
-            .filter(|buffer| buffer.revision != Some(ReviewRevision::Before))
-            .and(self.semantic_index.clone());
-        let automatic =
-            self.open_buffer
-                .as_ref()
-                .zip(index.as_ref())
-                .and_then(|(buffer, index)| {
-                    let byte = buffer.byte_offset(self.caret_line, self.caret_col);
-                    let mut enclosing = Vec::new();
-                    for symbol in &self.outline_symbols {
-                        symbol.breadcrumbs(byte, &mut enclosing);
-                    }
-                    ReferenceTarget::declaration(index, buffer, enclosing.last()?)
-                });
-        self.reference_context
-            .update(index, self.open_buffer.as_deref(), automatic);
         self.refresh_definition_preview();
+        let automatic = self.semantic_inputs.as_ref().and_then(|inputs| {
+            let byte = inputs.buffer.byte_offset(self.caret_line, self.caret_col);
+            let mut enclosing = Vec::new();
+            for symbol in &self.outline_symbols {
+                symbol.breadcrumbs(byte, &mut enclosing);
+            }
+            ReferenceTarget::declaration(&inputs.index, &inputs.buffer, enclosing.last()?)
+        });
         self.reference_context
-            .configure_previews(self.preview_inputs.clone());
+            .update(self.semantic_inputs.clone(), automatic);
     }
 
     pub(super) fn find_references_at_caret(&mut self) {
@@ -65,14 +54,14 @@ impl RadiologyApp {
 
 impl RadiologyApp {
     pub(super) fn reset_previews(&mut self) {
-        self.preview_inputs = None;
+        self.semantic_inputs = None;
         self.definition_preview = Default::default();
         self.definition_identity = None;
         self.definition_expanded = false;
         self.reference_viewport = Default::default();
     }
 
-    fn refresh_preview_inputs(&mut self) {
+    fn refresh_semantic_inputs(&mut self) {
         use crate::source::preview::SourceQueryInputs;
         let configuration = self
             .open_buffer
@@ -80,7 +69,7 @@ impl RadiologyApp {
             .zip(self.semantic_index.as_ref())
             .filter(|(buffer, _)| buffer.revision != Some(ReviewRevision::Before));
         if let Some((buffer, index)) = configuration {
-            let same = self.preview_inputs.as_ref().is_some_and(|inputs| {
+            let same = self.semantic_inputs.as_ref().is_some_and(|inputs| {
                 inputs.buffer.position_key() == buffer.position_key()
                     && inputs.buffer.content_digest() == buffer.content_digest()
                     && Arc::ptr_eq(&inputs.index, index)
@@ -97,22 +86,22 @@ impl RadiologyApp {
                             .map(|root| crate::source::loader::SourceRead::Checkout(root.clone()))
                     })
                     .unwrap_or_else(|| crate::source::loader::SourceRead::Buffer(buffer.clone()));
-                self.preview_inputs = Some(Arc::new(SourceQueryInputs {
+                self.semantic_inputs = Some(Arc::new(SourceQueryInputs {
                     source,
                     buffer: buffer.clone(),
                     index: index.clone(),
                 }));
             }
         } else {
-            self.preview_inputs = None;
+            self.semantic_inputs = None;
         }
     }
 
     fn refresh_definition_preview(&mut self) {
         use crate::source::preview::{PreviewKind, PreviewTarget};
-        self.refresh_preview_inputs();
+        self.refresh_semantic_inputs();
         let configuration = self
-            .preview_inputs
+            .semantic_inputs
             .as_ref()
             .map(|inputs| (&inputs.buffer, &inputs.index));
         let identity = configuration.and_then(|(buffer, index)| {
@@ -133,7 +122,7 @@ impl RadiologyApp {
         let target = self
             .definition_identity
             .as_ref()
-            .zip(self.preview_inputs.as_ref())
+            .zip(self.semantic_inputs.as_ref())
             .and_then(|((id, occurrence), inputs)| {
                 if id.is_local() {
                     return None;
@@ -148,7 +137,7 @@ impl RadiologyApp {
                 })
             });
         self.definition_preview
-            .request(self.preview_inputs.clone(), target);
+            .request(self.semantic_inputs.clone(), target);
     }
 }
 
@@ -159,6 +148,7 @@ impl RadiologyApp {
     ) {
         use crate::ui::reference_list::ReferenceAction;
         match action {
+            ReferenceAction::More => self.reference_context.more(),
             ReferenceAction::Select(row) => self.reference_context.select(row),
             ReferenceAction::SetExpanded(row, expanded) => {
                 self.reference_context.expand(row, expanded)
@@ -174,9 +164,12 @@ impl RadiologyApp {
             }
             ReferenceAction::ClearSelection => self.reference_context.selected = None,
             ReferenceAction::Commit(row) => {
+                if let Some(row) = row {
+                    self.reference_context.select(row);
+                }
                 if let Some(node) = row
                     .or(self.reference_context.selected)
-                    .and_then(|row| self.reference_context.rows.get(row))
+                    .and_then(|row| self.reference_context.results.hits.get(row))
                     .cloned()
                 {
                     self.navigate_to_indexed_range(&node.path, &node.range);
