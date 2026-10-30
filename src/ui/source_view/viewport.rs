@@ -53,6 +53,7 @@ pub(super) struct CanvasContent<'a> {
     pub hover_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
+    pub function_shade: Option<&'a Range<usize>>,
     pub caret_line: &'a mut usize,
     pub caret_col: &'a mut usize,
     pub folds: &'a [FoldRange],
@@ -223,6 +224,7 @@ impl SourceViewport {
         ui: &mut Ui,
         mut content: CanvasContent<'_>,
     ) -> Option<SourceViewAction> {
+        let caret_before = (*content.caret_line, *content.caret_col);
         self.configure_hover(&content);
         self.hover_pointer = None;
         self.sync(&content);
@@ -262,6 +264,10 @@ impl SourceViewport {
         self.finish_drag(ui, geometry.code_rect);
         if let Some(event) = self.show_hover(ui, content.theme) {
             action = Some(event);
+        }
+        if caret_before != (*content.caret_line, *content.caret_col) {
+            // The host derives breadcrumbs from the published caret next frame.
+            ui.ctx().request_repaint();
         }
         action
     }
@@ -458,7 +464,7 @@ impl SourceViewport {
                 pos2(geometry.code_rect.left(), origin.y + y),
                 vec2(geometry.code_rect.width(), row_height),
             );
-            let code_bottom = text_origin.y + galley.size().y + 2.0;
+            let code_bottom = origin.y + y + (galley.size().y + 4.0).max(geometry.minimum_height);
             let code_hit = Rect::from_min_max(rect.min, pos2(rect.right(), code_bottom));
             let response = ui.interact(
                 code_hit,
@@ -922,18 +928,26 @@ impl SourceViewport {
         painter.rect_filled(band, 0.0, accent.gamma_multiply(frame.alpha));
     }
 
-    fn paint_row(
+    fn paint_row_backgrounds(
         &self,
         painter: &egui::Painter,
         galley: &egui::Galley,
         origin: egui::Pos2,
         rect: Rect,
         part: &SourceFragment,
-        content: &mut CanvasContent<'_>,
+        content: &CanvasContent<'_>,
     ) {
         let theme = content.theme;
-        if part.line == *content.caret_line {
-            painter.rect_filled(rect, 0.0, theme.bg_active_line);
+        let rect = if part.first_in_line && content.test_code.header(part.line).is_some() {
+            Rect::from_min_max(rect.min, pos2(rect.right(), rect.bottom() - 18.0))
+        } else {
+            rect
+        };
+        if let Some(band) = content
+            .function_shade
+            .and_then(|range| function_band(galley, origin, rect, part, range))
+        {
+            painter.rect_filled(band, 0.0, theme.function_shade_color());
         }
         if content
             .changes
@@ -951,6 +965,37 @@ impl SourceViewport {
             );
         }
         self.paint_destination(painter, galley, origin, rect, part, theme.accent);
+        let caret_byte = content
+            .buffer
+            .byte_offset(*content.caret_line, *content.caret_col);
+        if self
+            .row_for_byte(caret_byte)
+            .is_some_and(|(_, owner)| owner == part)
+        {
+            let chars = galley.job.text[..caret_byte
+                .saturating_sub(part.bytes.start)
+                .min(galley.job.text.len())]
+                .chars()
+                .count();
+            painter.rect_filled(
+                visual_line_band(galley, origin, rect, egui::text::CCursor::new(chars)),
+                0.0,
+                theme.accent.gamma_multiply(0.05),
+            );
+        }
+    }
+
+    fn paint_row(
+        &self,
+        painter: &egui::Painter,
+        galley: &egui::Galley,
+        origin: egui::Pos2,
+        rect: Rect,
+        part: &SourceFragment,
+        content: &mut CanvasContent<'_>,
+    ) {
+        self.paint_row_backgrounds(painter, galley, origin, rect, part, content);
+        let theme = content.theme;
         let text = &content.buffer.text[part.bytes.clone()];
         for (range, active) in content.find.matches(part.bytes.clone()) {
             paint_match(
@@ -1032,6 +1077,61 @@ fn move_caret(content: &mut CanvasContent<'_>, byte: usize) -> SourceViewAction 
         column,
         byte_offset: byte,
     }
+}
+
+// Extend to the fragment edges so adjacent bands include line leading, while
+// wrapped boundaries still follow the shaped glyph rows. Never include test labels.
+fn visual_line_band(
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    rect: Rect,
+    cursor: egui::text::CCursor,
+) -> Rect {
+    let row = galley.from_ccursor(cursor).rcursor.row;
+    let top = if row == 0 {
+        rect.top()
+    } else {
+        origin.y + galley.rows[row].min_y()
+    };
+    let bottom = galley
+        .rows
+        .get(row + 1)
+        .map_or(rect.bottom(), |next| origin.y + next.min_y());
+    Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), bottom))
+}
+
+fn function_band(
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    rect: Rect,
+    part: &SourceFragment,
+    range: &Range<usize>,
+) -> Option<Rect> {
+    if part.bytes.is_empty() {
+        return range
+            .contains(&part.bytes.start)
+            .then(|| visual_line_band(galley, origin, rect, egui::text::CCursor::new(0)));
+    }
+    let start = range.start.max(part.bytes.start);
+    let end = range.end.min(part.bytes.end);
+    if start >= end {
+        return None;
+    }
+    let text = &galley.job.text;
+    let first = text[..start - part.bytes.start].chars().count();
+    let last = text[..end - part.bytes.start].chars().count() - 1;
+    let band = |index| {
+        visual_line_band(
+            galley,
+            origin,
+            rect,
+            egui::text::CCursor {
+                index,
+                prefer_next_row: true,
+            },
+        )
+    };
+    Some(Rect::from_min_max(band(first).min, band(last).max))
 }
 
 fn hit_byte(galley: &egui::Galley, position: egui::Vec2, text: &str, start: usize) -> usize {
@@ -1411,6 +1511,9 @@ mod tests {
         hover_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
         now: Option<f64>,
         last_action: Option<SourceViewAction>,
+        function_shade: Option<Range<usize>>,
+        theme: AppTheme,
+        changes: Vec<Range<usize>>,
     }
 
     impl Reader {
@@ -1434,6 +1537,9 @@ mod tests {
                 hover_inputs: None,
                 now: None,
                 last_action: None,
+                function_shade: None,
+                theme: AppTheme::dark(),
+                changes: Vec::new(),
             }
         }
 
@@ -1464,7 +1570,7 @@ mod tests {
                         let event = self.viewport.show(
                             ui,
                             CanvasContent {
-                                theme: &AppTheme::dark(),
+                                theme: &self.theme,
                                 test_code: &self.test_code,
                                 mode: self.mode,
                                 mark_context: None,
@@ -1473,11 +1579,12 @@ mod tests {
                                 hover_inputs: self.hover_inputs.clone(),
                                 buffer: &self.source,
                                 highlights: &self.highlights,
+                                function_shade: self.function_shade.as_ref(),
                                 caret_line: &mut self.line,
                                 caret_col: &mut self.column,
                                 folds: &self.ranges,
                                 fold_store: &mut self.folds,
-                                changes: &[],
+                                changes: &self.changes,
                                 pins: &OccurrencePinStore::default(),
                                 wrap: self.wrap,
                                 font_size: self.font_size,
@@ -1528,8 +1635,18 @@ mod tests {
         }
     }
 
-    fn feedback_bands(output: &egui::FullOutput, alpha: f32) -> Vec<Rect> {
-        let color = AppTheme::dark().accent.gamma_multiply(alpha);
+    #[test]
+    fn clicking_middle_of_empty_line_moves_caret_to_the_gap() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("fn first() {}\n\nfn second() {}\n");
+        reader.frame(&ctx, Vec::new());
+        let point = pos2(200.0, 8.0 + reader.viewport.rows.offset(1) + 10.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        assert_eq!((reader.line, reader.column), (2, 0));
+    }
+
+    fn filled_bands(output: &egui::FullOutput, color: Color32) -> Vec<Rect> {
         output
             .shapes
             .iter()
@@ -1538,6 +1655,107 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn callable_wash_tracks_nested_declarations_and_clears_between_methods() {
+        let text = "struct T;\nimpl T {\n fn outer() {\n  fn inner() { café(); }\n\n }\n\n fn next() {}\n}\n";
+        let mut reader = Reader::new(text);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+        let ctx = egui::Context::default();
+        for (needle, expected) in [
+            ("inner()", Some("inner")),
+            ("outer()", Some("outer")),
+            ("\n\n fn next", None),
+            ("struct T", None),
+        ] {
+            let byte = text.find(needle).unwrap();
+            let mut trail = Vec::new();
+            for symbol in &syntax.symbols {
+                symbol.breadcrumbs(byte, &mut trail);
+            }
+            let callable = trail.iter().rev().find(|symbol| symbol.is_callable());
+            assert_eq!(callable.map(|symbol| symbol.name.as_str()), expected);
+            reader.function_shade = callable.map(|symbol| symbol.range.clone());
+            reader.line = reader.source.line_at_byte(byte);
+            let output = reader.frame(&ctx, Vec::new());
+            let bands = filled_bands(&output, reader.theme.function_shade_color());
+            assert_eq!(!bands.is_empty(), expected.is_some());
+            if expected == Some("outer") {
+                // Signature, nested body, empty line and closing brace form one band.
+                assert_eq!(bands.len(), 4);
+                for pair in bands.windows(2) {
+                    assert!((pair[0].bottom() - pair[1].top()).abs() < 0.01);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn callable_wash_clips_wrapped_unicode_ranges_and_keeps_layer_order() {
+        for theme in [AppTheme::dark(), AppTheme::light()] {
+            let ctx = egui::Context::default();
+            let text = format!(
+                "{}target{}",
+                "é😀 word ".repeat(8),
+                " continuation".repeat(12)
+            );
+            let mut reader = Reader::new(&text);
+            reader.theme = theme;
+            let start = text.find("target").unwrap();
+            reader.function_shade = Some(start..start + 6);
+            reader.column = text[..start].chars().count();
+            reader.changes.push(1..2);
+            reader.now = Some(1.0);
+            reader.frame(&ctx, Vec::new());
+            reader.viewport.flash_destination(&reader.source, start);
+            let output = reader.frame(&ctx, Vec::new());
+            let shade = filled_bands(&output, reader.theme.function_shade_color());
+            let active = filled_bands(&output, reader.theme.accent.gamma_multiply(0.05));
+            assert_eq!(shade.len(), 1);
+            assert_eq!(active.len(), 1);
+            assert!(shade[0].height() < 40.0);
+            assert!(
+                shade[0].top() > 20.0,
+                "unrelated wrapped prefix must stay unshaded"
+            );
+            let colors: Vec<_> = output
+                .shapes
+                .iter()
+                .filter_map(|shape| match &shape.shape {
+                    egui::Shape::Rect(rect) => Some(rect.fill),
+                    _ => None,
+                })
+                .collect();
+            let index = |color| colors.iter().position(|fill| *fill == color).unwrap();
+            assert!(index(reader.theme.function_shade_color()) < index(reader.theme.diff_add));
+            assert!(index(reader.theme.diff_add) < index(reader.theme.accent.gamma_multiply(0.18)));
+            assert!(
+                index(reader.theme.accent.gamma_multiply(0.18))
+                    < index(reader.theme.accent.gamma_multiply(0.05))
+            );
+        }
+    }
+
+    #[test]
+    fn callable_wash_half_open_end_excludes_next_fragment_and_folded_body() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("fn example() {\n\n café 😀();\n}\nnext();\n");
+        reader.function_shade = Some(0..reader.source.text.find("next").unwrap());
+        let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+        reader.ranges = syntax.folds;
+        let output = reader.frame(&ctx, Vec::new());
+        let bands = filled_bands(&output, reader.theme.function_shade_color());
+        assert_eq!(bands.len(), 4);
+        reader.folds.folded_lines.insert(1);
+        let output = reader.frame(&ctx, Vec::new());
+        let folded = filled_bands(&output, reader.theme.function_shade_color());
+        assert!(folded.len() < bands.len());
+        assert!(!folded.is_empty());
+    }
+
+    fn feedback_bands(output: &egui::FullOutput, alpha: f32) -> Vec<Rect> {
+        filled_bands(output, AppTheme::dark().accent.gamma_multiply(alpha))
     }
 
     #[test]

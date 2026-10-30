@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Enclosing callable shading and blank-line hit geometry (Codex)
+
+Implemented Swift's signature-through-body neutral wash using existing parsed
+breadcrumbs, with no additional parser/cache or semantic-index dependency.
+Visible-fragment shaping preserves Unicode/wrapped half-open bounds, empty lines
+and folds. Ordered backgrounds retain PR/destination cues and put the 5% active
+wash on one visual row. Actual caret changes schedule refreshed host context.
+Native gap clicks exposed a four-pixel empty-line hit area; allocated line-height
+hit testing now moves into the gap and clears scope. Full checks pass 296 app
+tests (one external-Clang fixture ignored), five reader-text tests, 30 doctests,
+fmt, strict Clippy, build and rustdoc. Final native dark/light scopes and gap
+transitions pass; all private app/compositor exits are zero. Architecture adds no
+hotspot/cycle/clone group; only existing touched test clones remain flagged.
+[Contract and hashed evidence](plans/rust-function-shading.md).
+Full parity remains open: same-row folds/import grouping, caches/background/index/
+PR lifecycle, full visual/accessibility acceptance and sibling palette/chrome reuse.
+Commit and push every increment.
+
 ## 2026-10-30 — Source-bound destination feedback (Codex)
 
 Committed/pushed shaped destination feedback (`6d86935`) and explicit navigation
