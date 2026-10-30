@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Shared exact file and Git-blob identities (Codex)
+
+Moved the existing no-follow file opening, streaming copy/hash and byte/link/mode
+identity primitives from index workspaces into repository/identity. Workspace
+fingerprints and read/copy verification retain their behavior; the shared stream
+now also computes SHA-256 Git blob IDs, and verify_snapshot accepts either Git
+object format. Request checks remain per 64-KiB chunk and the caller supplies its
+cancellation/deadline predicate. This is the common proof used by pending PR tree
+reuse work, avoiding a second hashing implementation. Current checks pass the ten
+workspace tests and the full 377 app tests, eight shared tests, 30 doctests, fmt,
+strict Clippy, build and rustdoc. PR tree-cache integration and native acceptance
+follow; full parity remains open. Commit and push each increment.
+
 ## 2026-10-30 — Native child-held PR-store lease acceptance (Codex)
 
 Implementation `2fe0b11` is pushed. A live native materializer retains the private
