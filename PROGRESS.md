@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Source-backed reference query (Codex)
+
+Added a toolkit-independent grouped query for definitions and uses, with shared
+captured source reads/line windows, exact encoded/canonical ranges, source hashes
+and explicit unmapped/unreadable/omitted coverage. Resource bounds include row
+metadata even for empty text and can expand for more results. Nine new tests
+cover Unicode, scopes, roles, relationships, limits, stale data and real pinned
+Git source. Full gates: 244 app tests, 5 reader-text tests, 30 doctests, fmt and
+Clippy; rustdoc checked. Architecture has no new product hotspot/cycle. Reader
+controller/UI integration and native acceptance are next; full parity remains
+open. [Contract](plans/rust-reference-results.md).
+
 ## 2026-10-30 — Native inspector preview and navigation acceptance (Codex)
 
 Final-build Wayland checks verify real declaration-bounded previews, non-text

@@ -44,6 +44,9 @@ counts and remaining graph/cache acceptance.
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
+[Source-backed reference results](plans/rust-reference-results.md) records validated
+source-line hits, definition/reference counts, coverage and integration status.
+
 [Inspector source previews and navigation](plans/rust-inspector-previews.md) records
 bounded source excerpts, independent reference selection/disclosure/commit,
 keyboard focus and remaining inspector presentation/call-tree work.

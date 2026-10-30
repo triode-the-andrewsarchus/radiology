@@ -73,7 +73,7 @@ impl RadiologyApp {
     }
 
     fn refresh_preview_inputs(&mut self) {
-        use crate::source::preview::PreviewInputs;
+        use crate::source::preview::SourceQueryInputs;
         let configuration = self
             .open_buffer
             .as_ref()
@@ -97,7 +97,7 @@ impl RadiologyApp {
                             .map(|root| crate::source::loader::SourceRead::Checkout(root.clone()))
                     })
                     .unwrap_or_else(|| crate::source::loader::SourceRead::Buffer(buffer.clone()));
-                self.preview_inputs = Some(Arc::new(PreviewInputs {
+                self.preview_inputs = Some(Arc::new(SourceQueryInputs {
                     source,
                     buffer: buffer.clone(),
                     index: index.clone(),

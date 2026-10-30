@@ -9,6 +9,7 @@ pub mod caller_tree;
 pub mod index;
 pub mod indexing;
 pub mod loader;
+pub mod reference_results;
 pub(crate) mod references;
 pub mod scip_proto;
 

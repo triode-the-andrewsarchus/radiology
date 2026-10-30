@@ -4,7 +4,7 @@ use super::caller_tree::{caller_pill_slot, ReferenceCallerNode};
 use super::index::{SemanticIndex, SemanticSymbolID};
 use crate::background::LatestRead;
 use crate::source::preview::{
-    PreviewInputs, PreviewKind, PreviewPhase, PreviewTarget, SourcePreviewLoader,
+    PreviewKind, PreviewPhase, PreviewTarget, SourcePreviewLoader, SourceQueryInputs,
 };
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
@@ -76,7 +76,7 @@ pub(crate) struct ReferenceContext {
     pub error: Option<String>,
     pub selected: Option<usize>,
     pub previews: BTreeMap<usize, SourcePreviewLoader>,
-    preview_inputs: Option<Arc<PreviewInputs>>,
+    preview_inputs: Option<Arc<SourceQueryInputs>>,
 }
 
 impl ReferenceContext {
@@ -155,7 +155,7 @@ impl ReferenceContext {
         }
     }
 
-    pub fn configure_previews(&mut self, inputs: Option<Arc<PreviewInputs>>) {
+    pub fn configure_previews(&mut self, inputs: Option<Arc<SourceQueryInputs>>) {
         self.preview_inputs = inputs;
         // Loaded excerpts survive navigation; pending requests must capture the
         // newly displayed bytes before a late disk read can publish over them.
@@ -531,7 +531,7 @@ mod tests {
             name: "one".into(),
         });
         settle(&mut context);
-        context.configure_previews(Some(Arc::new(PreviewInputs {
+        context.configure_previews(Some(Arc::new(SourceQueryInputs {
             source: crate::source::loader::SourceRead::Checkout(directory.path().into()),
             buffer: Arc::new(buffer),
             index: index.clone(),
@@ -539,7 +539,7 @@ mod tests {
         context.expand(0, true);
         let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){new();}"));
         context.update(Some(index.clone()), Some(&displayed), None);
-        context.configure_previews(Some(Arc::new(PreviewInputs {
+        context.configure_previews(Some(Arc::new(SourceQueryInputs {
             source: crate::source::loader::SourceRead::Buffer(displayed.clone()),
             buffer: displayed.clone(),
             index,
