@@ -96,11 +96,16 @@ impl BookmarkStore {
         byte_offset: usize,
     ) -> Option<&SourceBookmark> {
         let line = buffer.line_at_byte(byte_offset);
+        let text = buffer.line_text(line);
         self.bookmarks.iter().find(|bookmark| {
-            bookmark
-                .resolve(buffer)
-                .ok()
-                .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
+            // Only a matching anchor (or the original line for unchanged/blank
+            // source) can resolve here. Avoid scanning the document for every
+            // unrelated bookmark while painting the current-location control.
+            (bookmark.line == line || bookmark.anchor.as_deref() == Some(text))
+                && bookmark
+                    .resolve(buffer)
+                    .ok()
+                    .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
         })
     }
 

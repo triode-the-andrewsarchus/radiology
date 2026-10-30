@@ -12,6 +12,7 @@ mod source_preview;
 mod under_caret;
 
 pub mod app;
+pub mod bookmark_list;
 pub mod commands;
 pub mod context_inspector;
 pub mod icons;

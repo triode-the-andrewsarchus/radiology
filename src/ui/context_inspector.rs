@@ -1,12 +1,12 @@
 //! Independently resizable declaration, definition/outline, and bookmark regions.
 
+use super::bookmark_list::{BookmarkAction, BookmarkList};
 use crate::bookmarks::store::BookmarkStore;
 use crate::semantic::reference_results::ReferenceResults;
 use crate::source::SourceBuffer;
 use crate::syntax::outline::{outline_rows, DocumentSymbol, OutlineRow};
 use crate::theme::AppTheme;
 use egui::{RichText, ScrollArea, Ui};
-use uuid::Uuid;
 
 /// Navigation and management events from the inspector.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,14 +28,8 @@ pub enum InspectorAction {
     },
     /// Navigates to an exact symbol byte in the current source.
     JumpToSymbol(usize),
-    /// Removes a persisted bookmark.
-    RemoveBookmark(Uuid),
-    /// Moves a bookmark toward the start of the list.
-    MoveBookmarkUp(usize),
-    /// Moves a bookmark toward the end of the list.
-    MoveBookmarkDown(usize),
-    /// Resolves a bookmark against current bytes before navigating.
-    OpenBookmark(usize),
+    /// Opens, removes, reorders, or toggles an identity-based bookmark.
+    Bookmark(BookmarkAction),
 }
 
 /// Independent enclosing-declaration and under-caret facts for one frame.
@@ -79,6 +73,12 @@ pub struct InspectorContent<'a> {
     pub bookmarks: &'a BookmarkStore,
     /// Visible checkout or PR scope title.
     pub scope: &'a str,
+    /// Whether checkout/review transitions permit bookmark interaction.
+    pub bookmarks_enabled: bool,
+    /// Whether the current source is ready for bookmarking.
+    pub can_toggle_bookmark: bool,
+    /// Whether a bookmark resolves to the current source line.
+    pub current_bookmarked: bool,
 }
 
 /// Renders the three simultaneously usable context regions.
@@ -112,6 +112,7 @@ impl ContextInspector {
         theme: &AppTheme,
         content: InspectorContent<'_>,
         references: &mut crate::ui::reference_list::ReferenceViewport,
+        bookmarks: &mut BookmarkList,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let height = ui.available_height();
@@ -129,57 +130,22 @@ impl ContextInspector {
             .min_height(100.0)
             .max_height((height * 0.5).max(100.0))
             .show_inside(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Bookmarks").strong());
-                    ui.colored_label(theme.text_muted, content.scope);
-                });
-                ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .id_source("reader_bookmarks")
-                    .show(ui, |ui| {
-                        if content.bookmarks.bookmarks.is_empty() {
-                            ui.colored_label(theme.text_muted, "Ctrl+D to bookmark this location.");
-                        }
-                        for (index, bookmark) in content.bookmarks.bookmarks.iter().enumerate() {
-                            let label = if index < 10 {
-                                format!("Ctrl+{index}  {}", bookmark.label)
-                            } else {
-                                bookmark.label.clone()
-                            };
-                            let response = ui.add(egui::Button::new(label).frame(false));
-                            if response.clicked() {
-                                action = Some(InspectorAction::OpenBookmark(index));
-                            }
-                            if let Some(anchor) = &bookmark.anchor {
-                                ui.colored_label(
-                                    theme.text_secondary,
-                                    RichText::new(anchor).monospace(),
-                                );
-                            }
-                            response.context_menu(|ui| {
-                                let entries = [
-                                    ("Go to Bookmark", true, InspectorAction::OpenBookmark(index)),
-                                    ("Move Up", index > 0, InspectorAction::MoveBookmarkUp(index)),
-                                    (
-                                        "Move Down",
-                                        index + 1 < content.bookmarks.bookmarks.len(),
-                                        InspectorAction::MoveBookmarkDown(index),
-                                    ),
-                                    (
-                                        "Remove Bookmark",
-                                        true,
-                                        InspectorAction::RemoveBookmark(bookmark.id),
-                                    ),
-                                ];
-                                for (label, enabled, next) in entries {
-                                    if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-                                        action = Some(next);
-                                        ui.close_menu();
-                                    }
-                                }
-                            });
-                        }
-                    });
+                let next = ui
+                    .add_enabled_ui(content.bookmarks_enabled, |ui| {
+                        bookmarks.show(
+                            ui,
+                            theme,
+                            content.bookmarks,
+                            content.scope,
+                            content
+                                .can_toggle_bookmark
+                                .then_some(content.current_bookmarked),
+                        )
+                    })
+                    .inner;
+                if let Some(next) = next {
+                    action = Some(InspectorAction::Bookmark(next));
+                }
             });
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
@@ -408,7 +374,11 @@ mod tests {
                             test_code: None,
                             bookmarks: &bookmarks,
                             scope: "Checkout",
+                            bookmarks_enabled: true,
+                            can_toggle_bookmark: false,
+                            current_bookmarked: false,
                         },
+                        &mut Default::default(),
                         &mut Default::default(),
                     );
                 });
@@ -453,13 +423,7 @@ mod tests {
                     egui::Key::Enter,
                 ]
                 .into_iter()
-                .map(|key| egui::Event::Key {
-                    key,
-                    physical_key: None,
-                    pressed: true,
-                    repeat: false,
-                    modifiers: egui::Modifiers::NONE,
-                })
+                .map(crate::ui::commands::test_key)
                 .collect(),
                 ..Default::default()
             },
