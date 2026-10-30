@@ -10,9 +10,9 @@ additional executor, output-reader thread or temporary stdout file.
 One cooperative 30-second deadline covers source read, analysis, colors and diff
 preparation once the worker starts. Checks run between stages and during line
 highlighting. Each Git subprocess gets the remaining budget; cancellation,
-timeout and output failures kill its process group and reap the child. Native
-parse calls, sorting and individual filesystem syscalls still finish their current
-operation before checking the deadline. This is not a hard interrupt for parsing.
+timeout and output failures kill its process group and reap the child. [Native analysis](rust-native-analysis-cancellation.md) now uses progress callbacks.
+Sorting, bounded helper operations and individual filesystem syscalls still finish
+their current operation before checking the deadline.
 
 PreparedSource remains one atomic bundle. A failed diff/blob read reports a
 recoverable, path-labeled source error and retains the accepted reader/history.

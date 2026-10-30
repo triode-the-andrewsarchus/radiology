@@ -16,8 +16,9 @@ The source-read timeout policy is shared with SourceLoader. A reference query an
 incoming trace keep a 30-second budget across their reads; each preview and graph
 frontier captures its own budget. An annotation sweep retains its existing
 per-frontier evaluation and progressive publication. Budget checks are cooperative:
-Git subprocesses are interrupted and reaped, while filesystem syscalls and native
-parse calls finish their current operation before the next check.
+Git subprocesses are interrupted and reaped. [Native parse/query stages](rust-native-analysis-cancellation.md)
+now have progress callbacks; filesystem syscalls and bounded helper operations
+finish their current operation before the next check.
 
 Reference collection checks retirement/expiration before turning an ordinary I/O
 error into an unreadable-file coverage entry, and checks again before returning
@@ -77,6 +78,6 @@ all three are present verbatim in the saved baseline: frontier/worker tests,
 hover/preview job setup and incoming/reference test fixtures. They were not added
 by this change.
 
-Remaining work includes finer native/SCIP interruption, PR preparation/fetch
+Remaining work includes finer SCIP interruption, PR preparation/fetch
 cancellation and retention, index provisioning/provenance, source/graph/context
 revisit caches, PR-refresh mapping and final visual/accessibility/scaling acceptance.

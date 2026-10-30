@@ -117,11 +117,12 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
-- Finish fine-grained SCIP/native interruption and semantic context/cache work;
+- Finish fine-grained SCIP interruption and semantic context/cache work;
   complete index lifecycle with all Swift project strategies, provisioning,
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
-  cache persistence and stale/partial/error/cancel UI are integrated. Native stages
-  still need finer interruption. Preview/reference/caller/Critical Lens reads now
+  cache persistence and stale/partial/error/cancel UI are integrated. Native parser/
+  query stages now use [latched progress cancellation](rust-native-analysis-cancellation.md).
+  Preview/reference/caller/Critical Lens reads now
   propagate their owning flags and budgets; [runtime checks](rust-analysis-source-cancellation.md).
   Source loading and checkout refresh use bounded process-group cancellation/deadlines;
   see [source process acceptance](rust-source-process-cancellation.md).
