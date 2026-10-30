@@ -86,6 +86,8 @@ pub struct SourceViewContent<'a> {
     pub caret_col: &'a mut usize,
     /// Detected fold ranges.
     pub fold_ranges: &'a [FoldRange],
+    /// Recoverable fold-query failure; source and other semantic features remain usable.
+    pub fold_error: Option<&'a str>,
     /// Active collapsed ranges.
     pub fold_store: &'a mut FoldStore,
     /// Revision-specific diff overlays.
@@ -137,6 +139,7 @@ impl SourceView {
             caret_line,
             caret_col,
             fold_ranges,
+            fold_error,
             fold_store,
             line_changes,
             pin_store,
@@ -284,8 +287,14 @@ impl SourceView {
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
-                if let Some(error) = mark_error {
-                    ui.colored_label(theme.text_secondary, "Mark settings unavailable")
+                for (label, error) in [
+                    ("Mark settings unavailable", mark_error),
+                    ("Folding unavailable", fold_error),
+                ]
+                .into_iter()
+                .filter_map(|(label, error)| error.map(|error| (label, error)))
+                {
+                    ui.colored_label(theme.text_secondary, label)
                         .on_hover_text(error);
                 }
                 let test_status = test_code.status();
@@ -533,6 +542,7 @@ mod tests {
                             caret_line: &mut line,
                             caret_col: &mut column,
                             fold_ranges: &[],
+                            fold_error: None,
                             fold_store: &mut folds,
                             line_changes: None,
                             pin_store: &pins,

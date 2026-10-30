@@ -1,11 +1,27 @@
 //! Code folding detection and fold state management.
 
 use crate::source::buffer::SourceBuffer;
-use crate::syntax::outline::DocumentSymbol;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+use std::ops::Range;
+
+/// Parsed fold roles in the same precedence order as Swift's fold queries.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FoldKind {
+    /// Function, method or closure body.
+    Callable,
+    /// Type, protocol or declaration-container body.
+    Type,
+    /// Parsed multiline comment/string region.
+    Comment,
+    /// Grouped imports.
+    Imports,
+    /// Other structural block or collection.
+    #[default]
+    Block,
+}
 
 /// Represents a collapsible vertical region within a source document.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FoldRange {
     /// 1-based start line of the fold header.
     pub start_line: usize,
@@ -13,6 +29,14 @@ pub struct FoldRange {
     pub end_line: usize,
     /// Header line text displayed when collapsed.
     pub header_preview: String,
+    /// Parsed fold role, independent of source spelling.
+    pub kind: FoldKind,
+    /// Exact original source bytes, excluding unrelated declaration headers.
+    pub byte_range: Range<usize>,
+    /// Whether this body contains a complete captured nested declaration.
+    pub contains_declarations: bool,
+    /// Callable declaration/annotation ownership used by initial PR visibility.
+    pub owner_range: Option<Range<usize>>,
 }
 
 /// Stores the set of active collapsed fold lines.
@@ -27,6 +51,7 @@ pub struct FoldRange {
 ///     start_line: 10,
 ///     end_line: 25,
 ///     header_preview: "fn compute() {".to_string(),
+///     ..Default::default()
 /// };
 /// store.toggle(10);
 /// assert!(store.is_line_hidden(15, &[fold]));
@@ -87,35 +112,29 @@ impl FoldStore {
         false
     }
 
-    /// Collapses parsed callable bodies while leaving declaration containers open.
-    pub fn collapse_all_functions(
-        &mut self,
-        buffer: &SourceBuffer,
-        ranges: &[FoldRange],
-        calls: &super::calls::CallSites,
-    ) {
+    /// Collapses parsed callable bodies, preserving other current fold choices.
+    pub fn collapse_all_functions(&mut self, ranges: &[FoldRange]) {
         self.initialized = true;
-        if !calls.matches(buffer) {
-            return;
-        }
-        let bodies: HashSet<_> = ranges
-            .iter()
-            .map(|fold| (fold.start_line, fold.end_line))
-            .collect();
         self.folded_lines.extend(
-            calls
-                .scopes
+            ranges
                 .iter()
-                .filter_map(|scope| scope.body_range.as_ref())
-                .map(|body| {
-                    (
-                        buffer.line_at_byte(body.start),
-                        buffer.line_at_byte(body.end),
-                    )
-                })
-                .filter(|range| bodies.contains(range))
-                .map(|(header, _)| header),
+                .filter(|fold| fold.kind == FoldKind::Callable)
+                .map(|fold| fold.start_line),
         );
+    }
+
+    /// Replaces folds with callable bodies and types that hide no nested declarations.
+    /// Containers exposing methods, variants or other declarations remain open.
+    pub fn fold_to_definitions(&mut self, ranges: &[FoldRange]) {
+        self.initialized = true;
+        self.folded_lines = ranges
+            .iter()
+            .filter(|fold| {
+                fold.kind == FoldKind::Callable
+                    || (fold.kind == FoldKind::Type && !fold.contains_declarations)
+            })
+            .map(|fold| fold.start_line)
+            .collect();
     }
 
     /// Applies callable-body defaults once per exact document, before navigation reveal.
@@ -125,16 +144,14 @@ impl FoldStore {
         &mut self,
         buffer: &SourceBuffer,
         ranges: &[FoldRange],
-        calls: &super::calls::CallSites,
         changes: Option<&crate::pull_request::diff::FileLineChanges>,
     ) {
-        if self.initialized || !calls.matches(buffer) {
+        if self.initialized {
             return;
         }
-        self.collapse_all_functions(buffer, ranges, calls);
+        self.collapse_all_functions(ranges);
         if let (Some(changes), Some(revision)) = (changes, buffer.revision) {
-            let expanded =
-                super::review_folds::expanded_headers(buffer, ranges, calls, changes, revision);
+            let expanded = super::review_folds::expanded_headers(buffer, ranges, changes, revision);
             self.folded_lines.retain(|line| !expanded.contains(line));
         }
     }
@@ -166,93 +183,23 @@ impl FoldStore {
     }
 }
 
-/// Detects foldable regions from document symbols and multi-line comments.
+/// Detects typed structural folds from the source's existing shared parse.
 pub struct FoldDetector;
 
 impl FoldDetector {
-    /// Detects all foldable line ranges within the given [`SourceBuffer`].
+    /// Detects parsed multiline folds without text-based comment guessing.
     #[must_use]
     pub fn detect_folds(buffer: &SourceBuffer) -> Vec<FoldRange> {
         super::DocumentSyntax::analyze(buffer).folds
     }
 
-    pub(crate) fn from_symbols(
+    pub(crate) fn from_tree(
         buffer: &SourceBuffer,
-        symbols: &[DocumentSymbol],
-        calls: &super::calls::CallSites,
-    ) -> Vec<FoldRange> {
-        let mut folds = Vec::new();
-        let bodies: HashMap<_, _> = calls
-            .scopes
-            .iter()
-            .filter_map(|scope| {
-                scope
-                    .body_range
-                    .as_ref()
-                    .map(|body| ((scope.range.start, scope.range.end), body))
-            })
-            .collect();
-
-        fn add_symbol_folds(
-            syms: &[DocumentSymbol],
-            buffer: &SourceBuffer,
-            bodies: &HashMap<(usize, usize), &std::ops::Range<usize>>,
-            folds: &mut Vec<FoldRange>,
-        ) {
-            for sym in syms {
-                let range = if sym.is_callable() {
-                    bodies.get(&(sym.range.start, sym.range.end)).copied()
-                } else {
-                    Some(&sym.range)
-                };
-                if let Some(range) = range {
-                    let start_line = buffer.line_at_byte(range.start);
-                    let end_line = buffer.line_at_byte(range.end);
-                    if end_line > start_line {
-                        let header = buffer.line_text(start_line).trim().to_string();
-                        folds.push(FoldRange {
-                            start_line,
-                            end_line,
-                            header_preview: header,
-                        });
-                    }
-                }
-                add_symbol_folds(&sym.children, buffer, bodies, folds);
-            }
-        }
-
-        add_symbol_folds(symbols, buffer, &bodies, &mut folds);
-        Self::detect_comment_folds(buffer, &mut folds);
-
-        folds.sort_by(|a, b| {
-            a.start_line
-                .cmp(&b.start_line)
-                .then_with(|| b.end_line.cmp(&a.end_line))
-        });
-        folds.dedup_by_key(|f| f.start_line);
-        folds
-    }
-
-    fn detect_comment_folds(buffer: &SourceBuffer, folds: &mut Vec<FoldRange>) {
-        let mut in_block = false;
-        let mut block_start = 0;
-
-        for line_idx in 1..=buffer.line_count() {
-            let text = buffer.line_text(line_idx).trim();
-            if !in_block && text.starts_with("/*") && !text.contains("*/") {
-                in_block = true;
-                block_start = line_idx;
-            } else if in_block && text.contains("*/") {
-                if line_idx > block_start {
-                    folds.push(FoldRange {
-                        start_line: block_start,
-                        end_line: line_idx,
-                        header_preview: buffer.line_text(block_start).trim().to_string(),
-                    });
-                }
-                in_block = false;
-            }
-        }
+        grammar: super::SupportedGrammar,
+        root: tree_sitter::Node<'_>,
+    ) -> Result<Vec<FoldRange>, String> {
+        let query = super::queries::query(grammar, super::queries::QueryRole::Folds)?;
+        super::fold_queries::extract(buffer, root, query, 200_000)
     }
 }
 

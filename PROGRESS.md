@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Typed structural queries and Fold to Definitions (Codex)
+
+Fold to Definitions now collapses callable/leaf-type bodies while exposing nested
+declarations and expanding unrelated comments/imports/blocks. Shared Swift fold
+and symbol queries supply exact roles/bytes/containment; Kotlin/C adapters cover
+the linked grammars. A shared independent-role registry replaces call-only setup;
+text-based comment guessing and line-based body reconstruction are removed.
+Folding errors remain recoverable without disabling calls/source. Seven new query/
+app tests and native View-menu/file-return acceptance pass. Gates: 210 application
+tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc; app and
+compositors exit zero. Architecture retains short test/footer clone reports with
+no new product hotspot/cycle and lower duplication/average CCN. Same-row controls,
+Kotlin import grouping, broader language/viewport checks and full parity remain
+open. [Contract and evidence](plans/rust-structural-folds.md).
+
 ## 2026-10-30 — Initial callable-body and PR fold defaults (Codex)
 
 Fresh files collapse parsed bodies while retaining multiline signatures and open

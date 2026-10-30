@@ -109,6 +109,7 @@ impl RadiologyApp {
         self.caller_tree.clear();
         self.outline_symbols.clear();
         self.fold_ranges.clear();
+        self.fold_error = None;
         self.fold_store = FoldStore::default();
         self.line_changes = None;
         self.highlighted_lines.clear();

@@ -44,6 +44,9 @@ and pending hover/progressive acceptance.
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
+[Typed structural folds and Fold to Definitions](plans/rust-structural-folds.md)
+records shared query roles, declaration containment, native command acceptance and limits.
+
 [Exact-document fold restoration](plans/rust-fold-restoration.md) records shared
 fold/pin memory, parsed body/PR defaults, source-publication integration and native acceptance.
 

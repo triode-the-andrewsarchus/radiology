@@ -94,6 +94,8 @@ pub struct RadiologyApp {
     pub highlighted_lines: Vec<Vec<HighlightedSpan>>,
     /// Foldable line ranges in the open file.
     pub fold_ranges: Vec<FoldRange>,
+    /// Recoverable structural query failure for the displayed source.
+    pub fold_error: Option<String>,
     /// Fold store tracking collapsed line numbers.
     pub fold_store: FoldStore,
     /// Tree-sitter document outline symbols.
@@ -218,6 +220,7 @@ impl RadiologyApp {
             highlighter: Arc::new(SyntaxHighlighter::new()),
             highlighted_lines: Vec::new(),
             fold_ranges: Vec::new(),
+            fold_error: None,
             fold_store: FoldStore::new(),
             outline_symbols: Vec::new(),
             test_code: Default::default(),
@@ -461,6 +464,7 @@ impl RadiologyApp {
         self.critical_graph_inputs = None;
         self.fold_store = FoldStore::default();
         self.fold_ranges.clear();
+        self.fold_error = None;
         self.outline_symbols.clear();
         self.highlighted_lines.clear();
         self.caller_tree.clear();
@@ -1014,6 +1018,7 @@ impl eframe::App for RadiologyApp {
                             caret_line: &mut self.caret_line,
                             caret_col: &mut self.caret_col,
                             fold_ranges: &self.fold_ranges,
+                            fold_error: self.fold_error.as_deref(),
                             fold_store: &mut self.fold_store,
                             line_changes: self.line_changes.as_ref(),
                             pin_store: &self.pin_store,

@@ -86,13 +86,14 @@ for simultaneous inspector regions and source keyboard exclusion.
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
-- Remaining source presentation: broader query/Fold to Definitions behavior and exact
+- Remaining source presentation: same-row fold controls/Kotlin import grouping and exact
   PR-refresh fold/pin mapping, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
   fold restoration and initial body/PR defaults are integrated; see
-  [acceptance](rust-fold-restoration.md).
-- Swift/Kotlin highlighting and broader declaration/query-based folds/scopes;
+  [acceptance](rust-fold-restoration.md). Typed structural folds and
+  Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
+- Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,
