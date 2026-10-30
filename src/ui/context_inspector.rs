@@ -2,7 +2,6 @@
 
 use crate::bookmarks::store::BookmarkStore;
 use crate::semantic::reference_results::ReferenceResults;
-use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::source::SourceBuffer;
 use crate::syntax::outline::{outline_rows, DocumentSymbol, OutlineRow};
 use crate::theme::AppTheme;
@@ -42,13 +41,15 @@ pub enum InspectorAction {
 /// Independent enclosing-declaration and under-caret facts for one frame.
 pub struct InspectorContent<'a> {
     /// Symbol under the caret, independently of the enclosing declaration.
-    pub current_symbol: Option<&'a ScipSymbolInformation>,
+    pub under_caret: Option<&'a crate::semantic::context::UnderCaretContext>,
+    /// Symbol metadata is being prepared outside the UI thread.
+    pub under_caret_loading: bool,
+    /// Recoverable symbol-detail preparation failure.
+    pub under_caret_error: Option<&'a str>,
     /// Bounded source excerpt for the canonical definition destination.
     pub definition_preview: &'a crate::source::preview::PreviewPhase,
     /// Whether the under-caret details are disclosed.
     pub definition_expanded: bool,
-    /// Definition path and canonical line for the symbol under the caret.
-    pub definition: Option<(&'a str, usize)>,
     /// Innermost parsed declaration enclosing the caret.
     pub declaration: Option<&'a DocumentSymbol>,
     /// Exact active source bytes for navigation and line counts.
@@ -196,7 +197,10 @@ impl ContextInspector {
         content: &InspectorContent<'_>,
     ) -> Option<InspectorAction> {
         let mut action = None;
-        if content.current_symbol.is_some() {
+        let has_details = content.under_caret.is_some()
+            || content.under_caret_loading
+            || content.under_caret_error.is_some();
+        if has_details {
             ui.interact(
                 ui.available_rect_before_wrap(),
                 Self::definition_focus_id(),
@@ -212,51 +216,25 @@ impl ContextInspector {
                 },
             )
         });
-        let heading = if content.current_symbol.is_some() {
-            "Definition"
-        } else {
-            "Outline"
-        };
+        let heading = if has_details { "Definition" } else { "Outline" };
         ui.label(RichText::new(heading).strong());
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .id_source("definition_or_outline")
             .show(ui, |ui| {
-                if let Some(symbol) = content.current_symbol {
-                    if ui
-                        .add(
-                            egui::Button::new(RichText::new(&symbol.display_name).strong())
-                                .frame(false),
-                        )
-                        .clicked()
-                    {
-                        ui.memory_mut(|memory| memory.request_focus(Self::definition_focus_id()));
-                    }
-                    if let Some((path, line)) = content.definition {
-                        if ui.link(format!("{path}:{line}")).clicked() {
-                            action = Some(InspectorAction::GoToDefinition);
-                        }
-                    }
-                    let label = if content.definition_expanded {
-                        "Hide details"
-                    } else {
-                        "Show details"
-                    };
-                    if ui.small_button(label).clicked() {
-                        ui.memory_mut(|memory| memory.request_focus(Self::definition_focus_id()));
-                        action = Some(InspectorAction::ExpandDefinition(
-                            !content.definition_expanded,
-                        ));
-                    }
-                    if content.definition_expanded {
-                        if !symbol.signature.is_empty() {
-                            ui.monospace(&symbol.signature);
-                        }
-                        for doc in &symbol.documentation {
-                            ui.label(doc);
-                        }
-                        crate::ui::source_preview::show(ui, theme, content.definition_preview);
-                    }
+                if let Some(context) = content.under_caret {
+                    action = super::under_caret::show(
+                        ui,
+                        theme,
+                        context,
+                        content.definition_preview,
+                        content.definition_expanded,
+                    );
+                } else if content.under_caret_loading {
+                    ui.colored_label(theme.text_muted, "Loading symbol details…");
+                } else if let Some(error) = content.under_caret_error {
+                    ui.colored_label(theme.text_muted, "Symbol details unavailable")
+                        .on_hover_text(error);
                 } else if let Some(buffer) = content.buffer {
                     for row in outline_rows(content.outline, buffer)
                         .into_iter()
@@ -286,6 +264,7 @@ impl ContextInspector {
         if content.explicit_references {
             ui.label(RichText::new(content.reference_target.unwrap_or("Pinned symbol")).strong());
         } else if let Some(declaration) = content.declaration {
+            ui.colored_label(theme.text_muted, declaration.kind.title());
             if ui.link(&declaration.name).clicked() {
                 action = Some(InspectorAction::JumpToSymbol(
                     declaration.selection_range.start,
@@ -410,10 +389,11 @@ mod tests {
                         ui,
                         &AppTheme::dark(),
                         InspectorContent {
-                            current_symbol: None,
+                            under_caret: None,
+                            under_caret_loading: false,
+                            under_caret_error: None,
                             definition_preview: &crate::source::preview::PreviewPhase::None,
                             definition_expanded: false,
-                            definition: None,
                             declaration: None,
                             buffer: None,
                             reference_results: &ReferenceResults::default(),

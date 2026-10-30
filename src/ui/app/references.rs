@@ -5,7 +5,7 @@ use super::*;
 impl RadiologyApp {
     /// Updates enclosing-declaration references without rebuilding on each caret move.
     pub fn refresh_symbol_context(&mut self) {
-        self.refresh_definition_preview();
+        self.refresh_under_caret_context();
         let automatic = self.semantic_inputs.as_ref().and_then(|inputs| {
             let byte = inputs.buffer.byte_offset(self.caret_line, self.caret_col);
             let mut enclosing = Vec::new();
@@ -48,7 +48,9 @@ impl RadiologyApp {
     /// Returns whether the current reference context awaits background publication.
     #[must_use]
     pub fn is_reference_loading(&self) -> bool {
-        self.reference_context.is_running() || self.definition_preview.is_running()
+        self.reference_context.is_running()
+            || self.definition_preview.is_running()
+            || self.under_caret_job.is_running()
     }
 }
 
@@ -57,11 +59,14 @@ impl RadiologyApp {
         self.semantic_inputs = None;
         self.definition_preview = Default::default();
         self.definition_identity = None;
+        self.under_caret = None;
+        self.under_caret_job.stop();
+        self.under_caret_error = None;
         self.definition_expanded = false;
         self.reference_viewport = Default::default();
     }
 
-    fn refresh_semantic_inputs(&mut self) {
+    fn refresh_semantic_inputs(&mut self) -> bool {
         use crate::source::preview::SourceQueryInputs;
         let configuration = self
             .open_buffer
@@ -74,70 +79,107 @@ impl RadiologyApp {
                     && inputs.buffer.content_digest() == buffer.content_digest()
                     && Arc::ptr_eq(&inputs.index, index)
             });
-            if !same {
-                self.definition_expanded = false;
-                let source = self
-                    .review
-                    .as_ref()
-                    .map(|review| crate::source::loader::SourceRead::Review(review.clone()))
-                    .or_else(|| {
-                        self.repository_root
-                            .as_ref()
-                            .map(|root| crate::source::loader::SourceRead::Checkout(root.clone()))
-                    })
-                    .unwrap_or_else(|| crate::source::loader::SourceRead::Buffer(buffer.clone()));
-                self.semantic_inputs = Some(Arc::new(SourceQueryInputs {
-                    source,
-                    buffer: buffer.clone(),
-                    index: index.clone(),
-                }));
+            if same {
+                return false;
             }
-        } else {
-            self.semantic_inputs = None;
+            let source = self
+                .review
+                .as_ref()
+                .map(|review| crate::source::loader::SourceRead::Review(review.clone()))
+                .or_else(|| {
+                    self.repository_root
+                        .as_ref()
+                        .map(|root| crate::source::loader::SourceRead::Checkout(root.clone()))
+                })
+                .unwrap_or_else(|| crate::source::loader::SourceRead::Buffer(buffer.clone()));
+            self.semantic_inputs = Some(Arc::new(SourceQueryInputs {
+                source,
+                buffer: buffer.clone(),
+                index: index.clone(),
+            }));
+        } else if self.semantic_inputs.take().is_none() {
+            return false;
+        }
+        true
+    }
+
+    pub(super) fn refresh_under_caret_context(&mut self) {
+        let changed_inputs = self.refresh_semantic_inputs();
+        let byte = self.open_buffer.as_ref().map_or(0, |buffer| {
+            buffer.byte_offset(self.caret_line, self.caret_col)
+        });
+        let identity = self.semantic_inputs.as_ref().and_then(|inputs| {
+            let occurrence = inputs.index.occurrence_at_byte(&inputs.buffer, byte)?;
+            if occurrence.symbol.is_empty()
+                || occurrence.symbol_roles & crate::semantic::scip_proto::SCIP_ROLE_IMPORT != 0
+            {
+                return None;
+            }
+            let range = occurrence
+                .range
+                .as_ref()
+                .filter(|range| range.start_line == range.end_line)?;
+            let bytes = inputs
+                .index
+                .byte_range(&inputs.buffer, range)
+                .filter(|bytes| !bytes.is_empty())?;
+            Some((
+                SemanticSymbolID::new(&occurrence.symbol, &inputs.buffer.path),
+                bytes,
+            ))
+        });
+        if !changed_inputs && self.definition_identity == identity {
+            return;
+        }
+        self.definition_expanded = false;
+        self.definition_identity = identity;
+        self.under_caret = None;
+        self.under_caret_error = None;
+        self.under_caret_job.stop();
+        self.definition_preview
+            .request(self.semantic_inputs.clone(), None);
+        if let Some(inputs) = self
+            .semantic_inputs
+            .as_ref()
+            .filter(|_| self.definition_identity.is_some())
+        {
+            let inputs = inputs.clone();
+            self.under_caret_job.spawn(move |cancel| {
+                crate::semantic::context::UnderCaretContext::prepare(
+                    &inputs.buffer,
+                    &inputs.index,
+                    byte,
+                    cancel,
+                )
+            });
         }
     }
 
-    fn refresh_definition_preview(&mut self) {
-        use crate::source::preview::{PreviewKind, PreviewTarget};
-        self.refresh_semantic_inputs();
-        let configuration = self
-            .semantic_inputs
-            .as_ref()
-            .map(|inputs| (&inputs.buffer, &inputs.index));
-        let identity = configuration.and_then(|(buffer, index)| {
-            let byte = buffer.byte_offset(self.caret_line, self.caret_col);
-            let occurrence = index.occurrence_at_byte(buffer, byte)?;
-            if occurrence.symbol_roles & crate::semantic::scip_proto::SCIP_ROLE_IMPORT != 0 {
-                return None;
+    pub(super) fn poll_under_caret_context(&mut self, ctx: &Context) {
+        let result = match self.under_caret_job.poll() {
+            Ok(None) => return,
+            Ok(Some(result)) => result,
+            Err(_) => Err("Symbol details stopped unexpectedly.".into()),
+        };
+        match result {
+            Ok(context) => {
+                use crate::source::preview::{PreviewKind, PreviewTarget};
+                let target = context
+                    .as_ref()
+                    .filter(|context| !context.id.is_local())
+                    .and_then(|context| context.destination.as_ref())
+                    .map(|destination| PreviewTarget {
+                        path: destination.path.clone(),
+                        range: destination.range.clone(),
+                        kind: PreviewKind::Definition,
+                    });
+                self.definition_preview
+                    .request(self.semantic_inputs.clone(), target);
+                self.under_caret = context;
             }
-            Some((
-                SemanticSymbolID::new(&occurrence.symbol, &buffer.path),
-                index.byte_range(buffer, occurrence.range.as_ref()?)?,
-            ))
-        });
-        if self.definition_identity != identity {
-            self.definition_expanded = false;
-            self.definition_identity = identity;
+            Err(error) => self.under_caret_error = Some(error),
         }
-        let target = self
-            .definition_identity
-            .as_ref()
-            .zip(self.semantic_inputs.as_ref())
-            .and_then(|((id, occurrence), inputs)| {
-                if id.is_local() {
-                    return None;
-                }
-                let (path, range) = inputs.index.find_definition_for_id(id)?;
-                let on_definition = path == inputs.buffer.path
-                    && inputs.index.byte_range(&inputs.buffer, range).as_ref() == Some(occurrence);
-                (!on_definition).then(|| PreviewTarget {
-                    path: path.into(),
-                    range: range.clone(),
-                    kind: PreviewKind::Definition,
-                })
-            });
-        self.definition_preview
-            .request(self.semantic_inputs.clone(), target);
+        ctx.request_repaint();
     }
 }
 

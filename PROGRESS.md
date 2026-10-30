@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Background metadata and definition-state UI (Codex)
+
+Under-caret metadata now runs through replaceable read workers bound to exact
+source/index/occurrence inputs. Token motion preserves disclosure; replacement
+indexes and unavailable inputs retire old publications. Prepared destinations
+feed previews and definition navigation, including another definition when the
+current one is Here. The inspector shows bounded kind/count/signature/prose,
+local source context without fetching, package facts and honest unavailable
+states. Declaration summaries identify implementation blocks. Four additional
+application/view tests pass; full gates are 272 app tests, 5 reader-text tests,
+30 doctests, fmt, Clippy, build and rustdoc. No new product hotspot/cycle; a short
+painted-text test clone remains. Native acceptance follows.
+
 ## 2026-10-30 — Parsed implementation type links (Codex)
 
 Rust impl and Swift extension declarations have a distinct Implementation outline

@@ -1333,6 +1333,111 @@ fn definition_previews_use_real_source_and_suppress_local_definition_fetches() {
     assert!(!app.definition_expanded);
 }
 
+#[test]
+fn metadata_jobs_preserve_token_disclosure_and_retire_replaced_indexes() {
+    let (_dir, mut app) = reader_with_reference_index();
+    let original = app.under_caret.clone().unwrap();
+    app.definition_expanded = true;
+    app.caret_col += 1;
+    app.refresh_symbol_context();
+    assert_eq!(app.under_caret.as_ref(), Some(&original));
+    assert!(app.definition_expanded && !app.under_caret_job.is_running());
+    for signature in ["old metadata", "new metadata"] {
+        let mut index = (**app.semantic_index.as_ref().unwrap()).clone();
+        let id = original.id.clone();
+        index.symbols.get_mut(&id).unwrap().signature = signature.into();
+        app.semantic_index = Some(Arc::new(index));
+        app.refresh_symbol_context();
+        assert!(app.under_caret.is_none() && app.under_caret_job.is_running());
+    }
+    settle(&mut app);
+    assert_eq!(app.under_caret.as_ref().unwrap().signature, "new metadata");
+    assert!(!app.definition_expanded);
+    app.refresh_symbol_context();
+    app.semantic_index = None;
+    app.refresh_symbol_context();
+    settle(&mut app);
+    assert!(app.under_caret.is_none() && !app.under_caret_job.is_running());
+}
+
+#[test]
+fn local_metadata_uses_displayed_unicode_bytes_without_a_definition_fetch() {
+    let (dir, mut app) = reader_with_reference_index();
+    let text = "fn alpha() { let café = \"😀\"; café; }\n";
+    std::fs::write(dir.path().join("repo/a.rs"), text).unwrap();
+    app.open_file("b.rs");
+    settle(&mut app);
+    app.open_file("a.rs");
+    settle(&mut app);
+    let buffer = app.open_buffer.clone().unwrap();
+    let first = text.find("café").unwrap();
+    let last = text.rfind("café").unwrap();
+    let occurrences = [(first, true), (last, false)]
+        .into_iter()
+        .map(|(byte, definition)| {
+            crate::semantic::test_support::occurrence(
+                &buffer,
+                byte..byte + "café".len(),
+                "local 1",
+                definition,
+            )
+        })
+        .collect();
+    app.semantic_index = Some(Arc::new(SemanticIndex::from_scip(ScipIndex {
+        documents: vec![ScipDocument {
+            relative_path: "a.rs".into(),
+            position_encoding: 2,
+            occurrences,
+            ..Default::default()
+        }],
+        ..Default::default()
+    })));
+    app.caret_col = buffer.column_at_byte(last);
+    app.refresh_symbol_context();
+    settle(&mut app);
+    let context = app.under_caret.as_ref().unwrap();
+    assert_eq!(
+        (context.name.as_str(), context.file_occurrence_count),
+        ("café", 2)
+    );
+    let line = context.local_definition_line.as_ref().unwrap();
+    assert_eq!(&line.text[line.emphasis.clone().unwrap()], "café");
+    assert_eq!(
+        app.definition_preview.phase(),
+        &crate::source::preview::PreviewPhase::None
+    );
+    assert!(Arc::ptr_eq(&buffer, app.open_buffer.as_ref().unwrap()));
+}
+
+#[test]
+fn definition_here_previews_and_opens_another_indexed_definition() {
+    let (dir, mut app) = reader_with_reference_index();
+    std::fs::write(dir.path().join("repo/b.rs"), "fn alpha() {}\n").unwrap();
+    let index = app.semantic_index.as_ref().unwrap();
+    let mut documents = index.documents.values().cloned().collect::<Vec<_>>();
+    let definition = index.documents["a.rs"].occurrences[0].clone();
+    documents
+        .iter_mut()
+        .find(|doc| doc.relative_path == "b.rs")
+        .unwrap()
+        .occurrences = vec![definition];
+    app.semantic_index = Some(Arc::new(SemanticIndex::from_scip(ScipIndex {
+        documents,
+        ..Default::default()
+    })));
+    app.refresh_symbol_context();
+    settle(&mut app);
+    let context = app.under_caret.as_ref().unwrap();
+    assert!(context.is_on_definition);
+    assert_eq!(context.definition_count, 2);
+    assert_eq!(context.destination.as_ref().unwrap().path, "b.rs");
+    app.execute_command(&Context::default(), ToolbarAction::GoToDefinition);
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+    assert!(app.history.can_go_back());
+}
+
 fn reference_key(app: &mut RadiologyApp, ctx: &Context, key: egui::Key) -> bool {
     let mut consumed = false;
     let _ = ctx.run(

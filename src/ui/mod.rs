@@ -9,6 +9,7 @@ mod critical_hover;
 mod critical_menu;
 mod reference_callers;
 mod source_preview;
+mod under_caret;
 
 pub mod app;
 pub mod commands;

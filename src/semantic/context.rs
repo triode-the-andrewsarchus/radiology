@@ -41,6 +41,12 @@ pub struct UnderCaretContext {
     pub id: SemanticSymbolID,
     /// Exact occurrence bytes in the captured displayed document.
     pub occurrence: Range<usize>,
+    /// Captured document/revision and occurrence start.
+    pub location: crate::source::SourceLocation,
+    /// Exact source identity used to validate these facts.
+    pub content_digest: String,
+    /// One-based line of the occurrence.
+    pub line: usize,
     /// Index display name, with a source-token fallback for unnamed locals.
     pub name: String,
     /// Human-readable SCIP kind, preserving unknown numeric kinds.
@@ -154,6 +160,9 @@ impl UnderCaretContext {
             });
         let context = Self {
             id: id.clone(),
+            location: buffer.location_at_byte(bytes.start),
+            content_digest: buffer.content_digest().into(),
+            line: buffer.line_at_byte(bytes.start),
             occurrence: bytes,
             name,
             kind: kind_name(info.map_or(0, |info| info.kind)),

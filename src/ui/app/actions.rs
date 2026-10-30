@@ -265,6 +265,13 @@ impl RadiologyApp {
     }
 
     fn go_to_definition(&mut self) {
+        self.refresh_under_caret_context();
+        if let Some(context) = &self.under_caret {
+            if let Some(destination) = context.destination.clone() {
+                self.navigate_to_indexed_range(&destination.path, &destination.range);
+            }
+            return;
+        }
         let (Some(index), Some(buffer)) = (&self.semantic_index, &self.open_buffer) else {
             return;
         };

@@ -133,6 +133,11 @@ pub struct RadiologyApp {
     reference_context: ReferenceContext,
     semantic_inputs: Option<Arc<crate::source::preview::SourceQueryInputs>>,
     definition_preview: crate::source::preview::SourcePreviewLoader,
+    under_caret: Option<crate::semantic::context::UnderCaretContext>,
+    under_caret_job: crate::background::LatestRead<
+        Result<Option<crate::semantic::context::UnderCaretContext>, String>,
+    >,
+    under_caret_error: Option<String>,
     definition_identity: Option<(SemanticSymbolID, std::ops::Range<usize>)>,
     definition_expanded: bool,
     reference_viewport: crate::ui::reference_list::ReferenceViewport,
@@ -248,6 +253,9 @@ impl RadiologyApp {
             reference_context: Default::default(),
             semantic_inputs: None,
             definition_preview: Default::default(),
+            under_caret: None,
+            under_caret_job: Default::default(),
+            under_caret_error: None,
             definition_identity: None,
             definition_expanded: false,
             reference_viewport: Default::default(),
@@ -870,32 +878,6 @@ impl eframe::App for RadiologyApp {
                 .max_width(600.0)
                 .show(ctx, |ui| {
                     ui.style_mut().interaction.selectable_labels = false;
-                    let current_sym_info = self
-                        .open_buffer
-                        .as_ref()
-                        .filter(|buf| buf.revision != Some(ReviewRevision::Before))
-                        .and_then(|buf| {
-                            self.semantic_index.as_deref().and_then(|idx| {
-                                let byte = buf.byte_offset(self.caret_line, self.caret_col);
-                                idx.occurrence_at_byte(buf, byte).and_then(|occ| {
-                                    idx.symbol_info_for_id(&SemanticSymbolID::new(
-                                        &occ.symbol,
-                                        &buf.path,
-                                    ))
-                                })
-                            })
-                        });
-
-                    let def_loc = current_sym_info.and_then(|s| {
-                        self.semantic_index.as_deref().and_then(|idx| {
-                            idx.find_definition_for_id(&SemanticSymbolID::new(
-                                &s.symbol,
-                                self.selected_path.as_deref().unwrap_or(""),
-                            ))
-                            .map(|(p, r)| (p, (r.start_line + 1) as usize))
-                        })
-                    });
-
                     let (enclosing_sym, _enclosing_line) = if let Some(buf) = &self.open_buffer {
                         let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
                         let mut enclosing = Vec::new();
@@ -919,10 +901,11 @@ impl eframe::App for RadiologyApp {
                         ui,
                         &self.theme,
                         InspectorContent {
-                            current_symbol: current_sym_info,
+                            under_caret: self.under_caret.as_ref(),
+                            under_caret_loading: self.under_caret_job.is_running(),
+                            under_caret_error: self.under_caret_error.as_deref(),
                             definition_preview: self.definition_preview.phase(),
                             definition_expanded: self.definition_expanded,
-                            definition: def_loc,
                             declaration: enclosing_sym.as_ref(),
                             buffer: self.open_buffer.as_deref(),
                             reference_results: &self.reference_context.results,
