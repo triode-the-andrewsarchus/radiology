@@ -4,7 +4,7 @@ use crate::semantic::{index::SemanticSymbolID, SemanticIndex};
 use crate::source::{ReviewRevision, SourceBuffer};
 use std::{collections::HashMap, ops::Range};
 
-pub(super) struct CalleeResolver<'a> {
+pub(crate) struct CalleeResolver<'a> {
     pub index: Option<&'a SemanticIndex>,
     occurrences: IndexedCalls,
 }

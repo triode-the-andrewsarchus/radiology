@@ -44,6 +44,10 @@ counts and remaining graph/cache acceptance.
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
+[Source-validated incoming call paths](plans/rust-incoming-callers.md) records the
+new query backend, shared callee resolver, branch/boundary contract and pending
+controller/UI integration.
+
 [Source-backed reference results](plans/rust-reference-results.md) records validated
 source-line hits, definition/reference counts, coverage, expandable queries and
 native keyboard/navigation acceptance.

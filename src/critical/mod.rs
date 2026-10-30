@@ -4,7 +4,6 @@
 //! to distinguish boilerplate runtime plumbing from core domain logic, system APIs, and FFI boundaries.
 
 pub mod annotations;
-mod callees;
 pub mod frontier;
 pub mod graph;
 pub mod hover;
