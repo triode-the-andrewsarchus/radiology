@@ -72,8 +72,8 @@ impl RadiologyApp {
         self.reference_viewport = Default::default();
     }
 
-    fn refresh_definition_preview(&mut self) {
-        use crate::source::preview::{PreviewInputs, PreviewKind, PreviewTarget};
+    fn refresh_preview_inputs(&mut self) {
+        use crate::source::preview::PreviewInputs;
         let configuration = self
             .open_buffer
             .as_ref()
@@ -106,6 +106,15 @@ impl RadiologyApp {
         } else {
             self.preview_inputs = None;
         }
+    }
+
+    fn refresh_definition_preview(&mut self) {
+        use crate::source::preview::{PreviewKind, PreviewTarget};
+        self.refresh_preview_inputs();
+        let configuration = self
+            .preview_inputs
+            .as_ref()
+            .map(|inputs| (&inputs.buffer, &inputs.index));
         let identity = configuration.and_then(|(buffer, index)| {
             let byte = buffer.byte_offset(self.caret_line, self.caret_col);
             let occurrence = index.occurrence_at_byte(buffer, byte)?;

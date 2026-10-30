@@ -211,6 +211,15 @@ impl ContextInspector {
                 egui::Sense::focusable_noninteractive(),
             );
         }
+        ui.memory_mut(|memory| {
+            memory.set_focus_lock_filter(
+                Self::definition_focus_id(),
+                egui::EventFilter {
+                    horizontal_arrows: true,
+                    ..Default::default()
+                },
+            )
+        });
         let heading = if content.current_symbol.is_some() {
             "Definition"
         } else {
@@ -223,7 +232,10 @@ impl ContextInspector {
             .show(ui, |ui| {
                 if let Some(symbol) = content.current_symbol {
                     if ui
-                        .selectable_label(true, RichText::new(&symbol.display_name).strong())
+                        .add(
+                            egui::Button::new(RichText::new(&symbol.display_name).strong())
+                                .frame(false),
+                        )
                         .clicked()
                     {
                         ui.memory_mut(|memory| memory.request_focus(Self::definition_focus_id()));

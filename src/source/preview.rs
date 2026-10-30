@@ -32,6 +32,10 @@ pub struct PreviewLine {
 pub struct SourcePreview {
     /// Repository-relative source path.
     pub path: String,
+    /// Revision of the exact source storage that supplied these lines.
+    pub revision: Option<ReviewRevision>,
+    /// SHA-256 identity used to invalidate excerpts when source changes.
+    pub content_digest: String,
     /// Bounded numbered lines from the exact destination source.
     pub lines: Vec<PreviewLine>,
     /// Whether more source follows the excerpt's line limit.
@@ -196,6 +200,8 @@ fn excerpt(
         && (!stop_at_blank || !buffer.line_text(number).trim().is_empty());
     Ok(SourcePreview {
         path: target.path.clone(),
+        revision: buffer.revision,
+        content_digest: buffer.content_digest().to_owned(),
         lines,
         truncated,
     })
