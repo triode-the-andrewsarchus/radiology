@@ -139,7 +139,9 @@ impl FileLineChanges {
                 ReviewRevision::Before => (hunk.removed_lines(), hunk.added_lines()),
                 ReviewRevision::After => (hunk.added_lines(), hunk.removed_lines()),
             };
-            if line < source.start {
+            // Git places an empty side after its anchor line. That preceding
+            // line survives unchanged; only following lines receive this delta.
+            if line < source.start || (source.is_empty() && line == source.start) {
                 break;
             }
             if source.contains(&line) {
@@ -312,6 +314,31 @@ impl UnifiedDiffParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zero_length_hunks_preserve_anchor_lines_and_accumulate_prior_offsets() {
+        for (diff, from, cases) in [
+            ("@@ -2,2 +1,0 @@", ReviewRevision::After, [(1, 1), (2, 4)]),
+            ("@@ -2,2 +1,0 @@", ReviewRevision::Before, [(1, 1), (4, 2)]),
+            ("@@ -1,0 +2,2 @@", ReviewRevision::Before, [(1, 1), (2, 4)]),
+            ("@@ -1,0 +2,2 @@", ReviewRevision::After, [(1, 1), (4, 2)]),
+            ("@@ -0,0 +1,2 @@", ReviewRevision::Before, [(1, 3), (2, 4)]),
+            (
+                "@@ -1,0 +2,2 @@\n@@ -4,0 +7,1 @@",
+                ReviewRevision::Before,
+                [(4, 6), (5, 8)],
+            ),
+        ] {
+            let changes = UnifiedDiffParser::parse(diff);
+            for (line, expected) in cases {
+                assert_eq!(
+                    changes.map_line(line, from),
+                    expected,
+                    "{diff}, {from:?}, line {line}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_parse_unified_diff() {
