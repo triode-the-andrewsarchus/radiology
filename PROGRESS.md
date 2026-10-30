@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Ordered reader and inspector keyboard dispatch (Codex)
+
+Reader shortcuts, reference controls and definition controls now share ordered
+key consumption. Mixed definition keys in one frame no longer reorder, and
+non-text inspector focus remains eligible for global reader shortcuts such as
+F12 without leaking Return from reference commits. Two regression tests pass.
+Full gates: 235 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and
+rustdoc. Architecture reports no new product hotspot/cycle; average CCN and
+duplication decrease, with unchanged clone groups. Native source-preview,
+selection/disclosure and Return/Back acceptance passes; final-build smoke and
+evidence recording remain. [Contract](plans/rust-inspector-previews.md).
+
 ## 2026-10-30 — Retained inspector state and keyboard focus (Codex)
 
 Explicit-reference selection and loaded source disclosures now survive unchanged

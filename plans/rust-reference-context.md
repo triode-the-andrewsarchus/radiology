@@ -11,7 +11,9 @@ and queries the latest enclosing declaration without navigating source or histor
 `semantic::references::ReferenceContext` owns explicit/automatic focus, captured
 index/source identity, rows and replaceable background work. It reuses `LatestRead`
 for cancellation and retired-publication isolation; same declaration/index/source
-caret moves do not rebuild the query. Changed source/index reloads it. Repository
+caret moves do not rebuild the query. Changed bytes or a replacement index reload
+it; unchanged file navigation retains explicit selection and disclosures. See the
+[preview lifecycle](rust-inspector-previews.md). Repository
 and review-snapshot transitions drop focus and retire workers. Before suspends
 After reference data while preserving the explicit target for returning to After.
 
