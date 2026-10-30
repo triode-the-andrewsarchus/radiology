@@ -269,3 +269,29 @@ fn collected_stdout_remains_complete_and_rejects_excess_without_partial_success(
     .unwrap_err();
     assert!(matches!(failure.kind, RunFailureKind::Io(message) if message.contains("exceeds")));
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn only_lease_aware_children_inherit_the_store_file_and_parent_cloexec_is_unchanged() {
+    use std::os::fd::AsRawFd;
+    let root = tempfile::tempdir().unwrap();
+    let file = std::fs::File::create(root.path().join("lease")).unwrap();
+    let descriptor = file.as_raw_fd();
+    assert_ne!(
+        unsafe { libc::fcntl(descriptor, libc::F_GETFD) } & libc::FD_CLOEXEC,
+        0
+    );
+    let script = format!("if [ /proc/$$/fd/{descriptor} -ef \"$1/lease\" ]; then printf inherited; else printf ordinary; fi");
+    let command = shell(root.path(), &script);
+    let cancel = AtomicBool::new(false);
+    let (_, bytes) = run_collect(&command, &cancel, Duration::from_secs(2), 1024).unwrap();
+    assert_eq!(bytes, b"ordinary");
+    let (_, bytes) =
+        run_collect_with_lease(&command, &cancel, Duration::from_secs(2), 1024, Some(&file))
+            .unwrap();
+    assert_eq!(bytes, b"inherited");
+    assert_ne!(
+        unsafe { libc::fcntl(descriptor, libc::F_GETFD) } & libc::FD_CLOEXEC,
+        0
+    );
+}

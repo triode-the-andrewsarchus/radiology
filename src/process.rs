@@ -134,6 +134,16 @@ pub fn run_observed(
     command: &ProcessCommand,
     cancel: &AtomicBool,
     timeout: Duration,
+    observer: impl FnMut(OutputStream, &[u8]) -> io::Result<()>,
+) -> Result<RunOutput, RunFailure> {
+    observe(command, cancel, timeout, None, observer)
+}
+
+fn observe(
+    command: &ProcessCommand,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    lease: Option<&std::fs::File>,
     mut observer: impl FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<RunOutput, RunFailure> {
     let mut stdout = Capture::default();
@@ -142,6 +152,7 @@ pub fn run_observed(
         command,
         cancel,
         timeout,
+        lease,
         &mut stdout,
         &mut stderr,
         &mut observer,
@@ -179,8 +190,20 @@ pub fn run_collect(
     timeout: Duration,
     maximum_bytes: usize,
 ) -> Result<(RunOutput, Vec<u8>), RunFailure> {
+    run_collect_with_lease(command, cancel, timeout, maximum_bytes, None)
+}
+
+// Keep the advisory store lock alive in this child's descriptor table. Public
+// callers continue using the ordinary runner without inheriting arbitrary files.
+pub(crate) fn run_collect_with_lease(
+    command: &ProcessCommand,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    maximum_bytes: usize,
+    lease: Option<&std::fs::File>,
+) -> Result<(RunOutput, Vec<u8>), RunFailure> {
     let mut bytes = Vec::new();
-    let result = run_observed(command, cancel, timeout, |stream, chunk| {
+    let result = observe(command, cancel, timeout, lease, |stream, chunk| {
         if stream == OutputStream::Stdout {
             if bytes.len().saturating_add(chunk.len()) > maximum_bytes {
                 return Err(io::Error::other(format!(
@@ -241,6 +264,7 @@ fn spawn_with_deadline(
     cancel: &AtomicBool,
     started: Instant,
     timeout: Duration,
+    lease: Option<&std::fs::File>,
 ) -> Result<std::process::Child, RunFailureKind> {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
@@ -253,6 +277,24 @@ fn spawn_with_deadline(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
+    if let Some(file) = lease {
+        use std::os::fd::AsRawFd;
+        let descriptor = file.as_raw_fd();
+        // SAFETY: only async-signal-safe fcntl is called after fork. The borrowed
+        // File stays alive through spawn. Clearing CLOEXEC happens in the child,
+        // leaving the parent's descriptor policy unchanged for unrelated jobs.
+        unsafe {
+            process.pre_exec(move || {
+                let flags = libc::fcntl(descriptor, libc::F_GETFD);
+                if flags < 0
+                    || libc::fcntl(descriptor, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
     loop {
         if cancel.load(Ordering::Relaxed) {
             return Err(RunFailureKind::Cancelled);
@@ -284,12 +326,13 @@ fn run_inner(
     command: &ProcessCommand,
     cancel: &AtomicBool,
     timeout: Duration,
+    lease: Option<&std::fs::File>,
     out: &mut Capture,
     err: &mut Capture,
     observer: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<(Option<i32>, Option<i32>, Duration), RunFailureKind> {
     let started = Instant::now();
-    let child = spawn_with_deadline(command, cancel, started, timeout)?;
+    let child = spawn_with_deadline(command, cancel, started, timeout, lease)?;
     let mut group = ProcessGroup(child);
     let mut stdout = group.0.stdout.take().expect("piped stdout");
     let mut stderr = group.0.stderr.take().expect("piped stderr");
@@ -428,6 +471,7 @@ fn run_inner(
     _: &ProcessCommand,
     _: &AtomicBool,
     _: Duration,
+    _: Option<&std::fs::File>,
     _: &mut Capture,
     _: &mut Capture,
     _: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,

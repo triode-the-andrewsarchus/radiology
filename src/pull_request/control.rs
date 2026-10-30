@@ -9,11 +9,13 @@ use std::{
 
 pub(crate) const PREPARATION_TIMEOUT: Duration = Duration::from_secs(120);
 
+#[derive(Clone, Copy)]
 pub(crate) struct ReviewControl<'a> {
     pub cancel: &'a AtomicBool,
     pub deadline: Instant,
     pub git: &'a Path,
     pub gh: &'a Path,
+    pub lease: Option<&'a std::fs::File>,
 }
 
 impl<'a> ReviewControl<'a> {
@@ -23,6 +25,7 @@ impl<'a> ReviewControl<'a> {
             deadline: Instant::now() + PREPARATION_TIMEOUT,
             git: Path::new("git"),
             gh: Path::new("gh"),
+            lease: None,
         }
     }
 
@@ -32,6 +35,7 @@ impl<'a> ReviewControl<'a> {
             executable: self.git,
             cancel: self.cancel,
             deadline: self.deadline,
+            lease: self.lease,
         }
     }
 

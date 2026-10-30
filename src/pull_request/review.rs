@@ -3,6 +3,11 @@
 //! The attached checkout supplies repository identity and its origin URL only.
 //! Fetches, worktrees, and revision reads operate on the private store.
 
+mod lease;
+mod store;
+use lease::StoreLease;
+use store::GitStore;
+
 use super::change::{FileChange, FileChangeStatus};
 use super::control::ReviewControl;
 use super::diff::{FileLineChanges, UnifiedDiffParser};
@@ -74,7 +79,12 @@ impl ReviewSnapshot {
                 .required(&["remote", "get-url", "origin"])?,
         )
         .map_err(|error| error.to_string())?;
-        let object_dir = GitStore::initialize(cache, control)?;
+        let lease = StoreLease::acquire(cache, control)?;
+        let control = ReviewControl {
+            lease: Some(lease.file()),
+            ..*control
+        };
+        let object_dir = GitStore::initialize(lease.cache(), &control)?;
         let store = GitStore(control.git(&object_dir));
         store.fetch(origin.trim(), &base_head, None)?;
         store.fetch(origin.trim(), &head, Some(summary.number))?;
@@ -92,7 +102,7 @@ impl ReviewSnapshot {
             changes: Vec::new(),
             diffs: HashMap::new(),
         };
-        snapshot.load_changes(control)?;
+        snapshot.load_changes(&control)?;
         control.check()?;
         let _ = tree.keep();
         Ok(snapshot)
@@ -207,6 +217,7 @@ impl ReviewSnapshot {
                 executable: Path::new("git"),
                 cancel,
                 deadline,
+                lease: None,
             },
         )
     }
@@ -254,98 +265,11 @@ fn required_oid(oid: Option<&str>) -> Result<String, String> {
     Ok(oid.to_string())
 }
 
-struct GitStore<'a>(GitRead<'a>);
-impl GitStore<'_> {
-    fn initialize(cache: &Path, control: &ReviewControl<'_>) -> Result<PathBuf, String> {
-        control.check()?;
-        std::fs::create_dir_all(cache).map_err(|error| error.to_string())?;
-        let cache = std::fs::canonicalize(cache).map_err(|error| error.to_string())?;
-        let object_dir = cache.join("review.git");
-        // Reinitializing is idempotent and repairs an interrupted init.
-        control.git(&cache).required(&[
-            std::ffi::OsString::from("init"),
-            "--bare".into(),
-            object_dir.as_os_str().to_owned(),
-        ])?;
-        Ok(object_dir)
-    }
-
-    fn bytes(&self, args: &[&str]) -> Result<Vec<u8>, String> {
-        self.0.required(args)
-    }
-    fn text(&self, args: &[&str]) -> Result<String, String> {
-        String::from_utf8(self.bytes(args)?)
-            .map(|text| text.trim_end().to_string())
-            .map_err(|error| error.to_string())
-    }
-    fn files(&self, commit: &str) -> Result<Vec<RepositoryFile>, String> {
-        let paths = self.bytes(&["ls-tree", "-rz", "--name-only", commit])?;
-        paths
-            .split(|byte| *byte == 0)
-            .filter(|path| !path.is_empty())
-            .map(|path| {
-                self.0.check()?;
-                let path = std::str::from_utf8(path).map_err(|error| error.to_string())?;
-                if !SourceLocation::is_repository_path(path) {
-                    return Err("Invalid path in review tree".into());
-                }
-                Ok(RepositoryFile::new(path))
-            })
-            .collect()
-    }
-
-    fn materialize(&self, head: &str) -> Result<tempfile::TempDir, String> {
-        self.0.check()?;
-        // Remove registrations from earlier interrupted attempts whose guards
-        // removed their directories. Existing accepted trees remain registered.
-        self.bytes(&["worktree", "prune", "--expire", "now"])?;
-        let revision = self
-            .0
-            .root
-            .parent()
-            .expect("private store has a cache parent")
-            .join("revisions")
-            .join(head);
-        std::fs::create_dir_all(&revision).map_err(|error| error.to_string())?;
-        // Each attempt owns its tree and cannot remove an accepted snapshot.
-        let tree = tempfile::Builder::new()
-            .prefix("tree-")
-            .tempdir_in(&revision)
-            .map_err(|error| error.to_string())?;
-        self.0.required(&[
-            std::ffi::OsString::from("worktree"),
-            "add".into(),
-            "--detach".into(),
-            tree.path().as_os_str().to_owned(),
-            head.into(),
-        ])?;
-        Ok(tree)
-    }
-
-    fn fetch(&self, origin: &str, oid: &str, number: Option<usize>) -> Result<(), String> {
-        if self.0.optional(&["cat-file", "-t", oid])?.is_some() {
-            return Ok(());
-        }
-        if self
-            .0
-            .optional(&["fetch", "--no-tags", origin, oid])?
-            .is_none()
-        {
-            let reference = format!(
-                "refs/pull/{}/head",
-                number.ok_or("Unable to fetch base commit")?
-            );
-            self.text(&["fetch", "--no-tags", origin, &reference])?;
-            if self.text(&["rev-parse", "FETCH_HEAD"])?.trim() != oid {
-                return Err("Pull request moved during fetch; refresh and retry".into());
-            }
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests;
 
 #[cfg(all(test, unix))]
 mod cancellation_tests;
+
+#[cfg(all(test, unix))]
+mod recovery_tests;

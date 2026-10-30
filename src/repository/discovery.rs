@@ -68,6 +68,7 @@ impl RepositoryDiscovery {
             executable: Path::new("git"),
             cancel: &cancel,
             deadline: Instant::now() + Duration::from_secs(30),
+            lease: None,
         };
         Self::find_root_with(&git).unwrap_or(canonical)
     }
@@ -87,6 +88,7 @@ impl RepositoryDiscovery {
             executable: Path::new("git"),
             cancel: &cancel,
             deadline: Instant::now() + Duration::from_secs(30),
+            lease: None,
         };
         Self::discover_files_with(&git)
     }
@@ -119,6 +121,7 @@ impl RepositoryDiscovery {
             executable,
             cancel,
             deadline,
+            lease: None,
         };
         let root = Self::find_root_with(&git)?;
         let git = GitRead { root: &root, ..git };

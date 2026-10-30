@@ -49,6 +49,7 @@ fn read_with(
         executable,
         cancel,
         deadline: Instant::now() + timeout,
+        lease: None,
     };
     let mut snapshot = GitSnapshot {
         root: root.clone(),
