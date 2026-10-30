@@ -78,7 +78,7 @@ rechecked; UI follows the local Swift reference and existing Rust type scale.
 
 Remaining acceptance includes broader languages, long names/eight-row overflow,
 edge-of-screen placement, scaling/light mode, source changes while a popup is
-loading, and finer interruption inside native reads/parses. Progressive annotation
-publication and cache reuse across independent requests/file revisits remain open.
+loading, and finer interruption inside native reads/parses. Annotation publication is now progressive; see rust-call-graph.md. Cache reuse
+across independent requests/file revisits remains open.
 Full parity also retains the broader index, PR, inspector, source and final UI
 acceptance queue in rust-parity-implementation.md.
