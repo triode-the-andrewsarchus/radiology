@@ -36,9 +36,46 @@ pub struct ReferenceViewport {
     geometry: Option<(usize, f32, f32)>,
     groups: BTreeMap<usize, usize>,
     reveal: bool,
+    focus_after_registration: bool,
 }
 
 impl ReferenceViewport {
+    pub(crate) fn show_coverage(
+        &mut self,
+        ui: &mut Ui,
+        theme: &AppTheme,
+        results: &ReferenceResults,
+        loading: bool,
+    ) -> Option<ReferenceAction> {
+        if results.reference_count == 0 && !loading {
+            ui.colored_label(theme.text_muted, "No references shown.");
+        }
+        if results.unmapped > 0 || !results.unreadable.is_empty() {
+            ui.colored_label(theme.text_muted, format!("{} unmapped · {} unreadable files", results.unmapped, results.unreadable.len()))
+            .on_hover_ui(|ui| {
+                ui.label("Unmapped sites have stale source identities, unsupported encodings, or coordinates that do not fit the source. Reindex to refresh.");
+                for file in results.unreadable.iter().take(16) { ui.label(format!("{} ({} sites): {}", file.path, file.sites, file.message)); }
+            });
+        }
+        let mut action = None;
+        if results.omitted > 0 {
+            ui.horizontal(|ui| {
+                ui.colored_label(
+                    theme.text_muted,
+                    format!("{} sites not loaded", results.omitted),
+                );
+                if ui
+                    .add_enabled(!loading, egui::Button::new("Load More").small())
+                    .clicked()
+                {
+                    self.focus_after_registration = true;
+                    action = Some(ReferenceAction::More);
+                }
+            });
+        }
+        action
+    }
+
     pub(crate) fn focus_id() -> Id {
         Id::new("reference_list_focus")
     }
@@ -80,6 +117,11 @@ impl ReferenceViewport {
             Self::focus_id(),
             Sense::focusable_noninteractive(),
         );
+        // A press and release may arrive together. Registering the list would
+        // otherwise surrender focus requested by the coverage button above it.
+        if std::mem::take(&mut self.focus_after_registration) {
+            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+        }
         ui.memory_mut(|memory| {
             memory.set_focus_lock_filter(
                 Self::focus_id(),
@@ -275,41 +317,6 @@ fn render_row(
     ));
     if action.is_some() {
         ui.memory_mut(|memory| memory.request_focus(ReferenceViewport::focus_id()));
-    }
-    action
-}
-
-pub(crate) fn show_coverage(
-    ui: &mut Ui,
-    theme: &AppTheme,
-    results: &ReferenceResults,
-    loading: bool,
-) -> Option<ReferenceAction> {
-    if results.reference_count == 0 && !loading {
-        ui.colored_label(theme.text_muted, "No references shown.");
-    }
-    if results.unmapped > 0 || !results.unreadable.is_empty() {
-        ui.colored_label(theme.text_muted, format!("{} unmapped · {} unreadable files", results.unmapped, results.unreadable.len()))
-            .on_hover_ui(|ui| {
-                ui.label("Unmapped sites have stale source identities, unsupported encodings, or coordinates that do not fit the source. Reindex to refresh.");
-                for file in results.unreadable.iter().take(16) { ui.label(format!("{} ({} sites): {}", file.path, file.sites, file.message)); }
-            });
-    }
-    let mut action = None;
-    if results.omitted > 0 {
-        ui.horizontal(|ui| {
-            ui.colored_label(
-                theme.text_muted,
-                format!("{} sites not loaded", results.omitted),
-            );
-            if ui
-                .add_enabled(!loading, egui::Button::new("Load More").small())
-                .clicked()
-            {
-                ui.memory_mut(|memory| memory.request_focus(ReferenceViewport::focus_id()));
-                action = Some(ReferenceAction::More);
-            }
-        });
     }
     action
 }
@@ -646,9 +653,13 @@ mod tests {
         let mut results = test_results(vec![test_hit(0)]);
         results.omitted = 2;
         let mut viewport = ReferenceViewport::default();
-        let mut action = None;
-        let mut render = |events| {
-            ctx.run(
+        let mut render = |events, complete: bool| {
+            let mut results = results.clone();
+            if complete {
+                results.omitted = 0;
+            }
+            let mut action = None;
+            let output = ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
@@ -659,13 +670,14 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        action = show_coverage(ui, &AppTheme::dark(), &results, false);
+                        action = viewport.show_coverage(ui, &AppTheme::dark(), &results, false);
                         viewport.show(ui, &AppTheme::dark(), &results, Some(0), &BTreeMap::new());
                     });
                 },
-            )
+            );
+            (output, action)
         };
-        let initial = render(vec![]);
+        let (initial, _) = render(vec![], false);
         let position = initial
             .shapes
             .iter()
@@ -676,18 +688,28 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        for pressed in [true, false] {
-            render(vec![
+        let (_, clicked) = render(
+            vec![
                 Event::PointerMoved(position),
                 Event::PointerButton {
                     pos: position,
                     button: egui::PointerButton::Primary,
-                    pressed,
+                    pressed: true,
                     modifiers: Modifiers::NONE,
                 },
-            ]);
+                Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Modifiers::NONE,
+                },
+            ],
+            false,
+        );
+        assert_eq!(clicked, Some(ReferenceAction::More));
+        for _ in 0..3 {
+            render(vec![], true);
         }
-        assert_eq!(action, Some(ReferenceAction::More));
         assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
     }
 }
