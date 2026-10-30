@@ -40,6 +40,7 @@ pub(super) struct CanvasContent<'a> {
     pub theme: &'a AppTheme,
     pub test_code: &'a crate::source::test_code::TestCodePresentation,
     pub mode: SourceMode,
+    pub mark_context: Option<crate::critical::menu::MarkContext<'a>>,
     pub projection: Option<&'a crate::critical::SourceProjection>,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
@@ -458,6 +459,17 @@ impl SourceViewport {
             if ui.button("Go to Definition (F12 / Return)").clicked() {
                 action = Some(SourceViewAction::JumpToDefinition);
                 ui.close_menu();
+            }
+            let byte = content
+                .buffer
+                .byte_offset(*content.caret_line, *content.caret_col);
+            if let Some(menu) = content
+                .mark_context
+                .and_then(|context| context.at_byte(content.buffer, byte))
+            {
+                if let Some(edit) = crate::ui::critical_menu::show(ui, &menu) {
+                    action = Some(SourceViewAction::SetCriticality(edit));
+                }
             }
         });
         action
@@ -1179,6 +1191,7 @@ mod tests {
                                 theme: &AppTheme::dark(),
                                 test_code: &self.test_code,
                                 mode: self.mode,
+                                mark_context: None,
                                 projection: self.projection.as_ref(),
                                 buffer: &self.source,
                                 highlights: &self.highlights,

@@ -11,7 +11,11 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
-    while app.is_source_loading() || app.is_index_loading() || app.is_critical_loading() {
+    while app.is_source_loading()
+        || app.is_index_loading()
+        || app.is_critical_loading()
+        || app.is_marks_loading()
+    {
         app.poll_source(&ctx);
         app.poll_index(&ctx);
         assert!(
@@ -883,30 +887,11 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
     assert_eq!(app.critical_status(), Some("Call-focused"));
 
     // Import real SCIP wire data after the syntax-only presentation was published.
-    let symbol = b"rust-analyzer cargo core 0 clone().";
-    let start = text.find("clone").unwrap() as u8;
-    let mut occurrence = vec![0x0a, 3, 0, start, start + 5, 0x12, symbol.len() as u8];
-    occurrence.extend_from_slice(symbol);
-    let mut document = vec![
-        0x0a,
-        4,
-        b'a',
-        b'.',
-        b'r',
-        b's',
-        0x12,
-        occurrence.len() as u8,
-    ];
-    document.extend(occurrence);
-    let mut index = vec![0x12, document.len() as u8];
-    index.extend(document);
-    std::fs::write(root.join("index.scip"), index).unwrap();
+    write_critical_index(&root, text);
+    let start = text.find("clone").unwrap();
     app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
     settle(&mut app);
-    assert!(app
-        .critical_projection()
-        .unwrap()
-        .is_receded(start as usize));
+    assert!(app.critical_projection().unwrap().is_receded(start));
     assert!(!app
         .critical_projection()
         .unwrap()
@@ -931,4 +916,100 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
     settle(&mut app);
     assert!(app.critical_projection().is_none());
     assert!(!app.is_critical_loading());
+}
+
+fn write_critical_index(root: &Path, text: &str) {
+    let symbol = b"rust-analyzer cargo core 0 clone().";
+    let start = text.find("clone").unwrap() as u8;
+    let mut occurrence = vec![0x0a, 3, 0, start, start + 5, 0x12, symbol.len() as u8];
+    occurrence.extend_from_slice(symbol);
+    let mut document = vec![
+        0x0a,
+        4,
+        b'a',
+        b'.',
+        b'r',
+        b's',
+        0x12,
+        occurrence.len() as u8,
+    ];
+    document.extend(occurrence);
+    let mut index = vec![0x12, document.len() as u8];
+    index.extend(document);
+    std::fs::write(root.join("index.scip"), index).unwrap();
+}
+
+#[test]
+fn critical_marks_refresh_without_reader_changes_and_restore_after_restart() {
+    use crate::critical::overrides::{MarkEdit, MarkTarget};
+    use crate::critical::Criticality;
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text = "fn demo() { clone(); unknown(); }";
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    write_critical_index(&root, text);
+    app.open_repository(&root);
+    settle(&mut app);
+    let start = text.find("clone").unwrap();
+    app.jump_to_location("a.rs", 1, start);
+    settle(&mut app);
+    app.pin_at_byte(start);
+    app.set_source_mode(SourceMode::Critical);
+    settle(&mut app);
+    let source = app.open_buffer.clone();
+    let history = format!("{:?}", app.history);
+    let folds = format!("{:?}", app.fold_store);
+    let pins = app.pin_store.groups.clone();
+    let symbol = MarkTarget::Symbol("rust-analyzer cargo core 0 clone().".into());
+    let package = MarkTarget::Package("rust-analyzer cargo core".into());
+    for (target, decision, receded) in [
+        (package.clone(), Some(Criticality::Critical), false),
+        (symbol.clone(), Some(Criticality::Ordinary), true),
+        (symbol.clone(), None, false),
+        (package, None, true),
+        (symbol.clone(), Some(Criticality::Critical), false),
+    ] {
+        assert!(app.apply_critical_mark(MarkEdit { target, decision }));
+        settle(&mut app);
+        assert_eq!(
+            app.critical_projection().unwrap().is_receded(start),
+            receded
+        );
+        assert!(Arc::ptr_eq(
+            source.as_ref().unwrap(),
+            app.open_buffer.as_ref().unwrap()
+        ));
+        assert_eq!((app.caret_line, app.caret_col), (1, start));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(format!("{:?}", app.fold_store), folds);
+        assert_eq!(app.pin_store.groups, pins);
+    }
+    assert!(!app.apply_critical_mark(MarkEdit {
+        target: MarkTarget::Symbol("rust-analyzer cargo core 0 wrong().".into()),
+        decision: Some(Criticality::Critical),
+    }));
+    app.active_revision = Some(ReviewRevision::Before);
+    // Validation is based on the immutable source identity, not just toolbar state.
+    Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = Some(ReviewRevision::Before);
+    assert!(!app.apply_critical_mark(MarkEdit {
+        target: symbol.clone(),
+        decision: None
+    }));
+    app.flush_critical_marks(std::time::Duration::from_secs(5))
+        .unwrap();
+    drop(app);
+    let session = SessionStore::load_from(dir.path().join("settings/session.json"));
+    let mut reopened = RadiologyApp::from_session(session);
+    reopened.open_repository(&root);
+    reopened.set_source_mode(SourceMode::Critical);
+    settle(&mut reopened);
+    assert_eq!(
+        reopened
+            .critical_overrides()
+            .symbols
+            .get("rust-analyzer cargo core 0 clone()."),
+        Some(&Criticality::Critical)
+    );
+    assert!(!reopened.critical_projection().unwrap().is_receded(start));
 }

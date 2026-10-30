@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Critical Lens source marking integration (Codex)
+
+Normal/Critical source menus now edit exact symbol/package decisions and restore
+Built-In policy. Repository loads and edits refresh background projections; errors
+remain visible while session decisions stay active. Shutdown drains accepted saves.
+App tests verify precedence, resets, unchanged reader state, stale/Before rejection
+and restart restoration. Native UTF-16 fixture checks verify real right-click
+targeting, both menus, projected colors, reset and restart-selected state. Both
+app runs/compositors exit zero. Full checks: 170 application tests, 5 reader-text
+tests, 30 doctests, fmt, Clippy and build. Architecture retains short clone reports
+and a required footer error branch; max CCN unchanged.
+[Evidence and limits](plans/rust-critical-marks.md). Full parity remains open,
+including call graphs/frontiers, annotations, index/PR lifecycle and final audit.
+
 ## 2026-10-30 — Durable mark session and exact menu targets (Codex)
 
 Added replaceable mark loads, pre-load edit replay, coalesced durable writes,

@@ -56,28 +56,47 @@ cached ownership. The complete working tree passes 169 application tests,
 5 reader-text tests, 30 doctests and Clippy. UI integration remains under
 verification and is deliberately separate from this backend commit.
 
-## Remaining reader integration
+## Reader integration and acceptance (2026-10-30)
 
-This backend is implemented; current reader projection requests still use empty
-overrides and no source marking menu is connected yet. Integration must:
+The app owns one mark session per attached canonical repository. Source Normal
+and Critical context menus expose symbol/package Critical, Non-Critical and
+Built-In choices. Targets come from exact SCIP occurrences, including encoded
+range/source checks; locals, Before and mismatched sources cannot be marked.
+The app revalidates the current target before accepting an action. Edits and
+loaded decisions refresh the existing replaceable projection without modifying
+source bytes, caret, history, folds or pins. Load/save errors appear in the source
+footer with details on hover. Failed persistence retains session decisions.
+Controlled eframe shutdown cancels competing readers/index jobs and drains marks
+with a ten-second deadline; embedded hosts can explicitly flush the same service.
 
-- Capture the canonical root/private store as repository session state and retire
-  stale load publications through the existing LatestRead mechanism.
-- Apply user decisions immediately, retain/replay edits accepted before load
-  completion, and save only the merged snapshot after loading.
-- Keep durable writes independent of cancellable reads/repository switches.
-  Coalesce pending snapshots per root while a single bounded-worker writer runs;
-  return only current-session save failures to UI. Store revision reservation
-  prevents a delayed old request from rolling back later decisions.
-- Refresh the exact-source Critical Lens projection when loaded/edited decisions
-  change, preserving source/caret/history/folds and using the existing policy.
-- Add Normal/Critical source context-menu actions for Critical, Ordinary and
-  Built-In at symbol/package scope. Exclude locals, Before and mismatched semantic
-  source; capture the full SCIP identity, not identifier spelling. Show defaults
-  and save errors without making a failed save undo the current session decision.
-- Verify delayed loads, rapid edits/repository transitions, failure feedback,
-  app restart and actual native menu/projection interaction before accepting UI.
+An application test imports real SCIP wire data, exercises package/symbol
+precedence and both resets, checks reader-state preservation and stale-target/
+Before rejection, then constructs a fresh app and verifies restored policy and
+projection. Full checks pass: 170 application tests, 5 reader-text tests,
+30 doctests, rustfmt, Clippy with warnings denied and binary build. One external
+Clang acceptance test is ignored by default, as before.
 
-Call graphs/frontiers, hover/count/fold annotations and full Rust/Swift acceptance
-remain separate open requirements. Persisted decisions are not a completion claim
-for those workflows.
+Private native Weston/Niri acceptance uses a UTF-16 SCIP fixture with an emoji
+before the selected call. Right-clicking clone selects that exact occurrence;
+Normal mode offers the symbol/package menus and current Built-In explanation.
+Choosing Critical makes clone prominent in Critical mode. Closing/restarting the
+app restores both projection and the selected Critical menu item. Built-In resets
+clone to its ordinary receded presentation; package Critical makes it prominent
+again. Native artifacts are under `/tmp/radiology-mark-native-2/`, including
+`choices.png`, `restored-mark-menu.png`, `built-in-restored.png`,
+`package-choices.png` and `package-critical.png`. Both app runs and compositors
+exit zero. The first test-driver attempt timed out on its pointer move helper;
+its cleanup terminated that app. The successful run uses clicks for submenus.
+No sibling source was edited and no runtime sibling dependency was introduced.
+
+Architecture comparison against before-mark-reader-integration reports +772 NLOC,
+unchanged maximum CCN (100), average CCN down 0.02, and three additional clone
+groups (+0.01 percentage points duplication). Remaining reports are short test
+fixtures/assertions, common footer label sequences and one required error-display
+branch in SourceView::show (23 to 24). The index ownership collection adds no
+branch. No new scheduling runtime or whole-index menu scan is introduced; the
+reports are retained rather than claiming an architecture-neutral result.
+
+Call graphs/frontiers, hover/count/fold annotations, broader error UI/runtime
+acceptance and full Rust/Swift acceptance remain open requirements. Persisted
+decisions do not establish completion of those workflows.

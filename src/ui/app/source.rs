@@ -35,7 +35,7 @@ impl RadiologyApp {
                     buffer.clone(),
                     self.call_sites.clone(),
                     index,
-                    Default::default(),
+                    self.critical_marks.overrides().clone(),
                 );
             }
         } else {
@@ -144,6 +144,12 @@ impl RadiologyApp {
     ///
     /// Embedded hosts can call this without constructing an eframe window.
     pub fn poll_source(&mut self, ctx: &Context) {
+        if self.critical_marks.poll() {
+            self.refresh_critical_projection();
+        }
+        if self.critical_marks.is_busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        }
         if let Some(error) = self.critical_lens.poll() {
             self.error = Some(error);
         }

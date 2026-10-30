@@ -52,6 +52,8 @@ pub enum SourceViewAction {
     RemovePin(String),
     /// Removes all pins from the current document.
     ClearPins,
+    /// Changes an exact semantic symbol/package decision.
+    SetCriticality(crate::critical::overrides::MarkEdit),
     /// Requests opening the Go To Line modal dialog.
     OpenGoToLine,
 }
@@ -60,6 +62,10 @@ pub enum SourceViewAction {
 pub struct SourceViewContent<'a> {
     /// Active source presentation.
     pub mode: SourceMode,
+    /// Current semantic/policy snapshot for exact source-menu targets.
+    pub mark_context: Option<crate::critical::menu::MarkContext<'a>>,
+    /// Recoverable load/save failure; current-session decisions remain active.
+    pub mark_error: Option<&'a str>,
     /// Exact-source call projection; absent while preparing or in Normal mode.
     pub projection: Option<&'a crate::critical::SourceProjection>,
     /// Active lens preparation/coverage, independent of semantic index status.
@@ -114,6 +120,8 @@ impl SourceView {
     ) -> Option<SourceViewAction> {
         let SourceViewContent {
             mode,
+            mark_context,
+            mark_error,
             projection,
             critical_status,
             buffer,
@@ -232,6 +240,7 @@ impl SourceView {
                 CanvasContent {
                     theme,
                     mode,
+                    mark_context,
                     projection,
                     buffer,
                     highlights: highlighted_lines,
@@ -265,6 +274,10 @@ impl SourceView {
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
+                if let Some(error) = mark_error {
+                    ui.colored_label(theme.text_secondary, "Mark settings unavailable")
+                        .on_hover_text(error);
+                }
                 let test_status = test_code.status();
                 for status in critical_status.into_iter().chain(test_status.as_deref()) {
                     ui.colored_label(theme.text_muted, "·");
@@ -499,6 +512,8 @@ mod tests {
                         &AppTheme::dark(),
                         SourceViewContent {
                             mode: SourceMode::Normal,
+                            mark_context: None,
+                            mark_error: None,
                             projection: None,
                             critical_status: None,
                             buffer: &buffer,

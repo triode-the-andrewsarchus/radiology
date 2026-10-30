@@ -31,7 +31,8 @@ processes, real-input workspaces, Generate/Reindex controls, native fixture
 acceptance and remaining cache/provisioning/snapshot integration.
 
 [Critical Lens decision storage and reader integration](plans/rust-critical-marks.md)
-records atomic ordered storage, pending-edit replay and the remaining menu lifecycle.
+records atomic ordered storage, durable session edits, source menus and native
+restart/projection acceptance.
 
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
