@@ -432,24 +432,32 @@ mod tests {
         std::fs::write(dir.path().join("literala café.rs"), "other\n".repeat(9)).unwrap();
         let highlighter = Arc::new(SyntaxHighlighter::new());
         let mut loader = SourceLoader::default();
-        loader.start(
-            request(dir.path(), path, SourceTarget::Byte(0)),
-            highlighter.clone(),
-            true,
-        );
-        let prepared = finish(&mut loader).unwrap();
-        assert_eq!(prepared.changes.as_ref().unwrap().total_additions(), 2);
-        assert_eq!(prepared.changes.as_ref().unwrap().total_deletions(), 1);
         let untracked = "new[1].rs";
         std::fs::write(dir.path().join(untracked), "fn new_file() {}\n").unwrap();
-        loader.start(
-            request(dir.path(), untracked, SourceTarget::Byte(0)),
-            highlighter,
-            true,
-        );
-        let prepared = finish(&mut loader).unwrap();
-        assert_eq!(prepared.changes.as_ref().unwrap().total_additions(), 1);
-        assert_eq!(prepared.changes.as_ref().unwrap().total_deletions(), 0);
+        for (source_path, remove_from_index, counts) in [
+            (path, false, (2, 1)),
+            (path, true, (2, 0)),
+            (untracked, false, (1, 0)),
+        ] {
+            if remove_from_index {
+                git(
+                    dir.path(),
+                    &["--literal-pathspecs", "rm", "--cached", "--", source_path],
+                );
+            }
+            loader.start(
+                request(dir.path(), source_path, SourceTarget::Byte(0)),
+                highlighter.clone(),
+                true,
+            );
+            let prepared = finish(&mut loader).unwrap();
+            let changes = prepared.changes.unwrap();
+            assert_eq!(
+                (changes.total_additions(), changes.total_deletions()),
+                counts,
+                "{source_path}: removed from index={remove_from_index}"
+            );
+        }
     }
 
     #[test]

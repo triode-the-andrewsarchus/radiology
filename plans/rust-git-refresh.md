@@ -53,8 +53,9 @@ Plain folders and bare repositories yield an empty checkout snapshot.
 HEAD is verified again before publication; moving commits reject the snapshot
 and offer Retry. These sequential read-only commands do not constitute an atomic
 filesystem snapshot if arbitrary working-tree files change during the scan.
-Individual file reads/native parsing and source-loader subprocesses still need
-finer interruption. Other cache/index lifecycle work remains open.
+Individual filesystem reads/native parsing still need finer interruption.
+[Source-loader Git processes](rust-source-process-cancellation.md) now use the
+same bounded cancellation path. Other cache/index lifecycle work remains open.
 
 ## Verification
 

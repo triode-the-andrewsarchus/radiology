@@ -5,8 +5,7 @@ group execution. The source request flag and cooperative 30-second deadline reac
 Git; native parser stages still require finer interruption. Checkout hunks are
 validated against exact disk bytes, use literal pathspecs, cover added files on
 first open and reject a moving HEAD. Pinned blobs verify advertised versus actual
-size. The new fixture suite and architecture checks pass; native live-process
-acceptance is pending for this increment.
+size. [Contract, fixtures and native live-process acceptance](rust-source-process-cancellation.md).
 
 `source::loader::SourceLoader` prepares immutable source on the existing bounded
 blocking pool. The reader now routes file opens, bookmarks, encoded definitions, revision
@@ -29,11 +28,10 @@ see [repository opening](rust-repository-opening.md) and [index lifecycle](rust-
   preparation and local find use the same mechanism.
 - At most four blocking read/analysis jobs are active. Source preparation checks
   retirement between stages and highlighting checks between source lines.
-- In-flight native parsing and Git subprocesses currently finish their stage;
-  they are not forcibly interrupted. Process timeouts/cancellation and native
-  parser progress cancellation remain open in the source-loader path. Discovery
-  and checkout refresh now use bounded process-group cancellation; SCIP imports
-  are worker-owned with finer decode interruption still on the lifecycle queue.
+- Native parsing still finishes its current call; finer parser interruption is
+  open. Source Git reads, discovery and checkout refresh now use bounded process-
+  group cancellation. SCIP imports are worker-owned with finer decode interruption
+  still on the lifecycle queue.
 
 ## Reader integration invariants (implemented)
 
@@ -94,7 +92,7 @@ retains the resulting source. This is smoke evidence, not a benchmark or a claim
 that every analysis stage is immediately interruptible.
 
 Repository discovery, checkout branch/status/diff refresh and SCIP imports now run
-on workers. Native parser/analysis stages and source-loader Git child processes
-still finish their current stage after retirement; finer interruption and source-
-loader process deadlines remain required. Context/graph/cache and broader index/PR
-lifecycle work remain on the full parity queue.
+on workers. Source Git child processes now have bounded cancellation/deadlines;
+native parser calls still finish their current call. Propagating cancellation
+through other source consumers, finer parser/decode interruption, context/graph/
+cache work and broader index/PR lifecycle remain on the full parity queue.
