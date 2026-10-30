@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — Durable mark session and exact menu targets (Codex)
+
+Added replaceable mark loads, pre-load edit replay, coalesced durable writes,
+repository-switch/Drop retention and bounded shutdown flushing on existing
+workers. Shared SCIP headers and cached ownership avoid menu-time index scans.
+Lifecycle/menu tests pass with the current working tree: 169 application tests,
+5 reader-text tests, 30 doctests and Clippy. Source-menu/application wiring is
+uncommitted and still needs integration/native acceptance. Full parity remains
+open. [Contract](plans/rust-critical-marks.md).
+
 ## 2026-10-30 — Repository-scoped Critical Lens decision storage (Codex)
 
 Added atomic ordered mark storage outside source repositories, canonical root/hash

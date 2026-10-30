@@ -1,8 +1,6 @@
 //! Call-focused Critical Lens projection from exact syntax and semantic identity.
 
-use super::lens::{
-    Criticality, CriticalityOverrides, CriticalityPolicy, SCIPSymbolHeader, SourceProjection,
-};
+use super::lens::{Criticality, CriticalityOverrides, CriticalityPolicy, SourceProjection};
 use crate::semantic::index::SemanticSymbolID;
 use crate::semantic::SemanticIndex;
 use crate::source::{ReviewRevision, SourceBuffer};
@@ -16,12 +14,8 @@ impl CriticalityPolicy {
     #[must_use]
     pub fn for_index(index: Option<&SemanticIndex>, overrides: CriticalityOverrides) -> Self {
         let repository_packages = index
-            .into_iter()
-            .flat_map(|index| index.definitions.keys())
-            .filter(|id| !id.is_local())
-            .filter_map(|id| SCIPSymbolHeader::parse(&id.symbol))
-            .filter_map(|header| header.package_name().map(str::to_owned))
-            .collect();
+            .map(|index| index.repository_packages.clone())
+            .unwrap_or_default();
         Self::new(repository_packages, overrides)
     }
 }

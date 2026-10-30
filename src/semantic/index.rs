@@ -3,8 +3,97 @@
 use crate::semantic::scip_proto::{
     ProtobufError, ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+
+/// The four header fields of a SCIP symbol string (`scheme manager package version`).
+///
+/// Double spaces inside a field are escapes and never split.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SCIPSymbolHeader {
+    /// SCIP indexer scheme (e.g. `rust-analyzer`).
+    pub scheme: String,
+    /// Package manager name (e.g. `cargo`).
+    pub manager: String,
+    /// Package or crate name (e.g. `libc` or `.` for unowned).
+    pub package: String,
+    /// Package version string.
+    pub version: String,
+}
+
+impl SCIPSymbolHeader {
+    /// Parses a SCIP symbol string into header components.
+    ///
+    /// Returns `None` for `local N` symbols or malformed strings.
+    #[must_use]
+    pub fn parse(symbol: &str) -> Option<Self> {
+        if symbol.starts_with("local ") {
+            return None;
+        }
+        let mut fields = Vec::with_capacity(4);
+        let mut current = String::new();
+        let mut chars = symbol.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == ' ' {
+                if chars.peek() == Some(&' ') {
+                    chars.next();
+                    current.push(' ');
+                    continue;
+                }
+                fields.push(current);
+                current = String::new();
+                if fields.len() == 3 {
+                    break;
+                }
+            } else {
+                current.push(ch);
+            }
+        }
+
+        // The remainder is the version plus descriptor, but the 4th field is up to the next unescaped space.
+        let mut version = String::new();
+        while let Some(ch) = chars.next() {
+            if ch == ' ' {
+                if chars.peek() == Some(&' ') {
+                    chars.next();
+                    version.push(' ');
+                    continue;
+                }
+                break;
+            }
+            version.push(ch);
+        }
+        fields.push(version);
+
+        if fields.len() != 4 {
+            return None;
+        }
+
+        Some(Self {
+            scheme: fields.remove(0),
+            manager: fields.remove(0),
+            package: fields.remove(0),
+            version: fields.remove(0),
+        })
+    }
+
+    /// The package name alone: `.` is SCIP's placeholder for "no package".
+    #[must_use]
+    pub fn package_name(&self) -> Option<&str> {
+        if self.package.is_empty() || self.package == "." {
+            None
+        } else {
+            Some(&self.package)
+        }
+    }
+
+    /// `scheme manager name`, without the version: the key for package-level decisions.
+    #[must_use]
+    pub fn package_key(&self) -> Option<String> {
+        self.package_name()
+            .map(|name| format!("{} {} {}", self.scheme, self.manager, name))
+    }
+}
 
 /// Identifies one symbol across the index.
 ///
@@ -361,6 +450,8 @@ impl SymbolSearch {
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
+    /// Package ownership derived once during background index construction.
+    pub repository_packages: HashSet<String>,
     /// Default column encoding for documents without an explicit encoding.
     pub default_encoding: i32,
     /// Exact source SHA-256 identities for generated documents; absent for unverified imports.
@@ -461,6 +552,11 @@ impl SemanticIndex {
         for (id, defs) in &idx.definitions {
             if id.is_local() {
                 continue;
+            }
+            if let Some(package) = SCIPSymbolHeader::parse(&id.symbol)
+                .and_then(|header| header.package_name().map(str::to_owned))
+            {
+                idx.repository_packages.insert(package);
             }
             if let Some((first_path, first_range)) = canonical_definition(defs) {
                 let sym_info = idx.symbols.get(id);
