@@ -290,6 +290,24 @@ impl SourceBuffer {
         start..end
     }
 
+    /// Returns the full byte span of 1-based, half-open lines, including line endings.
+    ///
+    /// Clips the end at EOF. Returns `None` for an invalid start, reversed/empty
+    /// lines, or the empty trailing line after a final newline.
+    #[must_use]
+    pub fn line_span_byte_range(&self, lines: Range<usize>) -> Option<Range<usize>> {
+        if lines.start >= lines.end {
+            return None;
+        }
+        let start = *self.line_starts.get(lines.start.checked_sub(1)?)?;
+        let end = self
+            .line_starts
+            .get(lines.end - 1)
+            .copied()
+            .unwrap_or(self.data.len());
+        (start < end).then_some(start..end)
+    }
+
     /// Returns the text slice of a 1-based line, stripped of trailing newline characters.
     #[must_use]
     pub fn line_text(&self, line: usize) -> &str {
@@ -313,6 +331,28 @@ impl SourceBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn full_line_spans_preserve_crlf_unicode_and_half_open_eof_boundaries() {
+        let buffer = SourceBuffer::from_str("a.rs", "café 😀\r\nsecond\r\nlast");
+        let second = buffer.text.find("second").unwrap();
+        let last = buffer.text.find("last").unwrap();
+        assert_eq!(buffer.line_span_byte_range(1..2), Some(0..second));
+        assert_eq!(buffer.line_span_byte_range(2..3), Some(second..last));
+        assert_eq!(
+            buffer.line_span_byte_range(2..usize::MAX),
+            Some(second..buffer.byte_len())
+        );
+        assert!(buffer.line_span_byte_range(0..2).is_none());
+        assert!(buffer.line_span_byte_range(3..3).is_none());
+        assert!(buffer.line_span_byte_range(4..9).is_none());
+        let trailing = SourceBuffer::from_str("a.rs", "x\n");
+        assert_eq!(trailing.line_span_byte_range(1..9), Some(0..2));
+        assert!(trailing.line_span_byte_range(2..9).is_none());
+        assert!(SourceBuffer::from_str("empty", "")
+            .line_span_byte_range(1..2)
+            .is_none());
+    }
 
     #[test]
     fn test_empty_buffer() {
