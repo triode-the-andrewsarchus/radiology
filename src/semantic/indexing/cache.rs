@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const FORMAT: u32 = 1;
+const IO_CHUNK: usize = 64 * 1024;
 use crate::semantic::loader::{read_index_bytes, MAX_INDEX_BYTES as MAX_BYTES};
 
 #[derive(Serialize, Deserialize)]
@@ -96,9 +97,17 @@ pub fn load(
     let Some(bytes) = read_index_bytes(&destination, cancel)? else {
         return Ok(None);
     };
-    let mut entry: StoredEntry = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    let entry = decode(&bytes, || cancel.load(Ordering::Relaxed))?;
+    restore(entry, request, cancel).map(Some)
+}
+
+fn restore(
+    mut entry: StoredEntry,
+    request: &GenerationRequest,
+    cancel: &AtomicBool,
+) -> Result<GeneratedIndex, String> {
     let root = fs::canonicalize(&request.root).map_err(|e| e.to_string())?;
-    validate(&entry, &root)?;
+    validate(&entry, &root, cancel)?;
     let inventory = InputInventory::discover(&root, cancel)?;
     let fingerprint =
         IndexingWorkspace::fingerprint_source(&root, &inventory, request.limits, cancel)?;
@@ -113,13 +122,70 @@ pub fn load(
     .map_err(|error| error.to_string())?;
     index.source_digests = entry.source_digests;
     check_cancel(cancel)?;
-    Ok(Some(GeneratedIndex {
+    Ok(GeneratedIndex {
         index: Some(index),
         report: entry.report,
-    }))
+    })
 }
 
-fn validate(entry: &StoredEntry, root: &std::path::Path) -> Result<(), String> {
+fn decode(bytes: &[u8], cancelled: impl Fn() -> bool) -> Result<StoredEntry, String> {
+    // Buffer outside the guard: serde reads individual bytes, but cancellation is
+    // polled at most one 64-KiB input chunk apart, including within large strings.
+    let reader = BufReader::with_capacity(
+        IO_CHUNK,
+        CacheReader {
+            bytes,
+            cancelled,
+            stopped: false,
+        },
+    );
+    serde_json::from_reader(reader).map_err(|error| error.to_string())
+}
+
+struct CacheReader<'a, F> {
+    bytes: &'a [u8],
+    cancelled: F,
+    stopped: bool,
+}
+
+impl<F: Fn() -> bool> Read for CacheReader<'_, F> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if self.stopped || (self.cancelled)() {
+            self.stopped = true;
+            return Err(std::io::Error::other("Index cache decoding was cancelled"));
+        }
+        let limit = buffer.len().min(IO_CHUNK);
+        self.bytes.read(&mut buffer[..limit])
+    }
+}
+
+fn validate(
+    entry: &StoredEntry,
+    root: &std::path::Path,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    check_cancel(cancel)?;
+    let inventory = validate_inventory(entry, root)?;
+    let mut seen = HashSet::new();
+    for document in &entry.scip.documents {
+        check_cancel(cancel)?;
+        if inventory
+            .paths
+            .binary_search(&document.relative_path)
+            .is_err()
+            || !seen.insert(&document.relative_path)
+            || !valid_document(document, &entry.source_digests, cancel)?
+        {
+            return Err("Index cache contains invalid semantic destinations".into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_inventory(
+    entry: &StoredEntry,
+    root: &std::path::Path,
+) -> Result<InputInventory, String> {
     if entry.format != FORMAT || entry.root != root || entry.report.stale_reason.is_some() {
         return Err("Unsupported or inconsistent index cache provenance".into());
     }
@@ -133,46 +199,42 @@ fn validate(entry: &StoredEntry, root: &std::path::Path) -> Result<(), String> {
     {
         return Err("Index cache inventory or coverage is inconsistent".into());
     }
-    let mut seen = HashSet::new();
-    for document in &entry.scip.documents {
-        if inventory
-            .paths
-            .binary_search(&document.relative_path)
-            .is_err()
-            || !seen.insert(&document.relative_path)
-            || !valid_document(document, &entry.source_digests)
-        {
-            return Err("Index cache contains invalid semantic destinations".into());
-        }
-    }
-    Ok(())
+    Ok(inventory)
 }
 
 fn valid_document(
     document: &crate::semantic::ScipDocument,
     source_digests: &HashMap<String, String>,
-) -> bool {
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    check_cancel(cancel)?;
     let valid_digest = source_digests
         .get(&document.relative_path)
         .is_some_and(|digest| {
             digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
         });
-    valid_digest
-        && (1..=3).contains(&document.position_encoding)
-        && document.occurrences.iter().all(|occurrence| {
-            [&occurrence.range, &occurrence.enclosing_range]
-                .into_iter()
-                .flatten()
-                .all(|range| {
-                    crate::semantic::ScipRange::from_packed(&[
-                        range.start_line,
-                        range.start_col,
-                        range.end_line,
-                        range.end_col,
-                    ])
-                    .is_some()
-                })
-        })
+    if !valid_digest || !(1..=3).contains(&document.position_encoding) {
+        return Ok(false);
+    }
+    for occurrence in &document.occurrences {
+        check_cancel(cancel)?;
+        for range in [&occurrence.range, &occurrence.enclosing_range]
+            .into_iter()
+            .flatten()
+        {
+            if crate::semantic::ScipRange::from_packed(&[
+                range.start_line,
+                range.start_col,
+                range.end_line,
+                range.end_col,
+            ])
+            .is_none()
+            {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 struct LimitedWriter<'a, W> {
@@ -184,17 +246,22 @@ struct LimitedWriter<'a, W> {
 impl<W: Write> Write for LimitedWriter<'_, W> {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         check_cancel(self.cancel).map_err(std::io::Error::other)?;
-        if self.written + bytes.len() as u64 > MAX_BYTES {
+        if self.written.saturating_add(bytes.len() as u64) > MAX_BYTES {
             return Err(std::io::Error::other(
                 "Index cache exceeds the 256 MiB limit",
             ));
         }
-        let count = self.file.write(bytes)?;
+        let count = self.file.write(&bytes[..bytes.len().min(IO_CHUNK)])?;
         self.written += count as u64;
         Ok(count)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.file.flush()
+        check_cancel(self.cancel).map_err(std::io::Error::other)?;
+        self.file.flush()?;
+        check_cancel(self.cancel).map_err(std::io::Error::other)
     }
 }
+
+#[cfg(test)]
+mod tests;
