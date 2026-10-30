@@ -41,6 +41,13 @@ fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     (dir, app)
 }
 
+fn assert_folded_headers(app: &RadiologyApp, expected: &[usize]) {
+    assert_eq!(
+        app.fold_store.collapsed_headers(&app.fold_ranges),
+        expected.iter().copied().collect()
+    );
+}
+
 #[test]
 fn cross_file_navigation_preserves_departure_column_without_file_start_stop() {
     let (dir, mut app) = reader();
@@ -64,7 +71,7 @@ fn cross_file_navigation_preserves_departure_column_without_file_start_stop() {
 #[test]
 fn navigation_reveals_fold_and_failed_open_preserves_current_document() {
     let (_dir, mut app) = opened_repository();
-    assert!(app.fold_store.is_folded(1));
+    assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
     app.jump_to_location("a.rs", 2, 0);
     settle(&mut app);
     assert!(!app.fold_store.is_line_hidden(2, &app.fold_ranges));
@@ -316,7 +323,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     app.open_file("mixed.rs");
     settle(&mut app);
     app.fold_store.unfold_all();
-    app.fold_store.toggle(1);
+    app.fold_store.toggle_header(1, &app.fold_ranges);
     let ctx = Context::default();
     app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
     settle(&mut app);
@@ -325,7 +332,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     assert!(app
         .test_code
         .hides_declaration(&(hidden..hidden + "fn hidden_only() {}".len())));
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    assert_folded_headers(&app, &[1]);
     app.navigate(buffer.location_at_byte(hidden + 3), true);
     settle(&mut app);
     assert_eq!(app.caret_line, 6);
@@ -333,13 +340,13 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     assert!(!app
         .test_code
         .hides_declaration(&(hidden..hidden + "fn hidden_only() {}".len())));
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    assert_folded_headers(&app, &[1]);
     app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
     settle(&mut app);
     app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
     settle(&mut app);
     assert!(app.test_code.status().is_some());
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    assert_folded_headers(&app, &[1]);
 }
 
 #[test]
@@ -414,15 +421,15 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
         false,
     );
     assert_eq!(app.highlighted_lines, expected);
-    assert!(app.fold_store.is_folded(1));
-    app.fold_store.toggle(1);
+    assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
+    app.fold_store.toggle_header(1, &app.fold_ranges);
     let location = app.history.current().cloned();
     std::fs::remove_file(dir.path().join("b.rs")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert!(
-        !app.fold_store.is_folded(1),
+        !app.fold_store.is_header_folded(1, &app.fold_ranges),
         "theme recolor must preserve explicit expansion"
     );
     assert_eq!(app.history.current(), location.as_ref());
@@ -1039,7 +1046,7 @@ fn critical_fold_counts_refresh_with_policy_and_clear_on_mode_source_index_and_r
     settle(&mut app);
     app.jump_to_location("a.rs", 2, text.find("clone").unwrap());
     settle(&mut app);
-    app.fold_store.toggle(1);
+    app.fold_store.toggle_header(1, &app.fold_ranges);
     app.set_source_mode(SourceMode::Critical);
     settle(&mut app);
     let label = |app: &RadiologyApp| {
@@ -1060,7 +1067,7 @@ fn critical_fold_counts_refresh_with_policy_and_clear_on_mode_source_index_and_r
     assert!(app.critical_annotations().is_none());
     settle(&mut app);
     assert_eq!(label(&app), "1+");
-    assert!(app.fold_store.is_folded(1));
+    assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
     assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
     assert_eq!(format!("{:?}", app.history), history);
     app.set_source_mode(SourceMode::Normal);
@@ -1104,42 +1111,45 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     std::fs::write(root.join("a.rs"), text).unwrap();
     app.open_repository(&root);
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
     app.open_file("b.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
-    app.fold_store.toggle(1);
+    assert_folded_headers(&app, &[1]);
+    app.fold_store.toggle_header(1, &app.fold_ranges);
     app.open_file("a.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
     let source = app.open_buffer.clone().unwrap();
     app.open_file("missing.rs");
     settle(&mut app);
     assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
     app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
     app.jump_to_location("a.rs", 2, text.find("one()").unwrap());
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    assert_folded_headers(&app, &[4]);
     app.open_file("b.rs");
     settle(&mut app);
-    assert!(app.fold_store.folded_lines.is_empty());
+    assert!(app
+        .fold_store
+        .collapsed_headers(&app.fold_ranges)
+        .is_empty());
     app.open_file("a.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    assert_folded_headers(&app, &[4]);
     std::fs::write(root.join("a.rs"), text.replace("second", "newest")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
-    app.fold_store.toggle(4);
+    assert_folded_headers(&app, &[1, 4]);
+    app.fold_store.toggle_header(4, &app.fold_ranges);
     let other = dir.path().join("other");
     repository(&other);
     std::fs::write(other.join("a.rs"), text).unwrap();
     app.open_repository(&other);
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
 }
 
 #[test]
@@ -1158,20 +1168,20 @@ fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manu
     app.accept_review(snapshot);
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
-    app.fold_store.toggle(1);
+    assert_folded_headers(&app, &[4]);
+    app.fold_store.toggle_header(1, &app.fold_ranges);
     app.open_file("added.rs");
     settle(&mut app);
     app.open_file("a file.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    assert_folded_headers(&app, &[1, 4]);
     app.execute_command(
         &Context::default(),
         ToolbarAction::ToggleRevision(ReviewRevision::Before),
     );
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    assert_folded_headers(&app, &[4]);
     assert!(app
         .line_changes
         .as_ref()
@@ -1190,10 +1200,10 @@ fn fold_to_definitions_command_exposes_method_and_variant_headers_and_preserves_
     let source = app.open_buffer.clone().unwrap();
     let history = format!("{:?}", app.history);
     let caret = (app.caret_line, app.caret_col);
-    app.fold_store.toggle(5);
-    app.fold_store.toggle(14);
+    app.fold_store.toggle_header(5, &app.fold_ranges);
+    app.fold_store.toggle_header(14, &app.fold_ranges);
     app.execute_command(&Context::default(), ToolbarAction::FoldToDefinitions);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 6, 15]));
+    assert_folded_headers(&app, &[1, 6, 15]);
     assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
     assert_eq!(format!("{:?}", app.history), history);
     assert_eq!((app.caret_line, app.caret_col), caret);
@@ -1201,7 +1211,7 @@ fn fold_to_definitions_command_exposes_method_and_variant_headers_and_preserves_
     settle(&mut app);
     app.open_file("a.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 6, 15]));
+    assert_folded_headers(&app, &[1, 6, 15]);
     assert!(app.fold_error.is_none());
 }
 

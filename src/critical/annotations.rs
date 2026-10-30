@@ -23,7 +23,7 @@ pub struct FoldAnnotation {
 /// Immutable exact-source count publication; cannot annotate another revision's bytes.
 pub struct SourceAnnotations {
     buffer: Arc<SourceBuffer>,
-    entries: BTreeMap<usize, FoldAnnotation>,
+    entries: BTreeMap<(usize, usize), FoldAnnotation>,
 }
 
 impl SourceAnnotations {
@@ -35,11 +35,26 @@ impl SourceAnnotations {
             && self.buffer.content_digest() == buffer.content_digest()
     }
 
-    /// Returns a callable fold count at its original one-based header line.
+    /// Returns the callable count for an exact parsed body range.
     #[must_use]
-    pub fn at_line(&self, buffer: &SourceBuffer, line: usize) -> Option<&FoldAnnotation> {
+    pub fn at_range(
+        &self,
+        buffer: &SourceBuffer,
+        range: &std::ops::Range<usize>,
+    ) -> Option<&FoldAnnotation> {
         self.matches(buffer)
-            .then(|| self.entries.get(&line))
+            .then(|| self.entries.get(&(range.start, range.end)))
+            .flatten()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn at_line(&self, buffer: &SourceBuffer, line: usize) -> Option<&FoldAnnotation> {
+        self.matches(buffer)
+            .then(|| {
+                self.entries.iter().find_map(|(&(start, _), value)| {
+                    (buffer.line_at_byte(start) == line).then_some(value)
+                })
+            })
             .flatten()
     }
 }
@@ -49,11 +64,11 @@ impl SourceAnnotations {
 #[derive(Clone)]
 struct PendingCounts {
     buffer: Arc<SourceBuffer>,
-    entries: Arc<Mutex<BTreeMap<usize, FoldAnnotation>>>,
+    entries: Arc<Mutex<BTreeMap<(usize, usize), FoldAnnotation>>>,
 }
 
 impl PendingCounts {
-    fn publish(&self, mut batch: BTreeMap<usize, FoldAnnotation>) {
+    fn publish(&self, mut batch: BTreeMap<(usize, usize), FoldAnnotation>) {
         self.entries
             .lock()
             .unwrap_or_else(|error| error.into_inner())
@@ -151,10 +166,9 @@ fn compute(
     inputs: GraphInputs,
     folds: &[FoldRange],
     cancel: &AtomicBool,
-    mut publish: impl FnMut(BTreeMap<usize, FoldAnnotation>),
+    mut publish: impl FnMut(BTreeMap<(usize, usize), FoldAnnotation>),
 ) -> Result<(), String> {
     check_cancel(cancel)?;
-    let buffer = inputs.buffer.clone();
     let mut scopes = BTreeMap::new();
     for (i, scope) in inputs
         .calls
@@ -165,8 +179,8 @@ fn compute(
     {
         scopes
             .entry((
-                buffer.line_at_byte(scope.body_range.as_ref().unwrap().start),
-                buffer.line_at_byte(scope.body_range.as_ref().unwrap().end),
+                scope.body_range.as_ref().unwrap().start,
+                scope.body_range.as_ref().unwrap().end,
             ))
             .or_insert(i);
     }
@@ -174,12 +188,12 @@ fn compute(
     let mut entries = BTreeMap::new();
     for fold in folds {
         check_cancel(cancel)?;
-        let Some(&scope) = scopes.get(&(fold.start_line, fold.end_line)) else {
+        let Some(&scope) = scopes.get(&(fold.byte_range.start, fold.byte_range.end)) else {
             continue;
         };
         let frontier = worker.frontier_in_source(scope, cancel)?;
         entries.insert(
-            fold.start_line,
+            (fold.byte_range.start, fold.byte_range.end),
             FoldAnnotation {
                 count: frontier.annotation(),
                 detail: frontier.status_detail(),

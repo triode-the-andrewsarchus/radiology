@@ -25,7 +25,7 @@ pub struct SourceViewport {
     document: Option<(String, Option<ReviewRevision>, u64)>,
     fragments: Vec<SourceFragment>,
     visible: Vec<usize>,
-    folded: HashSet<usize>,
+    folded: HashSet<Range<usize>>,
     rows: RowHeights,
     scroll_y: f32,
     scroll_x: f32,
@@ -198,7 +198,7 @@ impl SourceViewport {
             self.scroll_x = 0.0;
             self.document = Some(key);
         }
-        if projected || self.folded != content.fold_store.folded_lines {
+        if projected || self.folded != content.fold_store.folded_ranges {
             self.visible = self
                 .fragments
                 .iter()
@@ -214,7 +214,7 @@ impl SourceViewport {
                     })
                     .saturating_sub(1),
             );
-            self.folded.clone_from(&content.fold_store.folded_lines);
+            self.folded.clone_from(&content.fold_store.folded_ranges);
             self.rows = RowHeights::default();
         }
     }
@@ -476,8 +476,8 @@ impl SourceViewport {
                 if let Some(event) =
                     paint_gutter(ui, &gutter, geometry.surface, rect, &fragment, content)
                 {
-                    if let SourceViewAction::ToggleFold(fold) = event {
-                        content.fold_store.toggle(fold);
+                    if let SourceViewAction::ToggleFold(fold) = &event {
+                        content.fold_store.toggle(fold.clone());
                     }
                     action = Some(event);
                 }
@@ -1356,7 +1356,7 @@ fn paint_gutter(
         pos2(surface.left() + 4.0, row.top() + 3.0),
         vec2(28.0, 16.0),
     );
-    let collapsed = content.fold_store.is_folded(part.line);
+    let collapsed = content.fold_store.is_folded(&fold.byte_range);
     let icon = if collapsed {
         Icon::ChevronRight
     } else {
@@ -1371,7 +1371,7 @@ fn paint_gutter(
     let annotation = (content.mode == SourceMode::Critical)
         .then_some(content.annotations)
         .flatten()
-        .and_then(|annotations| annotations.at_line(content.buffer, part.line));
+        .and_then(|annotations| annotations.at_range(content.buffer, &fold.byte_range));
     if collapsed {
         paint_fold_count(painter, surface, row, hidden, annotation, theme);
     }
@@ -1389,12 +1389,16 @@ fn paint_gutter(
         "Click to collapse this block".into()
     };
     let hit = Rect::from_min_max(rect.min, pos2(surface.left() + 58.0, rect.bottom()));
-    let response = ui.interact(hit, Id::new(("source_fold", part.line)), Sense::click());
+    let response = ui.interact(
+        hit,
+        Id::new(("source_fold", fold.byte_range.start, fold.byte_range.end)),
+        Sense::click(),
+    );
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, &tooltip));
     response
         .on_hover_text(tooltip)
         .clicked()
-        .then_some(SourceViewAction::ToggleFold(part.line))
+        .then_some(SourceViewAction::ToggleFold(fold.byte_range.clone()))
 }
 
 fn paint_fold_count(
@@ -1636,6 +1640,40 @@ mod tests {
     }
 
     #[test]
+    fn shared_header_gutter_toggles_outer_range_without_erasing_callable_defaults() {
+        let ctx = egui::Context::default();
+        let mut reader =
+            Reader::new("impl Demo { fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\n");
+        reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+        reader.folds.collapse_all_functions(&reader.ranges);
+        let outer = reader.ranges[0].byte_range.clone();
+        assert_eq!(reader.ranges[0].kind, crate::syntax::FoldKind::Type);
+        reader.frame(&ctx, Vec::new());
+        assert!(!reader.folds.is_folded(&outer));
+        let children = reader.folds.folded_ranges.clone();
+        let point = pos2(20.0, 18.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        reader.frame(&ctx, Vec::new());
+        assert!(reader.folds.is_folded(&outer));
+        assert!(children.is_subset(&reader.folds.folded_ranges));
+        assert!(!reader
+            .viewport
+            .visible
+            .iter()
+            .any(|index| reader.viewport.fragments[*index].line == 4));
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        reader.frame(&ctx, Vec::new());
+        assert_eq!(reader.folds.folded_ranges, children);
+        assert!(reader
+            .viewport
+            .visible
+            .iter()
+            .any(|index| reader.viewport.fragments[*index].line == 4));
+    }
+
+    #[test]
     fn clicking_middle_of_empty_line_moves_caret_to_the_gap() {
         let ctx = egui::Context::default();
         let mut reader = Reader::new("fn first() {}\n\nfn second() {}\n");
@@ -1747,7 +1785,7 @@ mod tests {
         let output = reader.frame(&ctx, Vec::new());
         let bands = filled_bands(&output, reader.theme.function_shade_color());
         assert_eq!(bands.len(), 4);
-        reader.folds.folded_lines.insert(1);
+        reader.folds.toggle_header(1, &reader.ranges);
         let output = reader.frame(&ctx, Vec::new());
         let folded = filled_bands(&output, reader.theme.function_shade_color());
         assert!(folded.len() < bands.len());
@@ -1947,7 +1985,7 @@ mod tests {
         let mut reader = Reader::new("fn f() {\n open();\n}\n");
         let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
         reader.ranges = syntax.folds;
-        reader.folds.toggle(1);
+        reader.folds.toggle_header(1, &reader.ranges);
         let mut annotations = CriticalAnnotations::default();
         annotations.start(
             GraphInputs {
@@ -1999,7 +2037,7 @@ mod tests {
             .expect("reachable critical count");
         reader.frame(&ctx, pointer(count + vec2(2.0, 2.0), true));
         reader.frame(&ctx, pointer(count + vec2(2.0, 2.0), false));
-        assert!(!reader.folds.is_folded(1));
+        assert!(!reader.folds.is_header_folded(1, &reader.ranges));
         assert_eq!(reader.source.text, "fn f() {\n open();\n}\n");
         assert_eq!((reader.line, reader.column), (1, 0));
     }
@@ -2099,7 +2137,7 @@ mod tests {
             header_preview: "one".into(),
             ..Default::default()
         });
-        reader.folds.toggle(1);
+        reader.folds.toggle_header(1, &reader.ranges);
         let output = reader.frame(&ctx, vec![egui::Event::Copy]);
         assert_eq!(output.platform_output.copied_text, reader.source.text);
         assert_eq!(reader.viewport.visible.len(), 2);

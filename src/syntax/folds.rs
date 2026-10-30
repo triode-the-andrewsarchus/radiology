@@ -39,7 +39,7 @@ pub struct FoldRange {
     pub owner_range: Option<Range<usize>>,
 }
 
-/// Stores the set of active collapsed fold lines.
+/// Stores the set of active collapsed source-byte ranges.
 ///
 /// # Examples
 ///
@@ -51,17 +51,18 @@ pub struct FoldRange {
 ///     start_line: 10,
 ///     end_line: 25,
 ///     header_preview: "fn compute() {".to_string(),
+///     byte_range: 100..250,
 ///     ..Default::default()
 /// };
-/// store.toggle(10);
+/// store.toggle(fold.byte_range.clone());
 /// assert!(store.is_line_hidden(15, &[fold]));
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct FoldStore {
-    /// 1-based line numbers where folds are currently active.
-    pub folded_lines: HashSet<usize>,
+    /// Exact source-byte spans of collapsed folds in the active document.
+    pub folded_ranges: HashSet<Range<usize>>,
     initialized: bool,
-    documents: crate::source::document_memory::DocumentMemory<(bool, HashSet<usize>)>,
+    documents: crate::source::document_memory::DocumentMemory<(bool, HashSet<Range<usize>>)>,
 }
 
 impl FoldStore {
@@ -74,38 +75,42 @@ impl FoldStore {
     /// Restores choices only for identical successfully published source/revision.
     ///
     /// The host must reset this store at repository/review-snapshot boundaries.
-    /// Only current fold headers survive; explicit navigation may then reveal its
+    /// Only current exact fold ranges survive; explicit navigation may then reveal its
     /// destination without expanding unrelated restored regions.
     pub fn activate(&mut self, buffer: &SourceBuffer, ranges: &[FoldRange]) {
-        let mut state = (self.initialized, std::mem::take(&mut self.folded_lines));
+        let mut state = (self.initialized, std::mem::take(&mut self.folded_ranges));
         self.documents.activate(buffer, &mut state);
         self.initialized = state.0;
-        self.folded_lines = state.1;
-        let headers: HashSet<_> = ranges.iter().map(|range| range.start_line).collect();
-        self.folded_lines.retain(|line| headers.contains(line));
+        self.folded_ranges = state.1;
+        let identities: HashSet<_> = ranges
+            .iter()
+            .map(|range| range.byte_range.clone())
+            .collect();
+        self.folded_ranges
+            .retain(|range| identities.contains(range));
     }
 
-    /// Toggles the folded state for the given start line number.
-    pub fn toggle(&mut self, start_line: usize) {
+    /// Toggles the folded state for the given exact byte range.
+    pub fn toggle(&mut self, range: Range<usize>) {
         self.initialized = true;
-        if self.folded_lines.contains(&start_line) {
-            self.folded_lines.remove(&start_line);
+        if self.folded_ranges.contains(&range) {
+            self.folded_ranges.remove(&range);
         } else {
-            self.folded_lines.insert(start_line);
+            self.folded_ranges.insert(range);
         }
     }
 
-    /// Returns `true` if the fold starting at `start_line` is collapsed.
+    /// Returns `true` if the fold with the exact `range` is collapsed.
     #[must_use]
-    pub fn is_folded(&self, start_line: usize) -> bool {
-        self.folded_lines.contains(&start_line)
+    pub fn is_folded(&self, range: &Range<usize>) -> bool {
+        self.folded_ranges.contains(range)
     }
 
     /// Returns `true` if `line` is hidden because an enclosing fold is collapsed.
     #[must_use]
     pub fn is_line_hidden(&self, line: usize, fold_ranges: &[FoldRange]) -> bool {
         for fold in fold_ranges {
-            if self.is_folded(fold.start_line) && line > fold.start_line && line <= fold.end_line {
+            if self.is_folded(&fold.byte_range) && line > fold.start_line && line <= fold.end_line {
                 return true;
             }
         }
@@ -115,11 +120,11 @@ impl FoldStore {
     /// Collapses parsed callable bodies, preserving other current fold choices.
     pub fn collapse_all_functions(&mut self, ranges: &[FoldRange]) {
         self.initialized = true;
-        self.folded_lines.extend(
+        self.folded_ranges.extend(
             ranges
                 .iter()
                 .filter(|fold| fold.kind == FoldKind::Callable)
-                .map(|fold| fold.start_line),
+                .map(|fold| fold.byte_range.clone()),
         );
     }
 
@@ -127,13 +132,13 @@ impl FoldStore {
     /// Containers exposing methods, variants or other declarations remain open.
     pub fn fold_to_definitions(&mut self, ranges: &[FoldRange]) {
         self.initialized = true;
-        self.folded_lines = ranges
+        self.folded_ranges = ranges
             .iter()
             .filter(|fold| {
                 fold.kind == FoldKind::Callable
                     || (fold.kind == FoldKind::Type && !fold.contains_declarations)
             })
-            .map(|fold| fold.start_line)
+            .map(|fold| fold.byte_range.clone())
             .collect();
     }
 
@@ -151,17 +156,17 @@ impl FoldStore {
         }
         self.collapse_all_functions(ranges);
         if let (Some(changes), Some(revision)) = (changes, buffer.revision) {
-            let expanded = super::review_folds::expanded_headers(buffer, ranges, changes, revision);
-            self.folded_lines.retain(|line| !expanded.contains(line));
+            let expanded = super::review_folds::expanded_ranges(buffer, ranges, changes, revision);
+            self.folded_ranges.retain(|range| !expanded.contains(range));
         }
     }
 
     /// Adopts defaults prepared with the successfully published source bundle.
     /// Restored or already edited documents retain their current choices.
-    pub fn apply_prepared_defaults(&mut self, defaults: Option<HashSet<usize>>) {
+    pub fn apply_prepared_defaults(&mut self, defaults: Option<HashSet<Range<usize>>>) {
         if !self.initialized {
             if let Some(defaults) = defaults {
-                self.folded_lines = defaults;
+                self.folded_ranges = defaults;
                 self.initialized = true;
             }
         }
@@ -170,16 +175,41 @@ impl FoldStore {
     /// Unfolds all active folds.
     pub fn unfold_all(&mut self) {
         self.initialized = true;
-        self.folded_lines.clear();
+        self.folded_ranges.clear();
     }
 
     /// Reveals a canonical source line without expanding unrelated folds.
     pub fn reveal_line(&mut self, line: usize, ranges: &[FoldRange]) {
         for fold in ranges {
             if line > fold.start_line && line <= fold.end_line {
-                self.folded_lines.remove(&fold.start_line);
+                self.folded_ranges.remove(&fold.byte_range);
             }
         }
+    }
+}
+
+// Line-oriented assertions keep broad navigation fixtures readable. Product state
+// and the overlapping-range regressions use canonical byte identities directly.
+#[cfg(test)]
+impl FoldStore {
+    pub(crate) fn collapsed_headers(&self, ranges: &[FoldRange]) -> HashSet<usize> {
+        ranges
+            .iter()
+            .filter(|fold| self.is_folded(&fold.byte_range))
+            .map(|fold| fold.start_line)
+            .collect()
+    }
+
+    pub(crate) fn toggle_header(&mut self, line: usize, ranges: &[FoldRange]) {
+        if let Some(fold) = ranges.iter().find(|fold| fold.start_line == line) {
+            self.toggle(fold.byte_range.clone());
+        }
+    }
+
+    pub(crate) fn is_header_folded(&self, line: usize, ranges: &[FoldRange]) -> bool {
+        ranges
+            .iter()
+            .any(|fold| fold.start_line == line && self.is_folded(&fold.byte_range))
     }
 }
 
@@ -229,7 +259,7 @@ fn single_line() {}
         let mut store = FoldStore::new();
         assert!(!store.is_line_hidden(3, &folds));
 
-        store.toggle(fn_fold.start_line);
+        store.toggle(fn_fold.byte_range.clone());
         assert!(store.is_line_hidden(3, &folds));
         assert!(store.is_line_hidden(6, &folds));
         assert!(!store.is_line_hidden(2, &folds));
@@ -248,37 +278,37 @@ fn single_line() {}
         let other_ranges = FoldDetector::detect_folds(&b);
         let mut store = FoldStore::new();
         store.activate(&a, &ranges);
-        store.toggle(4);
-        store.toggle(999);
+        store.toggle_header(4, &ranges);
+        store.toggle(999..1000);
         store.activate(&a, &ranges);
-        assert_eq!(store.folded_lines, HashSet::from([4]));
+        assert_eq!(store.collapsed_headers(&ranges), HashSet::from([4]));
         store.activate(&b, &other_ranges);
-        assert!(store.folded_lines.is_empty());
-        store.toggle(1);
+        assert!(store.collapsed_headers(&ranges).is_empty());
+        store.toggle_header(1, &other_ranges);
         for revision in [ReviewRevision::After, ReviewRevision::Before] {
             let snapshot =
                 SourceBuffer::from_bytes("a.rs", a.data.clone(), Some(revision)).unwrap();
             store.activate(&snapshot, &ranges);
-            assert!(store.folded_lines.is_empty());
-            store.toggle(1);
+            assert!(store.collapsed_headers(&ranges).is_empty());
+            store.toggle_header(1, &ranges);
         }
         store.activate(&a, &ranges);
-        assert_eq!(store.folded_lines, HashSet::from([4]));
+        assert_eq!(store.collapsed_headers(&ranges), HashSet::from([4]));
         store.unfold_all();
         store.activate(&b, &other_ranges);
-        assert_eq!(store.folded_lines, HashSet::from([1]));
+        assert_eq!(store.collapsed_headers(&other_ranges), HashSet::from([1]));
         store.activate(&a, &ranges);
         assert!(
-            store.folded_lines.is_empty(),
+            store.collapsed_headers(&ranges).is_empty(),
             "expanded choices must not resurrect old folds"
         );
-        store.toggle(4);
+        store.toggle_header(4, &ranges);
         let changed = SourceBuffer::from_str("a.rs", &a.text.replace("beta", "zeta"));
         store.activate(&changed, &ranges);
-        assert!(store.folded_lines.is_empty());
+        assert!(store.collapsed_headers(&ranges).is_empty());
         store.activate(&a, &ranges);
         assert!(
-            store.folded_lines.is_empty(),
+            store.collapsed_headers(&ranges).is_empty(),
             "old-byte choices were invalidated"
         );
     }

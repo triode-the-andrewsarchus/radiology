@@ -24,35 +24,41 @@ fn defaults(
 fn fresh_callable_defaults_leave_containers_open_and_remember_expanded_choices() {
     let text = "struct Demo {\n value: i32,\n}\nimpl Demo {\n fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\nfn outside() {\n three();\n}\n";
     let (buffer, syntax, mut store) = defaults("a.rs", text, None, None);
-    assert_eq!(store.folded_lines, HashSet::from([5, 8, 12]));
-    assert!(!store.is_folded(1));
-    assert!(!store.is_folded(4));
+    assert_eq!(
+        store.collapsed_headers(&syntax.folds),
+        HashSet::from([5, 8, 12])
+    );
+    assert!(!store.is_header_folded(1, &syntax.folds));
+    assert!(!store.is_header_folded(4, &syntax.folds));
     store.unfold_all();
     store.apply_initial_defaults(&buffer, &syntax.folds, None);
-    assert!(store.folded_lines.is_empty());
+    assert!(store.collapsed_headers(&syntax.folds).is_empty());
     let other = SourceBuffer::from_str("b.rs", "fn other() {\n four();\n}\n");
     let other_syntax = DocumentSyntax::analyze(&other);
     store.activate(&other, &other_syntax.folds);
     store.apply_initial_defaults(&other, &other_syntax.folds, None);
-    assert!(store.is_folded(1));
+    assert!(store.is_header_folded(1, &other_syntax.folds));
     store.activate(&buffer, &syntax.folds);
     store.apply_initial_defaults(&buffer, &syntax.folds, None);
     assert!(
-        store.folded_lines.is_empty(),
+        store.collapsed_headers(&syntax.folds).is_empty(),
         "an expanded saved document is initialized, not fresh"
     );
-    store.toggle(1);
+    store.toggle_header(1, &syntax.folds);
     store.collapse_all_functions(&syntax.folds);
-    assert_eq!(store.folded_lines, HashSet::from([1, 5, 8, 12]));
+    assert_eq!(
+        store.collapsed_headers(&syntax.folds),
+        HashSet::from([1, 5, 8, 12])
+    );
 }
 
 #[test]
 fn abstract_multiline_signatures_are_not_treated_as_callable_bodies() {
     let (_,syntax,store) = defaults("a.swift","protocol P {\n func required(\n value: Int\n ) -> Int\n}\nfunc implemented() {\n doWork()\n}\n",None,None);
     assert!(syntax.calls.scopes.iter().any(|scope| !scope.has_body()));
-    assert!(!store.is_folded(2));
-    assert!(!store.is_folded(1));
-    assert!(store.is_folded(6));
+    assert!(!store.is_header_folded(2, &syntax.folds));
+    assert!(!store.is_header_folded(1, &syntax.folds));
+    assert!(store.is_header_folded(6, &syntax.folds));
 }
 
 #[test]
@@ -69,29 +75,52 @@ fn pr_annotations_and_body_changes_expand_only_their_owners_and_ancestors_once()
     };
     let (after, syntax, mut store) =
         defaults("a.rs", text, Some(ReviewRevision::After), Some(&changes));
-    assert_eq!(store.folded_lines, HashSet::from([6, 10]));
-    let selected = super::review_folds::expanded_headers(
+    assert_eq!(
+        store.collapsed_headers(&syntax.folds),
+        HashSet::from([6, 10])
+    );
+    let selected = super::review_folds::expanded_ranges(
         &after,
         &syntax.folds,
         &changes,
         ReviewRevision::After,
     );
-    assert!(selected.contains(&1), "container ancestor remains visible");
     assert!(
-        selected.contains(&3),
+        selected.contains(
+            &syntax
+                .folds
+                .iter()
+                .find(|fold| fold.start_line == 1)
+                .unwrap()
+                .byte_range
+        ),
+        "container ancestor remains visible"
+    );
+    assert!(
+        selected.contains(
+            &syntax
+                .folds
+                .iter()
+                .find(|fold| fold.start_line == 3)
+                .unwrap()
+                .byte_range
+        ),
         "Rust attribute owns its following function body"
     );
-    store.toggle(3);
+    store.toggle_header(3, &syntax.folds);
     store.apply_initial_defaults(&after, &syntax.folds, Some(&changes));
     assert!(
-        store.is_folded(3),
+        store.is_header_folded(3, &syntax.folds),
         "initial changes cannot override a later manual fold"
     );
     let (_, _, before) = defaults("a.rs", text, Some(ReviewRevision::Before), Some(&changes));
-    assert_eq!(before.folded_lines, HashSet::from([3, 10]));
+    assert_eq!(
+        before.collapsed_headers(&syntax.folds),
+        HashSet::from([3, 10])
+    );
     let (_, _, checkout) = defaults("a.rs", text, None, Some(&changes));
     assert_eq!(
-        checkout.folded_lines,
+        checkout.collapsed_headers(&syntax.folds),
         HashSet::from([3, 6, 10]),
         "checkout washes do not apply PR folding policy"
     );
@@ -105,8 +134,8 @@ fn python_decorator_and_rust_attributes_belong_only_to_their_declarations() {
     ] {
         let changes=FileLineChanges { hunks:vec![DiffHunk { before_start:changed,before_count:1,after_start:changed,after_count:1 }], ..Default::default() };
         let (buffer,syntax,store)=defaults(path,text,Some(ReviewRevision::After),Some(&changes));
-        assert!(!store.is_folded(opened),"{path}");
-        assert!(store.is_folded(closed),"{path}");
+        assert!(!store.is_header_folded(opened, &syntax.folds),"{path}");
+        assert!(store.is_header_folded(closed, &syntax.folds),"{path}");
         let owner=syntax.calls.scopes.iter().find(|scope| scope.body_range.as_ref().is_some_and(|body| buffer.line_at_byte(body.start)==opened)).unwrap();
         assert_eq!(buffer.line_at_byte(owner.annotated_range.start),changed);
     }
@@ -130,9 +159,11 @@ fn empty_side_anchors_do_not_open_closed_neighbors_but_open_indentation_eof_is_o
             }],
             ..Default::default()
         };
-        let (_, _, store) = defaults("a.rs", rust, Some(ReviewRevision::After), Some(&changes));
+        let (_, syntax, store) =
+            defaults("a.rs", rust, Some(ReviewRevision::After), Some(&changes));
         assert_eq!(
-            store.folded_lines, expected,
+            store.collapsed_headers(&syntax.folds),
+            expected,
             "empty side after line {anchor}"
         );
     }
@@ -149,8 +180,9 @@ fn empty_side_anchors_do_not_open_closed_neighbors_but_open_indentation_eof_is_o
             }],
             ..Default::default()
         };
-        let (_, _, store) = defaults("a.py", text, Some(ReviewRevision::After), Some(&changes));
-        assert_eq!(store.is_folded(2), folded);
+        let (_, syntax, store) =
+            defaults("a.py", text, Some(ReviewRevision::After), Some(&changes));
+        assert_eq!(store.is_header_folded(2, &syntax.folds), folded);
     }
 }
 
@@ -169,7 +201,7 @@ fn changed_test_functions_stay_hidden_by_the_independent_test_presentation() {
     };
     let (buffer, syntax, store) =
         defaults("a.rs", text, Some(ReviewRevision::After), Some(&changes));
-    assert!(!store.is_folded(4));
+    assert!(!store.is_header_folded(4, &syntax.folds));
     let hidden = text.find("fn changed").unwrap();
     let mut tests = crate::source::test_code::TestCodePresentation::default();
     tests.load(&buffer, syntax.tests, true);
@@ -180,7 +212,10 @@ fn changed_test_functions_stay_hidden_by_the_independent_test_presentation() {
 fn multiline_signatures_stay_visible_and_same_line_containers_are_not_function_defaults() {
     let text = "fn multiline(\n value: i32,\n) -> i32\n{\n let result = value;\n result\n}\nfn sibling() {\n other();\n}\n";
     let (_, syntax, store) = defaults("a.rs", text, None, None);
-    assert_eq!(store.folded_lines, HashSet::from([4, 8]));
+    assert_eq!(
+        store.collapsed_headers(&syntax.folds),
+        HashSet::from([4, 8])
+    );
     assert!(syntax.folds.iter().all(|fold| fold.start_line != 1));
     let changes = FileLineChanges {
         hunks: vec![DiffHunk {
@@ -192,14 +227,17 @@ fn multiline_signatures_stay_visible_and_same_line_containers_are_not_function_d
         ..Default::default()
     };
     let (_, _, review) = defaults("a.rs", text, Some(ReviewRevision::After), Some(&changes));
-    assert_eq!(review.folded_lines, HashSet::from([8]));
-    let (_, _, container) = defaults(
+    assert_eq!(review.collapsed_headers(&syntax.folds), HashSet::from([8]));
+    let (_, syntax, container) = defaults(
         "a.rs",
         "impl Demo { fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\n",
         None,
         None,
     );
-    assert_eq!(container.folded_lines, HashSet::from([1, 4]));
+    assert_eq!(
+        container.collapsed_headers(&syntax.folds),
+        HashSet::from([1, 4])
+    );
     assert!(!container.is_line_hidden(
         4,
         &FoldDetector::detect_folds(&SourceBuffer::from_str(

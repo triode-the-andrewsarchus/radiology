@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Exact fold identities and overlapping headers](plans/rust-fold-identities.md) records
+independent range state, defaults/restoration, PR ancestry and Critical Lens count ownership.
+
 [Enclosing callable shading](plans/rust-function-shading.md) records parsed scope reuse,
 shaped bands, background layer order, empty-line hit testing and native acceptance.
 

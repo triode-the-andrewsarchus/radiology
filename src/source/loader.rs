@@ -147,7 +147,7 @@ pub struct PreparedSource {
     /// Structural facts from one parse; absent when recoloring an existing buffer.
     pub syntax: Option<DocumentSyntax>,
     /// Initial body/review fold choices prepared from these exact source facts.
-    pub initial_folds: Option<std::collections::HashSet<usize>>,
+    pub initial_folds: Option<std::collections::HashSet<std::ops::Range<usize>>>,
     /// File-specific diff captured by the same storage request.
     pub changes: Option<FileLineChanges>,
     /// Syntax colors for the captured appearance.
@@ -236,7 +236,7 @@ fn prepare(
         .map(|syntax| {
             let mut folds = crate::syntax::FoldStore::new();
             folds.apply_initial_defaults(&buffer, &syntax.folds, changes.as_ref());
-            folds.folded_lines
+            folds.folded_ranges
         });
     check()?;
     Ok(PreparedSource {
@@ -302,7 +302,16 @@ mod tests {
         assert_eq!(prepared.syntax.as_ref().unwrap().symbols[0].name, "café");
         assert_eq!(
             prepared.initial_folds,
-            Some(std::collections::HashSet::from([1]))
+            Some(std::collections::HashSet::from([prepared
+                .syntax
+                .as_ref()
+                .unwrap()
+                .folds
+                .iter()
+                .find(|fold| fold.kind == crate::syntax::FoldKind::Callable)
+                .unwrap()
+                .byte_range
+                .clone()]))
         );
         assert!(!prepared.highlights.is_empty());
         assert!(!loader.is_running());

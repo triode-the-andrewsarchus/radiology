@@ -116,7 +116,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
-- Remaining source presentation: overlapping fold identities/header projection and exact
+- Remaining source presentation: exact non-delimited/partial-line fold projection and
   PR-refresh fold/pin mapping and AST-aware fallback occurrence scope. Enclosing-callable
   shading and destination feedback are integrated; broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
