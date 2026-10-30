@@ -250,23 +250,14 @@ fn prepare(
     check()?;
     let destination = request.target.resolve(&buffer)?;
     let syntax = (!matches!(request.source, SourceRead::Buffer(_)))
-        .then(|| DocumentSyntax::analyze(&buffer));
+        .then(|| DocumentSyntax::analyze_cancellable(&buffer, cancelled));
     check()?;
+    let syntax = syntax.transpose()?;
     let native = syntax
         .as_ref()
         .map(|syntax| syntax.native_highlights.as_ref())
-        .or(request.native_highlights.as_deref())
-        .filter(|native| native.matches(&buffer));
-    let highlights = if let Some(native) = native {
-        native.recolor(&buffer, dark_mode, cancelled)
-    } else {
-        highlighter.highlight_document_cancellable(
-            highlighter.find_syntax_for_path(&buffer.path),
-            &buffer.text,
-            dark_mode,
-            cancelled,
-        )
-    };
+        .or(request.native_highlights.as_deref());
+    let highlights = highlight_source(&buffer, native, highlighter, dark_mode, cancelled);
     check()?;
     let highlights = highlights.ok_or("Source request cancelled")?;
     let changes = request.source.changes(&buffer, cancel, deadline)?;
@@ -289,6 +280,25 @@ fn prepare(
         destination,
         dark_mode,
     })
+}
+
+fn highlight_source(
+    buffer: &SourceBuffer,
+    native: Option<&crate::syntax::native_highlights::NativeHighlights>,
+    highlighter: &SyntaxHighlighter,
+    dark_mode: bool,
+    cancelled: impl Fn() -> bool,
+) -> Option<Vec<Vec<HighlightedSpan>>> {
+    if let Some(native) = native.filter(|native| native.matches(buffer)) {
+        native.recolor(buffer, dark_mode, cancelled)
+    } else {
+        highlighter.highlight_document_cancellable(
+            highlighter.find_syntax_for_path(&buffer.path),
+            &buffer.text,
+            dark_mode,
+            cancelled,
+        )
+    }
 }
 
 #[cfg(test)]

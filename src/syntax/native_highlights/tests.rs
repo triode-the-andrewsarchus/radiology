@@ -102,9 +102,15 @@ fn native_capture_limits_return_no_partial_color_set() {
     let buffer = SourceBuffer::from_str("a.kt", "fun run() { val x = 12; println(x) }\n");
     let grammar = SupportedGrammar::Kotlin;
     let tree = grammar.parse(&buffer.data).unwrap();
-    assert!(captures(&buffer, grammar, tree.root_node(), 1)
-        .unwrap_err()
-        .contains("fact limit"));
+    assert!(captures(
+        &buffer,
+        grammar,
+        tree.root_node(),
+        1,
+        &crate::syntax::AnalysisControl::new(&|| false)
+    )
+    .unwrap_err()
+    .contains("fact limit"));
     let syntax = super::super::DocumentSyntax::analyze(&buffer);
     assert!(syntax.folds_supported && syntax.calls.supported && syntax.occurrences.error.is_none());
 }

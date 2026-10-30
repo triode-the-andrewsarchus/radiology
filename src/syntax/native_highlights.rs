@@ -30,11 +30,12 @@ impl NativeHighlights {
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
         root: Node<'_>,
+        control: &super::AnalysisControl<'_>,
     ) -> Self {
         if !matches!(grammar, SupportedGrammar::Swift | SupportedGrammar::Kotlin) {
             return Self::default();
         }
-        match captures(buffer, grammar, root, 200_000) {
+        match captures(buffer, grammar, root, 200_000, control) {
             Ok(captures) => Self {
                 captures,
                 identity: Some(SourceIdentity::new(buffer)),
@@ -141,6 +142,7 @@ fn captures(
     grammar: SupportedGrammar,
     root: Node<'_>,
     limit: usize,
+    control: &super::AnalysisControl<'_>,
 ) -> Result<Vec<Capture>, String> {
     let mut output = Vec::new();
     super::queries::visit_captures(
@@ -149,6 +151,7 @@ fn captures(
         super::queries::QueryRole::Highlights,
         root,
         limit,
+        control,
         |name, node, pattern| {
             let bytes = node.byte_range();
             if !name.starts_with('_') && !bytes.is_empty() {

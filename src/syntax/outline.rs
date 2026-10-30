@@ -1,7 +1,7 @@
 //! Hierarchical document symbol extraction powered by Tree-sitter.
 
 use crate::source::buffer::SourceBuffer;
-use crate::syntax::language::{LanguageRegistry, SupportedGrammar};
+use crate::syntax::language::SupportedGrammar;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use tree_sitter::Node;
@@ -217,25 +217,31 @@ impl SymbolExtractor {
     /// Extracts a tree of [`DocumentSymbol`] declarations from the given [`SourceBuffer`].
     #[must_use]
     pub fn extract(buffer: &SourceBuffer) -> Vec<DocumentSymbol> {
-        let lang_info = LanguageRegistry::for_path(&buffer.path);
-        let Some(grammar) = lang_info.grammar else {
-            return Self::extract_fallback(buffer);
-        };
-
-        let Some(tree) = grammar.parse(&buffer.data) else {
-            return Self::extract_fallback(buffer);
-        };
-
-        Self::from_tree(buffer, grammar, tree.root_node())
+        Self::extract_cancellable(buffer, || false).expect("uncancelled outline extraction")
     }
 
-    pub(crate) fn from_tree(
+    pub(crate) fn extract_cancellable(
+        buffer: &SourceBuffer,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Vec<DocumentSymbol>, String> {
+        let control = super::AnalysisControl::new(&cancelled);
+        let symbols = if let Some((grammar, tree)) = control.parse(buffer)? {
+            Self::from_tree(buffer, grammar, tree.root_node(), &control)
+        } else {
+            Self::extract_fallback(buffer, &control)
+        };
+        control.check()?;
+        Ok(symbols)
+    }
+
+    pub(super) fn from_tree(
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
         root: Node<'_>,
+        control: &super::AnalysisControl<'_>,
     ) -> Vec<DocumentSymbol> {
         let mut symbols = Vec::new();
-        Self::collect_symbols(root, buffer, grammar, &mut symbols);
+        Self::collect_symbols(root, buffer, grammar, &mut symbols, control);
         symbols
     }
 
@@ -244,13 +250,17 @@ impl SymbolExtractor {
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
         out: &mut Vec<DocumentSymbol>,
+        control: &super::AnalysisControl<'_>,
     ) {
-        if let Some(symbol) = Self::parse_node(node, buffer, grammar) {
+        if control.is_cancelled() {
+            return;
+        }
+        if let Some(symbol) = Self::parse_node(node, buffer, grammar, control) {
             out.push(symbol);
         } else {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                Self::collect_symbols(child, buffer, grammar, out);
+                Self::collect_symbols(child, buffer, grammar, out, control);
             }
         }
     }
@@ -259,6 +269,7 @@ impl SymbolExtractor {
         node: Node,
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
+        control: &super::AnalysisControl<'_>,
     ) -> Option<DocumentSymbol> {
         let kind_str = node.kind();
         let (kind, name_field) = match (grammar, kind_str) {
@@ -345,7 +356,7 @@ impl SymbolExtractor {
         let mut children = Vec::new();
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            Self::collect_symbols(child, buffer, grammar, &mut children);
+            Self::collect_symbols(child, buffer, grammar, &mut children, control);
         }
 
         Some(DocumentSymbol {
@@ -375,9 +386,15 @@ impl SymbolExtractor {
         })
     }
 
-    fn extract_fallback(buffer: &SourceBuffer) -> Vec<DocumentSymbol> {
+    pub(super) fn extract_fallback(
+        buffer: &SourceBuffer,
+        control: &super::AnalysisControl<'_>,
+    ) -> Vec<DocumentSymbol> {
         let mut symbols = Vec::new();
         for line_num in 1..=buffer.line_count() {
+            if control.is_cancelled() {
+                break;
+            }
             let line = buffer.line_text(line_num);
             let trimmed = line.trim();
             if trimmed.starts_with("def ")
@@ -429,6 +446,7 @@ fn node_text(node: Node, buffer: &SourceBuffer) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syntax::LanguageRegistry;
 
     #[test]
     fn rust_constants_statics_and_enum_variants_keep_exact_name_ranges() {

@@ -206,7 +206,10 @@ impl Trace<'_> {
         if !self.inputs.index.matches_buffer(&buffer) {
             return Err("stale semantic source identity".into());
         }
-        let calls = DocumentSyntax::analyze(&buffer).calls;
+        let calls = DocumentSyntax::analyze_cancellable(&buffer, || {
+            check_source(self.cancel, self.deadline).is_err()
+        })?
+        .calls;
         let resolver = CalleeResolver::new(&buffer, Some(&self.inputs.index));
         let callees = calls
             .sites

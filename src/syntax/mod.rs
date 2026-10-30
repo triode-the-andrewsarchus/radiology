@@ -22,7 +22,54 @@ pub use language::{LanguageInfo, LanguageRegistry, SupportedGrammar};
 pub use outline::{DocumentSymbol, SymbolExtractor, SymbolKind};
 pub use test_detector::{TestDetection, TestRegion, TestRegionDetector};
 
+/// One latched stop request shared by native parsing and derived fact stages.
+struct AnalysisControl<'a> {
+    cancelled: &'a dyn Fn() -> bool,
+    stopped: std::cell::Cell<bool>,
+}
+
+impl<'a> AnalysisControl<'a> {
+    fn new(cancelled: &'a dyn Fn() -> bool) -> Self {
+        Self {
+            cancelled,
+            stopped: std::cell::Cell::new(false),
+        }
+    }
+
+    fn parse(
+        &self,
+        buffer: &crate::source::SourceBuffer,
+    ) -> Result<Option<(SupportedGrammar, tree_sitter::Tree)>, String> {
+        self.check()?;
+        LanguageRegistry::for_path(&buffer.path)
+            .grammar
+            .map(|grammar| {
+                grammar
+                    .parse_cancellable(&buffer.data, self)
+                    .map(|tree| tree.map(|tree| (grammar, tree)))
+            })
+            .transpose()
+            .map(Option::flatten)
+    }
+
+    fn is_cancelled(&self) -> bool {
+        if !self.stopped.get() && (self.cancelled)() {
+            self.stopped.set(true);
+        }
+        self.stopped.get()
+    }
+
+    fn check(&self) -> Result<(), String> {
+        if self.is_cancelled() {
+            Err("Syntax analysis cancelled".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Immutable structural facts derived from one parse of an exact source buffer.
+#[derive(Default)]
 pub struct DocumentSyntax {
     /// Full outline, unaffected by source presentation filters.
     pub symbols: Vec<DocumentSymbol>,
@@ -46,58 +93,58 @@ impl DocumentSyntax {
     /// Computes outline, folds and tests from one shared native tree.
     #[must_use]
     pub fn analyze(buffer: &crate::source::SourceBuffer) -> Self {
-        let parsed = LanguageRegistry::for_path(&buffer.path)
-            .grammar
-            .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
-        let (symbols, tests, calls, folds, fold_error, folds_supported, occurrences) =
-            if let Some((grammar, ref tree)) = parsed {
-                let (folds, error) =
-                    match FoldDetector::from_tree(buffer, grammar, tree.root_node()) {
-                        Ok(folds) => (folds, None),
-                        Err(error) => (Vec::new(), Some(error)),
-                    };
-                let supported = error.is_none();
-                (
-                    SymbolExtractor::from_tree(buffer, grammar, tree.root_node()),
-                    TestRegionDetector::from_tree(buffer, grammar, tree.root_node()),
-                    calls::CallSites::from_tree(grammar, tree.root_node(), buffer),
-                    folds,
-                    error,
-                    supported,
-                    occurrences::SyntacticOccurrences::from_tree(buffer, grammar, tree.root_node()),
-                )
-            } else {
-                (
-                    SymbolExtractor::extract(buffer),
-                    TestDetection::default(),
-                    calls::CallSites::default(),
-                    Vec::new(),
-                    None,
-                    false,
-                    occurrences::SyntacticOccurrences::default(),
-                )
-            };
-        Self {
+        Self::analyze_cancellable(buffer, || false).expect("uncancelled syntax analysis")
+    }
+
+    pub(crate) fn analyze_cancellable(
+        buffer: &crate::source::SourceBuffer,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self, String> {
+        let control = AnalysisControl::new(&cancelled);
+        control.check()?;
+        let parsed = control.parse(buffer)?;
+        let Some((grammar, tree)) = parsed else {
+            let symbols = SymbolExtractor::extract_fallback(buffer, &control);
+            control.check()?;
+            return Ok(Self {
+                symbols,
+                ..Self::default()
+            });
+        };
+        let root = tree.root_node();
+        let (folds, fold_error) = match FoldDetector::from_tree(buffer, grammar, root, &control) {
+            Ok(folds) => (folds, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
+        control.check()?;
+        let symbols = SymbolExtractor::from_tree(buffer, grammar, root, &control);
+        control.check()?;
+        let tests = TestRegionDetector::from_tree(buffer, grammar, root, &control);
+        control.check()?;
+        let calls = calls::CallSites::from_tree_cancellable(grammar, root, buffer, &control);
+        control.check()?;
+        let occurrences =
+            occurrences::SyntacticOccurrences::from_tree(buffer, grammar, root, &control);
+        control.check()?;
+        let native_highlights = std::sync::Arc::new(
+            native_highlights::NativeHighlights::from_tree(buffer, grammar, root, &control),
+        );
+        control.check()?;
+        Ok(Self {
             symbols,
-            folds,
-            folds_supported,
-            fold_error,
             tests,
             calls,
+            folds,
+            folds_supported: fold_error.is_none(),
+            fold_error,
             occurrences,
-            native_highlights: std::sync::Arc::new(parsed.as_ref().map_or_else(
-                native_highlights::NativeHighlights::default,
-                |(grammar, tree)| {
-                    native_highlights::NativeHighlights::from_tree(
-                        buffer,
-                        *grammar,
-                        tree.root_node(),
-                    )
-                },
-            )),
-        }
+            native_highlights,
+        })
     }
 }
 
 #[cfg(test)]
 mod fold_defaults_tests;
+
+#[cfg(test)]
+mod cancellation_tests;

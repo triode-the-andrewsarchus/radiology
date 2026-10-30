@@ -123,9 +123,15 @@ fn occurrence_limits_fail_without_partial_groups_or_disabling_independent_calls(
     let buffer = SourceBuffer::from_str("a.rs", "fn f(value:i32) { value; call(); }\n");
     let grammar = SupportedGrammar::Rust;
     let tree = grammar.parse(&buffer.data).unwrap();
-    assert!(extract(&buffer, grammar, tree.root_node(), 1)
-        .unwrap_err()
-        .contains("fact limit"));
+    assert!(extract(
+        &buffer,
+        grammar,
+        tree.root_node(),
+        1,
+        &crate::syntax::AnalysisControl::new(&|| false)
+    )
+    .unwrap_err()
+    .contains("fact limit"));
     let calls = super::super::calls::CallSites::from_tree(grammar, tree.root_node(), &buffer);
     assert!(calls.supported);
     assert_eq!(calls.sites.len(), 1);

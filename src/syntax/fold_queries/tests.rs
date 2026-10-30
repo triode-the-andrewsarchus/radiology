@@ -1,6 +1,26 @@
 use super::*;
 use crate::syntax::{DocumentSyntax, FoldStore, SupportedGrammar};
 
+fn assert_fact_limit(
+    buffer: &SourceBuffer,
+    grammar: SupportedGrammar,
+    limit: usize,
+) -> tree_sitter::Tree {
+    let tree = grammar.parse(&buffer.data).unwrap();
+    let query =
+        crate::syntax::queries::query(grammar, crate::syntax::queries::QueryRole::Folds).unwrap();
+    assert!(extract(
+        buffer,
+        tree.root_node(),
+        query,
+        limit,
+        &crate::syntax::AnalysisControl::new(&|| false)
+    )
+    .unwrap_err()
+    .contains("fact limit"));
+    tree
+}
+
 #[test]
 fn shared_fold_and_declaration_queries_compile_for_every_linked_grammar() {
     for (path, text) in [
@@ -154,12 +174,7 @@ fn type_containment_includes_kotlin_properties_and_rust_enum_cases_from_shared_s
 fn folding_fact_limits_do_not_return_partial_fold_facts_or_disable_independent_calls() {
     let buffer = SourceBuffer::from_str("a.rs", DEFINITIONS);
     let grammar = SupportedGrammar::Rust;
-    let tree = grammar.parse(&buffer.data).unwrap();
-    let query =
-        crate::syntax::queries::query(grammar, crate::syntax::queries::QueryRole::Folds).unwrap();
-    assert!(extract(&buffer, tree.root_node(), query, 1)
-        .unwrap_err()
-        .contains("fact limit"));
+    let tree = assert_fact_limit(&buffer, grammar, 1);
     let calls = crate::syntax::calls::CallSites::from_tree(grammar, tree.root_node(), &buffer);
     assert!(calls.supported);
     assert!(!calls.sites.is_empty());
@@ -262,12 +277,7 @@ fn kotlin_import_grouping_does_not_turn_strings_single_lines_or_errors_into_impo
         "a.kt",
         "import demo.One\nimport demo.Two\nimport demo.Three\n",
     );
-    let tree = grammar.parse(&buffer.data).unwrap();
-    let query =
-        crate::syntax::queries::query(grammar, crate::syntax::queries::QueryRole::Folds).unwrap();
-    assert!(extract(&buffer, tree.root_node(), query, 2)
-        .unwrap_err()
-        .contains("fact limit"));
+    let _ = assert_fact_limit(&buffer, grammar, 2);
 }
 
 #[test]

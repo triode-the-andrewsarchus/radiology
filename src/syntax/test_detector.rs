@@ -7,7 +7,7 @@ mod kotlin;
 mod rust;
 mod script;
 
-use super::language::{LanguageRegistry, SupportedGrammar};
+use super::language::SupportedGrammar;
 use crate::source::SourceBuffer;
 use std::ops::Range;
 use tree_sitter::Node;
@@ -39,21 +39,21 @@ impl TestRegionDetector {
     /// Detects inline regions and whole-file test-only gating.
     #[must_use]
     pub fn detect(buffer: &SourceBuffer) -> TestDetection {
-        let Some(grammar) = LanguageRegistry::for_path(&buffer.path).grammar else {
+        let control = super::AnalysisControl::new(&|| false);
+        let Some((grammar, tree)) = control.parse(buffer).expect("uncancelled test detection")
+        else {
             return TestDetection::default();
         };
-        let Some(tree) = grammar.parse(&buffer.data) else {
-            return TestDetection::default();
-        };
-        Self::from_tree(buffer, grammar, tree.root_node())
+        Self::from_tree(buffer, grammar, tree.root_node(), &control)
     }
 
-    pub(crate) fn from_tree(
+    pub(super) fn from_tree(
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
         root: Node<'_>,
+        control: &super::AnalysisControl<'_>,
     ) -> TestDetection {
-        let detector = Detector { buffer };
+        let detector = Detector { buffer, control };
         let mut result = TestDetection::default();
         match grammar {
             SupportedGrammar::Rust => {
@@ -82,6 +82,7 @@ impl TestRegionDetector {
 
 struct Detector<'a> {
     buffer: &'a SourceBuffer,
+    control: &'a super::AnalysisControl<'a>,
 }
 
 fn children(node: Node<'_>) -> Vec<Node<'_>> {
@@ -90,11 +91,21 @@ fn children(node: Node<'_>) -> Vec<Node<'_>> {
 }
 
 /// One iterative traversal policy shared by attribute-based detectors.
-fn walk_regions<'tree>(root: Node<'tree>, mut visit: impl FnMut(&[Node<'tree>], usize) -> bool) {
+fn walk_regions<'tree>(
+    root: Node<'tree>,
+    control: &super::AnalysisControl<'_>,
+    mut visit: impl FnMut(&[Node<'tree>], usize) -> bool,
+) {
     let mut pending = vec![root];
     while let Some(parent) = pending.pop() {
+        if control.is_cancelled() {
+            break;
+        }
         let siblings = children(parent);
         for (index, node) in siblings.iter().copied().enumerate() {
+            if control.is_cancelled() {
+                break;
+            }
             if is_comment(node)
                 || matches!(
                     node.kind(),
@@ -188,6 +199,9 @@ impl Detector<'_> {
         });
         let mut output: Vec<TestRegion> = Vec::new();
         for region in regions {
+            if self.control.is_cancelled() {
+                break;
+            }
             if let Some(previous) = output.last_mut() {
                 let adjacent = previous.byte_range.end >= region.byte_range.start
                     || self.buffer.data[previous.byte_range.end..region.byte_range.start]
@@ -213,6 +227,7 @@ fn is_comment(node: Node<'_>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::LanguageRegistry;
     use super::*;
 
     fn detected(path: &str, source: &str) -> TestDetection {

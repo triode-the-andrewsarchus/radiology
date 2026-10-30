@@ -19,6 +19,9 @@ impl Truth {
 }
 
 fn predicate(tokens: &[Node<'_>], detector: &Detector<'_>, testing: bool, depth: usize) -> Truth {
+    if detector.control.is_cancelled() {
+        return Truth::Unknown;
+    }
     if depth > 64 {
         return Truth::Unknown;
     }
@@ -111,6 +114,9 @@ impl Detector<'_> {
 
     pub(super) fn rust_body_test_only(&self, body: Node<'_>) -> bool {
         for node in children(body) {
+            if self.control.is_cancelled() {
+                break;
+            }
             match node.kind() {
                 "inner_attribute_item" => {
                     if self.rust_attribute_test_only(node, false) {
@@ -125,7 +131,7 @@ impl Detector<'_> {
     }
 
     pub(super) fn rust_regions(&self, root: Node<'_>, output: &mut Vec<TestRegion>) {
-        walk_regions(root, |siblings, index| {
+        walk_regions(root, self.control, |siblings, index| {
             let node = siblings[index];
             if attribute_or_comment(node) {
                 return false;

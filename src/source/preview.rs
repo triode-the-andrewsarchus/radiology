@@ -184,7 +184,19 @@ fn prepare(
         .byte_range(&buffer, &target.range)
         .filter(|range| !range.is_empty())
         .ok_or("The index no longer matches this source. Reindex to refresh its preview.")?;
-    excerpt(&buffer, target, &range, cancel)
+    excerpt(&buffer, target, &range, cancel, deadline)
+}
+
+fn definition_end_line(
+    buffer: &SourceBuffer,
+    byte: usize,
+    cancel: &AtomicBool,
+    deadline: Instant,
+) -> Result<Option<usize>, String> {
+    let symbols =
+        SymbolExtractor::extract_cancellable(buffer, || check_source(cancel, deadline).is_err());
+    check_source(cancel, deadline)?;
+    Ok(declaration_end(&symbols?, byte).map(|end| buffer.line_at_byte(end.saturating_sub(1))))
 }
 
 fn excerpt(
@@ -192,6 +204,7 @@ fn excerpt(
     target: &PreviewTarget,
     range: &Range<usize>,
     cancel: &AtomicBool,
+    deadline: Instant,
 ) -> Result<SourcePreview, String> {
     let first = buffer.line_at_byte(range.start);
     let (start, end, limit, stop_at_blank) = match target.kind {
@@ -202,17 +215,14 @@ fn excerpt(
             false,
         ),
         PreviewKind::Definition => {
-            let symbols = SymbolExtractor::extract(buffer);
-            check_cancel(cancel)?;
-            let end = declaration_end(&symbols, range.start)
-                .map(|byte| buffer.line_at_byte(byte.saturating_sub(1)));
+            let end = definition_end_line(buffer, range.start, cancel, deadline)?;
             (first, end.unwrap_or(buffer.line_count()), 12, end.is_none())
         }
     };
     let mut lines = Vec::new();
     let mut number = start;
     while number <= end && lines.len() < limit {
-        check_cancel(cancel)?;
+        check_source(cancel, deadline)?;
         if stop_at_blank && number > first && buffer.line_text(number).trim().is_empty() {
             break;
         }

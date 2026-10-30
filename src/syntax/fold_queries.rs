@@ -3,23 +3,22 @@
 use super::{FoldKind, FoldRange};
 use crate::source::SourceBuffer;
 use std::{collections::BTreeMap, ops::Range};
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Node, Query};
 
 pub(super) fn extract(
     buffer: &SourceBuffer,
     root: Node<'_>,
     query: &Query,
     fact_limit: usize,
+    control: &super::AnalysisControl<'_>,
 ) -> Result<Vec<FoldRange>, String> {
-    let mut cursor = QueryCursor::new();
-    cursor.set_match_limit(65_536);
     let names = query.capture_names();
     let mut folds = BTreeMap::<(usize, usize), FoldRange>::new();
     let mut declarations = Vec::<Range<usize>>::new();
     let mut import_members = 0usize;
-    let mut matches = cursor.matches(query, root, &buffer.data[..]);
-    while let Some(found) = matches.next() {
+    super::queries::visit_matches(query, root, &buffer.data, control, "Folding", |found| {
         for capture in found.captures {
+            control.check()?;
             let name = names[capture.index as usize];
             let range = capture.node.byte_range();
             if name.starts_with("symbol.") {
@@ -27,7 +26,7 @@ pub(super) fn extract(
             } else if let Some(kind) = fold_kind(name) {
                 let range = if name == "fold.imports.member" {
                     import_members += 1;
-                    import_group(capture.node)
+                    import_group(capture.node, control)
                 } else {
                     Some(range)
                 };
@@ -53,14 +52,12 @@ pub(super) fn extract(
                 return Err("Folding query exceeded its fact limit".into());
             }
         }
-    }
-    drop(matches);
-    if cursor.did_exceed_match_limit() {
-        return Err("Folding query exceeded its match limit".into());
-    }
+        Ok(())
+    })?;
     declarations.sort_by_key(|range| (range.start, range.end));
     let mut folds: Vec<_> = folds.into_values().collect();
     for fold in &mut folds {
+        control.check()?;
         let start = declarations.partition_point(|range| range.start < fold.byte_range.start);
         fold.contains_declarations = declarations[start..]
             .iter()
@@ -91,9 +88,12 @@ fn fold_kind(name: &str) -> Option<FoldKind> {
 
 // kotlin-ng has no import_list node. Reconstruct only a parsed sibling run;
 // comments may separate members, but errors and declarations must stay visible.
-fn import_group(node: Node<'_>) -> Option<Range<usize>> {
+fn import_group(node: Node<'_>, control: &super::AnalysisControl<'_>) -> Option<Range<usize>> {
     let mut previous = node.prev_named_sibling();
     while let Some(sibling) = previous {
+        if control.is_cancelled() {
+            return None;
+        }
         match sibling.kind() {
             "import" => return None, // The first member already owns this run.
             "line_comment" | "block_comment" => previous = sibling.prev_named_sibling(),
@@ -103,6 +103,9 @@ fn import_group(node: Node<'_>) -> Option<Range<usize>> {
     let mut range = node.byte_range();
     let mut next = node.next_named_sibling();
     while let Some(sibling) = next {
+        if control.is_cancelled() {
+            return None;
+        }
         match sibling.kind() {
             "import" => range.end = sibling.end_byte(),
             "line_comment" | "block_comment" => {}

@@ -250,7 +250,10 @@ impl CallGraphWorker {
         if !self.index.matches_buffer(&buffer) {
             return Err(NoBodyReason::NotIndexed);
         }
-        let syntax = DocumentSyntax::analyze(&buffer);
+        let syntax = DocumentSyntax::analyze_cancellable(&buffer, || {
+            check_source(cancel, deadline).is_err()
+        })
+        .map_err(|_| NoBodyReason::Unreadable)?;
         Ok(Arc::new(GraphFile {
             buffer,
             calls: Arc::new(syntax.calls),

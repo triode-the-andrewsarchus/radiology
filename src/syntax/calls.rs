@@ -3,7 +3,7 @@
 use super::SupportedGrammar;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
-use tree_sitter::{Node, QueryCursor, StreamingIterator};
+use tree_sitter::Node;
 
 /// A parsed call expression; syntax alone does not establish a semantic edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,7 +108,21 @@ impl CallSites {
         root: Node<'_>,
         buffer: &crate::source::SourceBuffer,
     ) -> Self {
-        match extract(grammar, root, &buffer.data) {
+        Self::from_tree_cancellable(
+            grammar,
+            root,
+            buffer,
+            &super::AnalysisControl::new(&|| false),
+        )
+    }
+
+    pub(super) fn from_tree_cancellable(
+        grammar: SupportedGrammar,
+        root: Node<'_>,
+        buffer: &crate::source::SourceBuffer,
+        control: &super::AnalysisControl<'_>,
+    ) -> Self {
+        match extract(grammar, root, &buffer.data, control) {
             Ok((sites, scopes)) => Self {
                 sites,
                 scopes,
@@ -138,16 +152,14 @@ fn extract(
     grammar: SupportedGrammar,
     root: Node<'_>,
     bytes: &[u8],
+    control: &super::AnalysisControl<'_>,
 ) -> Result<(Vec<CallSite>, Vec<CallableScope>), String> {
     let query = super::queries::query(grammar, super::queries::QueryRole::Calls)?;
     let names = query.capture_names();
-    let mut cursor = QueryCursor::new();
-    cursor.set_match_limit(65_536);
     let mut scopes = BTreeMap::new();
     let mut named = BTreeMap::new();
     let mut fallback = BTreeSet::new();
-    let mut matches = cursor.matches(query, root, bytes);
-    while let Some(found) = matches.next() {
+    super::queries::visit_matches(query, root, bytes, control, "Call", |found| {
         if let Some(capture) = found
             .captures
             .iter()
@@ -161,18 +173,18 @@ fn extract(
                 (scope.range.start, std::cmp::Reverse(scope.range.end)),
                 scope,
             );
-            continue;
+            return Ok(());
         }
         let Some(site) = found.captures.iter().find(|capture| {
             let name = names[capture.index as usize];
             name == "call" || (name.starts_with("call.") && name != "call.name")
         }) else {
-            continue;
+            return Ok(());
         };
         let range = site.node.byte_range();
         let key = (range.start, range.end);
         if range.end > bytes.len() {
-            continue;
+            return Ok(());
         }
         let kind = names[site.index as usize];
         if kind == "call.any" {
@@ -192,12 +204,10 @@ fn extract(
                 });
             }
         }
-    }
-    drop(matches);
-    if cursor.did_exceed_match_limit() {
-        return Err("Call query exceeded its match limit".into());
-    }
+        Ok(())
+    })?;
     for (start, end) in fallback {
+        control.check()?;
         named.entry((start, end)).or_insert(CallSite {
             kind: "dynamic".into(),
             name: None,
@@ -215,11 +225,15 @@ fn extract(
         )
     });
     let scopes: Vec<_> = scopes.into_values().collect();
-    assign_owners(&mut sites, &scopes);
+    assign_owners(&mut sites, &scopes, control)?;
     Ok((sites, scopes))
 }
 
-fn assign_owners(sites: &mut [CallSite], scopes: &[CallableScope]) {
+fn assign_owners(
+    sites: &mut [CallSite],
+    scopes: &[CallableScope],
+    control: &super::AnalysisControl<'_>,
+) -> Result<(), String> {
     // Scopes are nested/disjoint parse nodes. Sweep by call start with a stack,
     // avoiding a whole-scope search for every call in a large document.
     let mut order: Vec<_> = (0..sites.len()).collect();
@@ -227,6 +241,7 @@ fn assign_owners(sites: &mut [CallSite], scopes: &[CallableScope]) {
     let mut next = 0;
     let mut active = Vec::<usize>::new();
     for i in order {
+        control.check()?;
         let byte = sites[i].range.start;
         while next < scopes.len() && scopes[next].range.start <= byte {
             while active
@@ -246,6 +261,7 @@ fn assign_owners(sites: &mut [CallSite], scopes: &[CallableScope]) {
         }
         sites[i].owner = active.last().copied();
     }
+    Ok(())
 }
 
 #[cfg(test)]

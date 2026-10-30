@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Shared native analysis cancellation (Codex)
+
+Tree-sitter parsing and query matching now use native progress callbacks with one
+latched analysis guard. Shared match traversal replaces duplicated cursor loops.
+Outline/test/occurrence walks check retirement between nodes or byte blocks;
+whole-document cancellation discards partial facts instead of returning fallback
+syntax. Source loading, caller tracing, graph bodies and definition previews pass
+their actual cancellation/deadline predicates through analysis. Uncancelled public
+APIs retain their results. Shared coloring and definition-end preparation keep the
+modified pipeline below complexity thresholds. Four new tests prove actual parser
+and no-match query interruption, latched stop pulses, staged cancellation, manual
+walk stops and fresh recovery. Full gates pass 346 app tests (one external-Clang
+fixture ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and
+rustdoc. Architecture adds no hotspot/cycle/clone group; only two verified baseline
+fragments remain flagged. Native large-file replacement acceptance is next. Full
+parity remains open, including SCIP/PR process lifecycle, caches, provisioning and
+PR mapping, broader UI/accessibility/scaling and sibling palette/chrome reuse.
+Commit and push every increment.
+
 ## 2026-10-30 — Semantic job source cancellation and cache safety (Codex)
 
 Previews, reference queries, incoming callers and Critical Lens now pass their

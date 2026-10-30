@@ -165,30 +165,63 @@ pub(super) fn visit_captures<'tree>(
     role: QueryRole,
     root: tree_sitter::Node<'tree>,
     limit: usize,
+    control: &super::AnalysisControl<'_>,
     mut visit: impl FnMut(&'static str, tree_sitter::Node<'tree>, usize),
 ) -> Result<(), String> {
-    use tree_sitter::StreamingIterator;
     let query = query(grammar, role)?;
+    let mut count = 0;
+    visit_matches(
+        query,
+        root,
+        &buffer.data,
+        control,
+        &format!("{role:?}"),
+        |found| {
+            for capture in found.captures {
+                control.check()?;
+                count += 1;
+                if count > limit {
+                    return Err(format!("{role:?} query exceeded its fact limit"));
+                }
+                visit(
+                    query.capture_names()[capture.index as usize],
+                    capture.node,
+                    found.pattern_index,
+                );
+            }
+            Ok(())
+        },
+    )
+}
+
+/// Shares match bounds and native progress interruption across all query roles.
+pub(super) fn visit_matches<'tree>(
+    query: &Query,
+    root: tree_sitter::Node<'tree>,
+    bytes: &[u8],
+    control: &super::AnalysisControl<'_>,
+    role: &str,
+    mut visit: impl FnMut(&tree_sitter::QueryMatch<'_, 'tree>) -> Result<(), String>,
+) -> Result<(), String> {
+    use tree_sitter::StreamingIterator;
+    control.check()?;
     let mut cursor = tree_sitter::QueryCursor::new();
     cursor.set_match_limit(65_536);
-    let mut count = 0;
-    let mut matches = cursor.matches(query, root, &buffer.data[..]);
+    let mut progress = |_: &tree_sitter::QueryCursorState| control.is_cancelled();
+    let mut matches = cursor.matches_with_options(
+        query,
+        root,
+        bytes,
+        tree_sitter::QueryCursorOptions::new().progress_callback(&mut progress),
+    );
     while let Some(found) = matches.next() {
-        for capture in found.captures {
-            count += 1;
-            if count > limit {
-                return Err(format!("{role:?} query exceeded its fact limit"));
-            }
-            visit(
-                query.capture_names()[capture.index as usize],
-                capture.node,
-                found.pattern_index,
-            );
-        }
+        control.check()?;
+        visit(found)?;
     }
     drop(matches);
+    control.check()?;
     if cursor.did_exceed_match_limit() {
-        return Err(format!("{role:?} query exceeded its match limit"));
+        return Err(format!("{role} query exceeded its match limit"));
     }
     Ok(())
 }

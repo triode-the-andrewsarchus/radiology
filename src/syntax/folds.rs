@@ -264,13 +264,14 @@ impl FoldDetector {
         super::DocumentSyntax::analyze(buffer).folds
     }
 
-    pub(crate) fn from_tree(
+    pub(super) fn from_tree(
         buffer: &SourceBuffer,
         grammar: super::SupportedGrammar,
         root: tree_sitter::Node<'_>,
+        control: &super::AnalysisControl<'_>,
     ) -> Result<Vec<FoldRange>, String> {
         let query = super::queries::query(grammar, super::queries::QueryRole::Folds)?;
-        super::fold_queries::extract(buffer, root, query, 200_000)
+        super::fold_queries::extract(buffer, root, query, 200_000, control)
     }
 }
 
