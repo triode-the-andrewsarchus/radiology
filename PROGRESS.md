@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Cancellable SCIP decoding and semantic-map construction (Codex)
+
+Nested protobuf readers now inherit the import/generation cancellation predicate,
+including packed coordinates, relationships, signatures and chunked string copies.
+A typed Cancelled error discards incomplete decoding. Length checks avoid overflow
+and over-wide varints are rejected. Semantic-map construction checks each document,
+symbol and occurrence plus derived maps/search; document/search stages replace
+the previous large constructor, and fallback symbols avoid a cloned ID list.
+Imports, generated outputs and normalized-cache map construction use these paths.
+Four new tests exercise nested stop checkpoints, large packed/Unicode data, safe
+malformed lengths/varints and every assembly checkpoint with fresh semantic recovery.
+Full checks pass 350 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Architecture is neutral:
+assembly stages are CCN 13/12/9 versus the previous 21; the renamed wire-root
+decoder retains its existing CCN 11/cognitive 34. No clone/cycle growth. Native
+large-index Cancel/reload acceptance is next. Full parity remains open, including
+normalized-cache JSON encode/decode interruption, PR process lifecycle, caches,
+provisioning/provenance, PR mapping and final UI/accessibility/scaling/sibling reuse.
+Commit and push every increment.
+
 ## 2026-10-30 — Native analysis cancellation acceptance (Codex)
 
 Native parser/query/walk retirement committed/pushed as `895f5c6`. Native acceptance

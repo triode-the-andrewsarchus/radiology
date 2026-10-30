@@ -17,6 +17,17 @@ pub enum ProtobufError {
     /// String payload was not valid UTF-8.
     #[error("Invalid UTF-8 string")]
     InvalidUtf8,
+    /// The owner retired decoding or derived index construction.
+    #[error("SCIP processing cancelled")]
+    Cancelled,
+}
+
+pub(super) fn check_cancelled(cancelled: &(dyn Fn() -> bool + Sync)) -> Result<(), ProtobufError> {
+    if cancelled() {
+        Err(ProtobufError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 /// Protobuf wire types supported by the reader.
@@ -53,13 +64,31 @@ impl WireType {
 pub struct ProtobufReader<'a> {
     data: &'a [u8],
     offset: usize,
+    cancelled: Option<&'a (dyn Fn() -> bool + Sync)>,
 }
 
 impl<'a> ProtobufReader<'a> {
     /// Creates a reader over the given byte slice.
     #[must_use]
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, offset: 0 }
+        Self {
+            data,
+            offset: 0,
+            cancelled: None,
+        }
+    }
+
+    fn check(&self) -> Result<(), ProtobufError> {
+        self.cancelled.map_or(Ok(()), check_cancelled)
+    }
+
+    fn message(&mut self) -> Result<Self, ProtobufError> {
+        let data = self.read_length_delimited()?;
+        Ok(Self {
+            data,
+            offset: 0,
+            cancelled: self.cancelled,
+        })
     }
 
     /// Returns `true` if all bytes have been consumed.
@@ -74,6 +103,7 @@ impl<'a> ProtobufReader<'a> {
     ///
     /// Returns [`ProtobufError`] if reading fails.
     pub fn read_tag(&mut self) -> Result<Option<(u32, WireType)>, ProtobufError> {
+        self.check()?;
         if self.is_at_end() {
             return Ok(None);
         }
@@ -89,13 +119,17 @@ impl<'a> ProtobufReader<'a> {
     /// # Errors
     ///
     /// Returns [`ProtobufError::Truncated`] if the stream ends before the varint terminates.
-    /// Returns [`ProtobufError::MalformedVarint`] if shift exceeds 64 bits.
+    /// Returns [`ProtobufError::MalformedVarint`] if the encoded value exceeds 64 bits.
     pub fn read_varint(&mut self) -> Result<u64, ProtobufError> {
+        self.check()?;
         let mut result = 0u64;
         let mut shift = 0u32;
         while self.offset < self.data.len() {
             let byte = self.data[self.offset];
             self.offset += 1;
+            if shift == 63 && byte > 1 {
+                return Err(ProtobufError::MalformedVarint);
+            }
             result |= ((byte & 0x7F) as u64) << shift;
             if byte & 0x80 == 0 {
                 return Ok(result);
@@ -123,8 +157,8 @@ impl<'a> ProtobufReader<'a> {
     ///
     /// Returns [`ProtobufError::Truncated`] if the slice length extends beyond available data.
     pub fn read_length_delimited(&mut self) -> Result<&'a [u8], ProtobufError> {
-        let len = self.read_varint()? as usize;
-        if self.offset + len > self.data.len() {
+        let len = usize::try_from(self.read_varint()?).map_err(|_| ProtobufError::Truncated)?;
+        if len > self.data.len().saturating_sub(self.offset) {
             return Err(ProtobufError::Truncated);
         }
         let slice = &self.data[self.offset..self.offset + len];
@@ -139,7 +173,15 @@ impl<'a> ProtobufReader<'a> {
     /// Returns [`ProtobufError::InvalidUtf8`] if bytes are not valid UTF-8.
     pub fn read_string(&mut self) -> Result<String, ProtobufError> {
         let bytes = self.read_length_delimited()?;
-        String::from_utf8(bytes.to_vec()).map_err(|_| ProtobufError::InvalidUtf8)
+        self.check()?;
+        let mut output = Vec::with_capacity(bytes.len());
+        for chunk in bytes.chunks(64 * 1024) {
+            self.check()?;
+            output.extend_from_slice(chunk);
+        }
+        let text = String::from_utf8(output).map_err(|_| ProtobufError::InvalidUtf8);
+        self.check()?;
+        text
     }
 
     /// Reads packed repeated 32-bit integer values.
@@ -148,12 +190,12 @@ impl<'a> ProtobufReader<'a> {
     ///
     /// Returns [`ProtobufError`] if payload fails decoding.
     pub fn read_packed_int32(&mut self) -> Result<Vec<i32>, ProtobufError> {
-        let bytes = self.read_length_delimited()?;
-        let mut reader = ProtobufReader::new(bytes);
+        let mut reader = self.message()?;
         let mut out = Vec::new();
         while !reader.is_at_end() {
             out.push(reader.read_int32()?);
         }
+        reader.check()?;
         Ok(out)
     }
 
@@ -186,6 +228,7 @@ impl<'a> ProtobufReader<'a> {
     ///
     /// Returns [`ProtobufError`] if the field extends past the end of data.
     pub fn skip_field(&mut self, wire: WireType) -> Result<(), ProtobufError> {
+        self.check()?;
         match wire {
             WireType::Varint => {
                 self.read_varint()?;
@@ -197,11 +240,7 @@ impl<'a> ProtobufReader<'a> {
                 self.offset += 8;
             }
             WireType::LengthDelimited => {
-                let len = self.read_varint()? as usize;
-                if self.offset + len > self.data.len() {
-                    return Err(ProtobufError::Truncated);
-                }
-                self.offset += len;
+                self.read_length_delimited()?;
             }
             WireType::Fixed32 => {
                 if self.offset + 4 > self.data.len() {
@@ -351,21 +390,31 @@ impl ScipIndex {
     ///
     /// Returns [`ProtobufError`] if decoding fails.
     pub fn decode(bytes: &[u8]) -> Result<Self, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+        Self::decode_cancellable(bytes, || false)
+    }
+
+    pub(crate) fn decode_cancellable(
+        bytes: &[u8],
+        cancelled: impl Fn() -> bool + Sync,
+    ) -> Result<Self, ProtobufError> {
+        let mut reader = ProtobufReader {
+            data: bytes,
+            offset: 0,
+            cancelled: Some(&cancelled),
+        };
         let mut index = ScipIndex::default();
 
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
                 (1, WireType::LengthDelimited) => {
-                    index.text_document_encoding =
-                        Self::decode_encoding(reader.read_length_delimited()?)?;
+                    index.text_document_encoding = Self::decode_encoding(reader.message()?)?;
                 }
                 (2, WireType::LengthDelimited) => {
-                    let doc_bytes = reader.read_length_delimited()?;
+                    let doc_bytes = reader.message()?;
                     index.documents.push(Self::decode_document(doc_bytes)?);
                 }
                 (3, WireType::LengthDelimited) => {
-                    let sym_bytes = reader.read_length_delimited()?;
+                    let sym_bytes = reader.message()?;
                     index
                         .external_symbols
                         .push(Self::decode_symbol_info(sym_bytes)?);
@@ -377,8 +426,7 @@ impl ScipIndex {
         Ok(index)
     }
 
-    fn decode_encoding(bytes: &[u8]) -> Result<i32, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_encoding(mut reader: ProtobufReader<'_>) -> Result<i32, ProtobufError> {
         let mut encoding = 0;
         while let Some((field, wire)) = reader.read_tag()? {
             if field == 4 && wire == WireType::Varint {
@@ -390,8 +438,7 @@ impl ScipIndex {
         Ok(encoding)
     }
 
-    fn decode_document(bytes: &[u8]) -> Result<ScipDocument, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_document(mut reader: ProtobufReader<'_>) -> Result<ScipDocument, ProtobufError> {
         let mut doc = ScipDocument::default();
 
         while let Some((field, wire)) = reader.read_tag()? {
@@ -400,11 +447,11 @@ impl ScipIndex {
                     doc.relative_path = reader.read_string()?;
                 }
                 (2, WireType::LengthDelimited) => {
-                    let occ_bytes = reader.read_length_delimited()?;
+                    let occ_bytes = reader.message()?;
                     doc.occurrences.push(Self::decode_occurrence(occ_bytes)?);
                 }
                 (3, WireType::LengthDelimited) => {
-                    let sym_bytes = reader.read_length_delimited()?;
+                    let sym_bytes = reader.message()?;
                     doc.symbols.push(Self::decode_symbol_info(sym_bytes)?);
                 }
                 (4, WireType::LengthDelimited) => {
@@ -418,8 +465,7 @@ impl ScipIndex {
         Ok(doc)
     }
 
-    fn decode_occurrence(bytes: &[u8]) -> Result<ScipOccurrence, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_occurrence(mut reader: ProtobufReader<'_>) -> Result<ScipOccurrence, ProtobufError> {
         let mut occ = ScipOccurrence::default();
         let mut packed_range: Vec<i32> = Vec::new();
         let mut packed_enclosing: Vec<i32> = Vec::new();
@@ -441,19 +487,19 @@ impl ScipIndex {
                     reader.read_repeated_int32(wire, &mut packed_enclosing)?;
                 }
                 (8, WireType::LengthDelimited) => {
-                    let msg = reader.read_length_delimited()?;
+                    let msg = reader.message()?;
                     typed_range = Some(Self::decode_single_line_range(msg)?);
                 }
                 (9, WireType::LengthDelimited) => {
-                    let msg = reader.read_length_delimited()?;
+                    let msg = reader.message()?;
                     typed_range = Some(Self::decode_multi_line_range(msg)?);
                 }
                 (10, WireType::LengthDelimited) => {
-                    let msg = reader.read_length_delimited()?;
+                    let msg = reader.message()?;
                     typed_enclosing = Some(Self::decode_single_line_range(msg)?);
                 }
                 (11, WireType::LengthDelimited) => {
-                    let msg = reader.read_length_delimited()?;
+                    let msg = reader.message()?;
                     typed_enclosing = Some(Self::decode_multi_line_range(msg)?);
                 }
                 (_, wire) => reader.skip_field(wire)?,
@@ -468,8 +514,9 @@ impl ScipIndex {
         Ok(occ)
     }
 
-    fn decode_single_line_range(bytes: &[u8]) -> Result<Option<ScipRange>, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_single_line_range(
+        mut reader: ProtobufReader<'_>,
+    ) -> Result<Option<ScipRange>, ProtobufError> {
         let mut line = 0;
         let mut start = 0;
         let mut end = 0;
@@ -484,8 +531,9 @@ impl ScipIndex {
         Ok(ScipRange::from_packed(&[line, start, end]))
     }
 
-    fn decode_multi_line_range(bytes: &[u8]) -> Result<Option<ScipRange>, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_multi_line_range(
+        mut reader: ProtobufReader<'_>,
+    ) -> Result<Option<ScipRange>, ProtobufError> {
         let mut start_line = 0;
         let mut start_col = 0;
         let mut end_line = 0;
@@ -504,8 +552,9 @@ impl ScipIndex {
         ]))
     }
 
-    fn decode_symbol_info(bytes: &[u8]) -> Result<ScipSymbolInformation, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_symbol_info(
+        mut reader: ProtobufReader<'_>,
+    ) -> Result<ScipSymbolInformation, ProtobufError> {
         let mut sym = ScipSymbolInformation::default();
 
         while let Some((field, wire)) = reader.read_tag()? {
@@ -517,7 +566,7 @@ impl ScipIndex {
                     sym.documentation.push(reader.read_string()?);
                 }
                 (4, WireType::LengthDelimited) => {
-                    let rel_bytes = reader.read_length_delimited()?;
+                    let rel_bytes = reader.message()?;
                     sym.relationships
                         .push(Self::decode_relationship(rel_bytes)?);
                 }
@@ -529,8 +578,7 @@ impl ScipIndex {
                 }
                 (7, WireType::LengthDelimited) => {
                     // `Signature` (historically a `Document`): only `text` (field 5) is used.
-                    let sig_bytes = reader.read_length_delimited()?;
-                    let mut sig_reader = ProtobufReader::new(sig_bytes);
+                    let mut sig_reader = reader.message()?;
                     while let Some((sig_field, sig_wire)) = sig_reader.read_tag()? {
                         if sig_field == 5 && sig_wire == WireType::LengthDelimited {
                             sym.signature = sig_reader.read_string()?;
@@ -549,8 +597,9 @@ impl ScipIndex {
         Ok(sym)
     }
 
-    fn decode_relationship(bytes: &[u8]) -> Result<ScipRelationship, ProtobufError> {
-        let mut reader = ProtobufReader::new(bytes);
+    fn decode_relationship(
+        mut reader: ProtobufReader<'_>,
+    ) -> Result<ScipRelationship, ProtobufError> {
         let mut rel = ScipRelationship::default();
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
@@ -630,7 +679,7 @@ mod tests {
         occ_bytes.push(enclosing_packed.len() as u8);
         occ_bytes.extend_from_slice(&enclosing_packed);
 
-        let occ = ScipIndex::decode_occurrence(&occ_bytes).unwrap();
+        let occ = ScipIndex::decode_occurrence(ProtobufReader::new(&occ_bytes)).unwrap();
         assert_eq!(occ.symbol, "local 1");
         assert_eq!(occ.symbol_roles, 1);
         assert!(occ.is_definition());
@@ -693,7 +742,7 @@ mod tests {
         sym_bytes.push(enc.len() as u8);
         sym_bytes.extend_from_slice(enc);
 
-        let info = ScipIndex::decode_symbol_info(&sym_bytes).unwrap();
+        let info = ScipIndex::decode_symbol_info(ProtobufReader::new(&sym_bytes)).unwrap();
         assert_eq!(info.symbol, "scip-rust/foo");
         assert_eq!(info.kind, 17);
         assert_eq!(info.display_name, "foo");
@@ -721,18 +770,27 @@ mod tests {
             );
         }
         assert!(ScipRange::from_packed(&[0, 1, 1]).is_some());
-        let typed_over_packed =
-            ScipIndex::decode_occurrence(&[0x0a, 3, 0, 0, 1, 0x42, 4, 0x10, 5, 0x18, 4]).unwrap();
+        let typed_over_packed = ScipIndex::decode_occurrence(ProtobufReader::new(&[
+            0x0a, 3, 0, 0, 1, 0x42, 4, 0x10, 5, 0x18, 4,
+        ]))
+        .unwrap();
         assert!(
             typed_over_packed.range.is_none(),
             "invalid typed coordinates must not fall back to a conflicting packed range"
         );
         assert!(ScipRange::from_packed(&[i32::MAX, 0, 1]).is_some());
-        assert!(ScipIndex::decode_single_line_range(&[0x10, 5, 0x18, 4])
-            .unwrap()
-            .is_none());
-        assert!(ScipIndex::decode_multi_line_range(&[0x08, 4, 0x18, 1])
-            .unwrap()
-            .is_none());
+        assert!(
+            ScipIndex::decode_single_line_range(ProtobufReader::new(&[0x10, 5, 0x18, 4]))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            ScipIndex::decode_multi_line_range(ProtobufReader::new(&[0x08, 4, 0x18, 1]))
+                .unwrap()
+                .is_none()
+        );
     }
 }
+
+#[cfg(test)]
+mod cancellation_tests;

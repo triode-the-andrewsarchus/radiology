@@ -22,3 +22,11 @@ pub(crate) fn occurrence(
         ..Default::default()
     }
 }
+
+/// Requests one deterministic retirement pulse within a real processing loop.
+pub(crate) fn cancel_at(
+    checks: &std::sync::atomic::AtomicUsize,
+    step: usize,
+) -> impl Fn() -> bool + Sync + '_ {
+    move || checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1 == step
+}
