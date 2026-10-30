@@ -1369,10 +1369,10 @@ fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_comm
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowDown));
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowDown));
     assert_eq!(app.reference_context.selected, Some(1));
-    assert!(app.reference_context.previews.is_empty());
+    assert!(app.reference_context.disclosures.is_empty());
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowRight));
     settle(&mut app);
-    let PreviewPhase::Loaded(preview) = app.reference_context.previews[&1].phase() else {
+    let PreviewPhase::Loaded(preview) = app.reference_context.disclosures[&1].phase() else {
         panic!("reference preview did not load");
     };
     assert_eq!(preview.path, "b.rs");
@@ -1383,7 +1383,7 @@ fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_comm
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(app.history.current(), history.as_ref());
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowLeft));
-    assert!(app.reference_context.previews.is_empty());
+    assert!(app.reference_context.disclosures.is_empty());
     assert!(reference_key(&mut app, &ctx, egui::Key::Escape));
     assert_eq!(app.reference_context.selected, None);
     assert!(reference_key(&mut app, &ctx, egui::Key::ArrowUp));
@@ -1394,6 +1394,45 @@ fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_comm
         Some("b.rs"),
         "Return ran under-caret definition navigation instead of reference commit"
     );
+    assert_eq!((app.caret_line, app.caret_col), (2, 4));
+    assert!(app.history.can_go_back());
+}
+
+#[test]
+fn caller_navigation_validates_trace_source_and_commits_history_only_on_success() {
+    use crate::ui::reference_list::ReferenceAction;
+    let (dir, mut app) = reader_with_reference_index();
+    app.find_references_at_caret();
+    settle(&mut app);
+    app.handle_reference_action(ReferenceAction::SetExpanded(0, true));
+    settle(&mut app);
+    let rows = &app.reference_context.disclosures[&0]
+        .callers()
+        .unwrap()
+        .rows;
+    assert_eq!(
+        rows.iter().map(|row| row.name.as_str()).collect::<Vec<_>>(),
+        ["alpha", "beta"]
+    );
+    let original = app.open_buffer.clone().unwrap();
+    let history = app.history.current().cloned();
+    std::fs::write(dir.path().join("repo/b.rs"), "fn beta() {}\n").unwrap();
+    app.handle_reference_action(ReferenceAction::CommitCaller(0, 1));
+    settle(&mut app);
+    assert!(Arc::ptr_eq(&original, app.open_buffer.as_ref().unwrap()));
+    assert_eq!(app.history.current(), history.as_ref());
+    assert!(app
+        .error
+        .as_ref()
+        .is_some_and(|error| error.contains("changed")));
+    std::fs::write(
+        dir.path().join("repo/b.rs"),
+        "fn beta() {\n    alpha();\n}\n",
+    )
+    .unwrap();
+    app.handle_reference_action(ReferenceAction::CommitCaller(0, 1));
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert_eq!((app.caret_line, app.caret_col), (2, 4));
     assert!(app.history.can_go_back());
 }
@@ -1429,20 +1468,20 @@ fn explicit_reference_selection_and_disclosures_survive_unchanged_file_navigatio
     settle(&mut app);
     app.reference_context.expand(1, true);
     settle(&mut app);
-    let original = app.reference_context.previews[&1].phase().clone();
+    let original = app.reference_context.disclosures[&1].phase().clone();
     app.open_file("b.rs");
     settle(&mut app);
     assert_eq!(app.reference_context.selected, Some(1));
-    assert_eq!(app.reference_context.previews[&1].phase(), &original);
+    assert_eq!(app.reference_context.disclosures[&1].phase(), &original);
     assert!(!app.reference_context.is_running());
     app.open_file("a.rs");
     settle(&mut app);
-    assert_eq!(app.reference_context.previews[&1].phase(), &original);
+    assert_eq!(app.reference_context.disclosures[&1].phase(), &original);
     app.handle_reference_action(crate::ui::reference_list::ReferenceAction::Commit(None));
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert_eq!(app.reference_context.selected, Some(1));
-    assert_eq!(app.reference_context.previews[&1].phase(), &original);
+    assert_eq!(app.reference_context.disclosures[&1].phase(), &original);
 }
 
 #[test]
@@ -1453,7 +1492,7 @@ fn changed_preview_destination_invalidates_disclosures_on_first_reader_visit() {
     app.reference_context.expand(1, true);
     settle(&mut app);
     assert!(matches!(
-        app.reference_context.previews[&1].phase(),
+        app.reference_context.disclosures[&1].phase(),
         crate::source::preview::PreviewPhase::Loaded(_)
     ));
     // b.rs has been read by the preview worker, but never opened by the reader.
@@ -1464,7 +1503,7 @@ fn changed_preview_destination_invalidates_disclosures_on_first_reader_visit() {
     .unwrap();
     app.open_file("b.rs");
     settle(&mut app);
-    assert!(app.reference_context.previews.is_empty());
+    assert!(app.reference_context.disclosures.is_empty());
     assert_eq!(app.reference_context.selected, None);
     assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
 }

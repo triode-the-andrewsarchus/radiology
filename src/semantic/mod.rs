@@ -7,6 +7,7 @@
 
 pub(crate) mod callees;
 pub mod caller_tree;
+pub mod disclosure;
 pub mod incoming_calls;
 pub mod index;
 pub mod indexing;

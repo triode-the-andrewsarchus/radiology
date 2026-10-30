@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Caller disclosure ownership and guarded navigation (Codex)
+
+ReferenceDisclosure now owns independent excerpt and caller jobs together.
+Collapse, target/index changes and pending-input rebinding retire both publication
+channels; expanded result queries retain valid disclosure state. Caller-only
+source reads join first-visit invalidation. Caller commits use exact trace digests
+and scalar columns through existing source navigation; changed files reject
+without source/history mutation. Three new controller/app tests plus strengthened
+retention checks pass. Full tests: 258 app tests (one external-Clang ignored),
+5 reader-text and 30 doctests; fmt and Clippy pass. UI rendering/Trace More and
+native tree acceptance remain in progress.
+
 ## 2026-10-30 — Validated incoming-call backend (Codex)
 
 Added a toolkit-independent source-validated caller trace following Swift

@@ -58,8 +58,8 @@ pub struct InspectorContent<'a> {
     /// Selected reference row, independent of source caret.
     pub selected_reference: Option<usize>,
     /// Per-row source disclosures with independently cancellable preparation.
-    pub reference_previews:
-        &'a std::collections::BTreeMap<usize, crate::source::preview::SourcePreviewLoader>,
+    pub reference_disclosures:
+        &'a std::collections::BTreeMap<usize, crate::semantic::disclosure::ReferenceDisclosure>,
     /// Effective automatic or explicitly pinned reference name.
     pub reference_target: Option<&'a str>,
     /// Whether Follow Caret should release a sticky reference target.
@@ -356,7 +356,7 @@ impl ContextInspector {
             theme,
             content.reference_results,
             content.selected_reference,
-            content.reference_previews,
+            content.reference_disclosures,
         ) {
             action = Some(InspectorAction::Reference(next));
         }
@@ -418,7 +418,7 @@ mod tests {
                             buffer: None,
                             reference_results: &ReferenceResults::default(),
                             selected_reference: None,
-                            reference_previews: &Default::default(),
+                            reference_disclosures: &Default::default(),
                             reference_target: None,
                             explicit_references: false,
                             references_loading: false,
