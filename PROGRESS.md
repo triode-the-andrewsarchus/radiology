@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — Caller arrow-focus correction (Codex)
+
+A three-control regression and rust-gdb trace show egui applying a second
+cardinal focus move at frame end after our ordered key dispatch. Caller controls
+now share the reference list navigation filter, including immediately requested
+programmatic focus. The corrected regression passes; Tab remains available.
+Caller headers show retained row counts and rows identify their source filename.
+Full gates pass 261 app tests, 5 reader-text tests and 30 doctests, fmt, Clippy,
+build and rustdoc. Final-build native caller navigation is being repeated.
+
 ## 2026-10-30 — Virtualized caller disclosure UI (Codex)
 
 Expanded references now render validated caller paths, stable identity colors,

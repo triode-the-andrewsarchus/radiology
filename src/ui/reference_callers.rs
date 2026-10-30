@@ -39,14 +39,16 @@ pub(super) fn show(
         egui::vec2(ui.available_width(), HEADER_HEIGHT),
         Sense::hover(),
     );
+    let title = match tree {
+        Some(tree) if loading => format!("Callers · {} rows · Tracing…", tree.rows.len()),
+        Some(tree) => format!("Callers · {} rows", tree.rows.len()),
+        None if loading => "Callers · Tracing…".into(),
+        None => "Callers".into(),
+    };
     ui.painter().text(
         header.left_center(),
         Align2::LEFT_CENTER,
-        if loading {
-            "Callers · Tracing…"
-        } else {
-            "Callers"
-        },
+        title,
         FontId::proportional(12.0),
         theme.text_secondary,
     );
@@ -81,6 +83,7 @@ pub(super) fn show(
             let response = ui
                 .interact(rect, control_id(reference, None), Sense::click())
                 .union(response);
+            super::commands::retain_inspector_keys(ui.ctx(), control_id(reference, None));
             ui.painter().text(
                 rect.left_center(),
                 Align2::LEFT_CENTER,
@@ -132,6 +135,7 @@ fn show_row(
         outer.max - egui::vec2(0.0, 1.0),
     );
     let response = ui.interact(rect, control_id(reference, Some(caller)), Sense::click());
+    super::commands::retain_inspector_keys(ui.ctx(), control_id(reference, Some(caller)));
     let color = caller_pill_color(&row.name, &row.location.path);
     ui.painter().rect_filled(
         rect,
@@ -147,7 +151,13 @@ fn show_row(
             .rect_stroke(rect, 3.0, egui::Stroke::new(1.0_f32, theme.accent));
     }
     let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-    let title = format!("{} · {}", row.name, row.line);
+    let file = row
+        .location
+        .path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&row.location.path);
+    let title = format!("{} · {}:{}", row.name, file, row.line);
     painter.text(
         rect.min + egui::vec2(5.0, 4.0),
         Align2::LEFT_TOP,
@@ -246,7 +256,7 @@ mod tests {
         }
         let last = last.unwrap();
         assert!(last.shapes.len() < 100);
-        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "caller999 · 1")));
+        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "caller999 · source.rs:1")));
         assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "L999")));
     }
 
@@ -278,7 +288,7 @@ mod tests {
             .shapes
             .iter()
             .find_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) if text.galley.job.text == "caller1 · 1" => {
+                egui::Shape::Text(text) if text.galley.job.text == "caller1 · source.rs:1" => {
                     Some(text.pos + egui::vec2(20.0, 5.0))
                 }
                 _ => None,

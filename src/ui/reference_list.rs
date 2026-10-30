@@ -237,18 +237,9 @@ impl ReferenceViewport {
         }
         if let Some(id) = self.pending_caller_focus.take() {
             ui.memory_mut(|memory| memory.request_focus(id));
+            super::commands::retain_inspector_keys(ui.ctx(), id);
         }
-        ui.memory_mut(|memory| {
-            memory.set_focus_lock_filter(
-                Self::focus_id(),
-                egui::EventFilter {
-                    horizontal_arrows: true,
-                    vertical_arrows: true,
-                    escape: true,
-                    ..Default::default()
-                },
-            )
-        });
+        super::commands::retain_inspector_keys(ui.ctx(), Self::focus_id());
         self.configure_rows(ui, results, previews);
         let nodes = &results.hits;
         let mut scroll = egui::ScrollArea::vertical()
@@ -584,6 +575,7 @@ mod tests {
         let ids = [
             super::super::reference_callers::control_id(4, Some(0)),
             super::super::reference_callers::control_id(4, Some(1)),
+            super::super::reference_callers::control_id(4, Some(2)),
         ];
         viewport.caller_controls = ids
             .iter()
@@ -618,6 +610,7 @@ mod tests {
                             let (rect, _) =
                                 ui.allocate_exact_size(egui::vec2(200.0, 44.0), Sense::hover());
                             ui.interact(rect, id, Sense::click());
+                            super::super::commands::retain_inspector_keys(ui.ctx(), id);
                         }
                     });
                 },
@@ -626,6 +619,7 @@ mod tests {
         };
         frame(&[]);
         ctx.memory_mut(|memory| memory.request_focus(ids[0]));
+        frame(&[]);
         assert_eq!(
             frame(&[Key::ArrowDown, Key::Enter]),
             [
