@@ -150,13 +150,19 @@ impl UnderCaretContext {
             .then(|| SCIPSymbolHeader::parse(&id.symbol))
             .flatten()
             .and_then(|header| {
-                header.package_name().map(|package| {
-                    if header.version.is_empty() || header.version == "." {
-                        package.to_owned()
-                    } else {
-                        format!("{package} {}", header.version)
-                    }
-                })
+                header
+                    .package_name()
+                    .filter(|package| !package.contains("://"))
+                    .map(|package| {
+                        if header.version.is_empty()
+                            || header.version == "."
+                            || header.version.contains("://")
+                        {
+                            package.to_owned()
+                        } else {
+                            format!("{package} {}", header.version)
+                        }
+                    })
             });
         let context = Self {
             id: id.clone(),

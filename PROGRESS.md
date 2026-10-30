@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-30 — Readable package labels (Codex)
+
+Package facts omit placeholder versions and source-URL fields, matching Swift,
+while preserving escaped package-name spaces. Parameterized metadata tests cover
+version, URL and placeholder cases. Full gates remain 273 app tests, 5 reader-text
+tests, 30 doctests, fmt, Clippy, build and rustdoc. Native acceptance at 96b86fd
+verifies local/global/Here/package states and implementation navigation; evidence
+is being recorded.
+
 ## 2026-10-30 — Source-interaction metadata refresh (Codex)
 
 Native pinning exposed viewport caret mutation whose CaretMoved event was

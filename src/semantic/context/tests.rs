@@ -143,19 +143,30 @@ fn locals_use_exact_scoped_unicode_occurrences_and_primed_definition_lines() {
 #[test]
 fn no_repository_definition_retains_package_facts_without_inventing_a_destination() {
     let buffer = SourceBuffer::from_str("a.rs", "target();");
-    let symbol = "rust-analyzer cargo dependency 2.3 target().";
-    let index = SemanticIndex::from_scip(ScipIndex {
-        documents: vec![document(
-            &buffer,
-            vec![site(&buffer, "target", false, symbol, false)],
-        )],
-        ..Default::default()
-    });
-    let context = prepare(&buffer, &index, 1);
-    assert_eq!(context.external_package.as_deref(), Some("dependency 2.3"));
-    assert_eq!(context.definition_count, 0);
-    assert!(context.destination.is_none());
-    assert_eq!(context.name, "target");
+    for (symbol, expected) in [
+        (
+            "rust-analyzer cargo dependency 2.3 target().",
+            "dependency 2.3",
+        ),
+        (
+            "rust-analyzer cargo dependency https://source/revision target().",
+            "dependency",
+        ),
+        ("rust-analyzer cargo my  crate . target().", "my crate"),
+    ] {
+        let index = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![document(
+                &buffer,
+                vec![site(&buffer, "target", false, symbol, false)],
+            )],
+            ..Default::default()
+        });
+        let context = prepare(&buffer, &index, 1);
+        assert_eq!(context.external_package.as_deref(), Some(expected));
+        assert_eq!(context.definition_count, 0);
+        assert!(context.destination.is_none());
+        assert_eq!(context.name, "target");
+    }
 }
 
 #[test]
