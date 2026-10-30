@@ -1,6 +1,6 @@
 //! Measured source viewport. Coordinates always refer to original UTF-8 bytes.
 
-use super::{paint_match, SourceView, SourceViewAction};
+use super::{for_each_match_rect, paint_match, SourceView, SourceViewAction};
 use crate::{
     critical::lens::SourceMode,
     source::{selection::OccurrencePinStore, ReviewRevision, SourceBuffer},
@@ -43,6 +43,7 @@ pub struct SourceViewport {
     preview: Option<(String, String, usize)>,
     destination: super::destination::DestinationFeedback,
     destination_frame: Option<super::destination::FeedbackFrame>,
+    occurrence_clicks: Option<(egui::Pos2, f64, u8)>,
 }
 
 pub(super) struct CanvasContent<'a> {
@@ -204,6 +205,7 @@ impl SourceViewport {
             self.rows = RowHeights::default();
         }
         if changed {
+            self.occurrence_clicks = None;
             self.selection = None;
             self.dragging = false;
             self.scroll_y = 0.0;
@@ -230,6 +232,15 @@ impl SourceViewport {
             ui.ctx().request_repaint_after(frame.next_frame);
         }
         let geometry = CanvasGeometry::new(ui, &content);
+        if ui.input(|input| {
+            input.pointer.primary_pressed()
+                && input
+                    .pointer
+                    .interact_pos()
+                    .is_none_or(|point| !geometry.code_rect.contains(point))
+        }) {
+            self.occurrence_clicks = None;
+        }
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
         ui.interact(
             geometry.code_rect,
@@ -510,9 +521,7 @@ impl SourceViewport {
                     ) {
                         action = Some(event);
                     }
-                    if response.double_clicked() {
-                        action = Some(SourceViewAction::PinAtByte(byte));
-                    }
+                    action = self.occurrence_click(ui, &response, byte).or(action);
                 }
             }
             if let Some(event) = self.context_menu(&response, content) {
@@ -686,6 +695,44 @@ impl SourceViewport {
         }
         ui.ctx().request_repaint();
         Some(move_caret(content, byte))
+    }
+
+    fn occurrence_click(
+        &mut self,
+        ui: &Ui,
+        response: &egui::Response,
+        byte: usize,
+    ) -> Option<SourceViewAction> {
+        if self
+            .selection
+            .is_some_and(|selection| selection.anchor != selection.focus)
+        {
+            self.occurrence_clicks = None;
+            return None;
+        }
+        if !response.clicked() {
+            return None;
+        }
+        if ui.input(|input| input.modifiers != Modifiers::NONE) {
+            self.occurrence_clicks = None;
+            return None;
+        }
+        let point = response.interact_pointer_pos()?;
+        let now = ui.input(|input| input.time);
+        // egui 0.27's global double-click count checks time only. Keep the
+        // source gesture local and use its same six-point / 300 ms tolerances.
+        let count = self
+            .occurrence_clicks
+            .filter(|(previous, time, _)| {
+                previous.distance(point) <= 6.0 && now >= *time && now - time < 0.3
+            })
+            .map_or(1, |(_, _, count)| count.saturating_add(1));
+        self.occurrence_clicks = Some((point, now, count));
+        match count {
+            1 => Some(SourceViewAction::SelectOccurrences(byte)),
+            2 => Some(SourceViewAction::PinAtByte(byte)),
+            _ => None,
+        }
     }
 
     fn row_for_byte(&self, byte: usize) -> Option<(usize, &SourceFragment)> {
@@ -1016,23 +1063,7 @@ impl SourceViewport {
                 );
             }
         }
-        for group in &content.pins.groups {
-            for range in group
-                .ranges
-                .iter()
-                .filter(|range| range.start < part.bytes.end && range.end > part.bytes.start)
-            {
-                paint_match(
-                    painter,
-                    galley,
-                    origin,
-                    part,
-                    &content.buffer.text,
-                    range.clone(),
-                    theme.occurrence_tint(group.color).gamma_multiply(0.35),
-                );
-            }
-        }
+        paint_occurrences(painter, galley, origin, part, content);
         painter.galley(origin, Arc::new(galley.clone()), theme.text_primary);
         let byte = content
             .buffer
@@ -1061,6 +1092,53 @@ fn move_caret(content: &mut CanvasContent<'_>, byte: usize) -> SourceViewAction 
         line,
         column,
         byte_offset: byte,
+    }
+}
+
+fn paint_occurrences(
+    painter: &egui::Painter,
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    part: &SourceFragment,
+    content: &CanvasContent<'_>,
+) {
+    let theme = content.theme;
+    let pins = content.pins.groups.iter().flat_map(|group| {
+        let base = theme.occurrence_color(group.color);
+        let fill = base.gamma_multiply(if theme.is_dark { 0.22 } else { 0.15 });
+        let stroke = Stroke::new(
+            1.4_f32,
+            base.gamma_multiply(if theme.is_dark { 0.88 } else { 0.72 }),
+        );
+        group.ranges.iter().map(move |range| (range, fill, stroke))
+    });
+    let transient = content.pins.ephemeral.iter().flat_map(|selection| {
+        selection.ranges.iter().map(move |range| {
+            let active = *range == selection.active;
+            let fill = theme
+                .accent
+                .gamma_multiply(if active { 0.28 } else { 0.16 });
+            let stroke = if active {
+                Stroke::new(1.0_f32, theme.accent.gamma_multiply(0.55))
+            } else {
+                Stroke::NONE
+            };
+            (range, fill, stroke)
+        })
+    });
+    for (range, fill, stroke) in pins.chain(transient).filter(|(range, _, _)| {
+        !range.is_empty() && range.start < part.bytes.end && range.end > part.bytes.start
+    }) {
+        for_each_match_rect(
+            galley,
+            origin,
+            part,
+            &content.buffer.text,
+            range.clone(),
+            |rect| {
+                painter.rect(rect.expand2(vec2(1.5, 0.0)), 2.5, fill, stroke);
+            },
+        );
     }
 }
 
@@ -1515,6 +1593,7 @@ mod tests {
         hover_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
         now: Option<f64>,
         last_action: Option<SourceViewAction>,
+        pins: OccurrencePinStore,
         function_shade: Option<Range<usize>>,
         theme: AppTheme,
         changes: Vec<Range<usize>>,
@@ -1541,6 +1620,7 @@ mod tests {
                 hover_inputs: None,
                 now: None,
                 last_action: None,
+                pins: Default::default(),
                 function_shade: None,
                 theme: AppTheme::dark(),
                 changes: Vec::new(),
@@ -1589,7 +1669,7 @@ mod tests {
                                 folds: &self.ranges,
                                 fold_store: &mut self.folds,
                                 changes: &self.changes,
-                                pins: &OccurrencePinStore::default(),
+                                pins: &self.pins,
                                 wrap: self.wrap,
                                 font_size: self.font_size,
                                 target: &mut self.target,
@@ -1636,6 +1716,117 @@ mod tests {
             reader.source = source;
             reader.frame(&ctx, Vec::new());
             assert_eq!(reader.viewport.scroll_y, 0.0);
+        }
+    }
+
+    #[test]
+    fn ordinary_click_selects_occurrences_but_drag_selection_does_not() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("café 😀 value value\n");
+        reader.now = Some(0.0);
+        let output = reader.frame(&ctx, Vec::new());
+        let (origin, galley) = text_shape(&output, "café 😀 value value");
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(8))
+                .center()
+                .to_vec2();
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        assert!(matches!(
+            reader.last_action,
+            Some(SourceViewAction::SelectOccurrences(_))
+        ));
+        let other = point + vec2(55.0, 0.0);
+        reader.now = Some(0.1);
+        reader.frame(&ctx, pointer(other, true));
+        reader.frame(&ctx, pointer(other, false));
+        assert!(
+            matches!(
+                reader.last_action,
+                Some(SourceViewAction::SelectOccurrences(_))
+            ),
+            "nearby-in-time clicks at different words are not a pin gesture"
+        );
+        reader.now = Some(0.2);
+        reader.frame(&ctx, pointer(other, true));
+        reader.frame(&ctx, pointer(other, false));
+        assert!(matches!(
+            reader.last_action,
+            Some(SourceViewAction::PinAtByte(_))
+        ));
+        reader.now = Some(0.25);
+        reader.frame(&ctx, pointer(other, true));
+        reader.frame(&ctx, pointer(other, false));
+        assert!(
+            !matches!(
+                reader.last_action,
+                Some(SourceViewAction::PinAtByte(_)) | Some(SourceViewAction::SelectOccurrences(_))
+            ),
+            "triple-clicks do not toggle another pin"
+        );
+        reader.now = Some(1.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point + vec2(35.0, 0.0), false));
+        assert!(!matches!(
+            reader.last_action,
+            Some(SourceViewAction::SelectOccurrences(_))
+        ));
+        assert!(reader
+            .viewport
+            .selection
+            .is_some_and(|selection| !selection.range().is_empty()));
+        assert!(
+            reader.viewport.occurrence_clicks.is_none(),
+            "dragging ends the preceding click sequence"
+        );
+    }
+
+    #[test]
+    fn transient_occurrences_use_distinct_active_stroke_and_skip_folded_bytes() {
+        for theme in [AppTheme::dark(), AppTheme::light()] {
+            let ctx = egui::Context::default();
+            let text = "fn f() { café();\n café();\n café();\n}\n";
+            let mut reader = Reader::new(text);
+            reader.theme = theme;
+            let ranges: Vec<_> = text
+                .match_indices("café")
+                .map(|(start, word)| start..start + word.len())
+                .collect();
+            reader.pins.ephemeral = Some(crate::source::selection::OccurrenceSelection {
+                symbol_name: "syntactic:f:café".into(),
+                label: "café".into(),
+                active: ranges[0].clone(),
+                ranges,
+            });
+            reader.pins.toggle_labeled_pin(
+                "pinned:café",
+                "café",
+                reader.pins.ephemeral.as_ref().unwrap().ranges.clone(),
+                0,
+            );
+            let selected = reader.pins.ephemeral.clone();
+            let output = reader.frame(&ctx, Vec::new());
+            let pin_base = reader
+                .theme
+                .occurrence_color(crate::source::selection::OccurrenceColor::Teal);
+            let pin_fill = pin_base.gamma_multiply(if reader.theme.is_dark { 0.22 } else { 0.15 });
+            assert_eq!(filled_bands(&output, pin_fill).len(), 3);
+            assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Rect(rect)
+                if rect.fill == pin_fill && rect.stroke.width == 1.4_f32
+                    && rect.stroke.color == pin_base.gamma_multiply(if reader.theme.is_dark { 0.88 } else { 0.72 }))));
+            let active = filled_bands(&output, reader.theme.accent.gamma_multiply(0.28));
+            let others = filled_bands(&output, reader.theme.accent.gamma_multiply(0.16));
+            assert_eq!((active.len(), others.len()), (1, 2));
+            assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Rect(rect)
+                if rect.fill == reader.theme.accent.gamma_multiply(0.28) && rect.stroke.color == reader.theme.accent.gamma_multiply(0.55))));
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            let output = reader.frame(&ctx, Vec::new());
+            assert!(filled_bands(&output, reader.theme.accent.gamma_multiply(0.28)).is_empty());
+            assert!(filled_bands(&output, reader.theme.accent.gamma_multiply(0.16)).is_empty());
+            assert_eq!(reader.pins.ephemeral, selected);
+            assert!(reader.viewport.selection.is_none());
         }
     }
 

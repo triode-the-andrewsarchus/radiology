@@ -116,10 +116,12 @@ impl RadiologyApp {
         }
     }
 
-    pub(super) fn pin_at_byte(&mut self, byte: usize) {
-        let Some(buffer) = &self.open_buffer else {
-            return;
-        };
+    fn resolve_occurrences(
+        &self,
+        byte: usize,
+    ) -> Option<crate::source::selection::OccurrenceSelection> {
+        use crate::source::selection::OccurrenceSelection;
+        let buffer = self.open_buffer.as_ref()?;
         let syntactic = self.syntactic_occurrences.selection(buffer, byte);
         if let Some(index) = self
             .semantic_index
@@ -142,28 +144,44 @@ impl RadiologyApp {
                     if syntactic.as_ref().is_none_or(|selection| {
                         selection.ranges.iter().all(|range| ranges.contains(range))
                     }) {
-                        let label = occurrence
+                        let active = occurrence
                             .range
                             .as_ref()
-                            .and_then(|range| index.byte_range(buffer, range))
-                            .and_then(|range| buffer.text.get(range))
-                            .unwrap_or(&occurrence.symbol);
-                        self.pin_store
-                            .toggle_labeled_pin(&occurrence.symbol, label, ranges, byte);
-                        return;
+                            .and_then(|range| index.byte_range(buffer, range))?;
+                        return Some(OccurrenceSelection {
+                            symbol_name: occurrence.symbol.clone(),
+                            label: buffer.text.get(active.clone())?.to_owned(),
+                            active,
+                            ranges,
+                        });
                     }
                 }
             }
         }
-        if let Some(selection) = syntactic {
-            let word = &buffer.text[selection.active];
-            let identity = format!(
-                "syntactic:{}:{}:{word}",
-                selection.scope.start, selection.scope.end
-            );
+        syntactic.map(|selection| {
+            let word = &buffer.text[selection.active.clone()];
+            OccurrenceSelection {
+                symbol_name: format!(
+                    "syntactic:{}:{}:{word}",
+                    selection.scope.start, selection.scope.end
+                ),
+                label: word.to_owned(),
+                active: selection.active,
+                ranges: selection.ranges,
+            }
+        })
+    }
+
+    pub(super) fn select_occurrences_at_byte(&mut self, byte: usize) {
+        self.pin_store.ephemeral = self.resolve_occurrences(byte);
+    }
+
+    pub(super) fn pin_at_byte(&mut self, byte: usize) {
+        if let Some(group) = self.resolve_occurrences(byte) {
             self.pin_store
-                .toggle_labeled_pin(&identity, word, selection.ranges, byte);
+                .toggle_labeled_pin(&group.symbol_name, &group.label, group.ranges, byte);
         }
+        self.pin_store.ephemeral = None;
     }
 
     pub(super) fn filters_changed(&mut self) {

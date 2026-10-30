@@ -53,6 +53,8 @@ pub enum SourceViewAction {
     JumpToSymbol(usize),
     /// Pins the indexed symbol or scoped lexical identifier at original bytes.
     PinAtByte(usize),
+    /// Selects a drawing-only occurrence group after an ordinary source click.
+    SelectOccurrences(usize),
     /// Removes the pin group identified by this document-scoped symbol key.
     RemovePin(String),
     /// Removes all pins from the current document.
@@ -370,6 +372,19 @@ fn paint_match(
     range: std::ops::Range<usize>,
     color: Color32,
 ) {
+    for_each_match_rect(galley, origin, part, source, range, |rect| {
+        painter.rect_filled(rect, 1.0, color);
+    });
+}
+
+fn for_each_match_rect(
+    galley: &egui::Galley,
+    origin: egui::Pos2,
+    part: &reader_text::ProjectedFragment,
+    source: &str,
+    range: std::ops::Range<usize>,
+    mut draw: impl FnMut(Rect),
+) {
     let first = part.char_index(source, range.start);
     let last = part.char_index(source, range.end);
     if first == last && (!range.is_empty() || !part.contains_byte(range.start)) {
@@ -383,11 +398,7 @@ fn paint_match(
         if from < to || (range.is_empty() && first >= row_start && first <= row_end) {
             let min = origin + egui::vec2(row.x_offset(from), row.min_y());
             let max = origin + egui::vec2(row.x_offset(to), row.max_y());
-            painter.rect_filled(
-                Rect::from_min_max(min, pos2(max.x.max(min.x + 2.0), max.y)),
-                1.0,
-                color,
-            );
+            draw(Rect::from_min_max(min, pos2(max.x.max(min.x + 2.0), max.y)));
         }
         row_start = row_end;
     }
@@ -422,9 +433,11 @@ fn show_pin_groups(
                             spelling.push('…');
                         }
                         let label = format!("{spelling} · {} ×", group.ranges.len());
-                        let button = egui::Button::new(label)
-                            .small()
-                            .fill(theme.occurrence_tint(group.color));
+                        let button = egui::Button::new(label).small().fill(
+                            theme
+                                .occurrence_color(group.color)
+                                .gamma_multiply(if theme.is_dark { 0.22 } else { 0.15 }),
+                        );
                         if ui
                             .add(button)
                             .on_hover_text(format!(

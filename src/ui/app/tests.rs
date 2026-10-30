@@ -1919,6 +1919,8 @@ fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() 
     write_critical_index(dir.path(), text);
     app.open_repository(dir.path());
     settle(&mut app);
+    app.select_occurrences_at_byte(text.find("clone").unwrap());
+    assert_eq!(app.pin_store.ephemeral.as_ref().unwrap().ranges.len(), 2);
     app.pin_at_byte(text.find("clone").unwrap());
     assert_eq!(app.pin_store.groups.len(), 1);
     let group = &app.pin_store.groups[0];
@@ -1948,10 +1950,64 @@ fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() 
         .occurrences
         .push(occurrence);
     app.semantic_index = Some(Arc::new(index));
+    app.select_occurrences_at_byte(text.find("clone").unwrap());
+    assert_eq!(
+        app.pin_store.ephemeral.as_ref().unwrap().symbol_name,
+        "rust-analyzer cargo core 0 clone()."
+    );
     app.pin_at_byte(text.find("clone").unwrap());
     assert_eq!(
         app.pin_store.groups[0].symbol_name,
         "rust-analyzer cargo core 0 clone()."
     );
     assert_eq!(app.pin_store.groups[0].ranges.len(), 2);
+}
+
+#[test]
+fn transient_occurrences_are_click_owned_clear_on_misses_pins_and_document_changes() {
+    let (dir, mut app) = reader();
+    let text = "fn demo() { let value = 1; value; let s = \"value\"; /* value */ }";
+    std::fs::write(dir.path().join("a.rs"), text).unwrap();
+    std::fs::write(dir.path().join("b.rs"), "fn other() {}\n").unwrap();
+    app.open_repository(dir.path());
+    settle(&mut app);
+    let byte = text.find("value").unwrap();
+    app.select_occurrences_at_byte(byte);
+    let selected = app.pin_store.ephemeral.clone().unwrap();
+    assert_eq!(selected.label, "value");
+    assert_eq!(selected.active, byte..byte + 5);
+    assert_eq!(selected.ranges.len(), 2);
+    assert!(app.pin_store.groups.is_empty());
+    let previous = (app.caret_line, app.caret_col);
+    app.caret_col = text.find("let s").unwrap();
+    app.finish_source_interaction(previous);
+    assert_eq!(
+        app.pin_store.ephemeral.as_ref(),
+        Some(&selected),
+        "caret refresh does not select another group"
+    );
+    app.select_occurrences_at_byte(text.find("\"value").unwrap() + 1);
+    assert!(app.pin_store.ephemeral.is_none());
+    app.select_occurrences_at_byte(byte);
+    app.pin_at_byte(byte);
+    assert!(app.pin_store.ephemeral.is_none());
+    assert_eq!(app.pin_store.groups.len(), 1);
+    app.select_occurrences_at_byte(byte);
+    assert!(app.pin_store.ephemeral.is_some());
+    app.pin_at_byte(byte);
+    assert!(app.pin_store.ephemeral.is_none());
+    assert!(app.pin_store.groups.is_empty());
+    app.select_occurrences_at_byte(byte);
+    app.open_file("missing.rs");
+    settle(&mut app);
+    assert_eq!(app.pin_store.ephemeral.as_ref(), Some(&selected));
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app.pin_store.ephemeral.is_none());
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert!(
+        app.pin_store.ephemeral.is_none(),
+        "transient groups are not restored with pins"
+    );
 }

@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Transient occurrence clicks and outlined pins (Codex)
+
+Pinned and single-click transient groups now share one resolver and canonical
+OccurrenceSelection value. Plain completed clicks select; drag/modified clicks
+do not. The clicked range stays active through caret movement; misses, pin/unpin
+and successful document changes clear transient state. Source-range rectangle
+geometry is shared across selection/find/pin/transient painting. Swift's 16%/28%
+accent washes and active outline are integrated; pins now have 1.4-point outlines
+and explicit dark/light fill/stroke opacity. Native acceptance caught egui's
+time-only global double-click count pinning after a gutter click. Source-local
+position/time/count tracking now rejects unrelated rapid clicks and triple toggles.
+Full gates pass 312 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Final native dark/light
+selection, actual arrow movement, miss clearing, pin/unpin and gesture checks pass;
+private app/compositors exit zero. Architecture adds no hotspot/cycle/clone group;
+only baseline touched test fragments remain flagged. [Contract/evidence](plans/rust-occurrence-selection.md).
+Full parity remains open: PR refresh mapping, source/graph/context caches,
+background/index/PR lifecycle, complete visual/accessibility/scaling acceptance
+and sibling palette/chrome reuse. Commit and push every increment.
+
 ## 2026-10-30 — Parsed syntactic occurrence pins (Codex)
 
 Prepared/pushed independent source-bound occurrence facts (`487306a`) from the

@@ -46,6 +46,19 @@ pub struct OccurrencePinGroup {
     pub color: OccurrenceColor,
 }
 
+/// One exact source occurrence group used for transient decoration or pinning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OccurrenceSelection {
+    /// Semantic identity or explicitly syntactic scope/spelling key.
+    pub symbol_name: String,
+    /// Original spelling for pin controls.
+    pub label: String,
+    /// Occurrence selected by the click, independent of later caret movement.
+    pub active: Range<usize>,
+    /// Canonical source ranges sharing this group identity.
+    pub ranges: Vec<Range<usize>>,
+}
+
 /// Stores unlimited session pin groups with stable colors and exact document identity.
 ///
 /// # Examples
@@ -63,8 +76,8 @@ pub struct OccurrencePinGroup {
 pub struct OccurrencePinStore {
     /// Active locked occurrence groups.
     pub groups: Vec<OccurrencePinGroup>,
-    /// Ephemeral highlight for the currently hovered or single-clicked symbol.
-    pub ephemeral: Option<(String, Vec<Range<usize>>)>,
+    /// Single-click decoration, independent of text selection and saved pins.
+    pub ephemeral: Option<OccurrenceSelection>,
     documents: DocumentMemory<Vec<OccurrencePinGroup>>,
     next_color_slot: usize,
 }
@@ -228,7 +241,12 @@ mod tests {
         store.activate(&a);
         store.toggle_pin("a", std::iter::once(0..4).collect());
         let color = store.groups[0].color;
-        store.ephemeral = Some(("temporary".into(), std::iter::once(5..11).collect()));
+        store.ephemeral = Some(OccurrenceSelection {
+            symbol_name: "temporary".into(),
+            label: "source".into(),
+            active: 5..11,
+            ranges: std::iter::once(5..11).collect(),
+        });
         store.activate(&b);
         assert!(store.is_empty());
         store.toggle_pin("b", std::iter::once(5..11).collect());
