@@ -5,8 +5,10 @@
 //! change selection/copy coordinates.
 
 mod find;
+mod projection;
 mod rows;
 pub use find::{FindOptions, MatchSpool};
+pub use projection::{projected_fragments, ProjectedFragment};
 pub use rows::RowHeights;
 use std::ops::Range;
 
