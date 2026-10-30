@@ -3,6 +3,7 @@
 //! Provides [`SourceMode`] (Normal vs Critical) and [`CriticalityPolicy`]
 //! to distinguish boilerplate runtime plumbing from core domain logic, system APIs, and FFI boundaries.
 
+pub mod annotations;
 mod callees;
 pub mod frontier;
 pub mod graph;
@@ -12,6 +13,7 @@ pub mod menu;
 pub mod overrides;
 pub mod projection;
 pub mod service;
+pub mod worker;
 
 pub use lens::{
     CountAnnotation, CountCompleteness, Criticality, CriticalityClassification,

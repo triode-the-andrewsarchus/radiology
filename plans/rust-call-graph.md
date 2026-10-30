@@ -55,3 +55,32 @@ policy changes. Hover and fold-count requests should reuse that worker without
 reintroducing the removed automatic Critical sidebar. Native count/hover acceptance
 and broader callable fixtures remain required. The old references-derived caller
 tree is not replaced or relabeled as a validated parsed call graph here.
+
+## Snapshot worker and fold-count service (2026-10-30)
+
+`CallGraphWorker` now loads canonical indexed definitions through captured
+`SourceRead` checkout or pinned-review storage. Displayed immutable bytes/call facts
+prime the worker and win over disk; other bodies are parsed once per request.
+Each instance owns one captured index/policy/source configuration. Request-local
+files retain a coherent read snapshot; no cache crosses configuration changes.
+Source provenance and exact encoded name coordinates are checked before summary
+construction. Missing, abstract, unsupported and stale bodies retain no-body
+reasons. Additional source is limited to 64 MiB and 512 file entries; summaries
+cache at most 512 identities. Resource exhaustion explicitly truncates the count.
+
+`CriticalAnnotations` owns a replaceable fold-only sweep on the existing bounded
+read pool. It shares one worker across function roots, computes no inspector
+sections or outline counts, and publishes exact-source/revision/digest-bound
+counts and full coverage explanations. No current UI requests this service yet.
+Publication is one completed batch; progressive six-function publication and
+hover requests remain integration work.
+
+Six new tests verify cross-file ordinary traversal, displayed-buffer precedence,
+request-local cache coherence, policy replacement, source budgets, stale data,
+abstract/external results, cancellation, pinned Git objects despite changed
+checkout bytes, Before isolation, fold scope, exact annotation identity and retired
+publication. Full checks pass 183 application tests, 5 reader-text tests,
+30 doctests, fmt, Clippy and rustdoc. Architecture retains one ten-line test
+assertion clone shared with frontier tests; no new product clone/hotspot/cycle,
+maximum CCN unchanged and average CCN down 0.02. Native I/O/Tree-sitter cancellation
+is still checked around each operation rather than interrupting it internally.

@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Snapshot-bound graph worker and source-count service (Codex)
+
+Added canonical definition body loading through captured SourceRead storage,
+primed displayed bytes, request-local parsing/summary caches and explicit source
+budgets. A replaceable fold-only count sweep shares the worker and publishes
+exact-source annotations with coverage detail. Six new tests include real pinned
+Git reads after checkout edits, cache isolation, budgets and stale-publication
+retirement. Full checks pass 183 application tests, 5 reader-text tests,
+30 doctests, fmt, Clippy and rustdoc. Architecture retains one short test assertion
+clone, with no new product clone/hotspot/cycle. Count UI and hover integration are
+next; full parity remains open. [Contract](plans/rust-call-graph.md).
+
 ## 2026-10-30 — Parsed call summaries and bounded frontiers (Codex)
 
 Shared call parsing now retains lexical callable ownership, abstract/body facts
