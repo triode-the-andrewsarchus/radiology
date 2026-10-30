@@ -87,6 +87,15 @@ impl ReferenceViewport {
         Id::new("reference_list_focus")
     }
 
+    pub(crate) fn has_focus(&self, ctx: &Context) -> bool {
+        ctx.memory(|memory| {
+            memory.has_focus(Self::focus_id())
+                || memory
+                    .focused()
+                    .is_some_and(|id| self.caller_controls.iter().any(|control| control.0 == id))
+        })
+    }
+
     pub(crate) fn reveal_selection(&mut self) {
         self.reveal = true;
     }

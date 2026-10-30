@@ -1519,3 +1519,47 @@ fn inspector_focus_remains_eligible_for_global_reader_definition_shortcuts() {
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
     assert_eq!((app.caret_line, app.caret_col), (1, 3));
 }
+
+#[test]
+fn caller_controls_leave_global_definition_shortcuts_available() {
+    let (_dir, mut app) = reader_with_reference_index();
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    app.find_references_at_caret();
+    settle(&mut app);
+    app.handle_reference_action(crate::ui::reference_list::ReferenceAction::SetExpanded(
+        1, true,
+    ));
+    settle(&mut app);
+    let ctx = Context::default();
+    let _ = ctx.run(Default::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            app.reference_viewport.show(
+                ui,
+                &app.theme,
+                &app.reference_context.results,
+                Some(1),
+                &app.reference_context.disclosures,
+            );
+        });
+    });
+    ctx.memory_mut(|memory| {
+        memory.request_focus(crate::ui::reference_callers::control_id(1, Some(0)))
+    });
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::F12,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        },
+        |ctx| app.handle_shortcuts(ctx),
+    );
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+}
