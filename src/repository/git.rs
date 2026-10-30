@@ -1,7 +1,7 @@
 //! Shared bounded Git reads for discovery, source loading and checkout refresh.
 
 use crate::{
-    process::{self, OutputStream, ProcessCommand},
+    process::{self, ProcessCommand},
     pull_request::diff::{DiffHunk, FileLineChanges, UnifiedDiffParser},
     source::SourceBuffer,
 };
@@ -105,14 +105,21 @@ impl GitRead<'_> {
         }
     }
 
-    fn run(&self, arguments: &[&str]) -> Result<(bool, Vec<u8>), crate::process::RunFailure> {
+    fn run(
+        &self,
+        arguments: &[impl AsRef<std::ffi::OsStr>],
+    ) -> Result<(crate::process::RunOutput, Vec<u8>), crate::process::RunFailure> {
         let command = ProcessCommand {
             executable: self.executable.into(),
             directory: self.root.into(),
             arguments: ["-c", "color.ui=false", "-c", "core.quotepath=false"]
                 .into_iter()
-                .chain(arguments.iter().copied())
                 .map(Into::into)
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|argument| argument.as_ref().to_owned()),
+                )
                 .collect(),
             environment: [
                 ("GIT_OPTIONAL_LOCKS".into(), "0".into()),
@@ -121,28 +128,17 @@ impl GitRead<'_> {
             .into(),
             resources: Vec::new(),
         };
-        let mut bytes = Vec::new();
-        let result = process::run_observed(
+        process::run_collect(
             &command,
             self.cancel,
             self.deadline.saturating_duration_since(Instant::now()),
-            |stream, chunk| {
-                if stream == OutputStream::Stdout {
-                    if bytes.len().saturating_add(chunk.len()) > 16 * 1024 * 1024 {
-                        return Err(std::io::Error::other("Git output exceeds 16 MiB"));
-                    }
-                    bytes.extend_from_slice(chunk);
-                }
-                Ok(())
-            },
-        )?;
-        Ok((result.succeeded(), bytes))
+            16 * 1024 * 1024,
+        )
     }
 
     pub fn optional(&self, arguments: &[&str]) -> Result<Option<Vec<u8>>, String> {
         match self.run(arguments) {
-            Ok((true, bytes)) => Ok(Some(bytes)),
-            Ok((false, _)) => Ok(None),
+            Ok((output, bytes)) => Ok(output.succeeded().then_some(bytes)),
             Err(error)
                 if matches!(
                     error.kind,
@@ -158,9 +154,16 @@ impl GitRead<'_> {
         }
     }
 
-    pub fn required(&self, arguments: &[&str]) -> Result<Vec<u8>, String> {
-        self.optional(arguments)?
-            .ok_or_else(|| format!("Git {} failed", arguments[0]))
+    pub fn required(&self, arguments: &[impl AsRef<std::ffi::OsStr>]) -> Result<Vec<u8>, String> {
+        let (output, bytes) = self.run(arguments).map_err(|error| error.to_string())?;
+        if !output.succeeded() {
+            return Err(format!(
+                "Git {} failed: {}",
+                arguments[0].as_ref().to_string_lossy(),
+                output.stderr.text.trim()
+            ));
+        }
+        Ok(bytes)
     }
 }
 

@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-10-30 — Bounded PR preparation and child cancellation (Codex)
+
+PR preparation now uses LatestRead retirement and one two-minute metadata/fetch/
+materialization/diff deadline. GitHub and Git children use the shared process runner
+with bounded complete stdout; cancellation/timeout terminate and reap children.
+Fetch fallback applies only to completed nonzero commands, never interruption.
+Shared run_collect also replaces GitRead's duplicate byte collector and retains
+nonzero Git diagnostics. Availability probes use five seconds; prompts are disabled
+for GitHub requests. Private stores initialize idempotently, and each attempt owns
+a unique temporary tree until all snapshot data succeeds; retries prune abandoned
+registrations. Accepted trees and checkout bytes remain intact. UI Cancel, root
+switches, replacement, reset and drop retire work; failure/cancel clears launch-file
+intent. Tests cover live gh/fetch/worktree/patch Cancel+timeout, exact cleanup and
+retry, oversized/malformed/failed output, and model retention/publication ownership.
+Full gates pass 357 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Architecture comparison
+flags four byte-identical baseline test clone fragments plus the renamed preparation
+entity: Lizard CCN 15→14 and cognitive 27→26. Clone groups/cycles do not grow.
+Native PR child Cancel/recovery acceptance is next. Full parity remains open,
+including recent chooser, broader cache/provenance/provisioning/pinned indexing,
+PR refresh mapping and final UI/accessibility/scaling/sibling acceptance.
+Commit and push every increment.
+
 ## 2026-10-30 — Native normalized-cache cancellation acceptance (Codex)
 
 Implementation `f59932d` is pushed. Native acceptance cancels a 72-MB normalized

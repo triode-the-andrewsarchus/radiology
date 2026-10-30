@@ -1,8 +1,11 @@
 //! GitHub CLI (`gh`) integration for pull request summaries and diff retrieval.
 
+use super::control::ReviewControl;
+use crate::process::{self, ProcessCommand};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
+use std::sync::atomic::AtomicBool;
+use std::time::Instant;
 
 /// Summary metadata for a single GitHub pull request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,17 +48,19 @@ impl PullRequestSummary {
 }
 
 /// Read-only client executing GitHub operations via the `gh` command-line tool.
+///
+/// Requests have bounded output and a two-minute deadline. Availability probes
+/// use five seconds. Interactive prompts are disabled in child processes.
 pub struct GitHubClient;
 
 impl GitHubClient {
     /// Checks whether the `gh` executable is available in `PATH`.
     #[must_use]
     pub fn is_gh_available() -> bool {
-        Command::new("gh")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+        let cancel = AtomicBool::new(false);
+        let mut control = ReviewControl::new(&cancel);
+        control.deadline = Instant::now() + std::time::Duration::from_secs(5);
+        Self::request(Path::new("."), &["--version"], &control).is_ok()
     }
 
     /// Lists up to `limit` recent pull requests in the repository at `root`.
@@ -79,6 +84,7 @@ impl GitHubClient {
                 "--json",
                 "number,title,state,baseRefName,headRefName,updatedAt",
             ],
+            &ReviewControl::new(&AtomicBool::new(false)),
         )
     }
 
@@ -88,6 +94,14 @@ impl GitHubClient {
     ///
     /// Returns an error message string if `gh pr view` fails or cannot find the pull request.
     pub fn view_pull_request(root: &Path, number: usize) -> Result<PullRequestSummary, String> {
+        Self::view_cancellable(root, number, &ReviewControl::new(&AtomicBool::new(false)))
+    }
+
+    pub(crate) fn view_cancellable(
+        root: &Path,
+        number: usize,
+        control: &ReviewControl<'_>,
+    ) -> Result<PullRequestSummary, String> {
         Self::query(
             root,
             &[
@@ -97,6 +111,7 @@ impl GitHubClient {
                 "--json",
                 "number,title,state,baseRefName,baseRefOid,headRefName,headRefOid,updatedAt",
             ],
+            control,
         )
     }
 
@@ -106,23 +121,52 @@ impl GitHubClient {
     ///
     /// Returns an error message string if `gh pr diff` fails.
     pub fn get_pr_diff(root: &Path, number: usize) -> Result<String, String> {
-        String::from_utf8(Self::request(root, &["pr", "diff", &number.to_string()])?)
-            .map_err(|error| format!("Invalid UTF-8 diff output: {error}"))
+        String::from_utf8(Self::request(
+            root,
+            &["pr", "diff", &number.to_string()],
+            &ReviewControl::new(&AtomicBool::new(false)),
+        )?)
+        .map_err(|error| format!("Invalid UTF-8 diff output: {error}"))
     }
-    fn query<T: serde::de::DeserializeOwned>(root: &Path, arguments: &[&str]) -> Result<T, String> {
-        serde_json::from_slice(&Self::request(root, arguments)?)
-            .map_err(|error| format!("Invalid GitHub JSON: {error}"))
+    fn query<T: serde::de::DeserializeOwned>(
+        root: &Path,
+        arguments: &[&str],
+        control: &ReviewControl<'_>,
+    ) -> Result<T, String> {
+        let value = serde_json::from_slice(&Self::request(root, arguments, control)?)
+            .map_err(|error| format!("Invalid GitHub JSON: {error}"))?;
+        control.check()?;
+        Ok(value)
     }
 
-    fn request(root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
-        let output = Command::new("gh")
-            .args(arguments)
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("Failed to run gh CLI: {error}"))?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    fn request(
+        root: &Path,
+        arguments: &[&str],
+        control: &ReviewControl<'_>,
+    ) -> Result<Vec<u8>, String> {
+        control.check()?;
+        let command = ProcessCommand {
+            executable: control.gh.into(),
+            directory: root.into(),
+            arguments: arguments.iter().map(Into::into).collect(),
+            environment: [
+                ("GH_PROMPT_DISABLED".into(), "1".into()),
+                ("GIT_TERMINAL_PROMPT".into(), "0".into()),
+            ]
+            .into(),
+            resources: vec![],
+        };
+        let (output, bytes) = process::run_collect(
+            &command,
+            control.cancel,
+            control.deadline.saturating_duration_since(Instant::now()),
+            16 * 1024 * 1024,
+        )
+        .map_err(|error| format!("GitHub CLI: {error}"))?;
+        if !output.succeeded() {
+            return Err(format!("GitHub CLI failed: {}", output.stderr.text.trim()));
         }
-        Ok(output.stdout)
+        control.check()?;
+        Ok(bytes)
     }
 }

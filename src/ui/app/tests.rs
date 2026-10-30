@@ -2039,3 +2039,5 @@ fn transient_occurrences_are_click_owned_clear_on_misses_pins_and_document_chang
 mod git;
 
 mod repository_open;
+
+mod reviews;

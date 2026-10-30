@@ -39,9 +39,7 @@ impl RadiologyApp {
     pub(super) fn request_repository(&mut self, request: RepositoryRequest) {
         // A newer root supersedes any unaccepted review intent, while retaining
         // the currently accepted checkout/review until discovery succeeds.
-        self.review_rx = None;
-        self.pending_pr = None;
-        self.pending_open_file = None;
+        self.cancel_review_preparation();
         let path = request.path.clone();
         let filters = self.session.source_filters.clone();
         self.pending_repository = Some(request);

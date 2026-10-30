@@ -5,6 +5,7 @@
 //! [`FileChange`] for tracking file status, additions, and deletions.
 
 pub mod change;
+pub(crate) mod control;
 pub mod diff;
 pub mod github;
 pub mod review;

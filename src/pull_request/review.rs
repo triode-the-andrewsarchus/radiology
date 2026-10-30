@@ -4,6 +4,7 @@
 //! Fetches, worktrees, and revision reads operate on the private store.
 
 use super::change::{FileChange, FileChangeStatus};
+use super::control::ReviewControl;
 use super::diff::{FileLineChanges, UnifiedDiffParser};
 use super::github::PullRequestSummary;
 use crate::repository::{file_node::RepositoryFile, git::GitRead};
@@ -11,7 +12,6 @@ use crate::source::location::ReviewRevision;
 use crate::source::{SourceBuffer, SourceLocation};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::{
     sync::atomic::AtomicBool,
     time::{Duration, Instant},
@@ -41,6 +41,9 @@ pub struct ReviewSnapshot {
 impl ReviewSnapshot {
     /// Prepares pinned commits and an isolated head tree.
     ///
+    /// Git children share a two-minute deadline. Failed attempts remove their
+    /// temporary trees; accepted snapshots keep independently owned trees.
+    ///
     /// # Errors
     /// Returns Git or metadata errors without changing the attached checkout.
     pub fn prepare(
@@ -48,30 +51,36 @@ impl ReviewSnapshot {
         summary: PullRequestSummary,
         cache: &Path,
     ) -> Result<Self, String> {
+        Self::prepare_cancellable(
+            attached,
+            summary,
+            cache,
+            &ReviewControl::new(&AtomicBool::new(false)),
+        )
+    }
+
+    pub(crate) fn prepare_cancellable(
+        attached: &Path,
+        summary: PullRequestSummary,
+        cache: &Path,
+        control: &ReviewControl<'_>,
+    ) -> Result<Self, String> {
+        control.check()?;
         let head = required_oid(summary.head_ref_oid.as_deref())?;
         let base_head = required_oid(summary.base_ref_oid.as_deref())?;
-        let origin = git_at(attached, &["remote", "get-url", "origin"])?;
-        let object_dir = cache.join("review.git");
-        std::fs::create_dir_all(cache).map_err(|error| error.to_string())?;
-        if !object_dir.exists() {
-            run(Command::new("git")
-                .args(["init", "--bare"])
-                .arg(&object_dir))?;
-        }
-        let store = GitStore(&object_dir);
-        store.fetch(&origin, &base_head, None)?;
-        store.fetch(&origin, &head, Some(summary.number))?;
+        let origin = String::from_utf8(
+            control
+                .git(attached)
+                .required(&["remote", "get-url", "origin"])?,
+        )
+        .map_err(|error| error.to_string())?;
+        let object_dir = GitStore::initialize(cache, control)?;
+        let store = GitStore(control.git(&object_dir));
+        store.fetch(origin.trim(), &base_head, None)?;
+        store.fetch(origin.trim(), &head, Some(summary.number))?;
         let base = store.text(&["merge-base", &base_head, &head])?;
-        let head_root = cache.join("revisions").join(&head).join("tree");
-        if !head_root.exists() {
-            std::fs::create_dir_all(head_root.parent().expect("revision parent"))
-                .map_err(|error| error.to_string())?;
-            run(store
-                .command()
-                .args(["worktree", "add", "--detach"])
-                .arg(&head_root)
-                .arg(&head))?;
-        }
+        let tree = store.materialize(&head)?;
+        let head_root = tree.path().to_owned();
         let files = store.files(&head)?;
         let mut snapshot = Self {
             summary,
@@ -83,12 +92,15 @@ impl ReviewSnapshot {
             changes: Vec::new(),
             diffs: HashMap::new(),
         };
-        snapshot.load_changes()?;
+        snapshot.load_changes(control)?;
+        control.check()?;
+        let _ = tree.keep();
         Ok(snapshot)
     }
 
-    fn load_changes(&mut self) -> Result<(), String> {
-        let bytes = GitStore(&self.object_dir).bytes(&[
+    fn load_changes(&mut self, control: &ReviewControl<'_>) -> Result<(), String> {
+        control.check()?;
+        let bytes = GitStore(control.git(&self.object_dir)).bytes(&[
             "diff",
             "--name-status",
             "-z",
@@ -97,15 +109,20 @@ impl ReviewSnapshot {
             &self.head,
         ])?;
         for change in FileChange::parse_name_status(&bytes)? {
-            self.add_change(change)?;
+            control.check()?;
+            self.add_change(change, control)?;
         }
         Ok(())
     }
 
-    fn add_change(&mut self, mut change: FileChange) -> Result<(), String> {
+    fn add_change(
+        &mut self,
+        mut change: FileChange,
+        control: &ReviewControl<'_>,
+    ) -> Result<(), String> {
         let path = change.path.as_str();
         let old = change.old_path.as_deref();
-        let store = GitStore(&self.object_dir);
+        let store = GitStore(control.git(&self.object_dir));
         let patch = store.text(&[
             "diff",
             "--no-ext-diff",
@@ -237,15 +254,24 @@ fn required_oid(oid: Option<&str>) -> Result<String, String> {
     Ok(oid.to_string())
 }
 
-struct GitStore<'a>(&'a Path);
+struct GitStore<'a>(GitRead<'a>);
 impl GitStore<'_> {
-    fn command(&self) -> Command {
-        let mut command = Command::new("git");
-        command.arg("--git-dir").arg(self.0);
-        command
+    fn initialize(cache: &Path, control: &ReviewControl<'_>) -> Result<PathBuf, String> {
+        control.check()?;
+        std::fs::create_dir_all(cache).map_err(|error| error.to_string())?;
+        let cache = std::fs::canonicalize(cache).map_err(|error| error.to_string())?;
+        let object_dir = cache.join("review.git");
+        // Reinitializing is idempotent and repairs an interrupted init.
+        control.git(&cache).required(&[
+            std::ffi::OsString::from("init"),
+            "--bare".into(),
+            object_dir.as_os_str().to_owned(),
+        ])?;
+        Ok(object_dir)
     }
+
     fn bytes(&self, args: &[&str]) -> Result<Vec<u8>, String> {
-        run(self.command().args(args))
+        self.0.required(args)
     }
     fn text(&self, args: &[&str]) -> Result<String, String> {
         String::from_utf8(self.bytes(args)?)
@@ -258,6 +284,7 @@ impl GitStore<'_> {
             .split(|byte| *byte == 0)
             .filter(|path| !path.is_empty())
             .map(|path| {
+                self.0.check()?;
                 let path = std::str::from_utf8(path).map_err(|error| error.to_string())?;
                 if !SourceLocation::is_repository_path(path) {
                     return Err("Invalid path in review tree".into());
@@ -267,11 +294,43 @@ impl GitStore<'_> {
             .collect()
     }
 
+    fn materialize(&self, head: &str) -> Result<tempfile::TempDir, String> {
+        self.0.check()?;
+        // Remove registrations from earlier interrupted attempts whose guards
+        // removed their directories. Existing accepted trees remain registered.
+        self.bytes(&["worktree", "prune", "--expire", "now"])?;
+        let revision = self
+            .0
+            .root
+            .parent()
+            .expect("private store has a cache parent")
+            .join("revisions")
+            .join(head);
+        std::fs::create_dir_all(&revision).map_err(|error| error.to_string())?;
+        // Each attempt owns its tree and cannot remove an accepted snapshot.
+        let tree = tempfile::Builder::new()
+            .prefix("tree-")
+            .tempdir_in(&revision)
+            .map_err(|error| error.to_string())?;
+        self.0.required(&[
+            std::ffi::OsString::from("worktree"),
+            "add".into(),
+            "--detach".into(),
+            tree.path().as_os_str().to_owned(),
+            head.into(),
+        ])?;
+        Ok(tree)
+    }
+
     fn fetch(&self, origin: &str, oid: &str, number: Option<usize>) -> Result<(), String> {
-        if self.text(&["cat-file", "-t", oid]).is_ok() {
+        if self.0.optional(&["cat-file", "-t", oid])?.is_some() {
             return Ok(());
         }
-        if self.text(&["fetch", "--no-tags", origin, oid]).is_err() {
+        if self
+            .0
+            .optional(&["fetch", "--no-tags", origin, oid])?
+            .is_none()
+        {
             let reference = format!(
                 "refs/pull/{}/head",
                 number.ok_or("Unable to fetch base commit")?
@@ -285,19 +344,8 @@ impl GitStore<'_> {
     }
 }
 
-fn git_at(root: &Path, args: &[&str]) -> Result<String, String> {
-    String::from_utf8(run(Command::new("git").current_dir(root).args(args))?)
-        .map(|text| text.trim().to_string())
-        .map_err(|error| error.to_string())
-}
-
-fn run(command: &mut Command) -> Result<Vec<u8>, String> {
-    let output = command.output().map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    Ok(output.stdout)
-}
-
 #[cfg(test)]
 pub(crate) mod tests;
+
+#[cfg(all(test, unix))]
+mod cancellation_tests;
