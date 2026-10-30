@@ -5,20 +5,27 @@ fn git(root: &Path, args: &[&str]) -> String {
 }
 
 pub(crate) fn fixture() -> (tempfile::TempDir, PathBuf, ReviewSnapshot) {
+    fixture_with_sources("one\ntwo\nthree\n", "one\nchanged\nthree\n")
+}
+
+pub(crate) fn fixture_with_sources(
+    before: &str,
+    after: &str,
+) -> (tempfile::TempDir, PathBuf, ReviewSnapshot) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("attached");
     std::fs::create_dir(&root).unwrap();
     git(&root, &["init", "-b", "main"]);
     git(&root, &["config", "user.email", "test@example.invalid"]);
     git(&root, &["config", "user.name", "Test"]);
-    std::fs::write(root.join("a file.rs"), "one\ntwo\nthree\n").unwrap();
+    std::fs::write(root.join("a file.rs"), before).unwrap();
     std::fs::write(root.join("removed.rs"), "old\n").unwrap();
     std::fs::write(root.join("renamed old.rs"), "keep\n").unwrap();
     git(&root, &["add", "."]);
     git(&root, &["commit", "-m", "base"]);
     let base = git(&root, &["rev-parse", "HEAD"]);
     git(&root, &["checkout", "-b", "review"]);
-    std::fs::write(root.join("a file.rs"), "one\nchanged\nthree\n").unwrap();
+    std::fs::write(root.join("a file.rs"), after).unwrap();
     std::fs::write(root.join("added.rs"), "new\n").unwrap();
     std::fs::remove_file(root.join("removed.rs")).unwrap();
     std::fs::rename(root.join("renamed old.rs"), root.join("renamed new.rs")).unwrap();

@@ -58,7 +58,7 @@ fn navigation_reveals_fold_and_failed_open_preserves_current_document() {
     repository(dir.path());
     app.open_repository(dir.path());
     settle(&mut app);
-    app.fold_store.toggle(1);
+    assert!(app.fold_store.is_folded(1));
     app.jump_to_location("a.rs", 2, 0);
     settle(&mut app);
     assert!(!app.fold_store.is_line_hidden(2, &app.fold_ranges));
@@ -309,6 +309,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     settle(&mut app);
     app.open_file("mixed.rs");
     settle(&mut app);
+    app.fold_store.unfold_all();
     app.fold_store.toggle(1);
     let ctx = Context::default();
     app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
@@ -413,13 +414,17 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
         false,
     );
     assert_eq!(app.highlighted_lines, expected);
+    assert!(app.fold_store.is_folded(1));
     app.fold_store.toggle(1);
     let location = app.history.current().cloned();
     std::fs::remove_file(dir.path().join("b.rs")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
-    assert!(app.fold_store.is_folded(1));
+    assert!(
+        !app.fold_store.is_folded(1),
+        "theme recolor must preserve explicit expansion"
+    );
     assert_eq!(app.history.current(), location.as_ref());
     assert!(app.error.is_none());
 }
@@ -1099,11 +1104,10 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     std::fs::write(root.join("a.rs"), text).unwrap();
     app.open_repository(&root);
     settle(&mut app);
-    app.fold_store.toggle(1);
-    app.fold_store.toggle(4);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
     app.open_file("b.rs");
     settle(&mut app);
-    assert!(app.fold_store.folded_lines.is_empty());
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
     app.fold_store.toggle(1);
     app.open_file("a.rs");
     settle(&mut app);
@@ -1121,19 +1125,55 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
     app.open_file("b.rs");
     settle(&mut app);
-    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    assert!(app.fold_store.folded_lines.is_empty());
     app.open_file("a.rs");
     settle(&mut app);
     assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
     std::fs::write(root.join("a.rs"), text.replace("second", "newest")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
     settle(&mut app);
-    assert!(app.fold_store.folded_lines.is_empty());
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
     app.fold_store.toggle(4);
     let other = dir.path().join("other");
     repository(&other);
     std::fs::write(other.join("a.rs"), text).unwrap();
     app.open_repository(&other);
     settle(&mut app);
-    assert!(app.fold_store.folded_lines.is_empty());
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+}
+
+#[test]
+fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manual_choices() {
+    let before = "fn first() {\n old();\n}\nfn second() {\n untouched();\n}\n";
+    let after = before.replace("old()", "new()");
+    let (dir, root, snapshot) =
+        crate::pull_request::review::tests::fixture_with_sources(before, &after);
+    let mut app = RadiologyApp::from_session(SessionStore::load_from(
+        dir.path().join("settings/session.json"),
+    ));
+    app.open_repository(&root);
+    settle(&mut app);
+    app.open_file("a file.rs");
+    settle(&mut app);
+    app.accept_review(snapshot);
+    settle(&mut app);
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    app.fold_store.toggle(1);
+    app.open_file("added.rs");
+    settle(&mut app);
+    app.open_file("a file.rs");
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    app.execute_command(
+        &Context::default(),
+        ToolbarAction::ToggleRevision(ReviewRevision::Before),
+    );
+    settle(&mut app);
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    assert!(app
+        .line_changes
+        .as_ref()
+        .is_some_and(|changes| changes.total_deletions() == 1));
 }

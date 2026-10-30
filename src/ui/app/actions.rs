@@ -62,9 +62,7 @@ impl RadiologyApp {
                     self.save_bookmarks();
                 }
             }
-            CollapseFunctions => self
-                .fold_store
-                .collapse_all_functions(&self.outline_symbols),
+            CollapseFunctions => self.collapse_current_functions(),
             FoldToDefinitions => {
                 self.fold_store
                     .folded_lines

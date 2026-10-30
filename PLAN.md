@@ -45,7 +45,7 @@ and pending hover/progressive acceptance.
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
 [Exact-document fold restoration](plans/rust-fold-restoration.md) records shared
-fold/pin memory, source-publication integration and native file-return acceptance.
+fold/pin memory, parsed body/PR defaults, source-publication integration and native acceptance.
 
 [Occurrence pin storage and controls](plans/rust-occurrence-pins.md)
 records unlimited groups, stable colors and content/revision-bound restoration.

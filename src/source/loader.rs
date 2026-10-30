@@ -146,6 +146,8 @@ pub struct PreparedSource {
     pub buffer: Arc<SourceBuffer>,
     /// Structural facts from one parse; absent when recoloring an existing buffer.
     pub syntax: Option<DocumentSyntax>,
+    /// Initial body/review fold choices prepared from these exact source facts.
+    pub initial_folds: Option<std::collections::HashSet<usize>>,
     /// File-specific diff captured by the same storage request.
     pub changes: Option<FileLineChanges>,
     /// Syntax colors for the captured appearance.
@@ -228,9 +230,19 @@ fn prepare(
     check()?;
     let changes = request.source.changes(&request.location);
     check()?;
+    let initial_folds = syntax
+        .as_ref()
+        .filter(|syntax| syntax.calls.matches(&buffer))
+        .map(|syntax| {
+            let mut folds = crate::syntax::FoldStore::new();
+            folds.apply_initial_defaults(&buffer, &syntax.folds, &syntax.calls, changes.as_ref());
+            folds.folded_lines
+        });
+    check()?;
     Ok(PreparedSource {
         buffer,
         syntax,
+        initial_folds,
         changes,
         highlights,
         destination,
@@ -288,6 +300,10 @@ mod tests {
         assert_eq!(prepared.buffer.path, "new.rs");
         assert_eq!(prepared.destination.byte_offset, "fn café".len());
         assert_eq!(prepared.syntax.as_ref().unwrap().symbols[0].name, "café");
+        assert_eq!(
+            prepared.initial_folds,
+            Some(std::collections::HashSet::from([1]))
+        );
         assert!(!prepared.highlights.is_empty());
         assert!(!loader.is_running());
         assert!(loader.poll().is_none());

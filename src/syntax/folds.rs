@@ -1,8 +1,8 @@
 //! Code folding detection and fold state management.
 
 use crate::source::buffer::SourceBuffer;
-use crate::syntax::outline::{DocumentSymbol, SymbolExtractor};
-use std::collections::HashSet;
+use crate::syntax::outline::DocumentSymbol;
+use std::collections::{HashMap, HashSet};
 
 /// Represents a collapsible vertical region within a source document.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,7 +35,8 @@ pub struct FoldRange {
 pub struct FoldStore {
     /// 1-based line numbers where folds are currently active.
     pub folded_lines: HashSet<usize>,
-    documents: crate::source::document_memory::DocumentMemory<HashSet<usize>>,
+    initialized: bool,
+    documents: crate::source::document_memory::DocumentMemory<(bool, HashSet<usize>)>,
 }
 
 impl FoldStore {
@@ -51,13 +52,17 @@ impl FoldStore {
     /// Only current fold headers survive; explicit navigation may then reveal its
     /// destination without expanding unrelated restored regions.
     pub fn activate(&mut self, buffer: &SourceBuffer, ranges: &[FoldRange]) {
-        self.documents.activate(buffer, &mut self.folded_lines);
+        let mut state = (self.initialized, std::mem::take(&mut self.folded_lines));
+        self.documents.activate(buffer, &mut state);
+        self.initialized = state.0;
+        self.folded_lines = state.1;
         let headers: HashSet<_> = ranges.iter().map(|range| range.start_line).collect();
         self.folded_lines.retain(|line| headers.contains(line));
     }
 
     /// Toggles the folded state for the given start line number.
     pub fn toggle(&mut self, start_line: usize) {
+        self.initialized = true;
         if self.folded_lines.contains(&start_line) {
             self.folded_lines.remove(&start_line);
         } else {
@@ -82,25 +87,72 @@ impl FoldStore {
         false
     }
 
-    /// Folds all function and method bodies by default.
-    pub fn collapse_all_functions(&mut self, symbols: &[DocumentSymbol]) {
-        fn collect_function_lines(syms: &[DocumentSymbol], out: &mut HashSet<usize>) {
-            for sym in syms {
-                if matches!(
-                    sym.kind,
-                    crate::syntax::outline::SymbolKind::Function
-                        | crate::syntax::outline::SymbolKind::Method
-                ) {
-                    out.insert(sym.line);
-                }
-                collect_function_lines(&sym.children, out);
+    /// Collapses parsed callable bodies while leaving declaration containers open.
+    pub fn collapse_all_functions(
+        &mut self,
+        buffer: &SourceBuffer,
+        ranges: &[FoldRange],
+        calls: &super::calls::CallSites,
+    ) {
+        self.initialized = true;
+        if !calls.matches(buffer) {
+            return;
+        }
+        let bodies: HashSet<_> = ranges
+            .iter()
+            .map(|fold| (fold.start_line, fold.end_line))
+            .collect();
+        self.folded_lines.extend(
+            calls
+                .scopes
+                .iter()
+                .filter_map(|scope| scope.body_range.as_ref())
+                .map(|body| {
+                    (
+                        buffer.line_at_byte(body.start),
+                        buffer.line_at_byte(body.end),
+                    )
+                })
+                .filter(|range| bodies.contains(range))
+                .map(|(header, _)| header),
+        );
+    }
+
+    /// Applies callable-body defaults once per exact document, before navigation reveal.
+    /// PR changes must belong to the same captured source/revision; restored/manual
+    /// choices, including an empty expanded set, always take precedence.
+    pub fn apply_initial_defaults(
+        &mut self,
+        buffer: &SourceBuffer,
+        ranges: &[FoldRange],
+        calls: &super::calls::CallSites,
+        changes: Option<&crate::pull_request::diff::FileLineChanges>,
+    ) {
+        if self.initialized || !calls.matches(buffer) {
+            return;
+        }
+        self.collapse_all_functions(buffer, ranges, calls);
+        if let (Some(changes), Some(revision)) = (changes, buffer.revision) {
+            let expanded =
+                super::review_folds::expanded_headers(buffer, ranges, calls, changes, revision);
+            self.folded_lines.retain(|line| !expanded.contains(line));
+        }
+    }
+
+    /// Adopts defaults prepared with the successfully published source bundle.
+    /// Restored or already edited documents retain their current choices.
+    pub fn apply_prepared_defaults(&mut self, defaults: Option<HashSet<usize>>) {
+        if !self.initialized {
+            if let Some(defaults) = defaults {
+                self.folded_lines = defaults;
+                self.initialized = true;
             }
         }
-        collect_function_lines(symbols, &mut self.folded_lines);
     }
 
     /// Unfolds all active folds.
     pub fn unfold_all(&mut self) {
+        self.initialized = true;
         self.folded_lines.clear();
     }
 
@@ -121,36 +173,55 @@ impl FoldDetector {
     /// Detects all foldable line ranges within the given [`SourceBuffer`].
     #[must_use]
     pub fn detect_folds(buffer: &SourceBuffer) -> Vec<FoldRange> {
-        Self::from_symbols(buffer, &SymbolExtractor::extract(buffer))
+        super::DocumentSyntax::analyze(buffer).folds
     }
 
     pub(crate) fn from_symbols(
         buffer: &SourceBuffer,
         symbols: &[DocumentSymbol],
+        calls: &super::calls::CallSites,
     ) -> Vec<FoldRange> {
         let mut folds = Vec::new();
+        let bodies: HashMap<_, _> = calls
+            .scopes
+            .iter()
+            .filter_map(|scope| {
+                scope
+                    .body_range
+                    .as_ref()
+                    .map(|body| ((scope.range.start, scope.range.end), body))
+            })
+            .collect();
 
         fn add_symbol_folds(
             syms: &[DocumentSymbol],
             buffer: &SourceBuffer,
+            bodies: &HashMap<(usize, usize), &std::ops::Range<usize>>,
             folds: &mut Vec<FoldRange>,
         ) {
             for sym in syms {
-                let start_line = buffer.line_at_byte(sym.range.start);
-                let end_line = buffer.line_at_byte(sym.range.end);
-                if end_line > start_line {
-                    let header = buffer.line_text(start_line).trim().to_string();
-                    folds.push(FoldRange {
-                        start_line,
-                        end_line,
-                        header_preview: header,
-                    });
+                let range = if sym.is_callable() {
+                    bodies.get(&(sym.range.start, sym.range.end)).copied()
+                } else {
+                    Some(&sym.range)
+                };
+                if let Some(range) = range {
+                    let start_line = buffer.line_at_byte(range.start);
+                    let end_line = buffer.line_at_byte(range.end);
+                    if end_line > start_line {
+                        let header = buffer.line_text(start_line).trim().to_string();
+                        folds.push(FoldRange {
+                            start_line,
+                            end_line,
+                            header_preview: header,
+                        });
+                    }
                 }
-                add_symbol_folds(&sym.children, buffer, folds);
+                add_symbol_folds(&sym.children, buffer, bodies, folds);
             }
         }
 
-        add_symbol_folds(symbols, buffer, &mut folds);
+        add_symbol_folds(symbols, buffer, &bodies, &mut folds);
         Self::detect_comment_folds(buffer, &mut folds);
 
         folds.sort_by(|a, b| {
