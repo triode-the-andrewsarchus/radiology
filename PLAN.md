@@ -34,6 +34,9 @@ acceptance and remaining cache/provisioning/snapshot integration.
 records atomic ordered storage, durable session edits, source menus and native
 restart/projection acceptance.
 
+[Parsed call summaries and bounded critical frontiers](plans/rust-call-graph.md)
+records the shared lexical/semantic graph backend and pending worker/reader integration.
+
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
 

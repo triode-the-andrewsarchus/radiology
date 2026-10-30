@@ -15,6 +15,40 @@ pub struct CallSite {
     pub name: Option<Range<usize>>,
     /// Full call or macro expression in original bytes.
     pub range: Range<usize>,
+    /// Index of the innermost lexical callable, when one contains this site.
+    pub owner: Option<usize>,
+}
+
+/// A parsed callable scope; its calls need not execute with its enclosing scope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallableScope {
+    /// True for closures/lambdas, false for named functions and methods.
+    pub closure: bool,
+    /// Complete declaration or closure bytes.
+    pub range: Range<usize>,
+    /// Declaration name bytes, when the grammar exposes a name field.
+    pub name: Option<Range<usize>>,
+    /// False for abstract signatures without a parsed body.
+    pub has_body: bool,
+}
+
+impl CallableScope {
+    fn from_node(node: Node<'_>, closure: bool) -> Self {
+        let mut cursor = node.walk();
+        let has_body = closure
+            || node.child_by_field_name("body").is_some()
+            || node
+                .named_children(&mut cursor)
+                .any(|child| matches!(child.kind(), "block" | "function_body"));
+        Self {
+            closure,
+            range: node.byte_range(),
+            name: node
+                .child_by_field_name("name")
+                .map(|name| name.byte_range()),
+            has_body,
+        }
+    }
 }
 
 /// Call-query coverage for one exact document parse.
@@ -22,6 +56,10 @@ pub struct CallSite {
 pub struct CallSites {
     /// Complete source-ordered sites, including unresolved/dynamic callees.
     pub sites: Vec<CallSite>,
+    /// Lexical scopes in source order, with outer scopes before inner scopes.
+    pub scopes: Vec<CallableScope>,
+    /// True when the tree contains syntax errors or missing nodes.
+    pub parse_errors: bool,
     /// False for unsupported grammar/query or a bounded query failure.
     pub supported: bool,
     /// Query compilation/limit failure, distinct from an unsupported language.
@@ -40,8 +78,10 @@ impl CallSites {
         buffer: &crate::source::SourceBuffer,
     ) -> Self {
         match extract(grammar, root, &buffer.data) {
-            Ok(sites) => Self {
+            Ok((sites, scopes)) => Self {
                 sites,
+                scopes,
+                parse_errors: root.has_error(),
                 supported: true,
                 error: None,
                 path: buffer.path.clone(),
@@ -80,7 +120,18 @@ fn query(grammar: SupportedGrammar) -> Result<&'static Query, String> {
                     "(call_expression . (identifier) @call.name) @call\n(call_expression (navigation_expression (identifier) @call.name .)) @call\n(call_expression) @call.any"),
             (C, "(call_expression function: (identifier) @call.name) @call\n(call_expression function: (field_expression field: (field_identifier) @call.name)) @call\n(call_expression) @call.any"),
         ].into_iter().map(|(grammar, source)| {
-            (grammar, Query::new(&grammar.language(), source).map_err(|error| error.to_string()))
+            let scopes = match grammar {
+                Rust => include_str!("../../Sources/Radiology/Queries/rust/scopes.scm"),
+                Python => include_str!("../../Sources/Radiology/Queries/python/scopes.scm"),
+                Go => include_str!("../../Sources/Radiology/Queries/go/scopes.scm"),
+                JavaScript | TypeScript | Tsx => include_str!("../../Sources/Radiology/Queries/ecmascript/scopes.scm"),
+                Swift => include_str!("../../Sources/Radiology/Queries/swift/scopes.scm"),
+                Kotlin => include_str!("../../Sources/Radiology/Queries/kotlin/scopes.scm"),
+                C => "(function_definition) @scope.function",
+            };
+            let scopes = scopes.lines().filter(|line| line.contains("@scope.function") || line.contains("@scope.closure")).collect::<Vec<_>>().join("\n");
+            let source = format!("{source}\n{scopes}");
+            (grammar, Query::new(&grammar.language(), &source).map_err(|error| error.to_string()))
         }).collect()
     }).get(&grammar).expect("registered call grammar").as_ref().map_err(Clone::clone)
 }
@@ -89,15 +140,31 @@ fn extract(
     grammar: SupportedGrammar,
     root: Node<'_>,
     bytes: &[u8],
-) -> Result<Vec<CallSite>, String> {
+) -> Result<(Vec<CallSite>, Vec<CallableScope>), String> {
     let query = query(grammar)?;
     let names = query.capture_names();
     let mut cursor = QueryCursor::new();
     cursor.set_match_limit(65_536);
+    let mut scopes = BTreeMap::new();
     let mut named = BTreeMap::new();
     let mut fallback = BTreeSet::new();
     let mut matches = cursor.matches(query, root, bytes);
     while let Some(found) = matches.next() {
+        if let Some(capture) = found
+            .captures
+            .iter()
+            .find(|capture| names[capture.index as usize].starts_with("scope."))
+        {
+            let scope = CallableScope::from_node(
+                capture.node,
+                names[capture.index as usize] == "scope.closure",
+            );
+            scopes.insert(
+                (scope.range.start, std::cmp::Reverse(scope.range.end)),
+                scope,
+            );
+            continue;
+        }
         let Some(site) = found.captures.iter().find(|capture| {
             let name = names[capture.index as usize];
             name == "call" || (name.starts_with("call.") && name != "call.name")
@@ -123,6 +190,7 @@ fn extract(
                     kind: kind.strip_prefix("call.").unwrap_or("call").into(),
                     name: Some(name),
                     range,
+                    owner: None,
                 });
             }
         }
@@ -136,6 +204,7 @@ fn extract(
             kind: "dynamic".into(),
             name: None,
             range: start..end,
+            owner: None,
         });
     }
     let mut sites: Vec<_> = named.into_values().collect();
@@ -147,7 +216,38 @@ fn extract(
             site.range.start,
         )
     });
-    Ok(sites)
+    let scopes: Vec<_> = scopes.into_values().collect();
+    assign_owners(&mut sites, &scopes);
+    Ok((sites, scopes))
+}
+
+fn assign_owners(sites: &mut [CallSite], scopes: &[CallableScope]) {
+    // Scopes are nested/disjoint parse nodes. Sweep by call start with a stack,
+    // avoiding a whole-scope search for every call in a large document.
+    let mut order: Vec<_> = (0..sites.len()).collect();
+    order.sort_by_key(|&i| sites[i].range.start);
+    let mut next = 0;
+    let mut active = Vec::<usize>::new();
+    for i in order {
+        let byte = sites[i].range.start;
+        while next < scopes.len() && scopes[next].range.start <= byte {
+            while active
+                .last()
+                .is_some_and(|&index| scopes[index].range.end <= scopes[next].range.start)
+            {
+                active.pop();
+            }
+            active.push(next);
+            next += 1;
+        }
+        while active
+            .last()
+            .is_some_and(|&index| scopes[index].range.end <= byte)
+        {
+            active.pop();
+        }
+        sites[i].owner = active.last().copied();
+    }
 }
 
 #[cfg(test)]
@@ -214,6 +314,15 @@ mod tests {
                 .filter_map(|site| site.name.as_ref().map(|range| &text[range.clone()]))
                 .collect();
             assert_eq!(names, expected, "{path}");
+            assert!(
+                !syntax.calls.scopes.is_empty(),
+                "missing callable scope for {path}"
+            );
+            assert!(syntax.calls.scopes[0].has_body, "missing body for {path}");
+            assert!(
+                syntax.calls.sites.iter().all(|site| site.owner == Some(0)),
+                "wrong lexical ownership for {path}"
+            );
         }
     }
 
