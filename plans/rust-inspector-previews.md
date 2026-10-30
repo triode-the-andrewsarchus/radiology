@@ -8,7 +8,9 @@ Return or double-click commits. Escape clears selection. Selection alone does
 not expand content or move the source reader. Rust now follows these rules.
 Multiple reference source disclosures can remain open independently. Focused
 reference keys are consumed before the reader's global Return-to-definition
-command; modal input remains exclusive. The definition region also owns its
+command; modal input remains exclusive. Reader and inspector key dispatch share
+one ordered event-consumption path, so fast mixed keys keep their original order.
+Inspector focus remains eligible for global reader commands such as F12. The definition region also owns its
 Right/Left disclosure and Return commit while focused.
 
 `source::preview` owns toolkit-independent bounded excerpts and replaceable jobs
@@ -34,7 +36,8 @@ state. Explicit-reference selection and loaded excerpts survive unchanged file
 navigation and commits. A per-path/revision source identity ledger includes bytes
 read by preview workers, so changed destinations invalidate excerpts on their
 first reader visit. Pending requests rebind to newly displayed bytes before
-publishing; loaded excerpts remain reusable. The reference viewport reuses reader-text's RowHeights to virtualize
+publishing; loaded excerpts remain reusable. The reference viewport reuses
+reader-text's RowHeights to virtualize
 variable-height rows and reveal keyboard selection. It introduces no runtime
 sibling dependency. Source-preview rendering is shared by both inspector regions.
 
@@ -47,9 +50,9 @@ tests verify source/history preservation, same-token reuse, on-definition fetch
 suppression, keyboard selection/disclosure/commit and modal exclusion. Pointer
 replay verifies single-click selection and double-click commit.
 
-Current gates: 233 application tests, one external Clang test ignored, 5 reader-text
+Current gates: 235 application tests, one external Clang test ignored, 5 reader-text
 tests and 30 doctests pass; fmt, Clippy with warnings denied, build and rustdoc pass.
-Native focus, scrolling and visual acceptance are under final verification. The architecture
+The architecture
 baseline is before-inspector-previews at 39cb614: no new product hotspot/cycle;
 main inspector show CCN drops 17 to 9. The comparison still flags short test
 setup/pointer sequences and a six-line source read branch; no duplicate product

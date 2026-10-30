@@ -84,7 +84,7 @@ pub struct InspectorContent<'a> {
 pub struct ContextInspector;
 
 impl ContextInspector {
-    fn definition_focus_id() -> egui::Id {
+    pub(crate) fn definition_focus_id() -> egui::Id {
         egui::Id::new("definition_context_focus")
     }
 
@@ -92,25 +92,17 @@ impl ContextInspector {
         if !ctx.memory(|memory| memory.has_focus(Self::definition_focus_id())) {
             return Vec::new();
         }
-        let mut actions = Vec::new();
-        ctx.input_mut(|input| {
-            for (key, action) in [
-                (
-                    egui::Key::ArrowRight,
-                    InspectorAction::ExpandDefinition(true),
-                ),
-                (
-                    egui::Key::ArrowLeft,
-                    InspectorAction::ExpandDefinition(false),
-                ),
-                (egui::Key::Enter, InspectorAction::GoToDefinition),
-            ] {
-                if input.consume_key(egui::Modifiers::NONE, key) {
-                    actions.push(action);
-                }
+        super::commands::take_key_actions(ctx, |key, modifiers| {
+            if modifiers != egui::Modifiers::NONE {
+                return None;
             }
-        });
-        actions
+            match key {
+                egui::Key::ArrowRight => Some(InspectorAction::ExpandDefinition(true)),
+                egui::Key::ArrowLeft => Some(InspectorAction::ExpandDefinition(false)),
+                egui::Key::Enter => Some(InspectorAction::GoToDefinition),
+                _ => None,
+            }
+        })
     }
 
     /// Renders independently scrolling regions and returns a requested action.
@@ -441,5 +433,44 @@ mod tests {
             "declaration region collapsed around its content"
         );
         assert!(y("Bookmarks") > y("Outline") + 100.0);
+    }
+    #[test]
+    fn fast_definition_keys_preserve_event_order_and_do_not_leak() {
+        let ctx = egui::Context::default();
+        let mut actions = Vec::new();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: [
+                    egui::Key::ArrowLeft,
+                    egui::Key::ArrowRight,
+                    egui::Key::Enter,
+                ]
+                .into_iter()
+                .map(|key| egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .collect(),
+                ..Default::default()
+            },
+            |ctx| {
+                ctx.memory_mut(|memory| {
+                    memory.request_focus(ContextInspector::definition_focus_id())
+                });
+                actions = ContextInspector::take_definition_actions(ctx);
+                assert!(ctx.input(|input| input.events.is_empty()));
+            },
+        );
+        assert_eq!(
+            actions,
+            [
+                InspectorAction::ExpandDefinition(false),
+                InspectorAction::ExpandDefinition(true),
+                InspectorAction::GoToDefinition
+            ]
+        );
     }
 }

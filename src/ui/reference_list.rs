@@ -5,7 +5,7 @@ use crate::{
     source::preview::SourcePreviewLoader,
     theme::AppTheme,
 };
-use egui::{Context, Event, Id, Key, Modifiers, RichText, Sense, Ui};
+use egui::{Context, Id, Key, Modifiers, RichText, Sense, Ui};
 use reader_text::RowHeights;
 use std::collections::BTreeMap;
 
@@ -48,32 +48,20 @@ impl ReferenceViewport {
         if !ctx.memory(|memory| memory.has_focus(Self::focus_id())) {
             return Vec::new();
         }
-        let mut actions = Vec::new();
-        ctx.input_mut(|input| {
-            input.events.retain(|event| {
-                let Event::Key {
-                    key,
-                    modifiers: Modifiers::NONE,
-                    pressed: true,
-                    ..
-                } = event
-                else {
-                    return true;
-                };
-                let action = match key {
-                    Key::ArrowDown => ReferenceAction::MoveSelection(true),
-                    Key::ArrowUp => ReferenceAction::MoveSelection(false),
-                    Key::ArrowRight => ReferenceAction::SetSelectionExpanded(true),
-                    Key::ArrowLeft => ReferenceAction::SetSelectionExpanded(false),
-                    Key::Enter => ReferenceAction::Commit(None),
-                    Key::Escape => ReferenceAction::ClearSelection,
-                    _ => return true,
-                };
-                actions.push(action);
-                false
+        super::commands::take_key_actions(ctx, |key, modifiers| {
+            if modifiers != Modifiers::NONE {
+                return None;
+            }
+            Some(match key {
+                Key::ArrowDown => ReferenceAction::MoveSelection(true),
+                Key::ArrowUp => ReferenceAction::MoveSelection(false),
+                Key::ArrowRight => ReferenceAction::SetSelectionExpanded(true),
+                Key::ArrowLeft => ReferenceAction::SetSelectionExpanded(false),
+                Key::Enter => ReferenceAction::Commit(None),
+                Key::Escape => ReferenceAction::ClearSelection,
+                _ => return None,
             })
-        });
-        actions
+        })
     }
 
     pub(crate) fn show(
@@ -239,6 +227,7 @@ fn render_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egui::Event;
     #[test]
     fn single_click_selects_and_double_click_commits() {
         let context = egui::Context::default();

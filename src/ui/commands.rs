@@ -99,11 +99,21 @@ pub enum ReaderCommand {
 ///
 /// Bare keys belong to the focused control. While a sheet is open its input is
 /// exclusive, so typing in it cannot invoke commands in the source behind it.
-pub fn take_shortcuts(ctx: &Context, modal_open: bool, source_focused: bool) -> Vec<ReaderCommand> {
+/// `reader_focused` includes reader-owned non-text controls; their local bindings
+/// must consume their keys before this dispatcher runs.
+pub fn take_shortcuts(ctx: &Context, modal_open: bool, reader_focused: bool) -> Vec<ReaderCommand> {
     if modal_open {
         return Vec::new();
     }
-    let typing = ctx.wants_keyboard_input() && !source_focused;
+    let typing = ctx.wants_keyboard_input() && !reader_focused;
+    take_key_actions(ctx, |key, modifiers| shortcut(key, modifiers, typing))
+}
+
+/// Consumes recognized key presses in event order, preserving all other input.
+pub(crate) fn take_key_actions<T>(
+    ctx: &Context,
+    resolve: impl Fn(Key, Modifiers) -> Option<T>,
+) -> Vec<T> {
     let mut commands = Vec::new();
     ctx.input_mut(|input| {
         input.events.retain(|event| {
@@ -116,7 +126,7 @@ pub fn take_shortcuts(ctx: &Context, modal_open: bool, source_focused: bool) -> 
             else {
                 return true;
             };
-            let Some(command) = shortcut(*key, *modifiers, typing) else {
+            let Some(command) = resolve(*key, *modifiers) else {
                 return true;
             };
             commands.push(command);

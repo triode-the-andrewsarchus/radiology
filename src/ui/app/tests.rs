@@ -1466,3 +1466,15 @@ fn changed_preview_destination_invalidates_disclosures_on_first_reader_visit() {
     assert_eq!(app.reference_context.selected, None);
     assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
 }
+
+#[test]
+fn inspector_focus_remains_eligible_for_global_reader_definition_shortcuts() {
+    let (_dir, mut app) = reader_with_reference_index();
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    let ctx = Context::default();
+    assert!(reference_key(&mut app, &ctx, egui::Key::F12));
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+}
