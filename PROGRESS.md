@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Native inspector preview and navigation acceptance (Codex)
+
+Final-build Wayland checks verify real declaration-bounded previews, non-text
+inspector shortcuts, single-click selection, independent source disclosures,
+exact Return navigation and Back restoration after an emoji, with retained
+reference state. Multiple disclosures and Left/Escape behavior also pass.
+Radiology and both private compositors exit zero. Build SHA and screenshot
+contracts are recorded in the [preview acceptance](plans/rust-inspector-previews.md).
+Final gates remain 235 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Full parity remains open: source-line reference rows, grouping,
+definitions/coverage, parsed call trees, richer context, indexing/PR lifecycle,
+source presentation, reuse and the final UI/Swift audit remain required.
+
 ## 2026-10-30 — Ordered reader and inspector keyboard dispatch (Codex)
 
 Reader shortcuts, reference controls and definition controls now share ordered

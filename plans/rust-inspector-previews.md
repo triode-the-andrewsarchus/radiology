@@ -59,6 +59,30 @@ setup/pointer sequences and a six-line source read branch; no duplicate product
 query algorithm has been introduced. Sharing reference fixtures keeps clone groups
 at 86 and reduces duplication from 0.72% to 0.70%.
 
+Native private-Wayland evidence is in `/tmp/radiology-inspector-previews-native/`.
+`build-evidence.json` records the final tested product commit, binary SHA-256,
+process identity, automated gates and successful application/compositor exits.
+The final app and both compositors exit zero; helper pointer clients are
+intentionally terminated on replacement/cleanup.
+
+- `final-definition-preview.png` shows the real save declaration, stopping before
+  its adjacent sibling, after Left/Right disclosure keys without source movement.
+- `final-explicit-references.png` shows Find References working while a non-text
+  inspector region has focus, with the independent definition excerpt still open.
+- `final-reference-preview.png` shows single-click selection followed by Right
+  disclosure, with real b.rs source and unchanged a.rs caret/definition context.
+- `final-return-commit.png` reaches b.rs's exact call at line 5. Selection and
+  the loaded reference excerpt remain intact through the commit.
+- `final-back-restored.png` returns to a.rs's exact save occurrence after the
+  emoji while retaining the explicit reference state.
+- `multiple-reference-previews.png` and `reference-left-escape.png` verify
+  independent simultaneous disclosures and keyboard collapse/selection clearing.
+
+Fixture indexes are unverified imports; generated-source identity behavior and
+pinned PR bytes are covered by the backend/application tests. The 1000-row test
+verifies bounded painting and keyboard reveal; broad corpus, scaling and full
+Swift runtime comparison remain part of the final acceptance queue.
+
 The configured skill locations still lack swiftui-pro, macos-design and
 typography-designer. Swift source, existing reader typography and the shared
 source primitives guide the implementation.

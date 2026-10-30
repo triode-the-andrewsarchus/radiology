@@ -77,8 +77,9 @@ replaced or cleaned up.
 
 ## Remaining inspector parity
 
-Single-click reference previews, independent Up/Down/Left/Right/Return preview/
-commit behavior, full source definition previews, snippets, coverage reporting,
-parsed/validated call-tree disclosure, extension implementation links, and broader
+Selection/disclosure/commit keyboard behavior and bounded real-source definition/
+reference excerpts are now integrated; see [preview acceptance](rust-inspector-previews.md).
+Always-visible source-line rows, grouping, definitions/coverage, parsed/validated
+call-tree disclosure, extension implementation links, revisit caches and broader
 large-repository/runtime acceptance remain required. This package does not close
 the full Rust/Swift parity objective.
