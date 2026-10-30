@@ -27,8 +27,12 @@ impl PullRequestMenu<'_> {
             .map(|number| format!("#{number}…"))
             .or_else(|| self.active.map(|pr| format!("#{}", pr.number)))
             .unwrap_or_else(|| "Pull Request".into());
-        let menu = ui.menu_button(title, |ui| action = self.contents(ui));
-        if menu.inner.is_none() {
+        let mut menu_open = false;
+        let menu = ui.menu_button(title, |ui| {
+            menu_open = true;
+            action = self.contents(ui);
+        });
+        if !menu_open {
             menu.response.on_hover_text(
                 self.active
                     .map(|pr| format!("#{} {} · {}", pr.number, pr.title, pr.state_title()))

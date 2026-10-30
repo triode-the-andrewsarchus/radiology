@@ -193,3 +193,54 @@ fn keyboard_selection_reveals_recent_rows_including_the_last_scrolled_choice() {
         assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(&format!("#{expected}  ")) && shape.clip_rect.contains(text.pos + text.galley.size() * 0.5))), "focused choice should be visible after scroll settles");
     }
 }
+
+#[test]
+fn toolbar_tooltip_remains_available_when_closed_and_does_not_cover_the_open_popup() {
+    let ctx = egui::Context::default();
+    ctx.style_mut(|style| style.interaction.tooltip_delay = 0.0);
+    let menu = PullRequestMenu {
+        active: None,
+        pending: None,
+        recent: &[],
+        phase: &PullRequestListPhase::Loaded,
+        enabled: true,
+    };
+    let paint = |events| {
+        painted_frame(&ctx, egui::vec2(700.0, 600.0), events, |ui| {
+            menu.show(ui);
+        })
+    };
+    let output = paint(vec![]);
+    let point = output
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text == "Pull Request" => {
+                Some(text.pos + text.galley.size() * 0.5)
+            }
+            _ => None,
+        })
+        .unwrap();
+    paint(vec![egui::Event::PointerMoved(point)]);
+    for _ in 0..3 {
+        paint(vec![]);
+    }
+    let help = "Review a recent pull request or open a number (Ctrl+P).";
+    let output = paint(vec![]);
+    assert!(output.shapes.iter().any(
+        |shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == help)
+    ));
+    for pressed in [true, false] {
+        paint(vec![egui::Event::PointerButton {
+            pos: point,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        }]);
+    }
+    let output = paint(vec![]);
+    assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "Local Checkout")));
+    assert!(!output.shapes.iter().any(
+        |shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == help)
+    ));
+}
