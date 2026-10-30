@@ -4,7 +4,8 @@
 blocking pool. The reader now routes file opens, bookmarks, encoded definitions, revision
 changes and new-document history navigation through this worker. Theme changes
 recolor immutable current bytes or restart the pending destination with the new
-appearance. Repository discovery/index loading remain separate work below.
+appearance. Repository discovery and index imports are also worker-owned now;
+see [repository opening](rust-repository-opening.md) and [index lifecycle](rust-indexing-parity.md).
 
 ## Implemented contracts
 
@@ -22,8 +23,9 @@ appearance. Repository discovery/index loading remain separate work below.
   retirement between stages and highlighting checks between source lines.
 - In-flight native parsing and Git subprocesses currently finish their stage;
   they are not forcibly interrupted. Process timeouts/cancellation and native
-  parser progress cancellation remain open. Repository discovery, existing SCIP
-  decoding and repository-wide Git refresh remain separate outstanding work.
+  parser progress cancellation remain open in the source-loader path. Discovery
+  and checkout refresh now use bounded process-group cancellation; SCIP imports
+  are worker-owned with finer decode interruption still on the lifecycle queue.
 
 ## Reader integration invariants (implemented)
 
@@ -83,7 +85,8 @@ published correct colors. `/tmp/radiology-native-source-loading-theme-settled.pn
 retains the resulting source. This is smoke evidence, not a benchmark or a claim
 that every analysis stage is immediately interruptible.
 
-Repository discovery, branch/status/diff refresh, existing SCIP decoding and
-semantic context/caller computation can still block the UI. Native parser/analysis
-stages and Git child processes still finish their current stage after retirement;
-finer cancellation and process deadlines remain required for full acceptance.
+Repository discovery, checkout branch/status/diff refresh and SCIP imports now run
+on workers. Native parser/analysis stages and source-loader Git child processes
+still finish their current stage after retirement; finer interruption and source-
+loader process deadlines remain required. Context/graph/cache and broader index/PR
+lifecycle work remain on the full parity queue.

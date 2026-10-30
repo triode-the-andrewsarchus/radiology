@@ -14,20 +14,25 @@ impl RadiologyApp {
         let root = repository
             .map(Path::to_path_buf)
             .or_else(|| saved.last_repository.as_ref().map(PathBuf::from));
-        if let Some(root) = root {
-            self.open_repository(&root);
-        }
         let number =
             pull_request.or_else(|| repository.is_none().then_some(saved.active_pr).flatten());
-        if let Some(number) = number {
-            self.open_pull_request(number);
-        }
-        if let Some(file) = file {
-            if self.pending_pr.is_some() {
-                self.pending_open_file = Some(file.to_string());
-            } else {
-                self.open_file(file);
-            }
+        if let Some(root) = root {
+            self.request_repository(repository::RepositoryRequest {
+                path: root,
+                destination: if let Some(number) = number {
+                    repository::RepositoryDestination::Review {
+                        number,
+                        file: file.map(str::to_owned),
+                    }
+                } else if let Some(file) = file {
+                    repository::RepositoryDestination::Source {
+                        location: SourceLocation::with_revision(file, 0, None),
+                        target: crate::source::loader::SourceTarget::Byte(0),
+                    }
+                } else {
+                    repository::RepositoryDestination::Default
+                },
+            });
         }
     }
 
@@ -43,6 +48,7 @@ impl RadiologyApp {
         let Some((root, cache)) = self.cached_repository() else {
             return;
         };
+        self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -81,6 +87,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
+        self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
         if self

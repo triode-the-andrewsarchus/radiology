@@ -373,13 +373,10 @@ impl RadiologyApp {
         if let Some(pr) = &self.active_pr {
             self.open_pull_request(pr.number);
         } else if let Some(root) = self.repository_root.clone() {
-            let location = self.open_buffer.as_ref().map(|buffer| {
-                buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
+            self.request_repository(repository::RepositoryRequest {
+                path: root,
+                destination: repository::RepositoryDestination::RestoreCurrent,
             });
-            self.open_repository(&root);
-            if let Some(location) = location {
-                self.navigate(location, false);
-            }
         }
     }
 }

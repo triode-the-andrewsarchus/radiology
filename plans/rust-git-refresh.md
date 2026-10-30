@@ -2,7 +2,8 @@
 
 Implemented 2026-10-30 on `rust-egui-port`. The app remains standalone.
 This increment removes branch/change refresh subprocesses from the GUI thread;
-repository root/file discovery is still synchronous and remains on the parity queue.
+repository root/file discovery is also background work now; see
+[repository opening](rust-repository-opening.md).
 
 ## Ownership and publication
 
@@ -53,8 +54,7 @@ HEAD is verified again before publication; moving commits reject the snapshot
 and offer Retry. These sequential read-only commands do not constitute an atomic
 filesystem snapshot if arbitrary working-tree files change during the scan.
 Individual file reads/native parsing and source-loader subprocesses still need
-finer interruption. Repository discovery and other cache/index lifecycle work
-remain separate open requirements.
+finer interruption. Other cache/index lifecycle work remains open.
 
 ## Verification
 

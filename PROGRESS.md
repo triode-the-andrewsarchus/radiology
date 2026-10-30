@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-30 — Cancellable repository opening and deferred launch intent (Codex)
+
+Shared bounded Git reads committed/pushed as `d8ed022`. Root lookup, file enumeration,
+classification/sorting and initial filtered trees now run on the existing worker
+pool. Accepted reader/session state stays usable until successful root publication;
+Cancel/failure preserve it and errors expose Retry/Dismiss. Typed destinations defer
+CLI/session source/PR work until its root is ready and restore the live caret or
+pending navigation on checkout refresh. Root/review replacement retires old intent;
+filter changes invalidate a prepared tree and request fresh preparation. Real Git
+fixtures cover whitespace roots, worktrees, literal paths and bounded failures;
+no-Git traversal retains exclusions and rejects partial inventories. Full gates
+pass 335 app tests (one external-Clang fixture ignored), eight shared tests, 30
+doctests, fmt, strict Clippy, build and rustdoc. Native delayed/cancelled/failed/
+retried opening retains source/caret and publishes the new inventory; app and
+compositors exit zero. Architecture adds no hotspot/cycle/clone group; only baseline
+test fragments remain flagged. [Host contract and evidence](plans/rust-repository-opening.md).
+Full parity remains open: source/graph/context caches, finer native/SCIP/source-loader
+interruption, broader index/provisioning/PR lifecycle and PR-refresh state mapping,
+final visual/accessibility/scaling acceptance and sibling palette/chrome reuse.
+Commit and push every increment; the standalone app remains independent.
+
 ## 2026-10-30 — Shared bounded Git read context (Codex)
 
 Extracted checkout GitRead into the repository module so discovery can reuse
