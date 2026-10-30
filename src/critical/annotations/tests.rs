@@ -122,7 +122,10 @@ fn six_function_batches_publish_before_completion_and_cancellation_stops_later_r
         .collect();
     assert_eq!(
         lines,
-        folds.iter().map(|fold| fold.start_line).collect::<Vec<_>>()
+        folds
+            .iter()
+            .map(|fold| (fold.byte_range.start, fold.byte_range.end))
+            .collect::<Vec<_>>()
     );
     assert!(batches
         .iter()
@@ -246,4 +249,39 @@ fn late_progress_from_a_retired_request_cannot_overwrite_a_new_policy() {
             .label(),
         "0"
     );
+}
+
+#[test]
+fn shared_header_counts_bind_to_callable_body_ranges_instead_of_the_container() {
+    let (mut inputs, _) = seven_scopes();
+    let buffer = Arc::new(SourceBuffer::from_str(
+        "a.rs",
+        "impl Demo { fn first() { fn nested() {\n one();\n }\n two();\n }\n}\n",
+    ));
+    let syntax = DocumentSyntax::analyze(&buffer);
+    inputs.source = crate::source::loader::SourceRead::Buffer(buffer.clone());
+    inputs.buffer = buffer.clone();
+    inputs.calls = Arc::new(syntax.calls);
+    let mut entries = BTreeMap::new();
+    compute(inputs, &syntax.folds, &AtomicBool::new(false), |batch| {
+        entries.extend(batch)
+    })
+    .unwrap();
+    let counts = SourceAnnotations {
+        buffer: buffer.clone(),
+        entries,
+    };
+    let callables: Vec<_> = syntax
+        .folds
+        .iter()
+        .filter(|fold| fold.kind == crate::syntax::FoldKind::Callable)
+        .collect();
+    assert_eq!(callables.len(), 2);
+    assert_eq!(counts.entries.len(), 2);
+    for fold in &syntax.folds {
+        assert_eq!(
+            counts.at_range(&buffer, &fold.byte_range).is_some(),
+            fold.kind == crate::syntax::FoldKind::Callable
+        );
+    }
 }

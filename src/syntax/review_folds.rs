@@ -7,12 +7,12 @@ use crate::{
 };
 use std::{collections::HashSet, ops::Range};
 
-pub(super) fn expanded_headers(
+pub(super) fn expanded_ranges(
     buffer: &SourceBuffer,
     folds: &[FoldRange],
     changes: &FileLineChanges,
     revision: ReviewRevision,
-) -> HashSet<usize> {
+) -> HashSet<Range<usize>> {
     if changes.is_binary {
         return HashSet::new();
     }
@@ -36,7 +36,7 @@ pub(super) fn expanded_headers(
                         .is_some_and(|owner| overlaps(owner, &changed))
             };
             if intersects {
-                selected.insert(fold.start_line);
+                selected.insert(fold.byte_range.clone());
             }
         }
     }
@@ -44,17 +44,18 @@ pub(super) fn expanded_headers(
     selected
 }
 
-fn include_ancestors(folds: &[FoldRange], selected: &mut HashSet<usize>) {
+fn include_ancestors(folds: &[FoldRange], selected: &mut HashSet<Range<usize>>) {
     let mut ancestors = Vec::<&FoldRange>::new();
     for fold in folds {
         while ancestors.last().is_some_and(|parent| {
-            fold.end_line > parent.end_line || fold.start_line > parent.end_line
+            fold.byte_range.end > parent.byte_range.end
+                || fold.byte_range.start >= parent.byte_range.end
         }) {
             ancestors.pop();
         }
-        if selected.contains(&fold.start_line) {
+        if selected.contains(&fold.byte_range) {
             for parent in ancestors.iter().rev() {
-                if !selected.insert(parent.start_line) {
+                if !selected.insert(parent.byte_range.clone()) {
                     break;
                 }
             }

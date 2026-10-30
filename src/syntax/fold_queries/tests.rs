@@ -87,11 +87,11 @@ fn fold_to_definitions_keeps_nested_declarations_visible_and_replaces_unrelated_
     let mut store = FoldStore::new();
     store.activate(&buffer, &syntax.folds);
     store
-        .folded_lines
-        .extend(syntax.folds.iter().map(|fold| fold.start_line));
+        .folded_ranges
+        .extend(syntax.folds.iter().map(|fold| fold.byte_range.clone()));
     store.fold_to_definitions(&syntax.folds);
     assert_eq!(
-        store.folded_lines,
+        store.collapsed_headers(&syntax.folds),
         std::collections::HashSet::from([1, 6, 15])
     );
     assert!(store.is_line_hidden(2, &syntax.folds));
@@ -145,7 +145,7 @@ fn type_containment_includes_kotlin_properties_and_rust_enum_cases_from_shared_s
     let mut store = FoldStore::new();
     store.fold_to_definitions(&syntax.folds);
     assert!(
-        store.folded_lines.is_empty(),
+        store.collapsed_headers(&syntax.folds).is_empty(),
         "property declarations must stay visible"
     );
 }
@@ -192,9 +192,9 @@ fn kotlin_lambda_header_changes_do_not_open_sibling_closures() {
     };
     let mut store = FoldStore::new();
     store.apply_initial_defaults(&buffer, &syntax.folds, Some(&changes));
-    assert!(!store.is_folded(1));
-    assert!(!store.is_folded(3));
-    assert!(store.is_folded(6));
+    assert!(!store.is_header_folded(1, &syntax.folds));
+    assert!(!store.is_header_folded(3, &syntax.folds));
+    assert!(store.is_header_folded(6, &syntax.folds));
 }
 
 #[test]
@@ -219,8 +219,11 @@ fn kotlin_import_lists_group_parsed_members_with_comments_and_exact_unicode_crlf
     assert!(fold.owner_range.is_none());
     let mut store = FoldStore::new();
     store.apply_initial_defaults(&buffer, &syntax.folds, None);
-    assert!(!store.is_folded(4), "imports stay open by default");
-    store.toggle(4);
+    assert!(
+        !store.is_header_folded(4, &syntax.folds),
+        "imports stay open by default"
+    );
+    store.toggle_header(4, &syntax.folds);
     for line in 5..=9 {
         assert!(store.is_line_hidden(line, &syntax.folds));
     }
@@ -228,8 +231,8 @@ fn kotlin_import_lists_group_parsed_members_with_comments_and_exact_unicode_crlf
         assert!(!store.is_line_hidden(line, &syntax.folds));
     }
     store.fold_to_definitions(&syntax.folds);
-    assert!(!store.is_folded(4));
-    assert!(store.is_folded(11));
+    assert!(!store.is_header_folded(4, &syntax.folds));
+    assert!(store.is_header_folded(11, &syntax.folds));
     assert_eq!(buffer.text, text);
 }
 
@@ -265,4 +268,94 @@ fn kotlin_import_grouping_does_not_turn_strings_single_lines_or_errors_into_impo
     assert!(extract(&buffer, tree.root_node(), query, 2)
         .unwrap_err()
         .contains("fact limit"));
+}
+
+#[test]
+fn same_row_nested_folds_keep_independent_byte_identities_across_defaults_and_restore() {
+    let text = "impl Demo { fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\n";
+    let buffer = SourceBuffer::from_str("a.rs", text);
+    let syntax = DocumentSyntax::analyze(&buffer);
+    let outer = syntax
+        .folds
+        .iter()
+        .find(|fold| fold.kind == FoldKind::Type)
+        .unwrap();
+    let first = syntax
+        .folds
+        .iter()
+        .find(|fold| fold.kind == FoldKind::Callable)
+        .unwrap();
+    let second = syntax
+        .folds
+        .iter()
+        .find(|fold| fold.kind == FoldKind::Callable && fold.start_line == 4)
+        .unwrap();
+    assert_eq!(outer.start_line, first.start_line);
+    assert_eq!(
+        syntax.folds[0], *outer,
+        "gutter chooses Swift's first outer range"
+    );
+    let identities: std::collections::HashSet<_> = syntax
+        .folds
+        .iter()
+        .map(|fold| fold.byte_range.clone())
+        .collect();
+    assert_eq!(
+        identities.len(),
+        syntax.folds.len(),
+        "exact duplicate roles remain canonicalized"
+    );
+    let review = SourceBuffer::from_bytes(
+        "a.rs",
+        buffer.data.clone(),
+        Some(crate::source::ReviewRevision::After),
+    )
+    .unwrap();
+    let changes = crate::pull_request::diff::FileLineChanges {
+        hunks: vec![crate::pull_request::diff::DiffHunk {
+            before_start: 2,
+            before_count: 1,
+            after_start: 2,
+            after_count: 1,
+        }],
+        ..Default::default()
+    };
+    let expanded = crate::syntax::review_folds::expanded_ranges(
+        &review,
+        &syntax.folds,
+        &changes,
+        crate::source::ReviewRevision::After,
+    );
+    assert!(expanded.contains(&outer.byte_range));
+    assert!(expanded.contains(&first.byte_range));
+    assert!(!expanded.contains(&second.byte_range));
+    let mut review_store = FoldStore::new();
+    review_store.apply_initial_defaults(&review, &syntax.folds, Some(&changes));
+    assert_eq!(
+        review_store.folded_ranges,
+        std::collections::HashSet::from([second.byte_range.clone()])
+    );
+    let mut store = FoldStore::new();
+    store.activate(&buffer, &syntax.folds);
+    store.apply_initial_defaults(&buffer, &syntax.folds, None);
+    assert!(!store.is_folded(&outer.byte_range));
+    assert!(store.is_folded(&first.byte_range));
+    assert!(store.is_folded(&second.byte_range));
+    assert!(!store.is_line_hidden(4, &syntax.folds));
+    store.toggle(outer.byte_range.clone());
+    assert!(store.is_line_hidden(4, &syntax.folds));
+    store.toggle(first.byte_range.clone());
+    let saved = store.folded_ranges.clone();
+    let other = SourceBuffer::from_str("b.rs", "fn other() {\n work();\n}\n");
+    let other_syntax = DocumentSyntax::analyze(&other);
+    store.activate(&other, &other_syntax.folds);
+    assert!(store.folded_ranges.is_empty());
+    store.activate(&buffer, &syntax.folds);
+    assert_eq!(store.folded_ranges, saved);
+    store.toggle(outer.byte_range.clone());
+    assert!(!store.is_line_hidden(2, &syntax.folds));
+    assert!(store.is_line_hidden(5, &syntax.folds));
+    store.fold_to_definitions(&syntax.folds);
+    assert!(!store.is_folded(&outer.byte_range));
+    assert!(store.is_folded(&first.byte_range));
 }

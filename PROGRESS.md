@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Exact fold identities and overlapping headers (Codex)
+
+Retained overlapping parsed folds in Swift's outer-first order and replaced
+line-keyed collapsed state with exact byte spans throughout defaults, prepared
+source, PR ownership/ancestry, restoration and viewport actions. One gutter
+control still serves each row; toggling an outer type preserves child choices.
+Critical Lens body matching/count batches also use exact ranges, preventing
+shared-header container/count collisions. Existing broad tests use derived
+header assertions; no compatibility state is retained. Full checks pass 301 app
+tests (one external-Clang fixture ignored), five reader-text tests, 30 doctests,
+fmt, strict Clippy, build and rustdoc. Native outer toggles and different method
+choices survive file return on the final build; private app/compositors exit zero.
+Architecture adds no hotspot/cycle/clone group and lowers average CCN; remaining
+flags are existing touched test fragments. [Contract/evidence](plans/rust-fold-identities.md).
+Exact partial-line/non-delimited header projection is still required, together
+with broader cache/background/index/PR lifecycle, visual/accessibility acceptance
+and sibling UI reuse. Full parity stays open. Push each commit immediately.
+
 ## 2026-10-30 — Parsed Kotlin import grouping (Codex)
 
 Adapted the missing kotlin-ng import-list node into one parsed sibling-run fold.

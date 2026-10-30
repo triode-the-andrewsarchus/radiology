@@ -38,7 +38,7 @@ pub enum SourceViewAction {
     /// Navigates a hover destination independently of the current caret.
     NavigateToDefinition(crate::semantic::index::SemanticSymbolID),
     /// Requests expanding or collapsing the code fold starting at the given line number.
-    ToggleFold(usize),
+    ToggleFold(std::ops::Range<usize>),
     /// Toggles one detected test region without changing manual folds.
     ToggleTestRegion(usize),
     /// Requests jumping to the next modified hunk in the active pull request review.

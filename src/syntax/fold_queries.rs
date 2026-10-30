@@ -67,17 +67,14 @@ pub(super) fn extract(
             .take_while(|range| range.start < fold.byte_range.end)
             .any(|range| range.end <= fold.byte_range.end);
     }
-    // The source gutter currently has one disclosure per physical header row.
-    // Prefer the semantic callable/type role before generic same-row blocks.
+    // Swift retains nested candidates even when they share a physical header.
+    // The gutter chooses the first (outermost) range, independently of defaults.
     folds.sort_by_key(|fold| {
         (
-            fold.start_line,
-            fold.kind,
-            std::cmp::Reverse(fold.end_line),
             fold.byte_range.start,
+            std::cmp::Reverse(fold.byte_range.end),
         )
     });
-    folds.dedup_by_key(|fold| fold.start_line);
     Ok(folds)
 }
 

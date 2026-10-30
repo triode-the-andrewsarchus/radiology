@@ -1,5 +1,9 @@
 # Typed structural folds and Fold to Definitions
 
+Current follow-up: [exact fold identities](rust-fold-identities.md) supersedes the
+single-candidate/line-keyed limitations below. Partial-line and non-delimited header
+projection remain open; the following sections retain their implementation checkpoints.
+
 ## Implemented behavior (2026-10-30)
 
 Fold to Definitions now replaces the current collapsed set with callable bodies
