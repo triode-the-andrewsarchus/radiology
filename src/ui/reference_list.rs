@@ -104,7 +104,7 @@ impl ReferenceViewport {
 
     pub(crate) fn take_actions(&mut self, ctx: &Context) -> Vec<ReferenceAction> {
         if !ctx.memory(|memory| memory.has_focus(Self::focus_id())) {
-            return self.take_caller_actions(ctx);
+            return Vec::new();
         }
         super::commands::take_key_actions(ctx, |key, modifiers| {
             if modifiers != Modifiers::NONE {
@@ -154,7 +154,11 @@ impl ReferenceViewport {
         self.caller_controls = controls;
     }
 
-    fn take_caller_actions(&mut self, ctx: &Context) -> Vec<ReferenceAction> {
+    pub(crate) fn take_raw_actions(
+        &mut self,
+        ctx: &Context,
+        input: &mut egui::RawInput,
+    ) -> Vec<ReferenceAction> {
         let focused = ctx.memory(|memory| memory.focused());
         let Some(mut index) = self
             .caller_controls
@@ -165,7 +169,7 @@ impl ReferenceViewport {
         };
         let mut focus_list = false;
         let mut reveal = false;
-        let actions = super::commands::take_key_actions(ctx, |key, modifiers| {
+        let actions = super::commands::take_event_actions(&mut input.events, |key, modifiers| {
             if modifiers != Modifiers::NONE {
                 return None;
             }
@@ -576,6 +580,7 @@ mod tests {
             super::super::reference_callers::control_id(4, Some(0)),
             super::super::reference_callers::control_id(4, Some(1)),
             super::super::reference_callers::control_id(4, Some(2)),
+            super::super::reference_callers::control_id(4, Some(3)),
         ];
         viewport.caller_controls = ids
             .iter()
@@ -583,51 +588,50 @@ mod tests {
             .map(|(row, id)| (*id, ReferenceAction::CommitCaller(4, row)))
             .collect();
         let mut frame = |keys: &[Key]| {
-            let mut actions = Vec::new();
-            let _ = ctx.run(
-                egui::RawInput {
-                    events: keys
-                        .iter()
-                        .map(|&key| Event::Key {
-                            key,
-                            physical_key: None,
-                            pressed: true,
-                            repeat: false,
-                            modifiers: Modifiers::NONE,
-                        })
-                        .collect(),
-                    ..Default::default()
-                },
-                |ctx| {
-                    actions = viewport.take_actions(ctx);
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        ui.interact(
-                            ui.available_rect_before_wrap(),
-                            ReferenceViewport::focus_id(),
-                            Sense::focusable_noninteractive(),
-                        );
-                        for id in ids {
-                            let (rect, _) =
-                                ui.allocate_exact_size(egui::vec2(200.0, 44.0), Sense::hover());
-                            ui.interact(rect, id, Sense::click());
-                            super::super::commands::retain_inspector_keys(ui.ctx(), id);
-                        }
-                    });
-                },
-            );
+            let mut input = egui::RawInput {
+                events: keys
+                    .iter()
+                    .map(|&key| Event::Key {
+                        key,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: Modifiers::NONE,
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            let actions = viewport.take_raw_actions(&ctx, &mut input);
+            let _ = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.interact(
+                        ui.available_rect_before_wrap(),
+                        ReferenceViewport::focus_id(),
+                        Sense::focusable_noninteractive(),
+                    );
+                    for id in ids {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(200.0, 44.0), Sense::hover());
+                        ui.interact(rect, id, Sense::click());
+                        super::super::commands::retain_inspector_keys(ui.ctx(), id);
+                    }
+                });
+            });
             actions
         };
         frame(&[]);
         ctx.memory_mut(|memory| memory.request_focus(ids[0]));
         frame(&[]);
+        assert_eq!(frame(&[Key::ArrowDown]), [ReferenceAction::Select(4)]);
+        assert!(ctx.memory(|memory| memory.has_focus(ids[1])));
         assert_eq!(
             frame(&[Key::ArrowDown, Key::Enter]),
             [
                 ReferenceAction::Select(4),
-                ReferenceAction::CommitCaller(4, 1)
+                ReferenceAction::CommitCaller(4, 2)
             ]
         );
-        assert!(ctx.memory(|memory| memory.has_focus(ids[1])));
+        assert!(ctx.memory(|memory| memory.has_focus(ids[2])));
         assert_eq!(
             frame(&[Key::ArrowLeft]),
             [ReferenceAction::SetExpanded(4, false)]

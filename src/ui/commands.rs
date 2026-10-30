@@ -114,24 +114,30 @@ pub(crate) fn take_key_actions<T>(
     ctx: &Context,
     mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
 ) -> Vec<T> {
+    ctx.input_mut(|input| take_event_actions(&mut input.events, &mut resolve))
+}
+
+/// Consumes owned presses before framework focus handling or from a prepared frame.
+pub(crate) fn take_event_actions<T>(
+    events: &mut Vec<Event>,
+    mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
+) -> Vec<T> {
     let mut commands = Vec::new();
-    ctx.input_mut(|input| {
-        input.events.retain(|event| {
-            let Event::Key {
-                key,
-                modifiers,
-                pressed: true,
-                ..
-            } = event
-            else {
-                return true;
-            };
-            let Some(command) = resolve(*key, *modifiers) else {
-                return true;
-            };
-            commands.push(command);
-            false
-        });
+    events.retain(|event| {
+        let Event::Key {
+            key,
+            modifiers,
+            pressed: true,
+            ..
+        } = event
+        else {
+            return true;
+        };
+        let Some(command) = resolve(*key, *modifiers) else {
+            return true;
+        };
+        commands.push(command);
+        false
     });
     commands
 }

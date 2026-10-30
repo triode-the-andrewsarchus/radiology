@@ -625,6 +625,14 @@ impl RadiologyApp {
 }
 
 impl eframe::App for RadiologyApp {
+    fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+        if matches!(self.modal, ActiveModal::None) && self.show_inspector {
+            for action in self.reference_viewport.take_raw_actions(ctx, input) {
+                self.handle_reference_action(action);
+            }
+        }
+    }
+
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.cancel_source_load();
         self.reference_context = Default::default();

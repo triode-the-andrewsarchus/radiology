@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — Pre-frame caller input ownership (Codex)
+
+Consecutive-frame native input exposed egui 0.27 delaying focus filters until
+a widget had focus in the previous frame. Caller-owned presses now pass through
+eframe raw_input_hook before egui computes automatic focus direction. The existing
+ordered event dispatcher is shared by raw and prepared input; Tab, modifiers and
+global shortcuts remain available. The four-control regression covers consecutive
+Down frames and ordered Return. Full gates pass 261 app tests, 5 reader-text,
+30 doctests, fmt, Clippy, build and rustdoc. Final native repetition follows.
+
 ## 2026-10-30 — Caller arrow-focus correction (Codex)
 
 A three-control regression and rust-gdb trace show egui applying a second
