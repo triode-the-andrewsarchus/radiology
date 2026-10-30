@@ -38,6 +38,7 @@ pub struct SourceViewport {
     hover_popup: crate::ui::critical_hover::HoverPopup,
     hover_pointer: Option<usize>,
     hover_origin: egui::Pos2,
+    preview: Option<(String, String, usize)>,
 }
 
 pub(super) struct CanvasContent<'a> {
@@ -128,6 +129,17 @@ impl SourceViewport {
             anchor: range.start,
             focus: range.end,
         });
+    }
+
+    /// Reveals exact source bytes without moving the caret or replacing selection.
+    /// A queued reveal is discarded if the displayed document or bytes change.
+    pub fn preview_byte(&mut self, buffer: &SourceBuffer, byte: usize) {
+        self.preview = Some((
+            buffer.position_key(),
+            buffer.content_digest().to_owned(),
+            buffer.clamp_to_char_boundary(byte.min(buffer.data.len())),
+        ));
+        self.hover.dismiss();
     }
 
     fn sync(&mut self, content: &CanvasContent<'_>) {
@@ -311,15 +323,25 @@ impl SourceViewport {
                 keyboard_reveal = true;
             }
         }
-        if let Some(line) = content.target.take() {
-            let caret = content
-                .buffer
-                .byte_offset(*content.caret_line, *content.caret_col);
-            let byte = if content.buffer.line_at_byte(caret) == line {
-                caret
-            } else {
-                content.buffer.byte_offset(line, 0)
-            };
+        let preview = self.preview.take().filter(|(key, digest, _)| {
+            key == &content.buffer.position_key() && digest == content.buffer.content_digest()
+        });
+        let target = content
+            .target
+            .take()
+            .map(|line| {
+                let caret = content
+                    .buffer
+                    .byte_offset(*content.caret_line, *content.caret_col);
+                let byte = if content.buffer.line_at_byte(caret) == line {
+                    caret
+                } else {
+                    content.buffer.byte_offset(line, 0)
+                };
+                (byte, true)
+            })
+            .or_else(|| preview.map(|(_, _, byte)| (byte, false)));
+        if let Some((byte, committed)) = target {
             let rect = self.caret_rect(
                 ui,
                 content,
@@ -348,9 +370,10 @@ impl SourceViewport {
             let caret = content
                 .buffer
                 .byte_offset(*content.caret_line, *content.caret_col);
-            if self
-                .selection
-                .is_some_and(|selection| selection.focus != caret && selection.anchor != caret)
+            if committed
+                && self
+                    .selection
+                    .is_some_and(|selection| selection.focus != caret && selection.anchor != caret)
             {
                 self.selection = None;
             }
@@ -1405,6 +1428,38 @@ mod tests {
                     });
                 },
             )
+        }
+    }
+
+    #[test]
+    fn preview_reveals_exact_bytes_preserves_caret_selection_and_rejects_stale_source() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new(&format!("origin café 😀\n{}target\n", "line\n".repeat(200)));
+        reader.frame(&ctx, Vec::new());
+        reader.viewport.select(0..6);
+        let selected = reader.viewport.selection;
+        let byte = reader.source.text.find("target").unwrap();
+        reader.viewport.preview_byte(&reader.source, byte);
+        reader.frame(&ctx, Vec::new());
+        assert!(reader.viewport.scroll_y > 1000.0);
+        assert_eq!((reader.line, reader.column), (1, 0));
+        assert_eq!(reader.viewport.selection, selected);
+        assert!(reader.last_action.is_none());
+        let original = reader.source.clone();
+        for source in [
+            SourceBuffer::from_str("other.rs", &original.text),
+            SourceBuffer::from_str(&original.path, &(original.text.clone() + "changed")),
+            SourceBuffer::from_bytes(
+                &original.path,
+                original.data.clone(),
+                Some(ReviewRevision::Before),
+            )
+            .unwrap(),
+        ] {
+            reader.viewport.preview_byte(&original, byte);
+            reader.source = source;
+            reader.frame(&ctx, Vec::new());
+            assert_eq!(reader.viewport.scroll_y, 0.0);
         }
     }
 
