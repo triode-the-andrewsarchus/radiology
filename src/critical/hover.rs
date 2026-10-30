@@ -108,18 +108,20 @@ impl CriticalHover {
     ///
     /// `interrupted` means a source/outside click, key or scroll. It suppresses
     /// reopening at the same idle byte until a subsequent pointer movement.
+    /// Returns whether popup content/visibility changed and needs repainting.
     pub fn update(
         &mut self,
         byte: Option<usize>,
         popup_hovered: bool,
         interrupted: bool,
         now: f64,
-    ) {
-        self.poll();
+    ) -> bool {
+        let mut changed = self.poll();
         if interrupted {
+            changed |= self.presentation.is_some();
             self.dismiss();
             self.last_byte = byte;
-            return;
+            return changed;
         }
         if popup_hovered {
             self.pending = None;
@@ -149,10 +151,13 @@ impl CriticalHover {
         {
             let (target, _) = self.pending.take().unwrap();
             self.present(target);
+            changed = true;
         }
         if self.close_at.is_some_and(|deadline| deadline <= now) {
             self.dismiss();
+            changed = true;
         }
+        changed
     }
 
     /// Returns the next useful repaint deadline, with no idle polling.
@@ -266,15 +271,18 @@ impl CriticalHover {
         self.close_at = None;
     }
 
-    fn poll(&mut self) {
+    fn poll(&mut self) -> bool {
         let phase = match self.job.poll() {
             Ok(Some(Ok(frontier))) => HoverPhase::Ready(Box::new(frontier)),
             Ok(Some(Err(error))) => HoverPhase::Failed(error),
             Err(_) => HoverPhase::Failed("Critical hover worker stopped unexpectedly".into()),
-            Ok(None) => return,
+            Ok(None) => return false,
         };
         if let Some(shown) = &mut self.presentation {
             shown.phase = phase;
+            true
+        } else {
+            false
         }
     }
 }

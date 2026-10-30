@@ -34,6 +34,10 @@ pub struct SourceViewport {
     dragging: bool,
     max_bytes: usize,
     test_generation: u64,
+    hover: crate::critical::hover::CriticalHover,
+    hover_popup: crate::ui::critical_hover::HoverPopup,
+    hover_pointer: Option<usize>,
+    hover_origin: egui::Pos2,
 }
 
 pub(super) struct CanvasContent<'a> {
@@ -43,6 +47,7 @@ pub(super) struct CanvasContent<'a> {
     pub mark_context: Option<crate::critical::menu::MarkContext<'a>>,
     pub projection: Option<&'a crate::critical::SourceProjection>,
     pub annotations: Option<&'a crate::critical::annotations::SourceAnnotations>,
+    pub hover_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
     pub caret_line: &'a mut usize,
@@ -190,6 +195,8 @@ impl SourceViewport {
         ui: &mut Ui,
         mut content: CanvasContent<'_>,
     ) -> Option<SourceViewAction> {
+        self.configure_hover(&content);
+        self.hover_pointer = None;
         self.sync(&content);
         let geometry = CanvasGeometry::new(ui, &content);
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
@@ -217,7 +224,52 @@ impl SourceViewport {
         self.scroll_y = output.state.offset.y;
         self.scroll_x = output.state.offset.x;
         self.finish_drag(ui, geometry.code_rect);
+        if let Some(event) = self.show_hover(ui, content.theme) {
+            action = Some(event);
+        }
         action
+    }
+
+    fn configure_hover(&mut self, content: &CanvasContent<'_>) {
+        let hover_inputs = content.hover_inputs.clone().filter(|inputs| {
+            content.mode == SourceMode::Critical
+                && content.keyboard_enabled
+                && inputs.buffer.path == content.buffer.path
+                && inputs.buffer.revision == content.buffer.revision
+                && inputs.buffer.content_digest() == content.buffer.content_digest()
+        });
+        self.hover.configure(hover_inputs);
+    }
+
+    fn show_hover(&mut self, ui: &Ui, theme: &AppTheme) -> Option<SourceViewAction> {
+        let popup = self
+            .hover_popup
+            .show(ui.ctx(), &self.hover, self.hover_origin, theme);
+        let interrupted = ui.input(|input| {
+            (input.pointer.any_pressed() && !popup.hovered)
+                || input.raw_scroll_delta != egui::Vec2::ZERO
+                || input.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)
+                    )
+                })
+        });
+        let now = ui.input(|input| input.time);
+        if self
+            .hover
+            .update(self.hover_pointer, popup.hovered, interrupted, now)
+        {
+            ui.ctx().request_repaint();
+        }
+        if let Some(destination) = popup.destination {
+            self.hover.dismiss();
+            return Some(SourceViewAction::NavigateToDefinition(destination));
+        }
+        if let Some(delay) = self.hover.next_wake(now) {
+            ui.ctx().request_repaint_after(delay);
+        }
+        None
     }
 
     fn prepare(
@@ -387,6 +439,13 @@ impl SourceViewport {
                     .clamp(geometry.code_rect.top(), geometry.code_rect.bottom() - 0.1);
                 if target_y >= rect.top() && target_y < code_bottom {
                     let byte = hit_byte(&galley, pointer - text_origin, text, fragment.bytes.start);
+                    self.track_hover_geometry(
+                        response.hovered().then_some((byte, pointer.x)),
+                        &galley,
+                        text_origin,
+                        &fragment,
+                        content.buffer,
+                    );
                     if let Some(event) = self.pointer_input(
                         ui,
                         &response,
@@ -423,6 +482,29 @@ impl SourceViewport {
             vec2(document_width, self.rows.total_height()),
         ));
         action
+    }
+
+    fn track_hover_geometry(
+        &mut self,
+        hit: Option<(usize, f32)>,
+        galley: &egui::Galley,
+        origin: egui::Pos2,
+        part: &SourceFragment,
+        buffer: &SourceBuffer,
+    ) {
+        let Some((byte, x)) = hit else {
+            return;
+        };
+        self.hover_pointer = Some(byte);
+        if self
+            .hover
+            .anchor_range()
+            .is_some_and(|range| range.contains(&byte))
+        {
+            let chars = buffer.text[part.bytes.start..byte].chars().count();
+            let cursor = galley.pos_from_ccursor(egui::text::CCursor::new(chars));
+            self.hover_origin = pos2(x, origin.y + cursor.bottom());
+        }
     }
 
     fn finish_drag(&mut self, ui: &Ui, code_rect: Rect) {
@@ -1212,6 +1294,9 @@ mod tests {
         projection: Option<crate::critical::SourceProjection>,
         annotations: crate::critical::annotations::CriticalAnnotations,
         highlights: Vec<Vec<HighlightedSpan>>,
+        hover_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
+        now: Option<f64>,
+        last_action: Option<SourceViewAction>,
     }
 
     impl Reader {
@@ -1232,7 +1317,24 @@ mod tests {
                 projection: None,
                 annotations: Default::default(),
                 highlights: Vec::new(),
+                hover_inputs: None,
+                now: None,
+                last_action: None,
             }
+        }
+
+        fn hover_ready_frame(&mut self, ctx: &egui::Context, now: f64) -> egui::FullOutput {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while matches!(
+                self.viewport.hover.presentation().map(|shown| &shown.phase),
+                Some(crate::critical::hover::HoverPhase::Loading)
+            ) {
+                self.now = Some(now);
+                self.frame(ctx, Vec::new());
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            self.frame(ctx, Vec::new())
         }
 
         fn frame(&mut self, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
@@ -1240,6 +1342,7 @@ mod tests {
                 egui::RawInput {
                     screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(400.0, 360.0))),
                     events,
+                    time: self.now,
                     ..Default::default()
                 },
                 |ctx| {
@@ -1253,6 +1356,7 @@ mod tests {
                                 mark_context: None,
                                 projection: self.projection.as_ref(),
                                 annotations: self.annotations.current(&self.source),
+                                hover_inputs: self.hover_inputs.clone(),
                                 buffer: &self.source,
                                 highlights: &self.highlights,
                                 caret_line: &mut self.line,
@@ -1268,9 +1372,10 @@ mod tests {
                                 find: &mut self.find,
                             },
                         );
-                        if let Some(SourceViewAction::ToggleTestRegion(id)) = event {
-                            self.test_code.toggle(&self.source, id);
+                        if let Some(SourceViewAction::ToggleTestRegion(id)) = &event {
+                            self.test_code.toggle(&self.source, *id);
                         }
+                        self.last_action = event;
                     });
                 },
             )
@@ -1310,6 +1415,91 @@ mod tests {
                 _ => None,
             })
             .expect("painted source text")
+    }
+
+    #[test]
+    fn hover_dwell_and_popup_navigation_use_real_hit_regions_without_moving_the_reader() {
+        use crate::critical::worker::GraphInputs;
+        use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
+        const HELPER: &str = "rust-analyzer cargo app 0 helper().";
+        let ctx = egui::Context::default();
+        let text = "fn f() {\n helper();\n}\nfn helper() {\n open();\n}\n";
+        let mut reader = Reader::new(text);
+        reader.mode = SourceMode::Critical;
+        reader.now = Some(0.0);
+        let index = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![ScipDocument {
+                relative_path: reader.source.path.clone(),
+                occurrences: vec![
+                    ScipOccurrence {
+                        symbol: HELPER.into(),
+                        range: ScipRange::from_packed(&[1, 1, 7]),
+                        ..Default::default()
+                    },
+                    ScipOccurrence {
+                        symbol: HELPER.into(),
+                        range: ScipRange::from_packed(&[3, 3, 9]),
+                        symbol_roles: 1,
+                        ..Default::default()
+                    },
+                    ScipOccurrence {
+                        symbol: "rust-analyzer cargo std 0 fs/open().".into(),
+                        range: ScipRange::from_packed(&[4, 1, 5]),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let buffer = Arc::new(reader.source.clone());
+        reader.hover_inputs = Some(Arc::new(GraphInputs {
+            source: crate::source::loader::SourceRead::Buffer(buffer.clone()),
+            calls: Arc::new(crate::syntax::DocumentSyntax::analyze(&buffer).calls),
+            buffer,
+            index: Arc::new(index),
+            overrides: Default::default(),
+        }));
+        let initial = reader.frame(&ctx, Vec::new());
+        let (origin, galley) = text_shape(&initial, " helper();");
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(3))
+                .center()
+                .to_vec2();
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(point)]);
+        assert!(reader.viewport.hover.presentation().is_none());
+        reader.now = Some(0.36);
+        reader.frame(&ctx, Vec::new());
+        assert!(reader.viewport.hover.presentation().is_some());
+        reader.hover_ready_frame(&ctx, 0.4);
+        reader.frame(&ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+        assert!(reader.viewport.hover.presentation().is_none());
+        reader.now = Some(0.8);
+        reader.frame(&ctx, Vec::new());
+        assert!(reader.viewport.hover.presentation().is_none());
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(pos2(350.0, 330.0))]);
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(point)]);
+        reader.now = Some(1.2);
+        reader.frame(&ctx, Vec::new());
+        let ready = reader.hover_ready_frame(&ctx, 1.3);
+        let (title, _) = text_shape(&ready, "helper · Definition");
+        assert_eq!((reader.line, reader.column), (1, 0));
+        assert!(reader.viewport.selection.is_none());
+        let click = title + vec2(300.0, 6.0);
+        reader.frame(&ctx, pointer(click, true));
+        assert!(reader.viewport.hover.presentation().is_some());
+        reader.frame(&ctx, pointer(click, false));
+        assert_eq!(
+            reader.last_action,
+            Some(SourceViewAction::NavigateToDefinition(
+                crate::semantic::index::SemanticSymbolID::new(HELPER, "")
+            ))
+        );
+        assert!(reader.viewport.hover.presentation().is_none());
+        assert_eq!(reader.source.text, text);
+        assert_eq!((reader.line, reader.column), (1, 0));
+        assert!(reader.viewport.selection.is_none());
     }
 
     #[test]

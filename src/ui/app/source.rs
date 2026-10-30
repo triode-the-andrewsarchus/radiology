@@ -46,6 +46,7 @@ impl RadiologyApp {
 
     fn refresh_critical_annotations(&mut self) {
         self.critical_annotations.stop();
+        self.critical_graph_inputs = None;
         if self.mode != SourceMode::Critical {
             return;
         }
@@ -63,16 +64,16 @@ impl RadiologyApp {
             || SourceRead::Checkout(root.clone()),
             |review| SourceRead::Review(review.clone()),
         );
-        self.critical_annotations.start(
-            crate::critical::worker::GraphInputs {
-                source,
-                buffer: buffer.clone(),
-                calls: self.call_sites.clone(),
-                index: index.clone(),
-                overrides: self.critical_marks.overrides().clone(),
-            },
-            self.fold_ranges.clone(),
-        );
+        let inputs = Arc::new(crate::critical::worker::GraphInputs {
+            source,
+            buffer: buffer.clone(),
+            calls: self.call_sites.clone(),
+            index: index.clone(),
+            overrides: self.critical_marks.overrides().clone(),
+        });
+        self.critical_annotations
+            .start((*inputs).clone(), self.fold_ranges.clone());
+        self.critical_graph_inputs = Some(inputs);
     }
 
     /// Returns callable counts only for the current exact source/revision.

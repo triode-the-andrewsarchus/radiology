@@ -93,3 +93,11 @@ explicit (`n+`/no body), hidden-line detail is retained, and no inspector/outlin
 count section is added. [Contract and native evidence](rust-call-graph.md). Hover
 and progressive sweep publication remain open. Earlier call-graph/fold-count
 absence statements are superseded by this implementation.
+
+## Source hover (2026-10-30)
+
+Pointer-dwell Critical Lens hover now presents bounded frontiers with honest
+coverage and clickable repository definitions. Exact Back, external/plumbing
+behavior and mode dismissal are verified natively.
+[Hover contract and remaining acceptance](rust-critical-hover.md). Full parity
+and progressive count publication remain open.

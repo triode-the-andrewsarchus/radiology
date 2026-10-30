@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Interactive Critical Lens source hover (Codex)
+
+Connected exact measured source hits to dwell/grace summaries with stable popup
+geometry. Full definition rows navigate independently of caret through existing
+indexed navigation/history; external rows remain unavailable. At most eight
+critical/frontier rows show paths and coverage. Keys/clicks/scroll and captured
+configuration transitions dismiss stale presentation. Fixed background completion
+repaint so loading cannot remain painted indefinitely at an idle pointer.
+Headless replay verifies real hit regions, Escape, idle suppression and source/
+caret/selection preservation. Native UTF-16 fixture verifies summary, popup entry
+and full-row activation, cross-file navigation, exact Back, external/plumbing
+behavior and mode dismissal. App runs/compositors exit zero. Full checks pass
+190 application tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and
+rustdoc. Architecture retains a short interaction-test clone and existing footer
+sequences; no new product hotspot/cycle. [Evidence and remaining acceptance](plans/rust-critical-hover.md).
+Full parity remains open, including progressive counts, lifecycle/cache gaps,
+remaining inspector/source/PR work and final UI acceptance.
+
 ## 2026-10-30 — Critical hover dwell and lifecycle controller (Codex)
 
 Added toolkit-independent 350 ms dwell/700 ms grace, exact semantic eligibility,
