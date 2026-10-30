@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Exact under-caret metadata query (Codex)
+
+Added bounded SCIP kind/signature/prose, indexed definition/reference facts,
+validated local occurrence counts, enclosing/package facts and exact primed local
+definition lines. Here state and other-definition destinations are independent;
+imports, Before, stale and multiline occurrences yield no facts. Five new tests
+pass; shared UTF-16 test construction removes duplication across three clients.
+Full gates pass 267 app tests, 5 reader-text and 30 doctests, fmt, Clippy and
+rustdoc. No new product hotspot/cycle; duplication decreases. Background binding,
+UI presentation and parsed implementation links follow.
+[Contract](plans/rust-inspector-metadata.md).
+
 ## 2026-10-30 — Native caller disclosure acceptance (Codex)
 
 Native acceptance verifies 256/512/516-row expansion, retained excerpts/source,
