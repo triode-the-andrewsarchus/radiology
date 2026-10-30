@@ -8,7 +8,7 @@ mod find;
 mod projection;
 mod rows;
 pub use find::{FindOptions, MatchSpool};
-pub use projection::{projected_fragments, ProjectedFragment};
+pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
 pub use rows::RowHeights;
 use std::ops::Range;
 

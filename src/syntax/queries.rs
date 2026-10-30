@@ -8,15 +8,18 @@ use tree_sitter::Query;
 pub(super) enum QueryRole {
     Calls,
     Folds,
+    Occurrences,
 }
 type Queries = HashMap<SupportedGrammar, Result<Query, String>>;
 
 pub(super) fn query(grammar: SupportedGrammar, role: QueryRole) -> Result<&'static Query, String> {
     static CALLS: OnceLock<Queries> = OnceLock::new();
     static FOLDS: OnceLock<Queries> = OnceLock::new();
+    static OCCURRENCES: OnceLock<Queries> = OnceLock::new();
     let cache = match role {
         QueryRole::Calls => &CALLS,
         QueryRole::Folds => &FOLDS,
+        QueryRole::Occurrences => &OCCURRENCES,
     };
     use SupportedGrammar::*;
     cache
@@ -29,6 +32,7 @@ pub(super) fn query(grammar: SupportedGrammar, role: QueryRole) -> Result<&'stat
                 let source = match role {
                     QueryRole::Calls => call_source(grammar),
                     QueryRole::Folds => fold_source(grammar),
+                    QueryRole::Occurrences => occurrence_source(grammar),
                 };
                 (
                     grammar,
@@ -54,6 +58,11 @@ fn call_source(grammar: SupportedGrammar) -> String {
         Kotlin => "(call_expression . (identifier) @call.name) @call\n(call_expression (navigation_expression (identifier) @call.name .)) @call\n(call_expression) @call.any",
         C => "(call_expression function: (identifier) @call.name) @call\n(call_expression function: (field_expression field: (field_identifier) @call.name)) @call\n(call_expression) @call.any",
     };
+    format!("{source}\n{}", scope_source(grammar))
+}
+
+fn scope_source(grammar: SupportedGrammar) -> String {
+    use SupportedGrammar::*;
     let scopes = match grammar {
         Rust => include_str!("../../Sources/Radiology/Queries/rust/scopes.scm"),
         Python => include_str!("../../Sources/Radiology/Queries/python/scopes.scm"),
@@ -75,7 +84,7 @@ fn call_source(grammar: SupportedGrammar) -> String {
     } else {
         ""
     };
-    format!("{source}\n{scopes}\n{protocol_scope}")
+    format!("{scopes}\n{protocol_scope}")
 }
 
 fn fold_source(grammar: SupportedGrammar) -> String {
@@ -107,4 +116,31 @@ fn fold_source(grammar: SupportedGrammar) -> String {
     } else {
         format!("{folds}\n{symbols}")
     }
+}
+
+fn occurrence_source(grammar: SupportedGrammar) -> String {
+    use SupportedGrammar::*;
+    let highlights = match grammar {
+        Rust => include_str!("../../Sources/Radiology/Queries/rust/highlights.scm"),
+        Python => include_str!("../../Sources/Radiology/Queries/python/highlights.scm"),
+        Go => include_str!("../../Sources/Radiology/Queries/go/highlights.scm"),
+        JavaScript | TypeScript | Tsx => include_str!("../../Sources/Radiology/Queries/ecmascript/highlights.scm"),
+        Swift => include_str!("../../Sources/Radiology/Queries/swift/highlights.scm"),
+        // Native grammar names differ from Swift's fwcd Kotlin grammar. These
+        // captures preserve the same exclusion classes, not semantic bindings.
+        Kotlin => "[(line_comment) (block_comment) (shebang)] @comment\n[(string_literal) (multiline_string_literal) (character_literal)] @string\n[(number_literal) (float_literal)] @number\n[\"fun\" \"return\" \"return@\" \"import\" \"if\" \"else\" \"when\" \"for\" \"do\" \"while\" \"try\" \"catch\" \"throw\" \"finally\" \"val\" \"var\" \"class\" \"object\" \"interface\" \"enum\" \"typealias\" \"is\" \"in\" \"as\" \"as?\"] @keyword\n[(class_modifier) (member_modifier) (function_modifier) (property_modifier) (platform_modifier) (variance_modifier) (parameter_modifier) (visibility_modifier) (reification_modifier) (inheritance_modifier)] @keyword.modifier",
+        C => "(comment) @comment\n[(string_literal) (char_literal)] @string\n(number_literal) @number\n[\"if\" \"else\" \"for\" \"while\" \"do\" \"return\" \"break\" \"continue\" \"switch\" \"case\" \"default\" \"struct\" \"union\" \"enum\" \"typedef\" \"const\" \"static\" \"extern\" \"volatile\" \"sizeof\" \"goto\"] @keyword",
+    };
+    let highlights = if grammar == Swift {
+        highlights.replace("\"nil\"", "(nil_literal)")
+    } else {
+        highlights.to_owned()
+    };
+    let overlay = match grammar {
+        TypeScript | Tsx => {
+            include_str!("../../Sources/Radiology/Queries/typescript/highlights.scm")
+        }
+        _ => "",
+    };
+    format!("{}\n{highlights}\n{overlay}", scope_source(grammar))
 }

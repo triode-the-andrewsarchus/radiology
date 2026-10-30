@@ -9,6 +9,7 @@ pub(crate) mod fold_queries;
 pub mod folds;
 pub mod highlighter;
 pub mod language;
+pub mod occurrences;
 pub mod outline;
 mod queries;
 mod review_folds;
@@ -34,6 +35,8 @@ pub struct DocumentSyntax {
     pub tests: TestDetection,
     /// Parsed calls with explicit query coverage; shared by lens and graph analysis.
     pub calls: calls::CallSites,
+    /// Exact parsed callable scopes and excluded syntax for non-semantic pins.
+    pub occurrences: occurrences::SyntacticOccurrences,
 }
 
 impl DocumentSyntax {
@@ -43,7 +46,7 @@ impl DocumentSyntax {
         let parsed = LanguageRegistry::for_path(&buffer.path)
             .grammar
             .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
-        let (symbols, tests, calls, folds, fold_error, folds_supported) =
+        let (symbols, tests, calls, folds, fold_error, folds_supported, occurrences) =
             if let Some((grammar, tree)) = parsed {
                 let (folds, error) =
                     match FoldDetector::from_tree(buffer, grammar, tree.root_node()) {
@@ -58,6 +61,7 @@ impl DocumentSyntax {
                     folds,
                     error,
                     supported,
+                    occurrences::SyntacticOccurrences::from_tree(buffer, grammar, tree.root_node()),
                 )
             } else {
                 (
@@ -67,6 +71,7 @@ impl DocumentSyntax {
                     Vec::new(),
                     None,
                     false,
+                    occurrences::SyntacticOccurrences::default(),
                 )
             };
         Self {
@@ -76,6 +81,7 @@ impl DocumentSyntax {
             fold_error,
             tests,
             calls,
+            occurrences,
         }
     }
 }
