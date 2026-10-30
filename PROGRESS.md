@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Native reference acceptance and menu cleanup (Codex)
+
+Native UTF-16/emoji checks verify source-menu activation, two exact reference rows,
+sticky focus across files, independent under-caret definitions, reference-row
+navigation and Follow Caret without source movement. Explicit single-line menu
+labels now use separate shortcut hints. Three app runs and both private
+compositors exit zero. Final gates: 219 app tests, 5 reader-text tests, 30 doctests,
+fmt, Clippy, build and rustdoc. The reference-context contract records screenshots
+and architecture evidence. Full parity remains open, especially preview/keyboard/
+parsed-tree inspector work, indexing/PR lifecycle and final UI acceptance.
+[Evidence and remaining scope](plans/rust-reference-context.md).
+
 ## 2026-10-30 — Shared exact indexed owner lookup (Codex)
 
 Reference labels and the legacy caller API now share one full-coordinate enclosing

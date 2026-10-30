@@ -539,7 +539,14 @@ impl SourceViewport {
                 });
                 ui.close_menu();
             }
-            if ui.button("Go to Definition (F12 / Return)").clicked() {
+            if ui
+                .add(
+                    egui::Button::new("Go to Definition")
+                        .shortcut_text("F12 / Return")
+                        .wrap(false),
+                )
+                .clicked()
+            {
                 action = Some(SourceViewAction::JumpToDefinition);
                 ui.close_menu();
             }
@@ -556,7 +563,9 @@ impl SourceViewport {
             if ui
                 .add_enabled(
                     reference_target.is_some(),
-                    egui::Button::new("Find References (Ctrl+Alt+R)"),
+                    egui::Button::new("Find References")
+                        .shortcut_text("Ctrl+Alt+R")
+                        .wrap(false),
                 )
                 .clicked()
             {
