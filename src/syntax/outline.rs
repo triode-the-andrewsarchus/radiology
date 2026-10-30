@@ -15,8 +15,10 @@ pub enum SymbolKind {
     Method,
     /// Struct declaration.
     Struct,
-    /// Class or implementation block.
+    /// Class declaration.
     Class,
+    /// Extension or implementation of an existing type.
+    Extension,
     /// Enum declaration.
     Enum,
     /// Individual enum member or variant.
@@ -44,6 +46,7 @@ impl SymbolKind {
             Self::Method => "Method",
             Self::Struct => "Struct",
             Self::Class => "Class",
+            Self::Extension => "Implementation",
             Self::Enum => "Enum",
             Self::EnumMember => "Enum Member",
             Self::Trait => "Trait",
@@ -63,6 +66,7 @@ impl SymbolKind {
             Self::Method => "m",
             Self::Struct => "S",
             Self::Class => "C",
+            Self::Extension => "I",
             Self::Enum => "E",
             Self::EnumMember => "e",
             Self::Trait => "T",
@@ -262,7 +266,7 @@ impl SymbolExtractor {
             (SupportedGrammar::Rust, "struct_item") => (SymbolKind::Struct, "name"),
             (SupportedGrammar::Rust, "enum_item") => (SymbolKind::Enum, "name"),
             (SupportedGrammar::Rust, "trait_item") => (SymbolKind::Trait, "name"),
-            (SupportedGrammar::Rust, "impl_item") => (SymbolKind::Class, "type"),
+            (SupportedGrammar::Rust, "impl_item") => (SymbolKind::Extension, "type"),
             (SupportedGrammar::Rust, "mod_item") => (SymbolKind::Module, "name"),
             (SupportedGrammar::Rust, "type_item") => (SymbolKind::TypeAlias, "name"),
 
@@ -304,6 +308,7 @@ impl SymbolExtractor {
                     match kind.as_deref() {
                         Some("struct") => SymbolKind::Struct,
                         Some("enum") => SymbolKind::Enum,
+                        Some("extension") => SymbolKind::Extension,
                         _ => SymbolKind::Class,
                     },
                     "name",
@@ -446,7 +451,7 @@ fn calculate() {
         assert_eq!(symbols[0].name, "Point");
         assert_eq!(symbols[0].kind, SymbolKind::Struct);
 
-        assert_eq!(symbols[1].kind, SymbolKind::Class);
+        assert_eq!(symbols[1].kind, SymbolKind::Extension);
         assert_eq!(symbols[1].children.len(), 1);
         assert_eq!(symbols[1].children[0].name, "distance");
         assert_eq!(symbols[1].children[0].kind, SymbolKind::Function);
