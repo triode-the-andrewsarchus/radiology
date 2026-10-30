@@ -25,6 +25,7 @@ fn entry(root: PathBuf, documentation: String) -> StoredEntry {
             ..Default::default()
         },
         report: GenerationReport {
+            revision: None,
             plan,
             outcomes: vec![],
             fingerprint: "fixture".into(),
@@ -127,6 +128,7 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
     fs::create_dir(&root).unwrap();
     fs::write(root.join("lib.rs"), "fn work() {}\n").unwrap();
     let request = GenerationRequest {
+        review: None,
         root: root.clone(),
         cache: owner.path().join("cache"),
         tools: crate::semantic::indexing::tools::ToolDirectory {

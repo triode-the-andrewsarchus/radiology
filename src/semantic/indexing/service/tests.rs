@@ -32,6 +32,7 @@ impl Fixture {
     }
     fn request(&self) -> GenerationRequest {
         GenerationRequest {
+            review: None,
             root: self.source.clone(),
             cache: self.cache.clone(),
             tools: ToolDirectory {
@@ -543,4 +544,135 @@ fn malformed_clang_inputs_fail_before_indexer_execution_without_writing_inputs_o
             .unwrap()
             .is_none()
     );
+}
+
+fn pinned_request(fixture: &Fixture) -> (tempfile::TempDir, PathBuf, GenerationRequest) {
+    let (owner, root, review) = crate::pull_request::review::tests::indexing_fixture();
+    let mut request = fixture.request();
+    request.root = review.head_root.clone();
+    request.review = Some(review);
+    (owner, root, request)
+}
+
+#[test]
+fn pinned_generation_uses_exact_after_inputs_and_cache_survives_tree_replacement() {
+    let fixture = Fixture::new(&[]);
+    let (owner, root, request) = pinned_request(&fixture);
+    let witness = fixture.bin.join("working-directory");
+    fixture.tool(
+        Indexer::Rust,
+        &["a file.rs"],
+        &format!("pwd > {}\nprintf artifact > artifact.bin", quote(&witness)),
+    );
+    let generated = run(request.clone());
+    assert_eq!(generated.report.revision.as_deref(), request.revision());
+    assert_eq!(generated.report.documents, 1, "{:?}", generated.report);
+    assert!(
+        generated.report.cache_warning.is_none(),
+        "{:?}",
+        generated.report
+    );
+    let index = generated.index.unwrap();
+    assert!(index.matches_buffer(&SourceBuffer::from_str(
+        "a file.rs",
+        "one\nchanged\nthree\n"
+    )));
+    assert!(!index.matches_buffer(&SourceBuffer::from_str("a file.rs", "checkout only\n")));
+    let working = fs::read_to_string(witness).unwrap();
+    assert!(Path::new(working.trim()).starts_with(&fixture.cache));
+    assert!(!request.root.join("artifact.bin").exists());
+    assert!(!root.join("artifact.bin").exists());
+    assert_eq!(
+        fs::read_to_string(root.join("a file.rs")).unwrap(),
+        "checkout only\n"
+    );
+    let cached = super::super::cache::load(&request, &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(cached.report.cached);
+    fs::write(request.root.join("a file.rs"), "tampered tree\n").unwrap();
+    let mut replacement = request.clone();
+    replacement.review = Some(Arc::new(
+        crate::pull_request::review::ReviewSnapshot::prepare(
+            &root,
+            request.review.as_ref().unwrap().summary.clone(),
+            &owner.path().join("cache"),
+        )
+        .unwrap(),
+    ));
+    replacement.root = replacement.review.as_ref().unwrap().head_root.clone();
+    assert_ne!(replacement.root, request.root);
+    fs::remove_file(fixture.bin.join("rust-analyzer")).unwrap();
+    let cached = super::super::cache::load(&replacement, &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(cached.report.cached);
+    assert!(cached.report.stale_reason.is_none());
+    assert_eq!(cached.report.revision.as_deref(), replacement.revision());
+    assert!(super::super::cache::load(&request, &AtomicBool::new(false)).is_err());
+    let mut checkout = replacement.clone();
+    checkout.review = None;
+    assert!(
+        super::super::cache::load(&checkout, &AtomicBool::new(false))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn pinned_generation_rejects_hidden_modification_and_mismatched_roots_before_tools_run() {
+    let fixture = Fixture::new(&[]);
+    let (_owner, _root, request) = pinned_request(&fixture);
+    fixture.tool(Indexer::Rust, &["a file.rs"], "");
+    let cancel = AtomicBool::new(false);
+    let progress = Mutex::new(GenerationProgress::default());
+    let mut wrong = request.clone();
+    wrong.root = fixture.source.clone();
+    assert!(generate(wrong, &cancel, &progress)
+        .err()
+        .unwrap()
+        .contains("differs"));
+    crate::repository::test_support::git(
+        &request.root,
+        &["update-index", "--assume-unchanged", "--", "a file.rs"],
+    );
+    fs::write(request.root.join("a file.rs"), "modified\n").unwrap();
+    assert!(generate(request, &cancel, &progress)
+        .err()
+        .unwrap()
+        .contains("pinned"));
+    assert!(!fixture.bin.join("rust-analyzer.args").exists());
+}
+
+#[test]
+fn cancelled_pinned_generation_releases_its_live_snapshot_and_publishes_no_cache() {
+    let fixture = Fixture::new(&[]);
+    let (_owner, _root, request) = pinned_request(&fixture);
+    let marker = fixture.bin.join("started");
+    fixture.tool(
+        Indexer::Rust,
+        &["a file.rs"],
+        &format!("printf ready > {}\n/bin/sleep 40", quote(&marker)),
+    );
+    let weak = Arc::downgrade(request.review.as_ref().unwrap());
+    let mut generator = IndexGenerator::default();
+    generator.start(request);
+    wait_for(&marker);
+    assert!(weak.upgrade().is_some());
+    generator.stop();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while weak.upgrade().is_some() {
+        assert!(
+            Instant::now() < deadline,
+            "retired generation retained its snapshot"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(generator.poll().is_none());
+    assert!(generator.was_cancelled());
+    assert!(fs::read_dir(&fixture.cache).unwrap().all(|entry| !entry
+        .unwrap()
+        .path()
+        .extension()
+        .is_some_and(|extension| extension == "json")));
 }

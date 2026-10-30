@@ -26,8 +26,7 @@ impl RadiologyApp {
             CancelIndexGeneration => self.index_generator.stop(),
             CheckIndexTools => self.check_index_tools(),
             CancelIndexToolCheck => self.tool_probe_job.stop(),
-            ReloadIndexImport if self.review.is_none() => self.load_repository_index(),
-            ReloadIndexImport => {}
+            ReloadIndexImport => self.load_repository_index(),
             CancelIndexImport => {
                 self.index_importer.stop();
                 if self.index_cache_status()

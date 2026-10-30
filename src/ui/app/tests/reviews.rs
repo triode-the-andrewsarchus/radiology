@@ -145,3 +145,49 @@ fn live_tool_probe_keeps_its_review_snapshot_after_the_reader_releases_it() {
         "finished probe releases the snapshot"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_imports() {
+    let (_owner, root, review) = crate::pull_request::review::tests::indexing_fixture();
+    let (settings, mut app) = reader();
+    // This index is valid but belongs only to the attached checkout.
+    std::fs::write(root.join("index.scip"), b"\x12\x0b\x0a\x09a file.rs").unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app.semantic_index.is_some());
+    app.accept_review((*review).clone());
+    settle(&mut app);
+    assert!(
+        app.semantic_index.is_none(),
+        "missing PR cache must never fall back to checkout import"
+    );
+    let executable = rust_indexer_fixture(settings.path(), "a file.rs");
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    settle(&mut app);
+    let report = app.generation_report().unwrap();
+    assert_eq!(report.documents, 1, "{report:?}");
+    assert_eq!(report.revision.as_deref(), Some(review.head.as_str()));
+    assert!(app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .matches_buffer(&review.read("a file.rs", ReviewRevision::After).unwrap()));
+    assert!(!root.join("artifact.bin").exists());
+    assert!(!review.head_root.join("artifact.bin").exists());
+    std::fs::remove_file(executable).unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+    settle(&mut app);
+    assert!(app.generation_report().unwrap().cached);
+    app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
+    settle(&mut app);
+    assert_eq!(
+        app.generation_report().unwrap().revision.as_deref(),
+        Some(review.head.as_str())
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("a file.rs")).unwrap(),
+        "checkout only\n"
+    );
+}
