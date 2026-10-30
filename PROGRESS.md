@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — Critical hover dwell and lifecycle controller (Codex)
+
+Added toolkit-independent 350 ms dwell/700 ms grace, exact semantic eligibility,
+external/no-body presentation and replaceable snapshot-worker publication.
+Configuration/input changes cancel stale work; idle pointers do not reopen a
+dismissed popup. Four deterministic controller tests pass. Current working tree
+(including pending reader integration) passes 190 app tests, 5 reader-text tests,
+30 doctests, fmt, Clippy, build and rustdoc. Native reader interaction remains
+under verification; full parity is open. [Contract](plans/rust-critical-hover.md).
+
 ## 2026-10-30 — Source Critical Lens fold counts (Codex)
 
 Connected snapshot-bound count sweeps to the standalone reader. Collapsed

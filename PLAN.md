@@ -34,6 +34,9 @@ acceptance and remaining cache/provisioning/snapshot integration.
 records atomic ordered storage, durable session edits, source menus and native
 restart/projection acceptance.
 
+[Critical Lens pointer-dwell hover](plans/rust-critical-hover.md) records the
+controller, reader integration and acceptance scope.
+
 [Parsed call summaries and bounded critical frontiers](plans/rust-call-graph.md)
 records lexical/semantic summaries, snapshot workers, source fold-count integration
 and pending hover/progressive acceptance.

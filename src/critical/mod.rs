@@ -7,6 +7,7 @@ pub mod annotations;
 mod callees;
 pub mod frontier;
 pub mod graph;
+pub mod hover;
 pub mod lens;
 pub mod marks;
 pub mod menu;
