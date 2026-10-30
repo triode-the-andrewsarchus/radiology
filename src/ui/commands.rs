@@ -75,6 +75,8 @@ pub enum ReaderCommand {
     OpenBookmark(usize),
     /// Follows the indexed symbol at the caret.
     GoToDefinition,
+    /// Pins incoming references to the exact indexed symbol at the caret.
+    FindReferences,
     /// Collapses function bodies in the current document.
     CollapseFunctions,
     /// Folds declarations in the current document.
@@ -134,6 +136,7 @@ fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderComman
         (true, false, false, Key::T) => Some(OpenGoToSymbol),
         (true, false, false, Key::P) => Some(OpenPRDialog),
         (true, false, false, Key::R) => Some(RefreshPR),
+        (true, true, false, Key::R) if !typing => Some(FindReferences),
         (true, false, false, Key::D) => Some(ToggleBookmark),
         (true, false, false, Key::OpenBracket) => Some(NavigateBack),
         (true, false, false, Key::CloseBracket) => Some(NavigateForward),
@@ -236,6 +239,25 @@ mod tests {
             vec![ReaderCommand::OpenRepositoryDialog]
         );
         assert!(dispatch(Key::O, primary, true).is_empty());
+    }
+
+    #[test]
+    fn reference_shortcut_is_distinct_from_refresh_and_respects_text_focus() {
+        let modifiers = Modifiers {
+            ctrl: true,
+            alt: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            dispatch(Key::R, modifiers, false),
+            vec![ReaderCommand::FindReferences]
+        );
+        assert_eq!(
+            dispatch(Key::R, Modifiers::CTRL, false),
+            vec![ReaderCommand::RefreshPR]
+        );
+        assert!(shortcut(Key::R, modifiers, true).is_none());
+        assert!(dispatch(Key::R, modifiers, true).is_empty());
     }
 
     #[test]

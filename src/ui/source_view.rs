@@ -32,6 +32,8 @@ pub enum SourceViewAction {
     },
     /// Requests jumping to the definition of the symbol under the current caret.
     JumpToDefinition,
+    /// Pins reference context to the indexed occurrence at this source byte.
+    FindReferences(usize),
     /// Navigates a hover destination independently of the current caret.
     NavigateToDefinition(crate::semantic::index::SemanticSymbolID),
     /// Requests expanding or collapsing the code fold starting at the given line number.

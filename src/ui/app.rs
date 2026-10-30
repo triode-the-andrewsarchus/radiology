@@ -3,6 +3,7 @@
 mod actions;
 mod critical_marks;
 mod indexing;
+mod references;
 mod reviews;
 mod source;
 #[cfg(test)]
@@ -22,8 +23,8 @@ use crate::pull_request::review::ReviewSnapshot;
 use crate::repository::discovery::RepositoryDiscovery;
 use crate::repository::file_node::{FileNode, RepositoryFile};
 use crate::search::{RepositorySearch, SearchOptions};
-use crate::semantic::caller_tree::{CallerTreeBuilder, ReferenceCallerNode};
 use crate::semantic::index::{SemanticIndex, SemanticSymbolID};
+use crate::semantic::references::{ReferenceContext, ReferenceTarget};
 use crate::session::store::SessionStore;
 use crate::source::buffer::SourceBuffer;
 use crate::source::history::NavigationHistory;
@@ -129,8 +130,7 @@ pub struct RadiologyApp {
         crate::semantic::indexing::Indexer,
         crate::semantic::indexing::tools::ToolAvailability,
     >,
-    /// Backward caller tree nodes for the symbol under caret.
-    pub caller_tree: Vec<ReferenceCallerNode>,
+    reference_context: ReferenceContext,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -240,7 +240,7 @@ impl RadiologyApp {
             index_projects_open: false,
             tool_probe_job: Default::default(),
             tool_availability: Default::default(),
-            caller_tree: Vec::new(),
+            reference_context: Default::default(),
             active_pr: None,
             review: None,
             review_rx: None,
@@ -467,7 +467,7 @@ impl RadiologyApp {
         self.fold_error = None;
         self.outline_symbols.clear();
         self.highlighted_lines.clear();
-        self.caller_tree.clear();
+        self.reference_context = Default::default();
         self.active_pr = None;
         self.review = None;
         self.review_rx = None;
@@ -578,47 +578,6 @@ impl RadiologyApp {
 
         self.pr_changes = changes;
         self.refresh_current_diff();
-    }
-
-    /// Updates semantic caller context for the symbol at the caret or enclosing declaration.
-    pub fn refresh_symbol_context(&mut self) {
-        let Some(buf) = &self.open_buffer else {
-            return;
-        };
-
-        if buf.revision == Some(ReviewRevision::Before) {
-            self.caller_tree.clear();
-            return;
-        }
-        let line_0 = self.caret_line.saturating_sub(1);
-        let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-        let mut enclosing = Vec::new();
-        for sym in &self.outline_symbols {
-            sym.breadcrumbs(caret_byte, &mut enclosing);
-        }
-        let enclosing_sym = enclosing.last().cloned();
-
-        let mut scip_callers = Vec::new();
-        if let Some(index) = &self.semantic_index {
-            let declaration_line = enclosing_sym
-                .as_ref()
-                .map(|symbol| symbol.line.saturating_sub(1))
-                .unwrap_or(line_0);
-            if let Some(occurrence) = index.documents.get(&buf.path).and_then(|doc| {
-                doc.occurrences.iter().find(|occ| {
-                    occ.is_definition()
-                        && occ
-                            .range
-                            .as_ref()
-                            .is_some_and(|range| range.start_line == declaration_line as i32)
-                })
-            }) {
-                let id = SemanticSymbolID::new(&occurrence.symbol, &buf.path);
-                scip_callers = CallerTreeBuilder::build_for_id(index, &id, 4);
-            }
-        }
-
-        self.caller_tree = scip_callers;
     }
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
@@ -924,24 +883,24 @@ impl eframe::App for RadiologyApp {
                             definition: def_loc,
                             declaration: enclosing_sym.as_ref(),
                             buffer: self.open_buffer.as_deref(),
-                            callers: &self.caller_tree,
+                            callers: &self.reference_context.rows,
+                            reference_target: self
+                                .reference_context
+                                .explicit()
+                                .or(self.reference_context.target())
+                                .map(|target| target.name.as_str()),
+                            explicit_references: self.reference_context.explicit().is_some(),
+                            references_loading: self.reference_context.is_running(),
+                            reference_error: self.reference_context.error.as_deref(),
+                            references_available: self.reference_context.available(),
                             outline: &self.outline_symbols,
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
-                            indexed: self
-                                .semantic_index
-                                .as_ref()
-                                .zip(self.open_buffer.as_ref())
-                                .is_some_and(|(index, buffer)| {
-                                    index.documents.contains_key(&buffer.path)
-                                        && index.matches_buffer(buffer)
-                                        && index.column_encoding(&buffer.path).is_some()
-                                })
-                                && self.active_revision != Some(ReviewRevision::Before),
                         },
                     ) {
                         match action {
+                            InspectorAction::FollowCaret => self.follow_reference_caret(),
                             InspectorAction::GoToDefinition => {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)
                             }
@@ -1053,6 +1012,9 @@ impl eframe::App for RadiologyApp {
                             }
                             SourceViewAction::NavigateToDefinition(id) => {
                                 self.navigate_to_indexed_symbol(&id)
+                            }
+                            SourceViewAction::FindReferences(byte) => {
+                                self.find_references_at_byte(byte)
                             }
                             SourceViewAction::JumpToDefinition => {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)

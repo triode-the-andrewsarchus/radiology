@@ -19,6 +19,7 @@ impl RadiologyApp {
         self.index_plan = Default::default();
         self.tool_availability.clear();
         self.semantic_index = None;
+        self.refresh_symbol_context();
     }
 
     pub(super) fn generate_index(&mut self) {

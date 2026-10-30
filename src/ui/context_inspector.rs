@@ -14,6 +14,8 @@ use uuid::Uuid;
 pub enum InspectorAction {
     /// Opens the exact semantic definition under the source caret.
     GoToDefinition,
+    /// Releases an explicit reference target and resumes enclosing-declaration context.
+    FollowCaret,
     /// Resolves a reference in its document's declared encoding and exact bytes.
     JumpToIndexedLocation {
         /// Repository-relative destination path.
@@ -45,6 +47,16 @@ pub struct InspectorContent<'a> {
     pub buffer: Option<&'a SourceBuffer>,
     /// Incoming references to the enclosing declaration.
     pub callers: &'a [ReferenceCallerNode],
+    /// Effective automatic or explicitly pinned reference name.
+    pub reference_target: Option<&'a str>,
+    /// Whether Follow Caret should release a sticky reference target.
+    pub explicit_references: bool,
+    /// Reference rows are being prepared off the UI thread.
+    pub references_loading: bool,
+    /// Recoverable reference-worker failure.
+    pub reference_error: Option<&'a str>,
+    /// Whether this revision has a semantic reference index.
+    pub references_available: bool,
     /// Original structural symbols in source order.
     pub outline: &'a [DocumentSymbol],
     /// Current test-region projection for outline visibility.
@@ -53,8 +65,6 @@ pub struct InspectorContent<'a> {
     pub bookmarks: &'a BookmarkStore,
     /// Visible checkout or PR scope title.
     pub scope: &'a str,
-    /// Whether exact-revision semantics are available.
-    pub indexed: bool,
 }
 
 /// Renders the three simultaneously usable context regions.
@@ -75,39 +85,7 @@ impl ContextInspector {
             .min_height(100.0)
             .max_height((height - 220.0).max(100.0))
             .show_inside(ui, |ui| {
-                ui.heading("Declaration");
-                if let Some(declaration) = content.declaration {
-                    if ui.link(&declaration.name).clicked() {
-                        action = Some(InspectorAction::JumpToSymbol(
-                            declaration.selection_range.start,
-                        ));
-                    }
-                    if let Some(signature) = &declaration.detail {
-                        ui.monospace(signature);
-                    }
-                } else {
-                    ui.colored_label(theme.text_muted, "No enclosing declaration");
-                }
-                ui.separator();
-                ui.label(RichText::new(format!("References · {}", content.callers.len())).strong());
-                ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .id_source("declaration_references")
-                    .show(ui, |ui| {
-                        if !content.indexed {
-                            ui.colored_label(
-                                theme.text_muted,
-                                "Semantic data unavailable for this source.",
-                            );
-                        } else if content.callers.is_empty() {
-                            ui.colored_label(theme.text_muted, "No indexed incoming references.");
-                        }
-                        for node in content.callers {
-                            if let Some(next) = Self::render_caller_node(ui, theme, node, 0) {
-                                action = Some(next);
-                            }
-                        }
-                    });
+                action = Self::render_declaration_context(ui, theme, &content);
             });
         egui::TopBottomPanel::bottom("bookmarks_region")
             .resizable(true)
@@ -211,6 +189,63 @@ impl ContextInspector {
                             }
                         }
                     });
+            });
+        action
+    }
+
+    fn render_declaration_context(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        content: &InspectorContent<'_>,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
+        ui.heading("Declaration");
+        if content.explicit_references {
+            ui.label(RichText::new(content.reference_target.unwrap_or("Pinned symbol")).strong());
+        } else if let Some(declaration) = content.declaration {
+            if ui.link(&declaration.name).clicked() {
+                action = Some(InspectorAction::JumpToSymbol(
+                    declaration.selection_range.start,
+                ));
+            }
+            if let Some(signature) = &declaration.detail {
+                ui.monospace(signature);
+            }
+        } else {
+            ui.colored_label(theme.text_muted, "No enclosing declaration");
+        }
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("References · {}", content.callers.len())).strong());
+            if content.explicit_references && ui.small_button("Follow Caret").clicked() {
+                action = Some(InspectorAction::FollowCaret);
+            }
+        });
+        ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .id_source("declaration_references")
+            .show_rows(ui, 24.0, content.callers.len().max(1), |ui, visible| {
+                let status = if let Some(error) = content.reference_error {
+                    Some(error)
+                } else if content.references_loading {
+                    Some("Loading references…")
+                } else if !content.references_available {
+                    Some("Semantic data unavailable for this revision.")
+                } else if content.reference_target.is_none() {
+                    Some("No exact indexed declaration here.")
+                } else if content.callers.is_empty() {
+                    Some("No indexed incoming references.")
+                } else {
+                    None
+                };
+                if let Some(status) = status {
+                    ui.colored_label(theme.text_muted, status);
+                }
+                for node in content.callers.get(visible).unwrap_or_default() {
+                    if let Some(next) = Self::render_caller_node(ui, theme, node, 0) {
+                        action = Some(next);
+                    }
+                }
             });
         action
     }
@@ -343,11 +378,15 @@ mod tests {
                             declaration: None,
                             buffer: None,
                             callers: &[],
+                            reference_target: None,
+                            explicit_references: false,
+                            references_loading: false,
+                            reference_error: None,
+                            references_available: false,
                             outline: &[],
                             test_code: None,
                             bookmarks: &bookmarks,
                             scope: "Checkout",
-                            indexed: false,
                         },
                     );
                 });

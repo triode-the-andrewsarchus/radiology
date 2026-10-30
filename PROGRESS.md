@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Exact background reference focus (Codex)
+
+Find References now pins an exact scoped symbol independently of caret/file
+navigation; Follow Caret resumes the latest enclosing declaration. A toolkit-free
+controller reuses LatestRead, suppresses same-context rebuilds and retires stale
+index/source requests. Exact definition-name bytes replace line-only matching;
+flat direct references replace unvalidated recursive caller guesses in the reader.
+Rows are sorted/deduplicated, encoding-preserving and virtualized. Search/source
+menus and Ctrl+Alt+R are wired. Eight new tests and full gates pass: 218 app tests,
+5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. Architecture has
+no new product hotspot/cycle; short test clone reports remain. Native menu/focus
+acceptance is underway. Previews, keyboard commit and parsed trees remain open,
+alongside the full parity queue. [Contract](plans/rust-reference-context.md).
+
 ## 2026-10-30 — Typed structural queries and Fold to Definitions (Codex)
 
 Fold to Definitions now collapses callable/leaf-type bodies while exposing nested

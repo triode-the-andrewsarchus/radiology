@@ -546,6 +546,23 @@ impl SourceViewport {
             let byte = content
                 .buffer
                 .byte_offset(*content.caret_line, *content.caret_col);
+            let reference_target = content.mark_context.and_then(|context| {
+                crate::semantic::references::ReferenceTarget::at_byte(
+                    context.index,
+                    content.buffer,
+                    byte,
+                )
+            });
+            if ui
+                .add_enabled(
+                    reference_target.is_some(),
+                    egui::Button::new("Find References (Ctrl+Alt+R)"),
+                )
+                .clicked()
+            {
+                action = Some(SourceViewAction::FindReferences(byte));
+                ui.close_menu();
+            }
             if let Some(menu) = content
                 .mark_context
                 .and_then(|context| context.at_byte(content.buffer, byte))

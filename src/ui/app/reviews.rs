@@ -106,7 +106,7 @@ impl RadiologyApp {
         self.pin_store.clear();
         self.open_buffer = None;
         self.selected_path = None;
-        self.caller_tree.clear();
+        self.reference_context = Default::default();
         self.outline_symbols.clear();
         self.fold_ranges.clear();
         self.fold_error = None;
