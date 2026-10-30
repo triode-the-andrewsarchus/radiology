@@ -1,7 +1,7 @@
 //! Owned checkout Git snapshots prepared on the existing blocking worker pool.
 
+use super::git::GitRead;
 use crate::{
-    process::{self, OutputStream, ProcessCommand},
     pull_request::{
         change::{nul_records, FileChange, FileChangeStatus},
         diff::{DiffHunk, FileLineChanges, UnifiedDiffParser},
@@ -11,10 +11,7 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
     time::{Duration, Instant},
 };
 
@@ -60,15 +57,19 @@ fn read_with(
         source: source.as_ref().map(|buffer| SourceIdentity::new(buffer)),
         lines: None,
     };
-    let (inside, worktree) = git.run(&["rev-parse", "--is-inside-work-tree"])?;
-    if !inside || worktree != b"true\n" {
+    if git
+        .optional(&["rev-parse", "--is-inside-work-tree"])?
+        .as_deref()
+        != Some(b"true\n")
+    {
         return Ok(snapshot);
     }
-    let (ok, branch) = git.run(&["symbolic-ref", "--quiet", "--short", "HEAD"])?;
-    snapshot.branch = ok
-        .then(|| String::from_utf8_lossy(&branch).trim().to_owned())
+    snapshot.branch = git
+        .optional(&["symbolic-ref", "--quiet", "--short", "HEAD"])?
+        .map(|branch| String::from_utf8_lossy(&branch).trim().to_owned())
         .filter(|branch| !branch.is_empty());
-    let (has_head, head) = git.run(&["rev-parse", "--verify", "HEAD"])?;
+    let head = git.optional(&["rev-parse", "--verify", "HEAD"])?;
+    let has_head = head.is_some();
     snapshot.changes = git.changes(has_head)?;
     let added_source = source.as_ref().is_some_and(|buffer| {
         snapshot
@@ -77,8 +78,7 @@ fn read_with(
             .any(|change| change.path == buffer.path && change.status == FileChangeStatus::Added)
     });
     snapshot.lines = git.source_lines(source.as_deref(), has_head && !added_source)?;
-    let (still_has_head, current_head) = git.run(&["rev-parse", "--verify", "HEAD"])?;
-    if still_has_head != has_head || current_head != head {
+    if git.optional(&["rev-parse", "--verify", "HEAD"])? != head {
         return Err("Repository HEAD changed during refresh; retry.".into());
     }
     snapshot.changes.sort_by(|a, b| a.path.cmp(&b.path));
@@ -89,13 +89,6 @@ fn read_with(
 fn same_source(root: &Path, buffer: &SourceBuffer) -> bool {
     SourceBuffer::read(&root.join(&buffer.path), &buffer.path, None)
         .is_ok_and(|disk| disk.content_digest() == buffer.content_digest())
-}
-
-struct GitRead<'a> {
-    root: &'a Path,
-    executable: &'a Path,
-    cancel: &'a AtomicBool,
-    deadline: Instant,
 }
 
 impl GitRead<'_> {
@@ -189,57 +182,6 @@ impl GitRead<'_> {
             }
         };
         Ok(same_source(self.root, buffer).then_some(lines))
-    }
-
-    fn check(&self) -> Result<(), String> {
-        if self.cancel.load(Ordering::Relaxed) {
-            Err("Git refresh cancelled".into())
-        } else if Instant::now() >= self.deadline {
-            Err("Git refresh timed out".into())
-        } else {
-            Ok(())
-        }
-    }
-
-    fn run(&self, arguments: &[&str]) -> Result<(bool, Vec<u8>), String> {
-        self.check()?;
-        let command = ProcessCommand {
-            executable: self.executable.into(),
-            directory: self.root.into(),
-            arguments: ["-c", "color.ui=false", "-c", "core.quotepath=false"]
-                .into_iter()
-                .chain(arguments.iter().copied())
-                .map(Into::into)
-                .collect(),
-            environment: [("GIT_OPTIONAL_LOCKS".into(), "0".into())].into(),
-            resources: Vec::new(),
-        };
-        let mut bytes = Vec::new();
-        let result = process::run_observed(
-            &command,
-            self.cancel,
-            self.deadline.saturating_duration_since(Instant::now()),
-            |stream, chunk| {
-                if stream == OutputStream::Stdout {
-                    if bytes.len().saturating_add(chunk.len()) > 16 * 1024 * 1024 {
-                        return Err(std::io::Error::other("Git refresh output exceeds 16 MiB"));
-                    }
-                    bytes.extend_from_slice(chunk);
-                }
-                Ok(())
-            },
-        )
-        .map_err(|error| error.to_string())?;
-        Ok((result.succeeded(), bytes))
-    }
-
-    fn required(&self, arguments: &[&str]) -> Result<Vec<u8>, String> {
-        let (success, bytes) = self.run(arguments)?;
-        if success {
-            Ok(bytes)
-        } else {
-            Err(format!("Git {} failed", arguments[0]))
-        }
     }
 }
 

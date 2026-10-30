@@ -69,7 +69,15 @@ pub enum RunFailureKind {
     /// The specified wall-clock deadline expired.
     #[error("timed out")]
     TimedOut,
-    /// Spawning, reading output or waiting failed.
+    /// Launching the executable failed before a child was created.
+    #[error("{message}")]
+    Spawn {
+        /// Structured OS category, allowing callers to handle absent optional tools.
+        kind: io::ErrorKind,
+        /// Host diagnostic retained for display.
+        message: String,
+    },
+    /// Reading output or waiting failed.
     #[error("{0}")]
     Io(String),
 }
@@ -88,7 +96,7 @@ pub struct RunFailure {
 
 /// Runs a prepared command with bounded output, cancellation and a deadline.
 ///
-/// Resource files must already have been materialized by the indexing workspace.
+/// Resource files must already have been materialized by the caller.
 /// No output pipe reader threads or output log files are created. A continuously
 /// writing child cannot starve cancellation because each drain has a byte budget.
 ///
@@ -230,7 +238,12 @@ fn spawn_with_deadline(
                     Duration::from_millis(10).min(timeout.saturating_sub(started.elapsed())),
                 );
             }
-            Err(error) => return Err(io_failure(error)),
+            Err(error) => {
+                return Err(RunFailureKind::Spawn {
+                    kind: error.kind(),
+                    message: error.to_string(),
+                })
+            }
         }
     }
 }

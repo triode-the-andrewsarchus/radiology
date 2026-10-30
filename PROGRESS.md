@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Shared bounded Git read context (Codex)
+
+Extracted checkout GitRead into the repository module so discovery can reuse
+the same child-only environment, literal arguments, complete 16-MiB stdout cap,
+process-group cancellation and total deadline. Optional Git probes distinguish
+nonzero status/absent tools from timeout, cancellation and output/I/O failures.
+The process runner now preserves structured pre-launch OS error categories;
+indexer diagnostics retain their existing display text. Existing Git fixture
+helpers are shared between discovery and refresh tests. Full workspace tests,
+doctests and strict Clippy pass with pending asynchronous repository opening.
+That integration and native acceptance are the next increment; full parity
+remains open. Commit and push every increment.
+
 ## 2026-10-30 — Cancellable checkout branch/change refresh (Codex)
 
 Shared runner and Git record parsing committed/pushed as `6865449`. Checkout
