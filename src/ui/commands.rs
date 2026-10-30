@@ -194,6 +194,21 @@ fn digit(key: Key) -> Option<usize> {
     DIGITS.iter().position(|&digit| digit == key)
 }
 
+/// Keeps inspector navigation under ordered dispatch while leaving Tab available.
+pub(crate) fn retain_inspector_keys(ctx: &egui::Context, id: egui::Id) {
+    ctx.memory_mut(|memory| {
+        memory.set_focus_lock_filter(
+            id,
+            egui::EventFilter {
+                horizontal_arrows: true,
+                vertical_arrows: true,
+                escape: true,
+                ..Default::default()
+            },
+        )
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
