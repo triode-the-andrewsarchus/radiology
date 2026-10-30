@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Cropped reference text and load-more focus (Codex)
+
+Narrow source-line rows now mark measured prefix/suffix cropping with ellipses;
+the exact indexed match stays visible. Load More restores reference-list focus
+so subsequent keyboard input stays with the selected reference. Two pointer/
+geometry tests cover these behaviors. Full gates pass 246 app tests, 5 reader-text
+tests, 30 doctests, fmt, Clippy, build and rustdoc. Architecture introduces no
+product hotspot/cycle; duplication and average CCN decrease. Native limited and
+expanded queries show the expected counts and retain a selected open excerpt;
+final-build navigation checks and evidence recording continue.
+[Contract](plans/rust-reference-results.md).
+
 ## 2026-10-30 — Grouped source-line reference reader (Codex)
 
 Connected source-backed results to the reference controller and inspector. Rows
