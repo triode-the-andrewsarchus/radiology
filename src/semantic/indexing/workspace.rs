@@ -447,7 +447,7 @@ pub(super) fn normalize(path: &Path) -> Result<PathBuf, String> {
     Ok(normalized)
 }
 
-fn destination_path(path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn destination_path(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err("Workspace parent must be absolute".into());
     }

@@ -71,7 +71,8 @@ reports two GUI test clones and structural flags for projection orchestration an
 the existing source show function. Maximum CCN remains 100. This is not a clean
 architecture or full parity verdict.
 
-Repository-scoped persisted symbol/package decisions and menus, call graph and
+[Repository decision storage](rust-critical-marks.md) is now implemented and
+verified; reader load/save/menu/projection integration is pending. Marking UI, call graph and
 frontier summaries, hover models, count/fold annotations, complete query coverage
 and full visual/interaction acceptance remain required. This backend alone does
 not complete Critical Lens or the broader Rust/Swift parity goal.

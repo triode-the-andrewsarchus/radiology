@@ -277,7 +277,7 @@ impl CriticalityProfiles {
 }
 
 /// The reader's manual decisions for one repository.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CriticalityOverrides {
     /// Format version number.
     #[serde(default = "default_format_version")]
@@ -292,11 +292,28 @@ pub struct CriticalityOverrides {
     pub packages: HashMap<String, Criticality>,
 }
 
+impl Default for CriticalityOverrides {
+    fn default() -> Self {
+        Self {
+            format_version: 1,
+            repository_root: String::new(),
+            symbols: HashMap::new(),
+            packages: HashMap::new(),
+        }
+    }
+}
+
 fn default_format_version() -> u32 {
     1
 }
 
 impl CriticalityOverrides {
+    /// Returns whether an identity can safely survive semantic reindexing.
+    #[must_use]
+    pub fn is_overridable(symbol: &str) -> bool {
+        !symbol.is_empty() && !symbol.starts_with("local ")
+    }
+
     /// Returns `true` if the overrides contain no symbol or package rules.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -305,7 +322,7 @@ impl CriticalityOverrides {
 
     /// Sets or clears a manual symbol criticality override.
     pub fn set_symbol(&mut self, symbol: &str, value: Option<Criticality>) {
-        if !symbol.starts_with("local ") && !symbol.is_empty() {
+        if Self::is_overridable(symbol) {
             if let Some(val) = value {
                 if val != Criticality::Unknown {
                     self.symbols.insert(symbol.to_string(), val);

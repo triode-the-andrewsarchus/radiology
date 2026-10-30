@@ -4,6 +4,7 @@
 //! to distinguish boilerplate runtime plumbing from core domain logic, system APIs, and FFI boundaries.
 
 pub mod lens;
+pub mod overrides;
 pub mod projection;
 pub mod service;
 
