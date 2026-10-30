@@ -1,7 +1,7 @@
 //! Independent reference selection, disclosure, focus and variable-height geometry.
 
 use crate::{
-    semantic::caller_tree::{caller_pill_color, ReferenceCallerNode},
+    semantic::reference_results::{ReferenceHit, ReferenceResults},
     source::preview::SourcePreviewLoader,
     theme::AppTheme,
 };
@@ -24,6 +24,8 @@ pub enum ReferenceAction {
     Commit(Option<usize>),
     /// Clears list selection without moving the source caret.
     ClearSelection,
+    /// Expands resource limits and queries more indexed sites.
+    More,
 }
 
 /// Measured reference-list geometry, reusable without application navigation state.
@@ -31,7 +33,8 @@ pub enum ReferenceAction {
 pub struct ReferenceViewport {
     rows: RowHeights,
     expanded: BTreeMap<usize, usize>,
-    geometry: Option<(f32, f32)>,
+    geometry: Option<(usize, f32, f32)>,
+    groups: BTreeMap<usize, usize>,
     reveal: bool,
 }
 
@@ -68,7 +71,7 @@ impl ReferenceViewport {
         &mut self,
         ui: &mut Ui,
         theme: &AppTheme,
-        nodes: &[ReferenceCallerNode],
+        results: &ReferenceResults,
         selected: Option<usize>,
         previews: &BTreeMap<usize, SourcePreviewLoader>,
     ) -> Option<ReferenceAction> {
@@ -88,38 +91,8 @@ impl ReferenceViewport {
                 },
             )
         });
-        let geometry = (ui.available_width(), ui.ctx().pixels_per_point());
-        self.rows.reset(nodes.len(), geometry.0, 24.0, geometry.1);
-        if self.geometry != Some(geometry) {
-            self.expanded.clear();
-            self.geometry = Some(geometry);
-        }
-        for &index in self
-            .expanded
-            .keys()
-            .filter(|index| !previews.contains_key(index))
-        {
-            if index < nodes.len() {
-                self.rows.set_height(index, 24.0);
-            }
-        }
-        self.expanded
-            .retain(|index, _| previews.contains_key(index));
-        for (&index, preview) in previews {
-            let signature = match preview.phase() {
-                crate::source::preview::PreviewPhase::None => 0,
-                crate::source::preview::PreviewPhase::Loading => 1,
-                crate::source::preview::PreviewPhase::Unavailable(_) => 2,
-                crate::source::preview::PreviewPhase::Loaded(preview) => {
-                    3 + preview.lines.len() * 2 + usize::from(preview.truncated)
-                }
-            };
-            if index < nodes.len() && self.expanded.get(&index) != Some(&signature) {
-                self.rows
-                    .set_height(index, 24.0 + super::source_preview::height(preview.phase()));
-            }
-            self.expanded.insert(index, signature);
-        }
+        self.configure_rows(ui, results, previews);
+        let nodes = &results.hits;
         let mut scroll = egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .id_source("declaration_references");
@@ -138,6 +111,9 @@ impl ReferenceViewport {
             ui.add_space(self.rows.offset(first));
             for (index, node) in nodes.iter().enumerate().take(last).skip(first) {
                 let top = ui.cursor().top();
+                if let Some(&group) = self.groups.get(&index) {
+                    render_group(ui, theme, &results.groups[group]);
+                }
                 if let Some(next) = render_row(
                     ui,
                     theme,
@@ -157,12 +133,73 @@ impl ReferenceViewport {
         });
         action
     }
+    fn configure_rows(
+        &mut self,
+        ui: &Ui,
+        results: &ReferenceResults,
+        previews: &BTreeMap<usize, SourcePreviewLoader>,
+    ) {
+        let geometry = (
+            results.hits.len(),
+            ui.available_width(),
+            ui.ctx().pixels_per_point(),
+        );
+        self.rows.reset(geometry.0, geometry.1, 24.0, geometry.2);
+        let groups: BTreeMap<_, _> = results
+            .groups
+            .iter()
+            .enumerate()
+            .map(|(group, file)| (file.hits.start, group))
+            .collect();
+        if self.geometry != Some(geometry) || self.groups != groups {
+            for &row in self.groups.keys() {
+                if row < geometry.0 {
+                    self.rows.set_height(row, 24.0);
+                }
+            }
+            self.expanded.clear();
+            self.geometry = Some(geometry);
+            self.groups = groups;
+            for &row in self.groups.keys() {
+                self.rows.set_height(row, 48.0);
+            }
+        }
+        for &row in self
+            .expanded
+            .keys()
+            .filter(|row| !previews.contains_key(row))
+        {
+            if row < geometry.0 {
+                self.rows
+                    .set_height(row, 24.0 + 24.0 * f32::from(self.groups.contains_key(&row)));
+            }
+        }
+        self.expanded.retain(|row, _| previews.contains_key(row));
+        for (&row, preview) in previews {
+            let signature = match preview.phase() {
+                crate::source::preview::PreviewPhase::None => 0,
+                crate::source::preview::PreviewPhase::Loading => 1,
+                crate::source::preview::PreviewPhase::Unavailable(_) => 2,
+                crate::source::preview::PreviewPhase::Loaded(preview) => {
+                    3 + preview.lines.len() * 2 + usize::from(preview.truncated)
+                }
+            };
+            if row < geometry.0 && self.expanded.get(&row) != Some(&signature) {
+                self.rows.set_height(
+                    row,
+                    24.0 + 24.0 * f32::from(self.groups.contains_key(&row))
+                        + super::source_preview::height(preview.phase()),
+                );
+            }
+            self.expanded.insert(row, signature);
+        }
+    }
 }
 
 fn render_row(
     ui: &mut Ui,
     theme: &AppTheme,
-    node: &ReferenceCallerNode,
+    node: &ReferenceHit,
     index: usize,
     selected: bool,
     expanded: bool,
@@ -187,25 +224,21 @@ fn render_row(
     let disclosure = chevron
         .button(&mut child, 10.0, theme.text_secondary)
         .on_hover_text("Right shows source; Left hides it. Return opens the reference.");
-    let color = caller_pill_color(&node.name, &node.path);
-    egui::Frame::none()
-        .fill(color.linear_multiply(0.2))
-        .inner_margin(egui::Margin::symmetric(6.0, 2.0))
-        .rounding(10.0)
-        .show(&mut child, |ui| {
-            ui.add(
-                egui::Label::new(RichText::new(&node.name).color(color).size(11.0)).truncate(true),
-            );
-        });
-    child.add(
-        egui::Label::new(
-            RichText::new(format!("{}:{}", node.path, node.line))
-                .color(theme.text_secondary)
-                .size(11.0),
-        )
-        .truncate(true),
+    child.label(
+        RichText::new(format!("{:>3}", node.source_line.number))
+            .monospace()
+            .color(theme.text_muted),
     );
-    let action = if disclosure.clicked() {
+    let badge = if node.is_definition { 28.0 } else { 0.0 };
+    let (text_rect, _) = child.allocate_exact_size(
+        egui::vec2((child.available_width() - badge).max(1.0), 24.0),
+        Sense::hover(),
+    );
+    paint_source_line(&child, theme, node, text_rect);
+    if node.is_definition {
+        child.colored_label(theme.text_muted, RichText::new("def").size(11.0));
+    }
+    let mut action = if disclosure.clicked() {
         Some(ReferenceAction::SetExpanded(index, !expanded))
     } else if response.double_clicked() {
         Some(ReferenceAction::Commit(Some(index)))
@@ -214,9 +247,31 @@ fn render_row(
     } else {
         None
     };
+    response.context_menu(|ui| {
+        if ui.button("Go to Reference").clicked() {
+            action = Some(ReferenceAction::Commit(Some(index)));
+            ui.close_menu();
+        }
+    });
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(
+            egui::WidgetType::SelectableLabel,
+            format!(
+                "{} line {}{}: {}",
+                node.path,
+                node.source_line.number,
+                if node.is_definition {
+                    ", definition"
+                } else {
+                    ""
+                },
+                node.source_line.text
+            ),
+        )
+    });
     response.on_hover_text(format!(
         "{}:{} — select; double-click or Return to open",
-        node.path, node.line
+        node.path, node.source_line.number
     ));
     if action.is_some() {
         ui.memory_mut(|memory| memory.request_focus(ReferenceViewport::focus_id()));
@@ -224,23 +279,163 @@ fn render_row(
     action
 }
 
+pub(crate) fn show_coverage(
+    ui: &mut Ui,
+    theme: &AppTheme,
+    results: &ReferenceResults,
+    loading: bool,
+) -> Option<ReferenceAction> {
+    if results.reference_count == 0 && !loading {
+        ui.colored_label(theme.text_muted, "No indexed references.");
+    }
+    if results.unmapped > 0 || !results.unreadable.is_empty() {
+        ui.colored_label(theme.text_muted, format!("{} unmapped · {} unreadable files", results.unmapped, results.unreadable.len()))
+            .on_hover_ui(|ui| {
+                ui.label("Unmapped sites have stale source identities, unsupported encodings, or coordinates that do not fit the source. Reindex to refresh.");
+                for file in results.unreadable.iter().take(16) { ui.label(format!("{} ({} sites): {}", file.path, file.sites, file.message)); }
+            });
+    }
+    let mut action = None;
+    if results.omitted > 0 {
+        ui.horizontal(|ui| {
+            ui.colored_label(
+                theme.text_muted,
+                format!("{} sites not loaded", results.omitted),
+            );
+            if ui
+                .add_enabled(!loading, egui::Button::new("Load More").small())
+                .clicked()
+            {
+                action = Some(ReferenceAction::More);
+            }
+        });
+    }
+    action
+}
+
+fn paint_source_line(ui: &Ui, theme: &AppTheme, hit: &ReferenceHit, rect: egui::Rect) {
+    let mut job = super::source_preview::line_job(&hit.source_line, theme);
+    job.wrap.max_width = f32::INFINITY;
+    job.break_on_newline = false;
+    let galley = ui.fonts(|fonts| fonts.layout_job(job));
+    let offset = hit.source_line.emphasis.as_ref().map_or(0.0, |emphasis| {
+        let x = |byte| {
+            let cursor = galley.from_ccursor(egui::text::CCursor::new(
+                hit.source_line.text[..byte].chars().count(),
+            ));
+            galley.pos_from_cursor(&cursor).left()
+        };
+        if x(emphasis.end) <= rect.width() {
+            0.0
+        } else {
+            (x(emphasis.start) - rect.width() * 0.25).max(0.0)
+        }
+    });
+    ui.painter()
+        .with_clip_rect(rect.intersect(ui.clip_rect()))
+        .galley(
+            egui::pos2(
+                rect.left() - offset,
+                rect.center().y - galley.size().y / 2.0,
+            ),
+            galley,
+            theme.text_primary,
+        );
+}
+
+fn render_group(
+    ui: &mut Ui,
+    theme: &AppTheme,
+    group: &crate::semantic::reference_results::ReferenceGroup,
+) {
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), Sense::hover());
+    let text = ui.painter().layout_no_wrap(
+        group.path.clone(),
+        egui::FontId::proportional(12.0),
+        theme.text_secondary,
+    );
+    let count = ui.painter().layout_no_wrap(
+        group.hits.len().to_string(),
+        egui::FontId::monospace(11.0),
+        theme.text_muted,
+    );
+    let path_rect = egui::Rect::from_min_max(
+        rect.min,
+        egui::pos2(rect.right() - count.size().x - 8.0, rect.bottom()),
+    );
+    let offset = (text.size().x - path_rect.width()).max(0.0);
+    ui.painter()
+        .with_clip_rect(path_rect.intersect(ui.clip_rect()))
+        .galley(
+            egui::pos2(
+                path_rect.left() - offset,
+                rect.center().y - text.size().y / 2.0,
+            ),
+            text,
+            theme.text_secondary,
+        );
+    ui.painter().galley(
+        egui::pos2(
+            rect.right() - count.size().x,
+            rect.center().y - count.size().y / 2.0,
+        ),
+        count,
+        theme.text_muted,
+    );
+    response.on_hover_text(format!(
+        "{} — {} indexed sites, including definitions",
+        group.path,
+        group.hits.len()
+    ));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use egui::Event;
+    fn test_hit(index: usize) -> ReferenceHit {
+        ReferenceHit {
+            path: "a.rs".into(),
+            range: crate::semantic::ScipRange::from_packed(&[index as i32, 0, 1]).unwrap(),
+            byte_range: index..index + 1,
+            source_line: crate::source::preview::PreviewLine {
+                number: index + 1,
+                text: format!("caller{index}"),
+                emphasis: Some(0..1),
+                clipped: false,
+            },
+            is_definition: false,
+        }
+    }
+    fn test_results(hits: Vec<ReferenceHit>) -> ReferenceResults {
+        ReferenceResults {
+            groups: vec![crate::semantic::reference_results::ReferenceGroup {
+                path: "a.rs".into(),
+                hits: 0..hits.len(),
+                content_digest: String::new(),
+            }],
+            reference_count: hits.len(),
+            hits,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn single_click_selects_and_double_click_commits() {
         let context = egui::Context::default();
         let range = crate::semantic::ScipRange::from_packed(&[1, 7, 13]).unwrap();
-        let node = ReferenceCallerNode {
-            name: "caller".into(),
+        let node = ReferenceHit {
             path: "b.ts".into(),
-            line: 2,
             range: range.clone(),
-            depth: 0,
-            color_slot: 0,
-            is_recursive: false,
-            children: vec![],
+            byte_range: 0..6,
+            source_line: crate::source::preview::PreviewLine {
+                number: 2,
+                text: "caller".into(),
+                emphasis: Some(0..6),
+                clipped: false,
+            },
+            is_definition: false,
         };
         let mut action = None;
         let mut position = egui::Pos2::ZERO;
@@ -283,18 +478,8 @@ mod tests {
     #[test]
     fn keyboard_reveal_virtualizes_a_large_reference_list() {
         let ctx = Context::default();
-        let nodes: Vec<_> = (0..1000)
-            .map(|index| ReferenceCallerNode {
-                name: format!("caller{index}"),
-                path: "a.rs".into(),
-                line: index + 1,
-                range: crate::semantic::ScipRange::from_packed(&[index as i32, 0, 1]).unwrap(),
-                depth: 0,
-                color_slot: 0,
-                is_recursive: false,
-                children: vec![],
-            })
-            .collect();
+        let nodes: Vec<_> = (0..1000).map(test_hit).collect();
+        let results = test_results(nodes);
         let mut viewport = ReferenceViewport::default();
         let frame = || egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -306,7 +491,7 @@ mod tests {
         let render = |viewport: &mut ReferenceViewport| {
             ctx.run(frame(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    viewport.show(ui, &AppTheme::dark(), &nodes, Some(999), &BTreeMap::new());
+                    viewport.show(ui, &AppTheme::dark(), &results, Some(999), &BTreeMap::new());
                 });
             })
         };
@@ -324,16 +509,7 @@ mod tests {
     #[test]
     fn reference_focus_keeps_arrows_and_escape_across_frames() {
         let ctx = Context::default();
-        let node = ReferenceCallerNode {
-            name: "caller".into(),
-            path: "a.rs".into(),
-            line: 1,
-            range: crate::semantic::ScipRange::from_packed(&[0, 0, 1]).unwrap(),
-            depth: 0,
-            color_slot: 0,
-            is_recursive: false,
-            children: vec![],
-        };
+        let results = test_results(vec![test_hit(0)]);
         let mut viewport = ReferenceViewport::default();
         let mut frame = |key: Option<Key>| {
             let mut actions = Vec::new();
@@ -358,13 +534,7 @@ mod tests {
                 |ctx| {
                     actions = ReferenceViewport::take_actions(ctx);
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        viewport.show(
-                            ui,
-                            &AppTheme::dark(),
-                            std::slice::from_ref(&node),
-                            Some(0),
-                            &BTreeMap::new(),
-                        );
+                        viewport.show(ui, &AppTheme::dark(), &results, Some(0), &BTreeMap::new());
                     });
                 },
             );

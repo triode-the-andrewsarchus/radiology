@@ -55,6 +55,8 @@ pub struct ReferenceResults {
     pub hits: Vec<ReferenceHit>,
     /// Nonempty file groups, including exact source identities.
     pub groups: Vec<ReferenceGroup>,
+    /// SHA-256 identities for every accepted source read, including unmapped files.
+    pub source_identities: BTreeMap<String, String>,
     /// Validated uses, excluding definitions.
     pub reference_count: usize,
     /// Validated definitions, excluded from the reference count.
@@ -67,6 +69,34 @@ pub struct ReferenceResults {
     pub omitted: usize,
     /// Total unique indexed sites, before source validation.
     pub indexed_sites: usize,
+}
+
+impl ReferenceResults {
+    /// Finds a listed site by its original encoded coordinates.
+    #[must_use]
+    pub fn find_hit(&self, path: &str, range: &ScipRange) -> Option<usize> {
+        let group = &self.groups[self
+            .groups
+            .binary_search_by(|group| group.path.as_str().cmp(path))
+            .ok()?];
+        let offset = self.hits[group.hits.clone()]
+            .binary_search_by_key(&coordinates(range), |hit| coordinates(&hit.range))
+            .ok()?;
+        Some(group.hits.start + offset)
+    }
+
+    pub(crate) fn source_digest(&self, path: &str) -> Option<&str> {
+        self.source_identities.get(path).map(String::as_str)
+    }
+}
+
+fn coordinates(range: &ScipRange) -> Coordinates {
+    (
+        range.start_line,
+        range.start_col,
+        range.end_line,
+        range.end_col,
+    )
 }
 
 /// Per-request bounds can grow when the reader explicitly requests more results.
@@ -218,10 +248,9 @@ fn resolve_file(
     results: &mut ReferenceResults,
     cancel: &AtomicBool,
 ) -> Result<(), String> {
-    if !budget.retain(
-        path.len()
-            .saturating_add(std::mem::size_of::<ReferenceGroup>() + 64),
-    ) {
+    if !budget.retain(path.len().saturating_mul(2).saturating_add(
+        std::mem::size_of::<ReferenceGroup>() + std::mem::size_of::<(String, String)>() + 128,
+    )) {
         results.omitted += sites.len();
         return Ok(());
     }
@@ -254,6 +283,9 @@ fn resolve_file(
         return Ok(());
     }
     budget.source_bytes += buffer.byte_len();
+    results
+        .source_identities
+        .insert(path.clone(), buffer.content_digest().to_owned());
     let first = results.hits.len();
     let total = sites.len();
     for (processed, ((start_line, start_col, end_line, end_col), is_definition)) in
@@ -514,6 +546,7 @@ mod tests {
         ]);
         let results = run(&inputs, &id);
         assert_eq!(results.unmapped, 2);
+        assert!(results.source_identities.contains_key("b.rs"));
         assert_eq!(results.unreadable.len(), 2);
         assert_eq!(results.hits.len(), 1);
         index_encoding_unknown(&mut inputs, "a.rs");

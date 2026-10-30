@@ -1,7 +1,7 @@
 //! Replaceable reference context, independent of caret and navigation ownership.
 
-use super::caller_tree::{caller_pill_slot, ReferenceCallerNode};
 use super::index::{SemanticIndex, SemanticSymbolID};
+use super::reference_results::{ReferenceLimits, ReferenceResults};
 use crate::background::LatestRead;
 use crate::source::preview::{
     PreviewKind, PreviewPhase, PreviewTarget, SourcePreviewLoader, SourceQueryInputs,
@@ -9,7 +9,6 @@ use crate::source::preview::{
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,15 +67,15 @@ impl ReferenceTarget {
 pub(crate) struct ReferenceContext {
     explicit: Option<ReferenceTarget>,
     automatic: Option<ReferenceTarget>,
-    index: Option<Arc<SemanticIndex>>,
+    inputs: Option<Arc<SourceQueryInputs>>,
     source_digests: HashMap<String, String>,
     target: Option<ReferenceTarget>,
-    job: LatestRead<Vec<ReferenceCallerNode>>,
-    pub rows: Vec<ReferenceCallerNode>,
+    job: LatestRead<Result<ReferenceResults, String>>,
+    limits: ReferenceLimits,
+    pub results: ReferenceResults,
     pub error: Option<String>,
     pub selected: Option<usize>,
     pub previews: BTreeMap<usize, SourcePreviewLoader>,
-    preview_inputs: Option<Arc<SourceQueryInputs>>,
 }
 
 impl ReferenceContext {
@@ -89,84 +88,106 @@ impl ReferenceContext {
     pub fn is_running(&self) -> bool {
         self.job.is_running() || self.previews.values().any(SourcePreviewLoader::is_running)
     }
+    pub fn is_query_running(&self) -> bool {
+        self.job.is_running()
+    }
     pub fn available(&self) -> bool {
-        self.index.is_some()
+        self.inputs.is_some()
     }
 
     pub fn show(&mut self, target: ReferenceTarget) {
         self.explicit = Some(target);
-        self.refresh();
+        self.refresh(false);
     }
-
     pub fn follow_caret(&mut self) {
         self.explicit = None;
-        self.refresh();
+        self.refresh(false);
     }
 
     pub fn update(
         &mut self,
-        index: Option<Arc<SemanticIndex>>,
-        buffer: Option<&SourceBuffer>,
+        inputs: Option<Arc<SourceQueryInputs>>,
         automatic: Option<ReferenceTarget>,
     ) {
-        let source_changed = buffer.is_some_and(|buffer| {
-            self.source_digests
-                .insert(buffer.position_key(), buffer.content_digest().to_owned())
-                .is_some_and(|previous| previous != buffer.content_digest())
-        });
-        let changed = source_changed
-            || match (&self.index, &index) {
-                (Some(old), Some(new)) => !Arc::ptr_eq(old, new),
-                (None, None) => false,
-                _ => true,
-            };
+        let changed_source = self.observe_source(inputs.as_deref());
+        let changed_index = match (&self.inputs, &inputs) {
+            (Some(old), Some(new)) => !Arc::ptr_eq(&old.index, &new.index),
+            (None, None) => false,
+            _ => true,
+        };
+        let changed_inputs = match (&self.inputs, &inputs) {
+            (Some(old), Some(new)) => !Arc::ptr_eq(old, new),
+            (None, None) => false,
+            _ => true,
+        };
+        self.inputs = inputs;
         self.automatic = automatic;
-        self.index = index;
-        if changed {
-            self.target = None;
-            self.job.stop();
-            self.rows.clear();
-            self.selected = None;
-            self.previews.clear();
-            self.error = None;
+        let refreshed = self.refresh(changed_source || changed_index);
+        if changed_inputs && !refreshed {
+            self.rebind_pending();
         }
-        self.refresh();
     }
 
-    fn refresh(&mut self) {
+    fn observe_source(&mut self, inputs: Option<&SourceQueryInputs>) -> bool {
+        let Some(inputs) = inputs else {
+            return false;
+        };
+        let changed = self
+            .source_digests
+            .insert(
+                inputs.buffer.position_key(),
+                inputs.buffer.content_digest().to_owned(),
+            )
+            .is_some_and(|old| old != inputs.buffer.content_digest());
+        changed
+            || self
+                .results
+                .unreadable
+                .iter()
+                .any(|file| file.path == inputs.buffer.path)
+    }
+
+    fn refresh(&mut self, invalidated: bool) -> bool {
         let target = self
-            .index
+            .inputs
             .as_ref()
-            .and(self.explicit.as_ref().or(self.automatic.as_ref()));
-        if self.target.as_ref() == target {
-            return;
+            .and(self.explicit.as_ref().or(self.automatic.as_ref()))
+            .cloned();
+        if !invalidated && self.target == target {
+            return false;
         }
         self.job.stop();
-        self.rows.clear();
+        self.results = Default::default();
         self.selected = None;
         self.previews.clear();
         self.error = None;
-        self.target = target.cloned();
-        if let (Some(index), Some(target)) = (&self.index, &self.target) {
-            let index = index.clone();
-            let id = target.id.clone();
+        self.target = target;
+        self.limits = Default::default();
+        self.start_query();
+        true
+    }
+
+    fn start_query(&mut self) {
+        self.error = None;
+        if let (Some(inputs), Some(target)) = (&self.inputs, &self.target) {
+            let (inputs, id, limits) = (inputs.clone(), target.id.clone(), self.limits);
             self.job
-                .spawn(move |cancel| direct_references(&index, &id, cancel));
+                .spawn(move |cancel| super::reference_results::query(&inputs, &id, limits, cancel));
         }
     }
 
-    pub fn configure_previews(&mut self, inputs: Option<Arc<SourceQueryInputs>>) {
-        self.preview_inputs = inputs;
-        // Loaded excerpts survive navigation; pending requests must capture the
-        // newly displayed bytes before a late disk read can publish over them.
+    fn rebind_pending(&mut self) {
+        if self.job.is_running() {
+            self.start_query();
+        }
         for (&row, preview) in &mut self.previews {
             if preview.is_running() {
-                if let Some(node) = self.rows.get(row) {
+                if let Some(hit) = self.results.hits.get(row) {
                     preview.request(
-                        self.preview_inputs.clone(),
+                        self.inputs.clone(),
                         Some(PreviewTarget {
-                            path: node.path.clone(),
-                            range: node.range.clone(),
+                            path: hit.path.clone(),
+                            range: hit.range.clone(),
                             kind: PreviewKind::Reference,
                         }),
                     );
@@ -175,26 +196,32 @@ impl ReferenceContext {
         }
     }
 
-    pub fn select(&mut self, row: usize) {
-        if row < self.rows.len() {
-            self.selected = Some(row);
+    pub fn more(&mut self) {
+        if self.results.omitted > 0 && !self.job.is_running() {
+            self.limits = self.limits.expanded();
+            self.start_query();
         }
     }
 
+    pub fn select(&mut self, row: usize) {
+        if row < self.results.hits.len() {
+            self.selected = Some(row);
+        }
+    }
     pub fn move_selection(&mut self, forward: bool) {
-        if self.rows.is_empty() {
+        if self.results.hits.is_empty() {
             return;
         }
         self.selected = Some(match self.selected {
             None if forward => 0,
-            None => self.rows.len() - 1,
-            Some(row) if forward => row.saturating_add(1).min(self.rows.len() - 1),
+            None => self.results.hits.len() - 1,
+            Some(row) if forward => row.saturating_add(1).min(self.results.hits.len() - 1),
             Some(row) => row.saturating_sub(1),
         });
     }
 
     pub fn expand(&mut self, row: usize, expanded: bool) {
-        let Some(node) = self.rows.get(row) else {
+        let Some(hit) = self.results.hits.get(row) else {
             return;
         };
         self.selected = Some(row);
@@ -202,12 +229,11 @@ impl ReferenceContext {
             self.previews.remove(&row);
             return;
         }
-        let loader = self.previews.entry(row).or_default();
-        loader.request(
-            self.preview_inputs.clone(),
+        self.previews.entry(row).or_default().request(
+            self.inputs.clone(),
             Some(PreviewTarget {
-                path: node.path.clone(),
-                range: node.range.clone(),
+                path: hit.path.clone(),
+                range: hit.range.clone(),
                 kind: PreviewKind::Reference,
             }),
         );
@@ -216,8 +242,12 @@ impl ReferenceContext {
     pub fn poll(&mut self) -> bool {
         let mut changed = match self.job.poll() {
             Ok(None) => false,
-            Ok(Some(rows)) => {
-                self.rows = rows;
+            Ok(Some(Ok(results))) => {
+                self.publish(results);
+                true
+            }
+            Ok(Some(Err(error))) => {
+                self.error = Some(error);
                 true
             }
             Err(_) => {
@@ -225,101 +255,70 @@ impl ReferenceContext {
                 true
             }
         };
+        let mut source_changed = false;
         for preview in self.previews.values_mut() {
             let published = preview.poll();
             if published {
                 if let PreviewPhase::Loaded(source) = preview.phase() {
-                    let key = crate::source::SourceLocation::format_position_key(
-                        &source.path,
-                        source.revision,
-                    );
-                    self.source_digests
-                        .insert(key, source.content_digest.clone());
+                    source_changed |= self.results.source_digest(&source.path)
+                        != Some(source.content_digest.as_str());
                 }
             }
             changed |= published;
         }
+        if source_changed {
+            self.start_query();
+        }
         changed
     }
-}
 
-fn direct_references(
-    index: &SemanticIndex,
-    id: &SemanticSymbolID,
-    cancel: &AtomicBool,
-) -> Vec<ReferenceCallerNode> {
-    let mut rows = Vec::new();
-    for (path, range) in index.references.get(id).into_iter().flatten() {
-        if cancel.load(Ordering::Relaxed) {
-            return Vec::new();
+    fn publish(&mut self, results: ReferenceResults) {
+        let retained = |old: usize| {
+            let hit = self.results.hits.get(old)?;
+            (self.results.source_digest(&hit.path) == results.source_digest(&hit.path))
+                .then(|| results.find_hit(&hit.path, &hit.range))
+                .flatten()
+        };
+        self.selected = self.selected.and_then(retained);
+        self.previews = std::mem::take(&mut self.previews)
+            .into_iter()
+            .filter_map(|(old, preview)| retained(old).map(|new| (new, preview)))
+            .collect();
+        for (path, digest) in &results.source_identities {
+            let revision = self
+                .inputs
+                .as_ref()
+                .and_then(|inputs| inputs.buffer.revision);
+            self.source_digests.insert(
+                crate::source::SourceLocation::format_position_key(path, revision),
+                digest.clone(),
+            );
         }
-        let start = (range.start_line, range.start_col);
-        let end = (range.end_line, range.end_col);
-        if range.start_line < 0
-            || range.start_col < 0
-            || range.end_col < 0
-            || start >= end
-            || index.column_encoding(path).is_none()
-            || !crate::source::SourceLocation::is_repository_path(path)
-        {
-            continue;
-        }
-        // Indexed lexical extents can provide a label. They do not prove this
-        // reference is a call; parsed/validated call-tree expansion is separate.
-        let name = index
-            .enclosing_definition(path, range)
-            .map(|id| index.display_name(&id))
-            .unwrap_or_else(|| path.clone());
-        rows.push(ReferenceCallerNode {
-            color_slot: caller_pill_slot(&name, path),
-            name,
-            path: path.clone(),
-            line: range.start_line as usize + 1,
-            range: range.clone(),
-            depth: 0,
-            is_recursive: false,
-            children: Vec::new(),
-        });
+        self.results = results;
     }
-    rows.sort_by(|a, b| {
-        (
-            &a.path,
-            a.range.start_line,
-            a.range.start_col,
-            a.range.end_line,
-            a.range.end_col,
-        )
-            .cmp(&(
-                &b.path,
-                b.range.start_line,
-                b.range.start_col,
-                b.range.end_line,
-                b.range.end_col,
-            ))
-    });
-    rows.dedup_by(|a, b| a.path == b.path && a.range == b.range);
-    rows
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
-    use crate::syntax::outline::SymbolExtractor;
+    use crate::source::loader::SourceRead;
 
-    fn occurrence(symbol: &str, role: i32, columns: &[i32]) -> ScipOccurrence {
-        ScipOccurrence {
-            symbol: symbol.into(),
+    fn fixture() -> (tempfile::TempDir, Arc<SourceQueryInputs>) {
+        let root = tempfile::tempdir().unwrap();
+        let buffer = Arc::new(SourceBuffer::from_str(
+            "a.rs",
+            "fn one() {} fn two() { one(); }",
+        ));
+        std::fs::write(root.path().join("a.rs"), &buffer.text).unwrap();
+        std::fs::write(root.path().join("b.rs"), "fn one(){one();}").unwrap();
+        let occurrence = |name: &str, role, coordinates: &[i32]| ScipOccurrence {
+            symbol: name.into(),
             symbol_roles: role,
-            range: ScipRange::from_packed(columns),
+            range: ScipRange::from_packed(coordinates),
             ..Default::default()
-        }
-    }
-
-    fn fixture() -> (SourceBuffer, Arc<SemanticIndex>) {
-        let source = "fn one() {} fn two() { one(); }";
-        let buffer = SourceBuffer::from_bytes("a.rs", source.as_bytes().to_vec(), None).unwrap();
-        let index = SemanticIndex::from_scip(ScipIndex {
+        };
+        let index = Arc::new(SemanticIndex::from_scip(ScipIndex {
             documents: vec![
                 ScipDocument {
                     relative_path: "a.rs".into(),
@@ -327,6 +326,7 @@ mod tests {
                         occurrence("local 1", 1, &[0, 3, 6]),
                         occurrence("local 2", 1, &[0, 15, 18]),
                         occurrence("local 1", 0, &[0, 23, 26]),
+                        occurrence("shared", 1, &[0, 3, 6]),
                     ],
                     ..Default::default()
                 },
@@ -335,15 +335,24 @@ mod tests {
                     occurrences: vec![
                         occurrence("local 1", 1, &[0, 3, 6]),
                         occurrence("local 1", 0, &[0, 9, 12]),
+                        occurrence("shared", 0, &[0, 9, 12]),
                     ],
                     ..Default::default()
                 },
             ],
             ..Default::default()
+        }));
+        let inputs = Arc::new(SourceQueryInputs {
+            source: SourceRead::Checkout(root.path().into()),
+            buffer,
+            index,
         });
-        (buffer, Arc::new(index))
+        (root, inputs)
     }
 
+    fn target(inputs: &SourceQueryInputs, byte: usize) -> ReferenceTarget {
+        ReferenceTarget::at_byte(&inputs.index, &inputs.buffer, byte).unwrap()
+    }
     fn settle(context: &mut ReferenceContext) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while context.is_running() {
@@ -351,204 +360,197 @@ mod tests {
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
-        assert!(context.error.is_none());
+        assert!(context.error.is_none(), "{:?}", context.error);
     }
 
     #[test]
-    fn declaration_identity_uses_exact_name_not_same_line_and_checks_source() {
-        let (mut buffer, index) = fixture();
-        let symbols = SymbolExtractor::extract(&buffer);
-        let first = ReferenceTarget::declaration(&index, &buffer, &symbols[0]).unwrap();
-        let second = ReferenceTarget::declaration(&index, &buffer, &symbols[1]).unwrap();
+    fn declaration_identity_requires_the_exact_parsed_name_and_fresh_source() {
+        let (_root, inputs) = fixture();
+        let symbols = crate::syntax::outline::SymbolExtractor::extract(&inputs.buffer);
+        let first =
+            ReferenceTarget::declaration(&inputs.index, &inputs.buffer, &symbols[0]).unwrap();
+        let second =
+            ReferenceTarget::declaration(&inputs.index, &inputs.buffer, &symbols[1]).unwrap();
         assert_eq!(first.id, SemanticSymbolID::new("local 1", "a.rs"));
         assert_eq!(second.id, SemanticSymbolID::new("local 2", "a.rs"));
         let mut wrong = symbols[1].clone();
         wrong.selection_range = 14..18;
-        assert!(ReferenceTarget::declaration(&index, &buffer, &wrong).is_none());
-        let mut stale = (*index).clone();
-        stale
-            .source_digests
-            .insert("a.rs".into(), "other bytes".into());
-        assert!(ReferenceTarget::at_byte(&stale, &buffer, 24).is_none());
-        buffer.revision = Some(ReviewRevision::Before);
-        assert!(ReferenceTarget::at_byte(&index, &buffer, 24).is_none());
-        assert!(ReferenceTarget::declaration(&index, &buffer, &symbols[0]).is_none());
+        assert!(ReferenceTarget::declaration(&inputs.index, &inputs.buffer, &wrong).is_none());
+        let mut stale = (*inputs.index).clone();
+        stale.source_digests.insert("a.rs".into(), "other".into());
+        assert!(ReferenceTarget::at_byte(&stale, &inputs.buffer, 24).is_none());
+        let mut before = (*inputs.buffer).clone();
+        before.revision = Some(ReviewRevision::Before);
+        assert!(ReferenceTarget::at_byte(&inputs.index, &before, 24).is_none());
     }
 
     #[test]
-    fn sticky_focus_follows_caret_only_when_released_and_locals_remain_scoped() {
-        let (buffer, index) = fixture();
-        let one = ReferenceTarget::at_byte(&index, &buffer, 4).unwrap();
-        let two = ReferenceTarget::at_byte(&index, &buffer, 16).unwrap();
+    fn explicit_scoped_focus_survives_files_and_follow_caret_restores_latest_declaration() {
+        let (_root, inputs) = fixture();
+        let (one, two) = (target(&inputs, 4), target(&inputs, 16));
         let mut context = ReferenceContext::default();
-        context.update(Some(index.clone()), Some(&buffer), Some(two.clone()));
+        context.update(Some(inputs.clone()), Some(two.clone()));
         context.show(one.clone());
         settle(&mut context);
-        assert_eq!(context.rows.len(), 1);
-        assert_eq!(context.rows[0].path, "a.rs");
-        assert_eq!(context.rows[0].range.start_col, 23);
-        context.update(Some(index.clone()), Some(&buffer), Some(two.clone()));
-        assert!(
-            !context.is_running(),
-            "caret movement rebuilt the same query"
+        assert_eq!(
+            (
+                context.results.reference_count,
+                context.results.definition_count
+            ),
+            (1, 1)
         );
+        context.update(Some(inputs.clone()), Some(two.clone()));
+        assert!(!context.is_running());
+        let other = inputs
+            .source
+            .read(&crate::source::SourceLocation::new("b.rs", 0))
+            .unwrap();
+        context.update(
+            Some(Arc::new(SourceQueryInputs {
+                source: inputs.source.clone(),
+                buffer: other,
+                index: inputs.index.clone(),
+            })),
+            None,
+        );
+        assert!(!context.is_running());
         assert_eq!(context.target(), Some(&one));
-        let other = SourceBuffer::from_bytes("b.rs", b"fn one(){one();}".to_vec(), None).unwrap();
-        context.update(Some(index), Some(&other), None);
-        settle(&mut context);
-        assert_eq!(context.target(), Some(&one));
-        assert_eq!(context.rows[0].path, "a.rs");
-        context.update(context.index.clone(), Some(&buffer), Some(two.clone()));
+        assert!(context.results.hits.iter().all(|hit| hit.path == "a.rs"));
+        context.update(Some(inputs), Some(two.clone()));
         context.follow_caret();
         settle(&mut context);
         assert_eq!(context.target(), Some(&two));
-        assert!(context.rows.is_empty());
+        assert_eq!(context.results.reference_count, 0);
+        assert_eq!(context.results.definition_count, 1);
         assert!(context.explicit().is_none());
     }
 
     #[test]
-    fn replacement_index_and_retired_requests_cannot_publish_old_rows() {
-        let (buffer, index) = fixture();
-        let target = ReferenceTarget::at_byte(&index, &buffer, 4).unwrap();
+    fn replacement_indexes_and_unavailable_revisions_retire_old_publications() {
+        let (_root, inputs) = fixture();
+        let one = target(&inputs, 4);
         let mut context = ReferenceContext::default();
-        context.update(Some(index.clone()), Some(&buffer), None);
-        context.show(target.clone());
-        let mut next = (*index).clone();
-        next.references.clear();
-        context.update(Some(Arc::new(next)), Some(&buffer), None);
-        settle(&mut context);
-        assert!(context.rows.is_empty());
-        assert_eq!(context.explicit(), Some(&target));
-        context.update(None, Some(&buffer), None);
-        assert!(!context.available());
-        assert!(context.target().is_none());
-        assert_eq!(context.explicit(), Some(&target));
-        context.update(Some(index), Some(&buffer), None);
-        settle(&mut context);
-        assert_eq!(context.rows.len(), 1);
-    }
-
-    #[test]
-    fn utf16_targets_and_ranges_preserve_exact_coordinates_and_full_extent_labels() {
-        let buffer = SourceBuffer::from_bytes(
-            "a.rs",
-            "// 😀\nfn café(){ café(); }".as_bytes().to_vec(),
+        context.update(Some(inputs.clone()), None);
+        context.show(one.clone());
+        let mut index = (*inputs.index).clone();
+        index.references.clear();
+        context.update(
+            Some(Arc::new(SourceQueryInputs {
+                source: inputs.source.clone(),
+                buffer: inputs.buffer.clone(),
+                index: Arc::new(index),
+            })),
             None,
-        )
-        .unwrap();
-        let mut definition = occurrence("global", 1, &[1, 3, 7]);
-        definition.enclosing_range = ScipRange::from_packed(&[1, 0, 20]);
-        let index = SemanticIndex::from_scip(ScipIndex {
-            documents: vec![ScipDocument {
-                relative_path: "a.rs".into(),
-                position_encoding: 2,
-                occurrences: vec![definition, occurrence("global", 0, &[1, 11, 15])],
-                ..Default::default()
-            }],
-            ..Default::default()
+        );
+        settle(&mut context);
+        assert_eq!(context.results.reference_count, 0);
+        assert_eq!(context.results.definition_count, 1);
+        context.update(None, None);
+        assert!(!context.available());
+        assert!(context.results.hits.is_empty());
+        assert_eq!(context.explicit(), Some(&one));
+        context.update(Some(inputs), None);
+        settle(&mut context);
+        assert_eq!(context.results.reference_count, 1);
+    }
+
+    #[test]
+    fn load_more_retains_valid_selection_and_source_disclosures() {
+        let (_root, inputs) = fixture();
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs), None);
+        context.show(ReferenceTarget {
+            id: SemanticSymbolID::new("shared", ""),
+            name: "shared".into(),
         });
-        let byte = buffer.text.find("café").unwrap();
-        let target = ReferenceTarget::at_byte(&index, &buffer, byte).unwrap();
-        let rows = direct_references(&index, &target.id, &AtomicBool::new(false));
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].name, index.display_name(&target.id));
-        assert_eq!(rows[0].range.start_col, 11);
-        assert_eq!(rows[0].range.end_col, 15);
-        assert_eq!(
-            index.byte_range(&buffer, &rows[0].range).unwrap().len(),
-            "café".len()
-        );
-        assert!(direct_references(&index, &target.id, &AtomicBool::new(true)).is_empty());
+        context.limits.files = 1;
+        context.start_query();
+        settle(&mut context);
+        assert_eq!(context.results.omitted, 1);
+        context.expand(0, true);
+        settle(&mut context);
+        let preview = context.previews[&0].phase().clone();
+        context.more();
+        settle(&mut context);
+        assert_eq!(context.results.omitted, 0);
+        assert_eq!(context.results.hits.len(), 2);
+        assert_eq!(context.selected, Some(0));
+        assert_eq!(context.previews[&0].phase(), &preview);
     }
 
     #[test]
-    fn indexed_owner_labels_distinguish_multiple_declarations_on_one_line() {
-        let (_, index) = fixture();
-        let mut index = (*index).clone();
-        let occurrences = &mut index.documents.get_mut("a.rs").unwrap().occurrences;
-        occurrences[0].enclosing_range = ScipRange::from_packed(&[0, 0, 11]);
-        occurrences[1].enclosing_range = ScipRange::from_packed(&[0, 12, 30]);
-        let id = SemanticSymbolID::new("local 1", "a.rs");
-        let rows = direct_references(&index, &id, &AtomicBool::new(false));
-        let owner = SemanticSymbolID::new("local 2", "a.rs");
-        assert_eq!(rows[0].name, index.display_name(&owner));
-        assert_eq!(
-            index.enclosing_definition("a.rs", &rows[0].range),
-            Some(owner)
+    fn pending_queries_rebind_before_a_newly_displayed_source_can_be_overwritten() {
+        let (_root, inputs) = fixture();
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs.clone()), None);
+        context.show(ReferenceTarget {
+            id: SemanticSymbolID::new("local 1", "b.rs"),
+            name: "one".into(),
+        });
+        let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){new();}"));
+        context.update(
+            Some(Arc::new(SourceQueryInputs {
+                source: inputs.source.clone(),
+                buffer: displayed.clone(),
+                index: inputs.index.clone(),
+            })),
+            None,
         );
+        settle(&mut context);
+        assert_eq!(
+            context.results.source_digest("b.rs"),
+            Some(displayed.content_digest())
+        );
+        assert!(context
+            .results
+            .hits
+            .iter()
+            .all(|hit| hit.source_line.text.contains("new();")));
     }
 
     #[test]
-    fn direct_reference_rows_are_sorted_deduplicated_and_never_fake_call_trees() {
-        let (_, index) = fixture();
-        let mut index = (*index).clone();
-        index.documents.get_mut("a.rs").unwrap().occurrences[0].enclosing_range = Some(ScipRange {
+    fn same_line_indexed_owner_lookup_uses_columns_and_rejects_negative_extents() {
+        let (_root, inputs) = fixture();
+        let mut index = (*inputs.index).clone();
+        let definitions = &mut index.documents.get_mut("a.rs").unwrap().occurrences;
+        definitions[0].enclosing_range = ScipRange::from_packed(&[0, 0, 11]);
+        definitions[1].enclosing_range = ScipRange::from_packed(&[0, 12, 30]);
+        let range = ScipRange::from_packed(&[0, 23, 26]).unwrap();
+        assert_eq!(
+            index.enclosing_definition("a.rs", &range),
+            Some(SemanticSymbolID::new("local 2", "a.rs"))
+        );
+        index.documents.get_mut("a.rs").unwrap().occurrences[1].enclosing_range = Some(ScipRange {
             start_line: i32::MIN,
             start_col: 0,
             end_line: i32::MAX,
             end_col: i32::MAX,
         });
-        let id = SemanticSymbolID::new("global", "");
-        let range = ScipRange::from_packed(&[0, 9, 12]).unwrap();
-        index.references.insert(
-            id.clone(),
-            vec![
-                ("b.rs".into(), range.clone()),
-                ("a.rs".into(), range.clone()),
-                ("a.rs".into(), range),
-                ("../escape".into(), ScipRange::default()),
-                (
-                    "a.rs".into(),
-                    ScipRange {
-                        start_col: -1,
-                        ..Default::default()
-                    },
-                ),
-            ],
-        );
-        let rows = direct_references(&index, &id, &AtomicBool::new(false));
-        assert_eq!(
-            rows.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(),
-            ["a.rs", "b.rs"]
-        );
-        assert_eq!(
-            rows[0].name, "a.rs",
-            "invalid enclosing extents cannot label references"
-        );
-        assert!(rows
-            .iter()
-            .all(|row| row.children.is_empty() && !row.is_recursive));
+        assert!(index.enclosing_definition("a.rs", &range).is_none());
     }
     #[test]
-    fn pending_preview_rebinds_to_newly_displayed_source_before_publication() {
-        let (buffer, index) = fixture();
-        let directory = tempfile::tempdir().unwrap();
-        std::fs::write(directory.path().join("b.rs"), "fn one(){one();}").unwrap();
+    fn opening_a_previously_unreadable_file_refreshes_coverage_once() {
+        let (root, inputs) = fixture();
+        std::fs::remove_file(root.path().join("b.rs")).unwrap();
         let mut context = ReferenceContext::default();
-        context.update(Some(index.clone()), Some(&buffer), None);
+        context.update(Some(inputs.clone()), None);
         context.show(ReferenceTarget {
-            id: SemanticSymbolID::new("local 1", "b.rs"),
-            name: "one".into(),
+            id: SemanticSymbolID::new("shared", ""),
+            name: "shared".into(),
         });
         settle(&mut context);
-        context.configure_previews(Some(Arc::new(SourceQueryInputs {
-            source: crate::source::loader::SourceRead::Checkout(directory.path().into()),
-            buffer: Arc::new(buffer),
-            index: index.clone(),
-        })));
-        context.expand(0, true);
-        let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){new();}"));
-        context.update(Some(index.clone()), Some(&displayed), None);
-        context.configure_previews(Some(Arc::new(SourceQueryInputs {
-            source: crate::source::loader::SourceRead::Buffer(displayed.clone()),
-            buffer: displayed.clone(),
-            index,
-        })));
+        assert_eq!(context.results.unreadable.len(), 1);
+        let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){one();}"));
+        let current = Arc::new(SourceQueryInputs {
+            source: inputs.source.clone(),
+            buffer: displayed,
+            index: inputs.index.clone(),
+        });
+        context.update(Some(current.clone()), None);
         settle(&mut context);
-        let PreviewPhase::Loaded(preview) = context.previews[&0].phase() else {
-            panic!("preview did not load");
-        };
-        assert_eq!(preview.content_digest, displayed.content_digest());
-        assert_eq!(preview.lines[0].text, "fn one(){new();}");
+        assert!(context.results.unreadable.is_empty());
+        assert_eq!(context.results.reference_count, 1);
+        context.update(Some(current), None);
+        assert!(!context.is_running());
     }
 }

@@ -1,7 +1,7 @@
 //! Independently resizable declaration, definition/outline, and bookmark regions.
 
 use crate::bookmarks::store::BookmarkStore;
-use crate::semantic::caller_tree::ReferenceCallerNode;
+use crate::semantic::reference_results::ReferenceResults;
 use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::source::SourceBuffer;
 use crate::syntax::outline::{outline_rows, DocumentSymbol, OutlineRow};
@@ -54,7 +54,7 @@ pub struct InspectorContent<'a> {
     /// Exact active source bytes for navigation and line counts.
     pub buffer: Option<&'a SourceBuffer>,
     /// Incoming references to the enclosing declaration.
-    pub callers: &'a [ReferenceCallerNode],
+    pub reference_results: &'a ReferenceResults,
     /// Selected reference row, independent of source caret.
     pub selected_reference: Option<usize>,
     /// Per-row source disclosures with independently cancellable preparation.
@@ -297,23 +297,50 @@ impl ContextInspector {
         } else {
             ui.colored_label(theme.text_muted, "No enclosing declaration");
         }
+        if let Some(next) = Self::render_reference_context(ui, theme, content, references) {
+            action = Some(next);
+        }
+        action
+    }
+
+    fn render_reference_context(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        content: &InspectorContent<'_>,
+        references: &mut crate::ui::reference_list::ReferenceViewport,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("References · {}", content.callers.len())).strong());
+            ui.label(
+                RichText::new(format!(
+                    "References · {}",
+                    content.reference_results.reference_count
+                ))
+                .strong(),
+            );
             if content.explicit_references && ui.small_button("Follow Caret").clicked() {
                 action = Some(InspectorAction::FollowCaret);
             }
         });
+        if content.references_available && content.reference_target.is_some() {
+            if let Some(next) = crate::ui::reference_list::show_coverage(
+                ui,
+                theme,
+                content.reference_results,
+                content.references_loading,
+            ) {
+                action = Some(InspectorAction::Reference(next));
+            }
+        }
         let status = if let Some(error) = content.reference_error {
             Some(error)
-        } else if content.references_loading && content.callers.is_empty() {
+        } else if content.references_loading && content.reference_results.hits.is_empty() {
             Some("Loading references…")
         } else if !content.references_available {
             Some("Semantic data unavailable for this revision.")
         } else if content.reference_target.is_none() {
             Some("No exact indexed declaration here.")
-        } else if content.callers.is_empty() {
-            Some("No indexed incoming references.")
         } else {
             None
         };
@@ -327,7 +354,7 @@ impl ContextInspector {
         } else if let Some(next) = references.show(
             ui,
             theme,
-            content.callers,
+            content.reference_results,
             content.selected_reference,
             content.reference_previews,
         ) {
@@ -389,7 +416,7 @@ mod tests {
                             definition: None,
                             declaration: None,
                             buffer: None,
-                            callers: &[],
+                            reference_results: &ReferenceResults::default(),
                             selected_reference: None,
                             reference_previews: &Default::default(),
                             reference_target: None,

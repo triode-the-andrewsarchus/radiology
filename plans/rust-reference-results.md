@@ -46,9 +46,19 @@ Clippy; rustdoc is checked. The architecture comparison against
 `before-reference-results` reports no new product hotspot/cycle, unchanged maximum
 CCN and a short shared source-read branch report.
 
-This checkpoint supplies the query API. The current reader still uses its prior
-reference controller/row presentation. Controller and grouped source-line UI
-integration, load-more interaction and native acceptance are next. Parsed and
+The reader now consumes these results. The controller shares one captured query
+configuration with definition/reference previews, retires pending reads on source
+changes, and keeps valid selection/disclosure state through expanded queries.
+All accepted source reads enter the source-identity ledger, even when their sites
+are unmapped. Opening a previously unreadable file refreshes coverage once.
+
+The inspector groups source-line rows by file, marks definitions separately and
+counts only real uses in its References header. Measured glyph positions keep
+the indexed match visible in a narrow row. Group headers and expanded excerpts
+share the existing variable-height virtualization. Right-click Go to Reference,
+double-click and Return reuse exact indexed navigation; single click remains
+selection only. Coverage and Load More controls expose skipped sites and expand
+the query limits. Native acceptance is underway. Parsed and
 validated call trees, broader context metadata and full parity remain open.
 
 The configured skill locations still lack swiftui-pro, macos-design and
