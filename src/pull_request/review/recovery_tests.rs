@@ -47,10 +47,12 @@ fn cancelled_preparer_releases_its_writer_and_successor_repairs_a_locked_missing
     let script = fake_git(
         owner.path(),
         r#"
-case "$5:$6" in
-worktree:add)
+case "$*" in
+*"worktree add"*)
  /usr/bin/git "$@" || exit
- printf initializing > "worktrees/${8##*/}/locked"
+ previous=''
+ for argument in "$@"; do if [ "$previous" = --detach ]; then tree=$argument; break; fi; previous=$argument; done
+ printf initializing > "worktrees/${tree##*/}/locked"
  printf '%s' "$$" > paused.pid
  exec /bin/sleep 30 ;;
 esac
@@ -117,6 +119,7 @@ exec /usr/bin/git "$@"
         assert_eq!(
             std::fs::read_dir(cache.join("revisions").join(&accepted.head))
                 .unwrap()
+                .filter(|entry| entry.as_ref().unwrap().file_name() != "tree-cache")
                 .count(),
             1
         );
@@ -143,7 +146,7 @@ fn retries_fetch_new_objects_without_rewriting_or_deleting_legacy_git_locks() {
             lease: Some(lease.file()),
             ..control
         };
-        GitStore::initialize(lease.cache(), &locked).unwrap()
+        GitStore::initialize(lease.cache(), &locked, &accepted.head).unwrap()
     };
     for name in ["config.lock", "FETCH_HEAD.lock", "FETCH_HEAD"] {
         std::fs::write(object_dir.join(name), format!("preserve legacy {name}\n")).unwrap();

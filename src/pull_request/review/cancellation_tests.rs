@@ -56,7 +56,7 @@ fn fetch_materialization_and_patch_interruption_preserve_accepted_snapshots_and_
 case "$*" in
   {phase})
     printf '%s\n' "$5" >> phase-attempts
-    if [ "$5" = worktree ]; then /usr/bin/git "$@" || exit; fi
+    case "$*" in *"worktree add"*) /usr/bin/git "$@" || exit ;; esac
     printf '%s' "$$" > paused.pid
     exec /bin/sleep 30 ;;
 esac

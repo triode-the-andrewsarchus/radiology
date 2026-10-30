@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Exact PR tree reuse, snapshot leases and retention (Codex)
+
+Private PR trees now undergo raw Git byte/mode/ownership verification before reuse
+or publication. Snapshot-held shared leases protect active trees across processes;
+writer-serialized eviction targets three managed trees with active-reader exceptions
+and best-effort maintenance after release. Unknown and malformed entries stay
+untouched. Private checkout policy suppresses transformations and hooks; SHA-256
+repositories are supported without silently migrating existing object stores.
+[Contract and evidence](plans/rust-pr-tree-cache.md). Full gates pass 377 app tests
+(one ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and rustdoc.
+Architecture comparison flags an unchanged baseline critical-test fragment in a
+modified fixture file; no new clone growth, complexity hotspot or cycle was found.
+Native multi-process cache acceptance remains pending. Full Swift parity remains
+open, especially index provenance/provisioning and pinned PR indexing, precise
+refresh restoration, broader corrupt-store recovery and final UI/accessibility/
+scaling/font/sibling reuse acceptance. Commit and push each increment.
+
 ## 2026-10-30 — Shared exact file and Git-blob identities (Codex)
 
 Moved the existing no-follow file opening, streaming copy/hash and byte/link/mode
