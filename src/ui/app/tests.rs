@@ -1361,6 +1361,35 @@ fn metadata_jobs_preserve_token_disclosure_and_retire_replaced_indexes() {
 }
 
 #[test]
+fn pinning_after_pointer_caret_movement_refreshes_metadata_and_current_history() {
+    let (_dir, mut app) = reader_with_reference_index();
+    app.jump_to_location("b.rs", 1, 4);
+    settle(&mut app);
+    assert_eq!(app.under_caret.as_ref().unwrap().name, "beta");
+    let previous = (app.caret_line, app.caret_col);
+    let byte = app
+        .open_buffer
+        .as_ref()
+        .unwrap()
+        .text
+        .find("alpha")
+        .unwrap()
+        + 1;
+    // The viewport mutates the caret before a double-click replaces its
+    // CaretMoved action with PinAtByte.
+    app.caret_line = 2;
+    app.caret_col = 5;
+    app.pin_at_byte(byte);
+    app.finish_source_interaction(previous);
+    settle(&mut app);
+    assert_eq!(app.under_caret.as_ref().unwrap().name, "alpha");
+    assert_eq!(app.history.current().unwrap().byte_offset, byte);
+    app.definition_expanded = true;
+    app.finish_source_interaction((2, 5));
+    assert!(app.definition_expanded && !app.under_caret_job.is_running());
+}
+
+#[test]
 fn local_metadata_uses_displayed_unicode_bytes_without_a_definition_fetch() {
     let (dir, mut app) = reader_with_reference_index();
     let text = "fn alpha() { let café = \"😀\"; café; }\n";

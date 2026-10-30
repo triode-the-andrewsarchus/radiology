@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-30 — Source-interaction metadata refresh (Codex)
+
+Native pinning exposed viewport caret mutation whose CaretMoved event was
+replaced by PinAtByte in the same interaction. The app now observes actual
+post-interaction caret changes and updates history/context regardless of the
+winning source action. A regression verifies pinning refreshes metadata/current
+history and unchanged carets preserve disclosure. Full gates pass 273 app tests,
+5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. Native metadata
+acceptance is being repeated on the corrected build.
+
 ## 2026-10-30 — Background metadata and definition-state UI (Codex)
 
 Under-caret metadata now runs through replaceable read workers bound to exact

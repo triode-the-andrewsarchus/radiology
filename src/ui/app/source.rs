@@ -17,6 +17,18 @@ pub(super) struct PendingNavigation {
 }
 
 impl RadiologyApp {
+    /// Publishes actual caret movement even when another source action wins the frame.
+    pub(super) fn finish_source_interaction(&mut self, previous: (usize, usize)) {
+        if previous != (self.caret_line, self.caret_col) {
+            if let Some(buffer) = &self.open_buffer {
+                self.history.update_current(
+                    buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col)),
+                );
+            }
+            self.refresh_symbol_context();
+        }
+    }
+
     /// Changes source presentation and schedules call projection only when needed.
     pub fn set_source_mode(&mut self, mode: SourceMode) {
         if self.mode != mode {

@@ -990,6 +990,7 @@ impl eframe::App for RadiologyApp {
                         sym.breadcrumbs(caret_byte, &mut enclosing);
                     }
 
+                    let caret_before = (self.caret_line, self.caret_col);
                     if let Some(action) = SourceView::show(
                         ui,
                         &self.theme,
@@ -1033,16 +1034,9 @@ impl eframe::App for RadiologyApp {
                         &mut self.source_viewport,
                     ) {
                         match action {
-                            SourceViewAction::CaretMoved {
-                                line,
-                                column,
-                                byte_offset,
-                            } => {
+                            SourceViewAction::CaretMoved { line, column, .. } => {
                                 self.caret_line = line;
                                 self.caret_col = column;
-                                self.history
-                                    .update_current(buf.location_at_byte(byte_offset));
-                                self.refresh_symbol_context();
                             }
                             SourceViewAction::NavigateToDefinition(id) => {
                                 self.navigate_to_indexed_symbol(&id)
@@ -1089,6 +1083,7 @@ impl eframe::App for RadiologyApp {
                             }
                         }
                     }
+                    self.finish_source_interaction(caret_before);
                 } else if self.repository_root.is_some() {
                     ui.centered_and_justified(|ui| {
                         ui.vertical_centered(|ui| {
