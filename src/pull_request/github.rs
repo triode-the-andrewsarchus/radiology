@@ -34,6 +34,17 @@ pub struct PullRequestSummary {
 }
 
 impl PullRequestSummary {
+    /// Returns a reader-facing title for the GitHub state, preserving unknown states.
+    #[must_use]
+    pub fn state_title(&self) -> &str {
+        match self.state.as_str() {
+            "OPEN" => "Open",
+            "MERGED" => "Merged",
+            "CLOSED" => "Closed",
+            _ => &self.state,
+        }
+    }
+
     /// Returns `true` if the pull request state is open.
     #[must_use]
     pub fn is_open(&self) -> bool {
@@ -63,7 +74,10 @@ impl GitHubClient {
         Self::request(Path::new("."), &["--version"], &control).is_ok()
     }
 
-    /// Lists up to `limit` recent pull requests in the repository at `root`.
+    /// Lists recent pull requests in the repository at `root`.
+    ///
+    /// The requested limit is clamped to at least one. Invalid or duplicate
+    /// numbers and responses exceeding the requested limit are rejected.
     ///
     /// # Errors
     ///
@@ -72,7 +86,16 @@ impl GitHubClient {
         root: &Path,
         limit: usize,
     ) -> Result<Vec<PullRequestSummary>, String> {
-        Self::query(
+        Self::list_cancellable(root, limit, &ReviewControl::new(&AtomicBool::new(false)))
+    }
+
+    pub(crate) fn list_cancellable(
+        root: &Path,
+        limit: usize,
+        control: &ReviewControl<'_>,
+    ) -> Result<Vec<PullRequestSummary>, String> {
+        let limit = limit.max(1);
+        let summaries: Vec<PullRequestSummary> = Self::query(
             root,
             &[
                 "pr",
@@ -84,8 +107,19 @@ impl GitHubClient {
                 "--json",
                 "number,title,state,baseRefName,headRefName,updatedAt",
             ],
-            &ReviewControl::new(&AtomicBool::new(false)),
-        )
+            control,
+        )?;
+        if summaries.len() > limit {
+            return Err("GitHub returned more pull requests than requested".into());
+        }
+        let mut seen = std::collections::HashSet::new();
+        for summary in &summaries {
+            control.check()?;
+            if summary.number == 0 || !seen.insert(summary.number) {
+                return Err("GitHub returned invalid or duplicate pull request numbers".into());
+            }
+        }
+        Ok(summaries)
     }
 
     /// Fetches details for a specific pull request number.
@@ -162,7 +196,13 @@ impl GitHubClient {
             control.deadline.saturating_duration_since(Instant::now()),
             16 * 1024 * 1024,
         )
-        .map_err(|error| format!("GitHub CLI: {error}"))?;
+        .map_err(|error| match error.kind {
+            process::RunFailureKind::Spawn {
+                kind: std::io::ErrorKind::NotFound,
+                ..
+            } => "GitHub CLI (gh) was not found. Install it and run gh auth login.".into(),
+            _ => format!("GitHub CLI: {error}"),
+        })?;
         if !output.succeeded() {
             return Err(format!("GitHub CLI failed: {}", output.stderr.text.trim()));
         }

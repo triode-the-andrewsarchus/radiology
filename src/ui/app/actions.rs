@@ -64,7 +64,10 @@ impl RadiologyApp {
             }
             OpenGoToLine => self.modal = ActiveModal::GoToLine(GoToLineModal::default()),
             OpenGoToSymbol => self.modal = ActiveModal::GoToSymbol(GoToSymbolModal::default()),
-            OpenPRDialog => self.modal = ActiveModal::PullRequest(PullRequestModal::default()),
+            OpenPRDialog => self.show_pull_request_prompt(),
+            OpenPullRequest(number) => self.open_pull_request(number),
+            RefreshPRList => self.recent_pull_requests.refresh(),
+            CancelPRList => self.recent_pull_requests.cancel(),
             FindInFile if self.open_buffer.is_some() => self.source_find.open(),
             NextFindMatch if self.open_buffer.is_some() => self.source_find.request_step(true),
             PreviousFindMatch if self.open_buffer.is_some() => self.source_find.request_step(false),

@@ -4,12 +4,11 @@
 //! pull request review switcher, criticality mode selector, and quick palette shortcuts.
 
 use crate::critical::lens::SourceMode;
-use crate::pull_request::github::PullRequestSummary;
 use crate::repository::filters::SourceFilters;
 use crate::source::history::NavigationHistory;
-use crate::source::location::ReviewRevision;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
+use crate::ui::pull_request_menu::PullRequestMenu;
 use egui::{RichText, Ui};
 
 pub use super::commands::ReaderCommand as ToolbarAction;
@@ -29,8 +28,7 @@ impl Toolbar {
     /// * `repo_name` - Optional name of the currently opened repository.
     /// * `branch_name` - Optional name of the current Git HEAD branch.
     /// * `recent_repos` - Slice of recent repository paths.
-    /// * `active_pr` - Metadata of the currently reviewed pull request, if any.
-    /// * `revision` - Active revision view (`Before` or `After`).
+    /// * `review_menu` - Accepted review, recent choices and command availability.
     /// * `mode` - Active inspection mode (`Normal` or `Critical`).
     /// * `filters` - Repository file filter settings.
     /// * `wrap_lines` - Whether long lines wrap at viewport width.
@@ -44,8 +42,7 @@ impl Toolbar {
         repo_name: Option<&str>,
         branch_name: Option<&str>,
         recent_repos: &[String],
-        active_pr: Option<&PullRequestSummary>,
-        _revision: Option<ReviewRevision>,
+        review_menu: PullRequestMenu<'_>,
         mode: SourceMode,
         filters: &SourceFilters,
         wrap_lines: bool,
@@ -122,25 +119,10 @@ impl Toolbar {
 
             ui.separator();
 
-            // Pull Request Menu (macOS Swift PullRequestMenu parity)
-            if let Some(pr) = active_pr {
-                let pr_title = format!("#{} · {}", pr.number, pr.title);
-                ui.menu_button(RichText::new(&pr_title).size(12.0), |ui| {
-                    if ui.button("Refresh PR (Ctrl+R)").clicked() {
-                        action = Some(ToolbarAction::RefreshPR);
-                        ui.close_menu();
-                    }
-                    if ui.button("Open Another PR… (Ctrl+P)").clicked() {
-                        action = Some(ToolbarAction::OpenPRDialog);
-                        ui.close_menu();
-                    }
-                    ui.separator();
-                    if ui.button("Exit PR Review").clicked() {
-                        action = Some(ToolbarAction::ExitPRReview);
-                        ui.close_menu();
-                    }
-                });
-
+            if let Some(command) = review_menu.show(ui) {
+                action = Some(command);
+            }
+            if review_menu.active.is_some() {
                 // Change navigation buttons
                 if Icon::ArrowUp
                     .button(ui, 11.0, theme.text_primary)
@@ -156,13 +138,6 @@ impl Toolbar {
                 {
                     action = Some(ToolbarAction::NextChangeBlock);
                 }
-            } else {
-                ui.menu_button("Pull Request", |ui| {
-                    if ui.button("Open Pull Request… (Ctrl+P)").clicked() {
-                        action = Some(ToolbarAction::OpenPRDialog);
-                        ui.close_menu();
-                    }
-                });
             }
 
             ui.separator();

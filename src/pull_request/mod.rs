@@ -8,8 +8,12 @@ pub mod change;
 pub(crate) mod control;
 pub mod diff;
 pub mod github;
+pub mod recent;
 pub mod review;
 
 pub use change::{FileChange, FileChangeStatus, ReviewChangesPresentation};
 pub use diff::{DiffHunk, FileLineChanges, UnifiedDiffParser};
 pub use github::{GitHubClient, PullRequestSummary};
+
+#[cfg(all(test, unix))]
+pub(crate) mod test_support;

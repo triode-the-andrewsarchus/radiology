@@ -1,103 +1,40 @@
 use super::*;
 use crate::pull_request::github::GitHubClient;
 use crate::repository::test_support::fake_git;
-use std::sync::atomic::Ordering;
 
-fn wait_for_child(path: &Path) -> i32 {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        if let Ok(pid) = std::fs::read_to_string(path) {
-            if let Ok(pid) = pid.trim().parse() {
-                return pid;
-            }
-        }
-        assert!(
-            Instant::now() < deadline,
-            "child never reached {}",
-            path.display()
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-fn interrupted<T: Send>(
-    control: &ReviewControl<'_>,
-    pid_path: &Path,
-    timeout: bool,
-    work: impl FnOnce() -> Result<T, String> + Send,
-) -> String {
-    std::thread::scope(|scope| {
-        let worker = scope.spawn(work);
-        let pid = wait_for_child(pid_path);
-        if !timeout {
-            control.cancel.store(true, Ordering::Relaxed);
-        }
-        let started = Instant::now();
-        let error = worker
-            .join()
-            .unwrap()
-            .err()
-            .expect("interrupted operation must fail");
-        assert!(started.elapsed() < Duration::from_secs(3));
-        assert!(
-            error.contains(if timeout { "timed out" } else { "cancelled" }),
-            "{error}"
-        );
-        assert_eq!(
-            unsafe { libc::kill(pid, 0) },
-            -1,
-            "child {pid} must be reaped"
-        );
-        assert_eq!(
-            std::io::Error::last_os_error().raw_os_error(),
-            Some(libc::ESRCH)
-        );
-        error
-    })
-}
+use crate::pull_request::test_support::{interrupt_gh, interrupted};
 
 #[test]
 fn github_metadata_children_cancel_timeout_and_recover_without_accepting_bad_output() {
     let owner = tempfile::tempdir().unwrap();
     let root = owner.path();
-    for timeout in [false, true] {
-        let _ = std::fs::remove_file(root.join("paused.pid"));
-        let gh = fake_git(root, "printf '%s' \"$$\" > paused.pid; exec /bin/sleep 30");
-        let cancel = AtomicBool::new(false);
-        let control = ReviewControl {
-            cancel: &cancel,
-            deadline: Instant::now() + Duration::from_secs(2),
-            git: Path::new("git"),
-            gh: &gh,
-        };
-        interrupted(&control, &root.join("paused.pid"), timeout, || {
-            GitHubClient::view_cancellable(root, 7, &control)
-        });
-        cancel.store(false, Ordering::Relaxed);
-        let fresh = ReviewControl {
-            deadline: Instant::now() + Duration::from_secs(5),
-            ..control
-        };
-        fake_git(root, "printf '%s' '{\"number\":7,\"title\":\"Fresh\",\"state\":\"OPEN\",\"headRefOid\":\"abc\"}'");
-        assert_eq!(
-            GitHubClient::view_cancellable(root, 7, &fresh)
-                .unwrap()
-                .title,
-            "Fresh"
-        );
-        fake_git(root, "printf '{invalid'");
-        assert!(GitHubClient::view_cancellable(root, 7, &fresh)
-            .unwrap_err()
-            .contains("Invalid GitHub JSON"));
-        fake_git(root, "printf 'denied' >&2; exit 1");
-        assert!(GitHubClient::view_cancellable(root, 7, &fresh)
-            .unwrap_err()
-            .contains("denied"));
-        fake_git(root, "head -c 17000000 /dev/zero");
-        assert!(GitHubClient::view_cancellable(root, 7, &fresh)
-            .unwrap_err()
-            .contains("exceeds 16 MiB"));
-    }
+    interrupt_gh(root, |control| {
+        GitHubClient::view_cancellable(root, 7, control)
+    });
+    let gh = fake_git(root, "printf '%s' '{\"number\":7,\"title\":\"Fresh\",\"state\":\"OPEN\",\"headRefOid\":\"abc\"}'");
+    let cancel = AtomicBool::new(false);
+    let fresh = ReviewControl {
+        gh: &gh,
+        ..ReviewControl::new(&cancel)
+    };
+    assert_eq!(
+        GitHubClient::view_cancellable(root, 7, &fresh)
+            .unwrap()
+            .title,
+        "Fresh"
+    );
+    fake_git(root, "printf '{invalid'");
+    assert!(GitHubClient::view_cancellable(root, 7, &fresh)
+        .unwrap_err()
+        .contains("Invalid GitHub JSON"));
+    fake_git(root, "printf 'denied' >&2; exit 1");
+    assert!(GitHubClient::view_cancellable(root, 7, &fresh)
+        .unwrap_err()
+        .contains("denied"));
+    fake_git(root, "head -c 17000000 /dev/zero");
+    assert!(GitHubClient::view_cancellable(root, 7, &fresh)
+        .unwrap_err()
+        .contains("exceeds 16 MiB"));
     println!("PR metadata: live cancellation/timeout reap children; fresh/malformed/failed/oversized output checked");
 }
 

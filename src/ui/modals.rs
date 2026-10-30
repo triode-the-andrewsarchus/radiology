@@ -372,9 +372,19 @@ fn symbol_choices(
 pub struct PullRequestModal {
     /// String input typed into the pull request number field.
     pub pr_str: String,
+    focus_requested: bool,
 }
 
 impl PullRequestModal {
+    /// Creates a number prompt, optionally prefilled from the active or recent PR.
+    #[must_use]
+    pub fn new(number: Option<usize>) -> Self {
+        Self {
+            pr_str: number.map(|number| number.to_string()).unwrap_or_default(),
+            focus_requested: false,
+        }
+    }
+
     /// Renders the pull request number prompt dialog.
     ///
     /// # Arguments
@@ -395,22 +405,33 @@ impl PullRequestModal {
                     .hint_text("PR number (e.g. 42)")
                     .desired_width(ui.available_width());
                 let resp = ui.add(edit);
-                resp.request_focus();
-
-                if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                    if let Ok(num) = self.pr_str.trim().parse::<usize>() {
-                        action = Some(ModalAction::OpenPullRequest(num));
-                    }
+                if !self.focus_requested {
+                    resp.request_focus();
+                    self.focus_requested = true;
                 }
-                if ctx.input(|i| i.key_pressed(Key::Escape)) {
+                let number = self
+                    .pr_str
+                    .trim()
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|number| *number > 0);
+                let submit = (resp.has_focus() || resp.lost_focus())
+                    && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, Key::Enter));
+                if submit {
+                    action = number.map(ModalAction::OpenPullRequest);
+                }
+                if ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, Key::Escape)) {
                     action = Some(ModalAction::Close);
                 }
-
+                if !self.pr_str.is_empty() && number.is_none() {
+                    ui.label("Enter a positive pull request number.");
+                }
                 ui.horizontal(|ui| {
-                    if ui.button("Review PR").clicked() {
-                        if let Ok(num) = self.pr_str.trim().parse::<usize>() {
-                            action = Some(ModalAction::OpenPullRequest(num));
-                        }
+                    if ui
+                        .add_enabled(number.is_some(), egui::Button::new("Open"))
+                        .clicked()
+                    {
+                        action = number.map(ModalAction::OpenPullRequest);
                     }
                     if ui.button("Cancel").clicked() {
                         action = Some(ModalAction::Close);
@@ -591,5 +612,79 @@ mod tests {
             action = modal.show(context, &AppTheme::dark(), None, &symbols);
         });
         assert_eq!(action, Some(ModalAction::JumpToSymbol(999 * 8)));
+    }
+}
+
+#[cfg(test)]
+mod pull_request_tests {
+    use super::*;
+
+    fn key(key: Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+    fn show(
+        modal: &mut PullRequestModal,
+        ctx: &Context,
+        events: Vec<egui::Event>,
+    ) -> Option<ModalAction> {
+        let mut action = None;
+        let _ = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(700.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| action = modal.show(ctx, &AppTheme::dark()),
+        );
+        action
+    }
+
+    #[test]
+    fn number_prompt_rejects_zero_invalid_and_overflow_and_submits_only_a_focused_valid_field() {
+        for value in [
+            "0",
+            "-1",
+            "invalid",
+            "9999999999999999999999999999999999",
+            "",
+        ] {
+            let ctx = Context::default();
+            let mut modal = PullRequestModal {
+                pr_str: value.into(),
+                ..Default::default()
+            };
+            show(&mut modal, &ctx, vec![]);
+            assert_eq!(
+                show(&mut modal, &ctx, vec![key(Key::Enter)]),
+                None,
+                "{value}"
+            );
+        }
+        let ctx = Context::default();
+        let mut modal = PullRequestModal::new(Some(7));
+        show(&mut modal, &ctx, vec![]);
+        assert_eq!(
+            show(&mut modal, &ctx, vec![key(Key::Enter)]),
+            Some(ModalAction::OpenPullRequest(7))
+        );
+        let ctx = Context::default();
+        let mut modal = PullRequestModal::new(Some(7));
+        show(&mut modal, &ctx, vec![]);
+        show(&mut modal, &ctx, vec![key(Key::Tab)]);
+        assert_eq!(show(&mut modal, &ctx, vec![key(Key::Tab)]), None);
+        assert_eq!(
+            show(&mut modal, &ctx, vec![key(Key::Enter)]),
+            Some(ModalAction::Close),
+            "Cancel keeps keyboard focus instead of being stolen by the input"
+        );
     }
 }

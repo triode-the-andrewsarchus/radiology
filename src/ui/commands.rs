@@ -43,6 +43,12 @@ pub enum ReaderCommand {
     PreviousFindMatch,
     /// Opens the pull request number prompt dialog.
     OpenPRDialog,
+    /// Opens a recent pull request by number using fresh pinned metadata.
+    OpenPullRequest(usize),
+    /// Refreshes recent PR choices independently of the active review.
+    RefreshPRList,
+    /// Cancels a list refresh without discarding accepted entries.
+    CancelPRList,
     /// Reloads current source bytes while preserving the caret destination.
     ReloadSource,
     /// Generates a fresh index in isolated build-input workspaces.
