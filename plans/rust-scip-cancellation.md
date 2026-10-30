@@ -22,8 +22,8 @@ or failed replacement retains the previously accepted index.
 
 Cancellation is cooperative. Individual UTF-8 validation, allocation, hashing,
 cloning and sorting operations may finish before their following checkpoint.
-Normalized-cache JSON serialization/deserialization still lacks internal stop
-checks. Generation can save a complete decoded cache before semantic-map assembly;
+[Normalized-cache JSON](rust-cache-json-cancellation.md) now uses latched bounded
+read/write checks and per-occurrence validation. Generation can save a complete decoded cache before semantic-map assembly;
 cancellation during subsequent assembly therefore does not imply that the prior
 persisted cache is unchanged. Partial semantic maps are never published.
 

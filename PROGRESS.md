@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Native normalized-cache cancellation acceptance (Codex)
+
+Implementation `f59932d` is pushed. Native acceptance cancels a 72-MB normalized
+JSON reload with the reader and prior semantic data retained, then accepts a fresh
+two-document cache. A deliberately mismatched fingerprint is correctly labeled
+stale. App and compositors exit zero. [Contract and hashed local evidence](plans/rust-cache-json-cancellation.md).
+Full checks pass 353 app tests, eight shared tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc. Architecture neutral with no new problems or clone/cycle growth.
+Remaining full-parity work includes PR child-process lifecycle and recent chooser,
+source/graph/context reuse, provisioning/per-project provenance/pinned After
+indexing, refresh mapping and final UI/accessibility/scaling/sibling reuse acceptance.
+Commit and push every increment.
+
 ## 2026-10-30 — Interruptible normalized-cache JSON (Codex)
 
 Cache JSON decoding now uses a buffered cancellation-aware reader with 64-KiB

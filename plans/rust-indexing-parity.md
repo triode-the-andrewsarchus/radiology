@@ -409,7 +409,9 @@ The import lifecycle above is only part of R4 in the independent parity review.
   Generate/Reindex/Cancel now retain prior data with per-run outcomes.
 - Index pinned After snapshots and reuse only content-validated strategies.
   Before must remain isolated from After semantic data.
-- Finish context/cache responsiveness and normalized-cache JSON interruption.
+- Finish context/cache reuse and broader responsiveness acceptance.
+  [Normalized-cache JSON](rust-cache-json-cancellation.md) now interrupts bounded
+  reads/writes with native Cancel/retention/recovery acceptance.
   [Nested SCIP decoding and map assembly](rust-scip-cancellation.md) now cooperate
   with cancellation and retain accepted data on interrupted replacement. Source-loader
   Git reads have [bounded cancellation](rust-source-process-cancellation.md);
