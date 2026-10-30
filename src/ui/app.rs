@@ -107,6 +107,7 @@ pub struct RadiologyApp {
     call_sites: Arc<crate::syntax::calls::CallSites>,
     critical_lens: crate::critical::service::CriticalLens,
     critical_annotations: crate::critical::annotations::CriticalAnnotations,
+    critical_graph_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
     critical_marks: crate::critical::marks::MarkSession,
     /// Configurable tool lookup context shared by probes and generation.
     pub index_tools: crate::semantic::indexing::tools::ToolDirectory,
@@ -225,6 +226,7 @@ impl RadiologyApp {
             call_sites: Default::default(),
             critical_lens: Default::default(),
             critical_annotations: Default::default(),
+            critical_graph_inputs: None,
             critical_marks,
             index_tools,
             index_importer: Default::default(),
@@ -456,6 +458,7 @@ impl RadiologyApp {
         self.call_sites = Default::default();
         self.critical_lens.stop();
         self.critical_annotations.stop();
+        self.critical_graph_inputs = None;
         self.fold_store.unfold_all();
         self.fold_ranges.clear();
         self.outline_symbols.clear();
@@ -630,6 +633,7 @@ impl eframe::App for RadiologyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.cancel_source_load();
         self.critical_annotations.stop();
+        self.critical_graph_inputs = None;
         self.index_generator.stop();
         self.index_importer.stop();
         if let Err(error) = self.flush_critical_marks(std::time::Duration::from_secs(10)) {
@@ -1003,6 +1007,7 @@ impl eframe::App for RadiologyApp {
                             mark_error: self.critical_marks.error(),
                             projection: self.critical_lens.projection(&buf),
                             annotations: self.critical_annotations.current(&buf),
+                            hover_inputs: self.critical_graph_inputs.clone(),
                             critical_status: self.critical_status(),
                             buffer: &buf,
                             highlighted_lines: &self.highlighted_lines,
@@ -1040,6 +1045,9 @@ impl eframe::App for RadiologyApp {
                                 self.history
                                     .update_current(buf.location_at_byte(byte_offset));
                                 self.refresh_symbol_context();
+                            }
+                            SourceViewAction::NavigateToDefinition(id) => {
+                                self.navigate_to_indexed_symbol(&id)
                             }
                             SourceViewAction::JumpToDefinition => {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)

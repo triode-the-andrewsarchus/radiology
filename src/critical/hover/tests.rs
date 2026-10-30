@@ -7,7 +7,13 @@ fn ready(hover: &mut CriticalHover, byte: usize, now: f64) {
         hover.presentation().map(|shown| &shown.phase),
         Some(HoverPhase::Loading)
     ) {
-        hover.update(Some(byte), false, false, now);
+        let changed = hover.update(Some(byte), false, false, now);
+        if matches!(
+            hover.presentation().map(|shown| &shown.phase),
+            Some(HoverPhase::Ready(_))
+        ) {
+            assert!(changed, "background completion must request repaint");
+        }
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(2));
     }

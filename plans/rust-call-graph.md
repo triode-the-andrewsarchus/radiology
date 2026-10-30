@@ -127,3 +127,11 @@ Still required: pointer-dwell hover summaries/navigation/grace behavior,
 progressive fold-sweep publication and broader corpus/large-file/cancellation
 acceptance. Parsed graph facts do not yet replace the references-derived caller
 tree. Full Rust/Swift parity remains open.
+
+## Hover integration (2026-10-30)
+
+The reader now uses the snapshot worker for pointer-dwell summaries, stable
+interactive popup destinations and exact Back restoration. See
+[hover implementation and native evidence](rust-critical-hover.md). Earlier hover
+absence statements are superseded. Progressive count publication, request/revisit
+cache reuse and broader language/runtime acceptance remain open.

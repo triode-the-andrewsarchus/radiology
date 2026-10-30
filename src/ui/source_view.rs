@@ -32,6 +32,8 @@ pub enum SourceViewAction {
     },
     /// Requests jumping to the definition of the symbol under the current caret.
     JumpToDefinition,
+    /// Navigates a hover destination independently of the current caret.
+    NavigateToDefinition(crate::semantic::index::SemanticSymbolID),
     /// Requests expanding or collapsing the code fold starting at the given line number.
     ToggleFold(usize),
     /// Toggles one detected test region without changing manual folds.
@@ -70,6 +72,8 @@ pub struct SourceViewContent<'a> {
     pub projection: Option<&'a crate::critical::SourceProjection>,
     /// Background reachable-operation counts for source function folds.
     pub annotations: Option<&'a crate::critical::annotations::SourceAnnotations>,
+    /// Stable captured graph configuration for pointer-dwell summaries.
+    pub hover_inputs: Option<std::sync::Arc<crate::critical::worker::GraphInputs>>,
     /// Active lens preparation/coverage, independent of semantic index status.
     pub critical_status: Option<&'static str>,
     /// Immutable source snapshot.
@@ -126,6 +130,7 @@ impl SourceView {
             mark_error,
             projection,
             annotations,
+            hover_inputs,
             critical_status,
             buffer,
             highlighted_lines,
@@ -246,6 +251,7 @@ impl SourceView {
                     mark_context,
                     projection,
                     annotations,
+                    hover_inputs,
                     buffer,
                     highlights: highlighted_lines,
                     caret_line,
@@ -520,6 +526,7 @@ mod tests {
                             mark_error: None,
                             projection: None,
                             annotations: None,
+                            hover_inputs: None,
                             critical_status: None,
                             buffer: &buffer,
                             highlighted_lines: &highlighted,

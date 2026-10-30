@@ -27,16 +27,58 @@ tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. One ext
 Clang test remains ignored by default. Architecture retains short test/footer
 clones with no new product hotspot/cycle; maximum CCN remains 100.
 
-## Reader integration queue
+## Reader integration and acceptance (2026-10-30)
 
-The source popup implementation is in the working tree but still needs native
-acceptance. It must keep stable geometry, allow entering/clicking full destination
-rows, expose at most eight critical/frontier rows and coverage, dismiss on input
-and all configuration transitions, and route definition actions independently of
-the caret through the existing exact indexed navigation/history path. A headless
-pointer replay currently verifies real title-row hit regions and source/caret/
-selection preservation. Native cross-file navigation, Back, external/plumbing
-behavior and mode dismissal remain before accepting the UI.
+The app now retains one immutable Arc<GraphInputs> per source/index/storage/policy
+configuration and shares it with the reader hover adapter. Caret changes do not
+replace that configuration. The source viewport tracks measured original-byte
+pointer hits, exposes no hover in Normal/modal/Before contexts, and owns popup
+interaction state. Repository source transitions retire old presentation before
+painting a different document. The popup position is frozen per presentation and
+its title hit region remains stable when loading completes.
 
-Full parity also requires progressive count publication and the broader index,
-PR, inspector, source and final UI acceptance queue in rust-parity-implementation.md.
+The interactive 380-point popup uses the existing body/meta type scale and colors.
+The title's full row navigates to Definition when available; external rows are
+honestly unavailable. Loaded content shows compact direct/reachable/completeness
+status, coverage detail, at most eight critical/frontier rows, via chains and a
+remaining-row count. Destination actions carry exact SemanticSymbolID independently
+of the source caret and enter the existing indexed range/source-provenance/history
+navigation path. Source/outside clicks, keys, scrolling, mode/modal/source/index/
+policy/repository changes dismiss or retire the popup. Pointer entry cancels the
+grace timer, allowing real button clicks. Background completion explicitly requests
+a repaint even though it keeps the same popup serial; otherwise a loading frame
+could remain painted until another pointer event.
+
+A headless widget replay exercises actual measured token hits, dwell, background
+completion, Escape dismissal, idle suppression, renewed hover, popup entry and a
+click on the trailing part of the whole Definition row. It verifies navigation
+intent without modifying source, caret or selection. Controller tests verify that
+completion reports a visual change for repaint scheduling. Full checks pass
+190 application tests, 5 reader-text tests, 30 doctests, rustfmt, Clippy, binary
+build and rustdoc. Architecture comparison reports one additional seven-line
+interaction-test clone and existing footer label sequences, with no new product
+hotspot or dependency cycle; maximum CCN remains 100. UI/native code performs no
+body reads; all graph I/O/parsing stays on the bounded existing worker pool.
+
+Private native Weston/Niri acceptance uses a two-document UTF-16 SCIP fixture with
+non-ASCII and emoji before the hovered occurrence. Normal mode stays quiet.
+Critical hover on save loads b.rs's body and paints a complete one-operation
+summary without further pointer input. Moving into the popup retains it beyond
+the grace interval; clicking the far-right part of the title opens b.rs at save.
+Back restores a.rs's original caret at café on line 2. External system_open shows
+an unavailable definition and external/no-body status; runtime clone remains
+quiet after the grace period. Changing to Normal dismisses a visible popup.
+Artifacts under `/tmp/radiology-hover-native/` include `repository-hover.png`,
+`entered-popup.png`, `hover-definition.png`, `back-restored.png`,
+`external-hover.png`, `plumbing-no-popup.png` and `mode-dismissed.png`.
+Both app runs and both compositors exit zero. Persistent pointer helper clients
+are deliberately terminated between movements and report -15. No sibling source
+was changed or runtime dependency introduced. The unavailable design skills were
+rechecked; UI follows the local Swift reference and existing Rust type scale.
+
+Remaining acceptance includes broader languages, long names/eight-row overflow,
+edge-of-screen placement, scaling/light mode, source changes while a popup is
+loading, and finer interruption inside native reads/parses. Progressive annotation
+publication and cache reuse across independent requests/file revisits remain open.
+Full parity also retains the broader index, PR, inspector, source and final UI
+acceptance queue in rust-parity-implementation.md.
