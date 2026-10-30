@@ -200,6 +200,59 @@ fn digit(key: Key) -> Option<usize> {
     DIGITS.iter().position(|&digit| digit == key)
 }
 
+/// Consumes only a focused list's unmodified keys before egui moves focus.
+pub(crate) fn take_focused_keys(
+    ctx: &Context,
+    input: &mut egui::RawInput,
+    focus: egui::Id,
+    keys: &[Key],
+) -> Vec<Key> {
+    if !ctx.memory(|memory| memory.has_focus(focus)) {
+        return Vec::new();
+    }
+    take_event_actions(&mut input.events, |key, modifiers| {
+        (modifiers == Modifiers::NONE && keys.contains(&key)).then_some(key)
+    })
+}
+
+/// Resolves standard list movement, including an initially empty selection.
+pub(crate) fn list_selection(key: Key, selected: Option<usize>, count: usize) -> Option<usize> {
+    let last = count.checked_sub(1)?;
+    match key {
+        Key::Home => Some(0),
+        Key::End => Some(last),
+        Key::ArrowUp => Some(selected.map_or(last, |index| index.saturating_sub(1).min(last))),
+        Key::ArrowDown => Some(selected.map_or(0, |index| index.saturating_add(1).min(last))),
+        _ => None,
+    }
+}
+
+/// Reveals a fixed-height row without disturbing an already visible selection.
+pub(crate) fn reveal_list_row(
+    ui: &egui::Ui,
+    scroll: egui::ScrollArea,
+    id: egui::Id,
+    row: Option<usize>,
+    height: f32,
+) -> egui::ScrollArea {
+    let Some(row) = row else {
+        return scroll;
+    };
+    let offset = egui::scroll_area::State::load(ui.ctx(), ui.make_persistent_id(id))
+        .map_or(0.0, |state| state.offset.y);
+    let top = row as f32 * (height + ui.spacing().item_spacing.y);
+    let bottom = top + height;
+    let available = ui.available_height();
+    let next = if top < offset {
+        top
+    } else if bottom > offset + available {
+        bottom - available
+    } else {
+        offset
+    };
+    scroll.vertical_scroll_offset(next.max(0.0))
+}
+
 /// Keeps inspector navigation under ordered dispatch while leaving Tab available.
 pub(crate) fn retain_inspector_keys(ctx: &egui::Context, id: egui::Id) {
     ctx.memory_mut(|memory| {
@@ -223,6 +276,14 @@ pub(crate) fn test_key(key: Key) -> egui::Event {
         pressed: true,
         repeat: false,
         modifiers: Modifiers::NONE,
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_input(keys: &[Key]) -> egui::RawInput {
+    egui::RawInput {
+        events: keys.iter().copied().map(test_key).collect(),
+        ..Default::default()
     }
 }
 

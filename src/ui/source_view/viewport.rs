@@ -284,6 +284,27 @@ impl SourceViewport {
         None
     }
 
+    fn reveal_target(&mut self, content: &mut CanvasContent<'_>) -> Option<(usize, bool)> {
+        let preview = self.preview.take().filter(|(key, digest, _)| {
+            key == &content.buffer.position_key() && digest == content.buffer.content_digest()
+        });
+        content
+            .target
+            .take()
+            .map(|line| {
+                let caret = content
+                    .buffer
+                    .byte_offset(*content.caret_line, *content.caret_col);
+                let byte = if content.buffer.line_at_byte(caret) == line {
+                    caret
+                } else {
+                    content.buffer.byte_offset(line, 0)
+                };
+                (byte, true)
+            })
+            .or_else(|| preview.map(|(_, _, byte)| (byte, false)))
+    }
+
     fn prepare(
         &mut self,
         ui: &Ui,
@@ -323,24 +344,7 @@ impl SourceViewport {
                 keyboard_reveal = true;
             }
         }
-        let preview = self.preview.take().filter(|(key, digest, _)| {
-            key == &content.buffer.position_key() && digest == content.buffer.content_digest()
-        });
-        let target = content
-            .target
-            .take()
-            .map(|line| {
-                let caret = content
-                    .buffer
-                    .byte_offset(*content.caret_line, *content.caret_col);
-                let byte = if content.buffer.line_at_byte(caret) == line {
-                    caret
-                } else {
-                    content.buffer.byte_offset(line, 0)
-                };
-                (byte, true)
-            })
-            .or_else(|| preview.map(|(_, _, byte)| (byte, false)));
+        let target = self.reveal_target(content);
         if let Some((byte, committed)) = target {
             let rect = self.caret_rect(
                 ui,

@@ -1,10 +1,11 @@
 //! Independently resizable declaration, definition/outline, and bookmark regions.
 
 use super::bookmark_list::{BookmarkAction, BookmarkList};
+use super::outline_list::{OutlineAction, OutlineList};
 use crate::bookmarks::store::BookmarkStore;
 use crate::semantic::reference_results::ReferenceResults;
 use crate::source::SourceBuffer;
-use crate::syntax::outline::{outline_rows, DocumentSymbol, OutlineRow};
+use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{RichText, ScrollArea, Ui};
 
@@ -30,6 +31,8 @@ pub enum InspectorAction {
     JumpToSymbol(usize),
     /// Opens, removes, reorders, or toggles an identity-based bookmark.
     Bookmark(BookmarkAction),
+    /// Previews or commits an exact source-bound outline declaration.
+    Outline(OutlineAction),
 }
 
 /// Independent enclosing-declaration and under-caret facts for one frame.
@@ -79,6 +82,8 @@ pub struct InspectorContent<'a> {
     pub can_toggle_bookmark: bool,
     /// Whether a bookmark resolves to the current source line.
     pub current_bookmarked: bool,
+    /// Whether source/review preparation permits outline navigation.
+    pub outline_enabled: bool,
 }
 
 /// Renders the three simultaneously usable context regions.
@@ -113,6 +118,7 @@ impl ContextInspector {
         content: InspectorContent<'_>,
         references: &mut crate::ui::reference_list::ReferenceViewport,
         bookmarks: &mut BookmarkList,
+        outline: &mut OutlineList,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let height = ui.available_height();
@@ -150,7 +156,7 @@ impl ContextInspector {
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show_inside(ui, |ui| {
-                if let Some(next) = Self::render_under_caret_context(ui, theme, &content) {
+                if let Some(next) = Self::render_under_caret_context(ui, theme, &content, outline) {
                     action = Some(next);
                 }
             });
@@ -161,6 +167,7 @@ impl ContextInspector {
         ui: &mut Ui,
         theme: &AppTheme,
         content: &InspectorContent<'_>,
+        outline: &mut OutlineList,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let has_details = content.under_caret.is_some()
@@ -184,6 +191,19 @@ impl ContextInspector {
         });
         let heading = if has_details { "Definition" } else { "Outline" };
         ui.label(RichText::new(heading).strong());
+        if !has_details {
+            if content.buffer.is_none() {
+                ui.colored_label(
+                    theme.text_muted,
+                    "Open a source file to see its declarations.",
+                );
+                return None;
+            }
+            return ui
+                .add_enabled_ui(content.outline_enabled, |ui| outline.show(ui, theme))
+                .inner
+                .map(InspectorAction::Outline);
+        }
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .id_source("definition_or_outline")
@@ -201,19 +221,6 @@ impl ContextInspector {
                 } else if let Some(error) = content.under_caret_error {
                     ui.colored_label(theme.text_muted, "Symbol details unavailable")
                         .on_hover_text(error);
-                } else if let Some(buffer) = content.buffer {
-                    for row in outline_rows(content.outline, buffer)
-                        .into_iter()
-                        .filter(|row| {
-                            !content
-                                .test_code
-                                .is_some_and(|tests| tests.hides_declaration(&row.symbol.range))
-                        })
-                    {
-                        if let Some(next) = Self::render_outline_row(ui, row, content.declaration) {
-                            action = Some(next);
-                        }
-                    }
                 }
             });
         action
@@ -307,30 +314,6 @@ impl ContextInspector {
         }
         action
     }
-
-    fn render_outline_row(
-        ui: &mut Ui,
-        row: OutlineRow<'_>,
-        active: Option<&DocumentSymbol>,
-    ) -> Option<InspectorAction> {
-        let selected =
-            active.is_some_and(|active| active.selection_range == row.symbol.selection_range);
-        let label = format!(
-            "{}{}  {} L",
-            "  ".repeat(row.depth),
-            row.symbol.name,
-            row.line_count
-        );
-        let response = ui
-            .selectable_label(selected, label)
-            .on_hover_text(row.symbol.kind.title());
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        response.clicked().then_some(InspectorAction::JumpToSymbol(
-            row.symbol.selection_range.start,
-        ))
-    }
 }
 
 #[cfg(test)]
@@ -377,7 +360,9 @@ mod tests {
                             bookmarks_enabled: true,
                             can_toggle_bookmark: false,
                             current_bookmarked: false,
+                            outline_enabled: false,
                         },
+                        &mut Default::default(),
                         &mut Default::default(),
                         &mut Default::default(),
                     );
