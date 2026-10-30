@@ -14,8 +14,11 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Transient occurrence selection and pin styling](plans/rust-occurrence-selection.md) records
+click-owned groups, shared resolution, shaped outlines and selection independence.
+
 [Syntax-aware occurrence pins](plans/rust-syntactic-pins.md) records exact parsed scopes,
-excluded syntax, partial-SCIP preference and remaining transient-selection work.
+excluded syntax, partial-SCIP preference and source ownership constraints.
 
 [Canonical-byte fold projection](plans/rust-fold-projection.md) records shared bounded
 visible-span fragments, delimiter/header semantics and exact input/copy mapping.

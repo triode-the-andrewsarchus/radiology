@@ -8,6 +8,9 @@ feed definition/reference/caller navigation. Outside a callable, no syntactic
 group is available. Complete SCIP groups take precedence; a syntactic group wins
 when SCIP omits some of its local spelling ranges, including cfg-inactive code.
 
+Follow-up: [transient occurrence selection](rust-occurrence-selection.md) now reuses
+the same resolver for ordinary source clicks and adds outlined pin styling.
+
 ## Parsed facts and publication
 
 `SyntacticOccurrences` is prepared during the existing shared background parse,
@@ -33,9 +36,8 @@ produce no fabricated whole-file lexical group.
 Pinned-group choice follows the Swift policy above, while preserving existing
 range reconciliation, colors, unlimited groups, document return and successful-
 source publication rules. A second click on another occurrence toggles the same
-group. This commit implements pinned selection; ordinary single-click transient
-occurrence highlighting remains open and must reuse the same group-resolution
-policy rather than add another matching mechanism.
+group. [Transient selection](rust-occurrence-selection.md) now shares this resolver for
+ordinary single-click highlighting and exact active-range styling.
 
 ## Verification
 

@@ -99,14 +99,14 @@ impl AppTheme {
         }
     }
 
-    /// Returns a translucent background highlight color for the given [`OccurrenceColor`].
+    /// Returns the base palette color for the given [`OccurrenceColor`].
     #[must_use]
-    pub fn occurrence_tint(&self, color: OccurrenceColor) -> Color32 {
+    pub fn occurrence_color(&self, color: OccurrenceColor) -> Color32 {
         match color {
-            OccurrenceColor::Teal => Color32::from_rgba_unmultiplied(20, 184, 166, 80),
-            OccurrenceColor::Amber => Color32::from_rgba_unmultiplied(245, 158, 11, 80),
-            OccurrenceColor::Violet => Color32::from_rgba_unmultiplied(139, 92, 246, 80),
-            OccurrenceColor::Rose => Color32::from_rgba_unmultiplied(244, 63, 94, 80),
+            OccurrenceColor::Teal => Color32::from_rgb(20, 184, 166),
+            OccurrenceColor::Amber => Color32::from_rgb(245, 158, 11),
+            OccurrenceColor::Violet => Color32::from_rgb(139, 92, 246),
+            OccurrenceColor::Rose => Color32::from_rgb(244, 63, 94),
         }
     }
 }

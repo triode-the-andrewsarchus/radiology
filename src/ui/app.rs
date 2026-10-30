@@ -1080,6 +1080,9 @@ impl eframe::App for RadiologyApp {
                                 }
                             }
                             SourceViewAction::PinAtByte(byte) => self.pin_at_byte(byte),
+                            SourceViewAction::SelectOccurrences(byte) => {
+                                self.select_occurrences_at_byte(byte)
+                            }
                             SourceViewAction::RemovePin(symbol) => {
                                 self.pin_store.remove(&symbol);
                             }
