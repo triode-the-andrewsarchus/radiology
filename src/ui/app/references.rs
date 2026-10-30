@@ -24,6 +24,9 @@ impl RadiologyApp {
                 });
         self.reference_context
             .update(index, self.open_buffer.as_deref(), automatic);
+        self.refresh_definition_preview();
+        self.reference_context
+            .configure_previews(self.preview_inputs.clone());
     }
 
     pub(super) fn find_references_at_caret(&mut self) {
@@ -56,6 +59,120 @@ impl RadiologyApp {
     /// Returns whether the current reference context awaits background publication.
     #[must_use]
     pub fn is_reference_loading(&self) -> bool {
-        self.reference_context.is_running()
+        self.reference_context.is_running() || self.definition_preview.is_running()
+    }
+}
+
+impl RadiologyApp {
+    pub(super) fn reset_previews(&mut self) {
+        self.preview_inputs = None;
+        self.definition_preview = Default::default();
+        self.definition_identity = None;
+        self.definition_expanded = false;
+        self.reference_viewport = Default::default();
+    }
+
+    fn refresh_definition_preview(&mut self) {
+        use crate::source::preview::{PreviewInputs, PreviewKind, PreviewTarget};
+        let configuration = self
+            .open_buffer
+            .as_ref()
+            .zip(self.semantic_index.as_ref())
+            .filter(|(buffer, _)| buffer.revision != Some(ReviewRevision::Before));
+        if let Some((buffer, index)) = configuration {
+            let same = self.preview_inputs.as_ref().is_some_and(|inputs| {
+                inputs.buffer.position_key() == buffer.position_key()
+                    && inputs.buffer.content_digest() == buffer.content_digest()
+                    && Arc::ptr_eq(&inputs.index, index)
+            });
+            if !same {
+                self.definition_expanded = false;
+                let source = self
+                    .review
+                    .as_ref()
+                    .map(|review| crate::source::loader::SourceRead::Review(review.clone()))
+                    .or_else(|| {
+                        self.repository_root
+                            .as_ref()
+                            .map(|root| crate::source::loader::SourceRead::Checkout(root.clone()))
+                    })
+                    .unwrap_or_else(|| crate::source::loader::SourceRead::Buffer(buffer.clone()));
+                self.preview_inputs = Some(Arc::new(PreviewInputs {
+                    source,
+                    buffer: buffer.clone(),
+                    index: index.clone(),
+                }));
+            }
+        } else {
+            self.preview_inputs = None;
+        }
+        let identity = configuration.and_then(|(buffer, index)| {
+            let byte = buffer.byte_offset(self.caret_line, self.caret_col);
+            let occurrence = index.occurrence_at_byte(buffer, byte)?;
+            if occurrence.symbol_roles & crate::semantic::scip_proto::SCIP_ROLE_IMPORT != 0 {
+                return None;
+            }
+            Some((
+                SemanticSymbolID::new(&occurrence.symbol, &buffer.path),
+                index.byte_range(buffer, occurrence.range.as_ref()?)?,
+            ))
+        });
+        if self.definition_identity != identity {
+            self.definition_expanded = false;
+            self.definition_identity = identity;
+        }
+        let target = self
+            .definition_identity
+            .as_ref()
+            .zip(self.preview_inputs.as_ref())
+            .and_then(|((id, occurrence), inputs)| {
+                if id.is_local() {
+                    return None;
+                }
+                let (path, range) = inputs.index.find_definition_for_id(id)?;
+                let on_definition = path == inputs.buffer.path
+                    && inputs.index.byte_range(&inputs.buffer, range).as_ref() == Some(occurrence);
+                (!on_definition).then(|| PreviewTarget {
+                    path: path.into(),
+                    range: range.clone(),
+                    kind: PreviewKind::Definition,
+                })
+            });
+        self.definition_preview
+            .request(self.preview_inputs.clone(), target);
+    }
+}
+
+impl RadiologyApp {
+    pub(super) fn handle_reference_action(
+        &mut self,
+        action: crate::ui::reference_list::ReferenceAction,
+    ) {
+        use crate::ui::reference_list::ReferenceAction;
+        match action {
+            ReferenceAction::Select(row) => self.reference_context.select(row),
+            ReferenceAction::SetExpanded(row, expanded) => {
+                self.reference_context.expand(row, expanded)
+            }
+            ReferenceAction::MoveSelection(forward) => {
+                self.reference_context.move_selection(forward);
+                self.reference_viewport.reveal_selection();
+            }
+            ReferenceAction::SetSelectionExpanded(expanded) => {
+                if let Some(row) = self.reference_context.selected {
+                    self.reference_context.expand(row, expanded);
+                }
+            }
+            ReferenceAction::ClearSelection => self.reference_context.selected = None,
+            ReferenceAction::Commit(row) => {
+                if let Some(node) = row
+                    .or(self.reference_context.selected)
+                    .and_then(|row| self.reference_context.rows.get(row))
+                    .cloned()
+                {
+                    self.navigate_to_indexed_range(&node.path, &node.range);
+                }
+            }
+        }
     }
 }

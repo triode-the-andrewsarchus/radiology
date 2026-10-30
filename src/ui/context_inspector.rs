@@ -1,12 +1,12 @@
 //! Independently resizable declaration, definition/outline, and bookmark regions.
 
 use crate::bookmarks::store::BookmarkStore;
-use crate::semantic::caller_tree::{caller_pill_color, ReferenceCallerNode};
+use crate::semantic::caller_tree::ReferenceCallerNode;
 use crate::semantic::scip_proto::ScipSymbolInformation;
 use crate::source::SourceBuffer;
 use crate::syntax::outline::{outline_rows, DocumentSymbol, OutlineRow};
 use crate::theme::AppTheme;
-use egui::{Color32, RichText, ScrollArea, Ui, Vec2};
+use egui::{RichText, ScrollArea, Ui};
 use uuid::Uuid;
 
 /// Navigation and management events from the inspector.
@@ -14,8 +14,12 @@ use uuid::Uuid;
 pub enum InspectorAction {
     /// Opens the exact semantic definition under the source caret.
     GoToDefinition,
+    /// Selects, discloses, or explicitly commits a reference row.
+    Reference(crate::ui::reference_list::ReferenceAction),
     /// Releases an explicit reference target and resumes enclosing-declaration context.
     FollowCaret,
+    /// Shows or hides the current definition details without navigating.
+    ExpandDefinition(bool),
     /// Resolves a reference in its document's declared encoding and exact bytes.
     JumpToIndexedLocation {
         /// Repository-relative destination path.
@@ -39,6 +43,10 @@ pub enum InspectorAction {
 pub struct InspectorContent<'a> {
     /// Symbol under the caret, independently of the enclosing declaration.
     pub current_symbol: Option<&'a ScipSymbolInformation>,
+    /// Bounded source excerpt for the canonical definition destination.
+    pub definition_preview: &'a crate::source::preview::PreviewPhase,
+    /// Whether the under-caret details are disclosed.
+    pub definition_expanded: bool,
     /// Definition path and canonical line for the symbol under the caret.
     pub definition: Option<(&'a str, usize)>,
     /// Innermost parsed declaration enclosing the caret.
@@ -47,6 +55,11 @@ pub struct InspectorContent<'a> {
     pub buffer: Option<&'a SourceBuffer>,
     /// Incoming references to the enclosing declaration.
     pub callers: &'a [ReferenceCallerNode],
+    /// Selected reference row, independent of source caret.
+    pub selected_reference: Option<usize>,
+    /// Per-row source disclosures with independently cancellable preparation.
+    pub reference_previews:
+        &'a std::collections::BTreeMap<usize, crate::source::preview::SourcePreviewLoader>,
     /// Effective automatic or explicitly pinned reference name.
     pub reference_target: Option<&'a str>,
     /// Whether Follow Caret should release a sticky reference target.
@@ -71,11 +84,41 @@ pub struct InspectorContent<'a> {
 pub struct ContextInspector;
 
 impl ContextInspector {
+    fn definition_focus_id() -> egui::Id {
+        egui::Id::new("definition_context_focus")
+    }
+
+    pub(crate) fn take_definition_actions(ctx: &egui::Context) -> Vec<InspectorAction> {
+        if !ctx.memory(|memory| memory.has_focus(Self::definition_focus_id())) {
+            return Vec::new();
+        }
+        let mut actions = Vec::new();
+        ctx.input_mut(|input| {
+            for (key, action) in [
+                (
+                    egui::Key::ArrowRight,
+                    InspectorAction::ExpandDefinition(true),
+                ),
+                (
+                    egui::Key::ArrowLeft,
+                    InspectorAction::ExpandDefinition(false),
+                ),
+                (egui::Key::Enter, InspectorAction::GoToDefinition),
+            ] {
+                if input.consume_key(egui::Modifiers::NONE, key) {
+                    actions.push(action);
+                }
+            }
+        });
+        actions
+    }
+
     /// Renders independently scrolling regions and returns a requested action.
     pub fn show(
         ui: &mut Ui,
         theme: &AppTheme,
         content: InspectorContent<'_>,
+        references: &mut crate::ui::reference_list::ReferenceViewport,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let height = ui.available_height();
@@ -85,7 +128,7 @@ impl ContextInspector {
             .min_height(100.0)
             .max_height((height - 220.0).max(100.0))
             .show_inside(ui, |ui| {
-                action = Self::render_declaration_context(ui, theme, &content);
+                action = Self::render_declaration_context(ui, theme, &content, references);
             });
         egui::TopBottomPanel::bottom("bookmarks_region")
             .resizable(true)
@@ -148,47 +191,82 @@ impl ContextInspector {
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show_inside(ui, |ui| {
-                let heading = if content.current_symbol.is_some() {
-                    "Definition"
-                } else {
-                    "Outline"
-                };
-                ui.label(RichText::new(heading).strong());
-                ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .id_source("definition_or_outline")
-                    .show(ui, |ui| {
-                        if let Some(symbol) = content.current_symbol {
-                            ui.label(RichText::new(&symbol.display_name).strong());
-                            if let Some((path, line)) = content.definition {
-                                if ui.link(format!("{path}:{line}")).clicked() {
-                                    action = Some(InspectorAction::GoToDefinition);
-                                }
-                            }
-                            if !symbol.signature.is_empty() {
-                                ui.monospace(&symbol.signature);
-                            }
-                            for doc in &symbol.documentation {
-                                ui.label(doc);
-                            }
-                        } else if let Some(buffer) = content.buffer {
-                            for row in
-                                outline_rows(content.outline, buffer)
-                                    .into_iter()
-                                    .filter(|row| {
-                                        !content.test_code.is_some_and(|tests| {
-                                            tests.hides_declaration(&row.symbol.range)
-                                        })
-                                    })
-                            {
-                                if let Some(next) =
-                                    Self::render_outline_row(ui, row, content.declaration)
-                                {
-                                    action = Some(next);
-                                }
-                            }
+                if let Some(next) = Self::render_under_caret_context(ui, theme, &content) {
+                    action = Some(next);
+                }
+            });
+        action
+    }
+
+    fn render_under_caret_context(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        content: &InspectorContent<'_>,
+    ) -> Option<InspectorAction> {
+        let mut action = None;
+        if content.current_symbol.is_some() {
+            ui.interact(
+                ui.available_rect_before_wrap(),
+                Self::definition_focus_id(),
+                egui::Sense::focusable_noninteractive(),
+            );
+        }
+        let heading = if content.current_symbol.is_some() {
+            "Definition"
+        } else {
+            "Outline"
+        };
+        ui.label(RichText::new(heading).strong());
+        ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .id_source("definition_or_outline")
+            .show(ui, |ui| {
+                if let Some(symbol) = content.current_symbol {
+                    if ui
+                        .selectable_label(true, RichText::new(&symbol.display_name).strong())
+                        .clicked()
+                    {
+                        ui.memory_mut(|memory| memory.request_focus(Self::definition_focus_id()));
+                    }
+                    if let Some((path, line)) = content.definition {
+                        if ui.link(format!("{path}:{line}")).clicked() {
+                            action = Some(InspectorAction::GoToDefinition);
                         }
-                    });
+                    }
+                    let label = if content.definition_expanded {
+                        "Hide details"
+                    } else {
+                        "Show details"
+                    };
+                    if ui.small_button(label).clicked() {
+                        ui.memory_mut(|memory| memory.request_focus(Self::definition_focus_id()));
+                        action = Some(InspectorAction::ExpandDefinition(
+                            !content.definition_expanded,
+                        ));
+                    }
+                    if content.definition_expanded {
+                        if !symbol.signature.is_empty() {
+                            ui.monospace(&symbol.signature);
+                        }
+                        for doc in &symbol.documentation {
+                            ui.label(doc);
+                        }
+                        crate::ui::source_preview::show(ui, theme, content.definition_preview);
+                    }
+                } else if let Some(buffer) = content.buffer {
+                    for row in outline_rows(content.outline, buffer)
+                        .into_iter()
+                        .filter(|row| {
+                            !content
+                                .test_code
+                                .is_some_and(|tests| tests.hides_declaration(&row.symbol.range))
+                        })
+                    {
+                        if let Some(next) = Self::render_outline_row(ui, row, content.declaration) {
+                            action = Some(next);
+                        }
+                    }
+                }
             });
         action
     }
@@ -197,6 +275,7 @@ impl ContextInspector {
         ui: &mut Ui,
         theme: &AppTheme,
         content: &InspectorContent<'_>,
+        references: &mut crate::ui::reference_list::ReferenceViewport,
     ) -> Option<InspectorAction> {
         let mut action = None;
         ui.heading("Declaration");
@@ -221,108 +300,35 @@ impl ContextInspector {
                 action = Some(InspectorAction::FollowCaret);
             }
         });
-        ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .id_source("declaration_references")
-            .show_rows(ui, 24.0, content.callers.len().max(1), |ui, visible| {
-                let status = if let Some(error) = content.reference_error {
-                    Some(error)
-                } else if content.references_loading {
-                    Some("Loading references…")
-                } else if !content.references_available {
-                    Some("Semantic data unavailable for this revision.")
-                } else if content.reference_target.is_none() {
-                    Some("No exact indexed declaration here.")
-                } else if content.callers.is_empty() {
-                    Some("No indexed incoming references.")
-                } else {
-                    None
-                };
-                if let Some(status) = status {
+        let status = if let Some(error) = content.reference_error {
+            Some(error)
+        } else if content.references_loading && content.callers.is_empty() {
+            Some("Loading references…")
+        } else if !content.references_available {
+            Some("Semantic data unavailable for this revision.")
+        } else if content.reference_target.is_none() {
+            Some("No exact indexed declaration here.")
+        } else if content.callers.is_empty() {
+            Some("No indexed incoming references.")
+        } else {
+            None
+        };
+        if let Some(status) = status {
+            ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .id_source("reference_status")
+                .show(ui, |ui| {
                     ui.colored_label(theme.text_muted, status);
-                }
-                for node in content.callers.get(visible).unwrap_or_default() {
-                    if let Some(next) = Self::render_caller_node(ui, theme, node, 0) {
-                        action = Some(next);
-                    }
-                }
-            });
-        action
-    }
-
-    /// Renders a single caller node in the incoming references tree with identity pill.
-    fn render_caller_node(
-        ui: &mut Ui,
-        theme: &AppTheme,
-        node: &ReferenceCallerNode,
-        indent: usize,
-    ) -> Option<InspectorAction> {
-        let mut action = None;
-        let indent_px = indent as f32 * 14.0;
-        let row_height = 24.0;
-
-        let (rect, resp) = ui.allocate_exact_size(
-            Vec2::new(ui.available_width(), row_height),
-            egui::Sense::click(),
-        );
-
-        let is_hovered = resp.hovered();
-        if is_hovered {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            let hover_bg = if theme.is_dark {
-                Color32::from_rgba_unmultiplied(255, 255, 255, 12)
-            } else {
-                Color32::from_rgba_unmultiplied(0, 0, 0, 10)
-            };
-            ui.painter().rect_filled(rect, 3.0, hover_bg);
+                });
+        } else if let Some(next) = references.show(
+            ui,
+            theme,
+            content.callers,
+            content.selected_reference,
+            content.reference_previews,
+        ) {
+            action = Some(InspectorAction::Reference(next));
         }
-
-        let mut child_ui = ui.child_ui(rect, egui::Layout::left_to_right(egui::Align::Center));
-        child_ui.add_space(indent_px + 4.0);
-
-        // Deterministic 12-color capsule identity pill
-        let pill_color = caller_pill_color(&node.name, &node.path);
-        egui::Frame::none()
-            .fill(pill_color.linear_multiply(0.2))
-            .stroke(egui::Stroke::new(1.0_f32, pill_color))
-            .inner_margin(egui::Margin::symmetric(6.0, 2.0))
-            .rounding(10.0)
-            .show(&mut child_ui, |ui| {
-                ui.label(
-                    RichText::new(&node.name)
-                        .color(pill_color)
-                        .strong()
-                        .size(11.0),
-                );
-            });
-
-        let file_short = std::path::Path::new(&node.path)
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_else(|| node.path.clone());
-        child_ui.add_space(4.0);
-        child_ui.colored_label(
-            theme.text_secondary,
-            RichText::new(format!("{file_short}:{}", node.line)).size(11.0),
-        );
-
-        if node.is_recursive {
-            child_ui.colored_label(Color32::from_rgb(234, 179, 8), "(recursion loop)");
-        }
-
-        if resp.clicked() {
-            action = Some(InspectorAction::JumpToIndexedLocation {
-                path: node.path.clone(),
-                range: node.range.clone(),
-            });
-        }
-
-        for child in &node.children {
-            if let Some(act) = Self::render_caller_node(ui, theme, child, indent + 1) {
-                action = Some(act);
-            }
-        }
-
         action
     }
 
@@ -374,10 +380,14 @@ mod tests {
                         &AppTheme::dark(),
                         InspectorContent {
                             current_symbol: None,
+                            definition_preview: &crate::source::preview::PreviewPhase::None,
+                            definition_expanded: false,
                             definition: None,
                             declaration: None,
                             buffer: None,
                             callers: &[],
+                            selected_reference: None,
+                            reference_previews: &Default::default(),
                             reference_target: None,
                             explicit_references: false,
                             references_loading: false,
@@ -388,6 +398,7 @@ mod tests {
                             bookmarks: &bookmarks,
                             scope: "Checkout",
                         },
+                        &mut Default::default(),
                     );
                 });
             },
@@ -418,62 +429,5 @@ mod tests {
             "declaration region collapsed around its content"
         );
         assert!(y("Bookmarks") > y("Outline") + 100.0);
-    }
-    #[test]
-    fn caller_row_pointer_navigation_preserves_the_encoded_reference_range() {
-        let context = egui::Context::default();
-        let range = crate::semantic::ScipRange::from_packed(&[1, 7, 13]).unwrap();
-        let node = ReferenceCallerNode {
-            name: "caller".into(),
-            path: "b.ts".into(),
-            line: 2,
-            range: range.clone(),
-            depth: 0,
-            color_slot: 0,
-            is_recursive: false,
-            children: vec![],
-        };
-        let mut action = None;
-        let mut position = egui::Pos2::ZERO;
-        let frame = |events| egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(320.0, 300.0),
-            )),
-            events,
-            ..Default::default()
-        };
-        let _ = context.run(frame(vec![]), |context| {
-            egui::CentralPanel::default().show(context, |ui| {
-                position = ui.next_widget_position() + egui::vec2(120.0, 12.0);
-                action = ContextInspector::render_caller_node(ui, &AppTheme::dark(), &node, 0);
-            });
-        });
-        for pressed in [true, false] {
-            let _ = context.run(
-                frame(vec![
-                    egui::Event::PointerMoved(position),
-                    egui::Event::PointerButton {
-                        pos: position,
-                        button: egui::PointerButton::Primary,
-                        pressed,
-                        modifiers: Default::default(),
-                    },
-                ]),
-                |context| {
-                    egui::CentralPanel::default().show(context, |ui| {
-                        action =
-                            ContextInspector::render_caller_node(ui, &AppTheme::dark(), &node, 0);
-                    });
-                },
-            );
-        }
-        assert_eq!(
-            action,
-            Some(InspectorAction::JumpToIndexedLocation {
-                path: "b.ts".into(),
-                range
-            })
-        );
     }
 }

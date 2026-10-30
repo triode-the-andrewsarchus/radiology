@@ -1312,3 +1312,121 @@ fn reference_commands_reject_stale_and_before_sources_without_replacing_pinned_f
     assert!(!app.reference_context.available());
     assert_eq!(app.reference_context.explicit(), target.as_ref());
 }
+
+#[test]
+fn definition_previews_use_real_source_and_suppress_local_definition_fetches() {
+    use crate::source::preview::PreviewPhase;
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.semantic_index = Some(reference_index());
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    let buffer = app.open_buffer.clone().unwrap();
+    let location = app.history.current().cloned();
+    let PreviewPhase::Loaded(preview) = app.definition_preview.phase() else {
+        panic!("{:?}", app.definition_preview.phase());
+    };
+    assert_eq!(preview.path, "a.rs");
+    assert_eq!(preview.lines.len(), 3);
+    assert_eq!(preview.lines[0].text, "fn alpha() {");
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(app.history.current(), location.as_ref());
+    app.definition_expanded = true;
+    app.caret_col += 1;
+    app.refresh_symbol_context();
+    assert!(
+        app.definition_expanded,
+        "moving within a token changed disclosure"
+    );
+    assert!(!app.definition_preview.is_running());
+    app.jump_to_location("a.rs", 1, 4);
+    settle(&mut app);
+    assert_eq!(app.definition_preview.phase(), &PreviewPhase::None);
+    assert!(!app.definition_expanded);
+}
+
+fn reference_key(app: &mut RadiologyApp, ctx: &Context, key: egui::Key) -> bool {
+    let mut consumed = false;
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        },
+        |ctx| {
+            ctx.memory_mut(|memory| {
+                memory.request_focus(crate::ui::reference_list::ReferenceViewport::focus_id())
+            });
+            app.handle_shortcuts(ctx);
+            consumed = !ctx.input(|input| input.key_pressed(key));
+        },
+    );
+    consumed
+}
+
+#[test]
+fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_commit() {
+    use crate::source::preview::PreviewPhase;
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.semantic_index = Some(reference_index());
+    app.jump_to_location("a.rs", 1, 4);
+    settle(&mut app);
+    app.find_references_at_caret();
+    settle(&mut app);
+    let buffer = app.open_buffer.clone().unwrap();
+    let history = app.history.current().cloned();
+    let ctx = Context::default();
+    assert!(reference_key(&mut app, &ctx, egui::Key::ArrowDown));
+    assert_eq!(app.reference_context.selected, Some(0));
+    assert!(app.reference_context.previews.is_empty());
+    assert!(reference_key(&mut app, &ctx, egui::Key::ArrowRight));
+    settle(&mut app);
+    let PreviewPhase::Loaded(preview) = app.reference_context.previews[&0].phase() else {
+        panic!("reference preview did not load");
+    };
+    assert_eq!(preview.path, "b.rs");
+    assert!(preview
+        .lines
+        .iter()
+        .any(|line| line.text.contains("alpha();")));
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(app.history.current(), history.as_ref());
+    assert!(reference_key(&mut app, &ctx, egui::Key::ArrowLeft));
+    assert!(app.reference_context.previews.is_empty());
+    assert!(reference_key(&mut app, &ctx, egui::Key::Escape));
+    assert_eq!(app.reference_context.selected, None);
+    assert!(reference_key(&mut app, &ctx, egui::Key::ArrowUp));
+    assert!(reference_key(&mut app, &ctx, egui::Key::Enter));
+    settle(&mut app);
+    assert_eq!(
+        app.selected_path.as_deref(),
+        Some("b.rs"),
+        "Return ran under-caret definition navigation instead of reference commit"
+    );
+    assert_eq!((app.caret_line, app.caret_col), (2, 4));
+    assert!(app.history.can_go_back());
+}
+
+#[test]
+fn modal_input_cannot_disclose_or_commit_a_reference_behind_the_sheet() {
+    let (_dir, mut app) = reader();
+    app.reference_context.selected = Some(0);
+    app.modal = ActiveModal::GoToLine(GoToLineModal::default());
+    let ctx = Context::default();
+    assert!(!reference_key(&mut app, &ctx, egui::Key::Enter));
+    assert!(!reference_key(&mut app, &ctx, egui::Key::ArrowRight));
+    assert_eq!(app.reference_context.selected, Some(0));
+    assert!(!app.is_source_loading());
+}

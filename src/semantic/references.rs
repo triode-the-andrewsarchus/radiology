@@ -3,8 +3,10 @@
 use super::caller_tree::{caller_pill_slot, ReferenceCallerNode};
 use super::index::{SemanticIndex, SemanticSymbolID};
 use crate::background::LatestRead;
+use crate::source::preview::{PreviewInputs, PreviewKind, PreviewTarget, SourcePreviewLoader};
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -70,6 +72,9 @@ pub(crate) struct ReferenceContext {
     job: LatestRead<Vec<ReferenceCallerNode>>,
     pub rows: Vec<ReferenceCallerNode>,
     pub error: Option<String>,
+    pub selected: Option<usize>,
+    pub previews: BTreeMap<usize, SourcePreviewLoader>,
+    preview_inputs: Option<Arc<PreviewInputs>>,
 }
 
 impl ReferenceContext {
@@ -80,7 +85,7 @@ impl ReferenceContext {
         self.target.as_ref()
     }
     pub fn is_running(&self) -> bool {
-        self.job.is_running()
+        self.job.is_running() || self.previews.values().any(SourcePreviewLoader::is_running)
     }
     pub fn available(&self) -> bool {
         self.index.is_some()
@@ -117,6 +122,8 @@ impl ReferenceContext {
             self.target = None;
             self.job.stop();
             self.rows.clear();
+            self.selected = None;
+            self.previews.clear();
             self.error = None;
         }
         self.refresh();
@@ -132,6 +139,8 @@ impl ReferenceContext {
         }
         self.job.stop();
         self.rows.clear();
+        self.selected = None;
+        self.previews.clear();
         self.error = None;
         self.target = target.cloned();
         if let (Some(index), Some(target)) = (&self.index, &self.target) {
@@ -142,8 +151,58 @@ impl ReferenceContext {
         }
     }
 
+    pub fn configure_previews(&mut self, inputs: Option<Arc<PreviewInputs>>) {
+        let same = match (&self.preview_inputs, &inputs) {
+            (Some(old), Some(new)) => Arc::ptr_eq(old, new),
+            (None, None) => true,
+            _ => false,
+        };
+        if !same {
+            self.previews.clear();
+        }
+        self.preview_inputs = inputs;
+    }
+
+    pub fn select(&mut self, row: usize) {
+        if row < self.rows.len() {
+            self.selected = Some(row);
+        }
+    }
+
+    pub fn move_selection(&mut self, forward: bool) {
+        if self.rows.is_empty() {
+            return;
+        }
+        self.selected = Some(match self.selected {
+            None if forward => 0,
+            None => self.rows.len() - 1,
+            Some(row) if forward => row.saturating_add(1).min(self.rows.len() - 1),
+            Some(row) => row.saturating_sub(1),
+        });
+    }
+
+    pub fn expand(&mut self, row: usize, expanded: bool) {
+        let Some(node) = self.rows.get(row) else {
+            return;
+        };
+        self.selected = Some(row);
+        if !expanded {
+            self.previews.remove(&row);
+            return;
+        }
+        let loader = self.previews.entry(row).or_default();
+        loader.request(
+            self.preview_inputs.clone(),
+            Some(PreviewTarget {
+                path: node.path.clone(),
+                range: node.range.clone(),
+                kind: PreviewKind::Reference,
+            }),
+        );
+    }
+
     pub fn poll(&mut self) -> bool {
-        match self.job.poll() {
+        let mut changed = match self.job.poll() {
             Ok(None) => false,
             Ok(Some(rows)) => {
                 self.rows = rows;
@@ -153,7 +212,11 @@ impl ReferenceContext {
                 self.error = Some("Reference loading stopped unexpectedly.".into());
                 true
             }
+        };
+        for preview in self.previews.values_mut() {
+            changed |= preview.poll();
         }
+        changed
     }
 }
 

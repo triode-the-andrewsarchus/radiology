@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Source previews and independent inspector interaction (Codex)
+
+Added a shared exact-source preview worker for definitions and reference context,
+with parsed declaration ends, UTF-16/UTF-8 bounds, stale/Before rejection and pinned
+PR reads. Reference selection, multiple source disclosures and explicit commits
+are independent of source/history; plain focused keys precede global Return and
+modal input stays exclusive. Variable-height virtualization reuses RowHeights.
+Nine new backend/app tests plus extended pointer replay pass; current full gates
+are 228 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc.
+Architecture has no new product hotspot/cycle and lowers inspector show CCN 17 to
+9; short clone reports remain. Native acceptance is in progress. Source-line row
+presentation, coverage, parsed trees and broader full parity remain open.
+[Contract and acceptance](plans/rust-inspector-previews.md).
+
 ## 2026-10-30 — Native reference acceptance and menu cleanup (Codex)
 
 Native UTF-16/emoji checks verify source-menu activation, two exact reference rows,

@@ -107,6 +107,7 @@ impl RadiologyApp {
         self.open_buffer = None;
         self.selected_path = None;
         self.reference_context = Default::default();
+        self.reset_previews();
         self.outline_symbols.clear();
         self.fold_ranges.clear();
         self.fold_error = None;
