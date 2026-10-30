@@ -159,8 +159,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   deadlines with native metadata/fetch Cancel and pinned-review recovery checks.
   [Recent chooser](rust-pr-chooser.md) now provides 25 repository-owned entries,
   independent list refresh/cancel, active fallback and explicit Exit PR, with native
-  failure/recovery and light/dark checks. Concurrent private-store and stale-lock
-  recovery need broader acceptance.
+  failure/recovery and light/dark checks. [Private-store writer leases](rust-pr-store-recovery.md)
+  now cover cross-process preparation and surviving children, staged initialization,
+  isolated fetches and missing-tree recovery. Complete tree reuse/active-snapshot
+  leases/retention and broader corrupt-store recovery remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,

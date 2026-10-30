@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Private PR-store recovery](plans/rust-pr-store-recovery.md) records child-held
+writer leases, staged initialization, isolated fetches and native crash/retry evidence.
+
 [Recent PR chooser](plans/rust-pr-chooser.md) records the repository-scoped 25-entry
 list, compact switcher/Exit PR, keyboard behavior and native failure/recovery checks.
 

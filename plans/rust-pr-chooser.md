@@ -108,7 +108,9 @@ or native two-minute timeout run were performed; timeout evidence is automated.
 
 ## Remaining scope
 
-Full parity remains open: private-store lock/concurrency recovery and cache retention,
+[Private-store writer ownership](rust-pr-store-recovery.md) now covers cooperating
+preparation and surviving children, with native crash/retry acceptance.
+Full parity remains open: complete cache reuse/retention and broader corrupt-store recovery,
 index provisioning/version/project provenance and pinned After indexing, PR refresh
 caret/viewport/fold/pin/rename mapping, broader accessibility/scaling and final
 Swift comparison, and sibling palette/font/chrome reuse. Existing default fonts
