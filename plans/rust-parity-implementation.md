@@ -80,6 +80,10 @@ and the remaining generation/cache requirements.
   separately, report coverage and support Load More with retained selection,
   disclosure and keyboard focus. Native Return/Back acceptance passes.
   [Reference results](rust-reference-results.md).
+- Source-validated incoming caller paths integrate independent background
+  disclosures, visible-slice painting, branch/boundary notes, Trace More,
+  digest-guarded navigation and pre-frame keyboard ownership. Native caller
+  Return/Back, expansion and F12 acceptance pass. [Callers](rust-incoming-callers.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -103,9 +107,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
-- Parsed/validated call trees, richer under-caret metadata, external/local
-  explanations and broader inspector
-  keyboard acceptance. Source excerpts and reference selection/disclosure/commit
+- Richer under-caret metadata, extension/implementation links, external/local
+  explanations and broader inspector keyboard/corpus/scaling acceptance.
+  Source excerpts, validated caller trees and reference selection/disclosure/commit
   are integrated; [preview contract and remaining scope](rust-inspector-previews.md).
 - Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
   Fold counts now publish progressively with retired-request isolation. Pointer-dwell hover summaries/navigation

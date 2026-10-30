@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Native caller disclosure acceptance (Codex)
+
+Native acceptance verifies 256/512/516-row expansion, retained excerpts/source,
+partial boundaries, consecutive-frame caller selection, exact Return to b.rs:5,
+Back to the original a.rs caret after an emoji, reference-list focus after Trace
+More disappears, and collapse without navigation. Final-build F12 from caller
+focus opens b.rs:1. All private app/compositor exits are zero. Evidence, build
+identity and debugger findings are in the [caller contract](plans/rust-incoming-callers.md).
+Full gates remain 262 app tests, 5 reader-text tests and 30 doctests, fmt, Clippy,
+build and rustdoc. Broader metadata, caches, pinned/mixed-language acceptance,
+indexing/PR lifecycle, source presentation, reuse and final Swift audit remain.
+
 ## 2026-10-30 — Global reader shortcuts from caller controls (Codex)
 
 Caller controls now participate in the reader-owned non-text focus check.

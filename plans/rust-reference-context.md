@@ -27,7 +27,8 @@ reject invalid paths, negative/reversed/empty coordinates and unknown encodings.
 Labels share SemanticIndex enclosing-definition lookup with the legacy caller API,
 using full coordinate containment and checked/widened extent arithmetic, falling
 back to the path. Indexed references do not prove calls; these rows have no invented
-recursive call relationships. Parsed/validated call-tree disclosure remains open.
+recursive call relationships. The later [validated caller disclosure](rust-incoming-callers.md)
+uses parsed ownership and semantic invocation checks for that workflow.
 Navigation reuses the existing asynchronous encoding/source-provenance path.
 Reference work runs off the UI thread; the inspector paints only visible rows.
 
@@ -79,7 +80,8 @@ replaced or cleaned up.
 
 Selection/disclosure/commit keyboard behavior and bounded real-source definition/
 reference excerpts are now integrated; see [preview acceptance](rust-inspector-previews.md).
-Always-visible source-line rows, grouping, definitions/coverage, parsed/validated
-call-tree disclosure, extension implementation links, revisit caches and broader
-large-repository/runtime acceptance remain required. This package does not close
-the full Rust/Swift parity objective.
+Source-line rows, grouping and definitions/coverage are integrated in
+[reference results](rust-reference-results.md), and parsed/validated caller trees
+in [incoming callers](rust-incoming-callers.md). Extension/implementation links,
+richer metadata, revisit caches and broader repository/runtime acceptance remain
+required. The full Rust/Swift parity objective stays open.
