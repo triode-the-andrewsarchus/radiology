@@ -3,10 +3,12 @@
 use super::caller_tree::{caller_pill_slot, ReferenceCallerNode};
 use super::index::{SemanticIndex, SemanticSymbolID};
 use crate::background::LatestRead;
-use crate::source::preview::{PreviewInputs, PreviewKind, PreviewTarget, SourcePreviewLoader};
+use crate::source::preview::{
+    PreviewInputs, PreviewKind, PreviewPhase, PreviewTarget, SourcePreviewLoader,
+};
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -67,7 +69,7 @@ pub(crate) struct ReferenceContext {
     explicit: Option<ReferenceTarget>,
     automatic: Option<ReferenceTarget>,
     index: Option<Arc<SemanticIndex>>,
-    source: Option<(String, String)>,
+    source_digests: HashMap<String, String>,
     target: Option<ReferenceTarget>,
     job: LatestRead<Vec<ReferenceCallerNode>>,
     pub rows: Vec<ReferenceCallerNode>,
@@ -107,9 +109,12 @@ impl ReferenceContext {
         buffer: Option<&SourceBuffer>,
         automatic: Option<ReferenceTarget>,
     ) {
-        let source =
-            buffer.map(|buffer| (buffer.position_key(), buffer.content_digest().to_owned()));
-        let changed = self.source != source
+        let source_changed = buffer.is_some_and(|buffer| {
+            self.source_digests
+                .insert(buffer.position_key(), buffer.content_digest().to_owned())
+                .is_some_and(|previous| previous != buffer.content_digest())
+        });
+        let changed = source_changed
             || match (&self.index, &index) {
                 (Some(old), Some(new)) => !Arc::ptr_eq(old, new),
                 (None, None) => false,
@@ -117,7 +122,6 @@ impl ReferenceContext {
             };
         self.automatic = automatic;
         self.index = index;
-        self.source = source;
         if changed {
             self.target = None;
             self.job.stop();
@@ -152,15 +156,23 @@ impl ReferenceContext {
     }
 
     pub fn configure_previews(&mut self, inputs: Option<Arc<PreviewInputs>>) {
-        let same = match (&self.preview_inputs, &inputs) {
-            (Some(old), Some(new)) => Arc::ptr_eq(old, new),
-            (None, None) => true,
-            _ => false,
-        };
-        if !same {
-            self.previews.clear();
-        }
         self.preview_inputs = inputs;
+        // Loaded excerpts survive navigation; pending requests must capture the
+        // newly displayed bytes before a late disk read can publish over them.
+        for (&row, preview) in &mut self.previews {
+            if preview.is_running() {
+                if let Some(node) = self.rows.get(row) {
+                    preview.request(
+                        self.preview_inputs.clone(),
+                        Some(PreviewTarget {
+                            path: node.path.clone(),
+                            range: node.range.clone(),
+                            kind: PreviewKind::Reference,
+                        }),
+                    );
+                }
+            }
+        }
     }
 
     pub fn select(&mut self, row: usize) {
@@ -214,7 +226,18 @@ impl ReferenceContext {
             }
         };
         for preview in self.previews.values_mut() {
-            changed |= preview.poll();
+            let published = preview.poll();
+            if published {
+                if let PreviewPhase::Loaded(source) = preview.phase() {
+                    let key = crate::source::SourceLocation::format_position_key(
+                        &source.path,
+                        source.revision,
+                    );
+                    self.source_digests
+                        .insert(key, source.content_digest.clone());
+                }
+            }
+            changed |= published;
         }
         changed
     }
@@ -495,5 +518,37 @@ mod tests {
         assert!(rows
             .iter()
             .all(|row| row.children.is_empty() && !row.is_recursive));
+    }
+    #[test]
+    fn pending_preview_rebinds_to_newly_displayed_source_before_publication() {
+        let (buffer, index) = fixture();
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(directory.path().join("b.rs"), "fn one(){one();}").unwrap();
+        let mut context = ReferenceContext::default();
+        context.update(Some(index.clone()), Some(&buffer), None);
+        context.show(ReferenceTarget {
+            id: SemanticSymbolID::new("local 1", "b.rs"),
+            name: "one".into(),
+        });
+        settle(&mut context);
+        context.configure_previews(Some(Arc::new(PreviewInputs {
+            source: crate::source::loader::SourceRead::Checkout(directory.path().into()),
+            buffer: Arc::new(buffer),
+            index: index.clone(),
+        })));
+        context.expand(0, true);
+        let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){new();}"));
+        context.update(Some(index.clone()), Some(&displayed), None);
+        context.configure_previews(Some(Arc::new(PreviewInputs {
+            source: crate::source::loader::SourceRead::Buffer(displayed.clone()),
+            buffer: displayed.clone(),
+            index,
+        })));
+        settle(&mut context);
+        let PreviewPhase::Loaded(preview) = context.previews[&0].phase() else {
+            panic!("preview did not load");
+        };
+        assert_eq!(preview.content_digest, displayed.content_digest());
+        assert_eq!(preview.lines[0].text, "fn one(){new();}");
     }
 }

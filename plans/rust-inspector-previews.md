@@ -30,7 +30,11 @@ never becomes a navigation target; explicit commits reuse indexed navigation.
 
 ReferenceContext owns selection and independently cancellable expanded-row
 previews. Closing a row drops its job; replacing reference results clears row
-state. The reference viewport reuses reader-text's RowHeights to virtualize
+state. Explicit-reference selection and loaded excerpts survive unchanged file
+navigation and commits. A per-path/revision source identity ledger includes bytes
+read by preview workers, so changed destinations invalidate excerpts on their
+first reader visit. Pending requests rebind to newly displayed bytes before
+publishing; loaded excerpts remain reusable. The reference viewport reuses reader-text's RowHeights to virtualize
 variable-height rows and reveal keyboard selection. It introduces no runtime
 sibling dependency. Source-preview rendering is shared by both inspector regions.
 
@@ -43,16 +47,17 @@ tests verify source/history preservation, same-token reuse, on-definition fetch
 suppression, keyboard selection/disclosure/commit and modal exclusion. Pointer
 replay verifies single-click selection and double-click commit.
 
-Current gates: 228 application tests, one external Clang test ignored, 5 reader-text
+Current gates: 233 application tests, one external Clang test ignored, 5 reader-text
 tests and 30 doctests pass; fmt, Clippy with warnings denied, build and rustdoc pass.
-Native focus, scrolling and visual acceptance are in progress. The architecture
+Native focus, scrolling and visual acceptance are under final verification. The architecture
 baseline is before-inspector-previews at 39cb614: no new product hotspot/cycle;
 main inspector show CCN drops 17 to 9. The comparison still flags short test
 setup/pointer sequences and a six-line source read branch; no duplicate product
-query algorithm has been introduced.
+query algorithm has been introduced. Sharing reference fixtures keeps clone groups
+at 86 and reduces duplication from 0.72% to 0.70%.
 
 The configured skill locations still lack swiftui-pro, macos-design and
- typography-designer. Swift source, existing reader typography and the shared
+typography-designer. Swift source, existing reader typography and the shared
 source primitives guide the implementation.
 
 ## Still required for full inspector parity

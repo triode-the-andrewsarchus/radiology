@@ -1235,12 +1235,8 @@ fn reference_index() -> Arc<SemanticIndex> {
 
 #[test]
 fn explicit_references_remain_independent_of_navigation_and_follow_latest_declaration() {
-    let (dir, mut app) = reader();
+    let (dir, mut app) = reader_with_reference_index();
     let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
-    app.semantic_index = Some(reference_index());
     app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
     settle(&mut app);
     assert_eq!(app.reference_context.target().unwrap().name, "beta");
@@ -1283,14 +1279,7 @@ fn explicit_references_remain_independent_of_navigation_and_follow_latest_declar
 
 #[test]
 fn reference_commands_reject_stale_and_before_sources_without_replacing_pinned_focus() {
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
-    app.semantic_index = Some(reference_index());
-    app.jump_to_location("a.rs", 1, 4);
-    settle(&mut app);
+    let (_dir, mut app) = reader_with_reference_index();
     app.find_references_at_caret();
     settle(&mut app);
     let target = app.reference_context.explicit().cloned();
@@ -1316,12 +1305,7 @@ fn reference_commands_reject_stale_and_before_sources_without_replacing_pinned_f
 #[test]
 fn definition_previews_use_real_source_and_suppress_local_definition_fetches() {
     use crate::source::preview::PreviewPhase;
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
-    app.semantic_index = Some(reference_index());
+    let (_dir, mut app) = reader_with_reference_index();
     app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
     settle(&mut app);
     let buffer = app.open_buffer.clone().unwrap();
@@ -1375,14 +1359,7 @@ fn reference_key(app: &mut RadiologyApp, ctx: &Context, key: egui::Key) -> bool 
 #[test]
 fn reference_keyboard_selection_and_disclosure_preserve_source_until_return_commit() {
     use crate::source::preview::PreviewPhase;
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
-    app.semantic_index = Some(reference_index());
-    app.jump_to_location("a.rs", 1, 4);
-    settle(&mut app);
+    let (_dir, mut app) = reader_with_reference_index();
     app.find_references_at_caret();
     settle(&mut app);
     let buffer = app.open_buffer.clone().unwrap();
@@ -1429,4 +1406,63 @@ fn modal_input_cannot_disclose_or_commit_a_reference_behind_the_sheet() {
     assert!(!reference_key(&mut app, &ctx, egui::Key::ArrowRight));
     assert_eq!(app.reference_context.selected, Some(0));
     assert!(!app.is_source_loading());
+}
+
+fn reader_with_reference_index() -> (tempfile::TempDir, RadiologyApp) {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.semantic_index = Some(reference_index());
+    app.jump_to_location("a.rs", 1, 4);
+    settle(&mut app);
+    (dir, app)
+}
+
+#[test]
+fn explicit_reference_selection_and_disclosures_survive_unchanged_file_navigation() {
+    let (_dir, mut app) = reader_with_reference_index();
+    app.find_references_at_caret();
+    settle(&mut app);
+    app.reference_context.expand(0, true);
+    settle(&mut app);
+    let original = app.reference_context.previews[&0].phase().clone();
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert_eq!(app.reference_context.selected, Some(0));
+    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+    assert!(!app.reference_context.is_running());
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+    app.handle_reference_action(crate::ui::reference_list::ReferenceAction::Commit(None));
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!(app.reference_context.selected, Some(0));
+    assert_eq!(app.reference_context.previews[&0].phase(), &original);
+}
+
+#[test]
+fn changed_preview_destination_invalidates_disclosures_on_first_reader_visit() {
+    let (dir, mut app) = reader_with_reference_index();
+    app.find_references_at_caret();
+    settle(&mut app);
+    app.reference_context.expand(0, true);
+    settle(&mut app);
+    assert!(matches!(
+        app.reference_context.previews[&0].phase(),
+        crate::source::preview::PreviewPhase::Loaded(_)
+    ));
+    // b.rs has been read by the preview worker, but never opened by the reader.
+    std::fs::write(
+        dir.path().join("repo/b.rs"),
+        "fn beta() {\n    changed();\n}\n",
+    )
+    .unwrap();
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app.reference_context.previews.is_empty());
+    assert_eq!(app.reference_context.selected, None);
+    assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
 }

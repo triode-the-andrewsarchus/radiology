@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Retained inspector state and keyboard focus (Codex)
+
+Explicit-reference selection and loaded source disclosures now survive unchanged
+file navigation and commit. Source identities include preview-worker reads, so
+changed destinations invalidate on first reader visit; pending reads rebind to
+newly displayed bytes before publication. Inspector keys retain egui focus while
+Tab stays available. Snapshot binding and target selection are separate coherent
+methods; the final new hotspot is removed. Added two retention tests, one pending
+publication test and two viewport/focus tests; shared reference fixtures reduce
+duplication to 0.70% with unchanged 86 clone groups. Full gates pass 233 app tests,
+5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. Native reference
+and definition disclosures pass; final commit/Back and evidence checks continue.
+[Contract](plans/rust-inspector-previews.md). Full parity remains open.
+
 ## 2026-10-30 — Source previews and independent inspector interaction (Codex)
 
 Added a shared exact-source preview worker for definitions and reference context,

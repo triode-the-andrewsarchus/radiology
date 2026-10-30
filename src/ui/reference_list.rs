@@ -89,6 +89,17 @@ impl ReferenceViewport {
             Self::focus_id(),
             Sense::focusable_noninteractive(),
         );
+        ui.memory_mut(|memory| {
+            memory.set_focus_lock_filter(
+                Self::focus_id(),
+                egui::EventFilter {
+                    horizontal_arrows: true,
+                    vertical_arrows: true,
+                    escape: true,
+                    ..Default::default()
+                },
+            )
+        });
         let geometry = (ui.available_width(), ui.ctx().pixels_per_point());
         self.rows.reset(nodes.len(), geometry.0, 24.0, geometry.1);
         if self.geometry != Some(geometry) {
@@ -278,6 +289,110 @@ mod tests {
                 );
             }
             assert_eq!(action, Some(expected));
+        }
+    }
+    #[test]
+    fn keyboard_reveal_virtualizes_a_large_reference_list() {
+        let ctx = Context::default();
+        let nodes: Vec<_> = (0..1000)
+            .map(|index| ReferenceCallerNode {
+                name: format!("caller{index}"),
+                path: "a.rs".into(),
+                line: index + 1,
+                range: crate::semantic::ScipRange::from_packed(&[index as i32, 0, 1]).unwrap(),
+                depth: 0,
+                color_slot: 0,
+                is_recursive: false,
+                children: vec![],
+            })
+            .collect();
+        let mut viewport = ReferenceViewport::default();
+        let frame = || egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(320.0, 300.0),
+            )),
+            ..Default::default()
+        };
+        let render = |viewport: &mut ReferenceViewport| {
+            ctx.run(frame(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    viewport.show(ui, &AppTheme::dark(), &nodes, Some(999), &BTreeMap::new());
+                });
+            })
+        };
+        let initial = render(&mut viewport);
+        assert!(initial.shapes.len() < 200, "offscreen rows were painted");
+        viewport.reveal_selection();
+        let mut last = None;
+        for _ in 0..3 {
+            last = Some(render(&mut viewport));
+        }
+        let output = last.unwrap();
+        assert!(output.shapes.len() < 200);
+        assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "caller999")), "keyboard selection stayed outside the visible viewport");
+    }
+    #[test]
+    fn reference_focus_keeps_arrows_and_escape_across_frames() {
+        let ctx = Context::default();
+        let node = ReferenceCallerNode {
+            name: "caller".into(),
+            path: "a.rs".into(),
+            line: 1,
+            range: crate::semantic::ScipRange::from_packed(&[0, 0, 1]).unwrap(),
+            depth: 0,
+            color_slot: 0,
+            is_recursive: false,
+            children: vec![],
+        };
+        let mut viewport = ReferenceViewport::default();
+        let mut frame = |key: Option<Key>| {
+            let mut actions = Vec::new();
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(320.0, 300.0),
+                    )),
+                    events: key
+                        .map(|key| Event::Key {
+                            key,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: Modifiers::NONE,
+                        })
+                        .into_iter()
+                        .collect(),
+                    ..Default::default()
+                },
+                |ctx| {
+                    actions = ReferenceViewport::take_actions(ctx);
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        viewport.show(
+                            ui,
+                            &AppTheme::dark(),
+                            std::slice::from_ref(&node),
+                            Some(0),
+                            &BTreeMap::new(),
+                        );
+                    });
+                },
+            );
+            actions
+        };
+        frame(None);
+        ctx.memory_mut(|memory| memory.request_focus(ReferenceViewport::focus_id()));
+        frame(None);
+        for (key, expected) in [
+            (Key::ArrowRight, ReferenceAction::SetSelectionExpanded(true)),
+            (Key::ArrowLeft, ReferenceAction::SetSelectionExpanded(false)),
+            (Key::ArrowDown, ReferenceAction::MoveSelection(true)),
+            (Key::ArrowUp, ReferenceAction::MoveSelection(false)),
+            (Key::Escape, ReferenceAction::ClearSelection),
+        ] {
+            assert_eq!(frame(Some(key)), [expected]);
+            assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
         }
     }
 }
