@@ -40,6 +40,7 @@ impl RadiologyApp {
             crate::source::loader::SourceTarget::Bookmark(bookmark),
             source::NavigationIntent {
                 record_history: true,
+                flash_destination: true,
                 reveal: true,
                 force_read: true,
                 ..Default::default()

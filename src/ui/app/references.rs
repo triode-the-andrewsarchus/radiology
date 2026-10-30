@@ -257,6 +257,7 @@ impl RadiologyApp {
             },
             source::NavigationIntent {
                 record_history: true,
+                flash_destination: true,
                 reveal: true,
                 ..Default::default()
             },

@@ -23,6 +23,8 @@ pub enum OutlineAction {
     Preview(OutlineTarget),
     /// Commits the exact declaration name through normal navigation history.
     Commit(OutlineTarget),
+    /// Commits a pointer activation with transient destination feedback.
+    Activate(OutlineTarget),
 }
 
 struct Entry {
@@ -325,7 +327,7 @@ impl OutlineList {
                     if commit {
                         self.select(index);
                         ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
-                        action = self.target(index).map(OutlineAction::Commit);
+                        action = self.target(index).map(OutlineAction::Activate);
                     }
                     if disclose {
                         toggle = Some(index);
