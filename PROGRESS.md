@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-10-30 — Shared exact indexed owner lookup (Codex)
+
+Reference labels and the legacy caller API now share one full-coordinate enclosing
+lookup. Same-line declarations stay distinct; negative extents cannot label rows,
+and extent span arithmetic cannot overflow. A ninth reference-focus test covers
+same-line ownership; malformed extent coverage extends an existing test. Full
+gates pass 219 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and
+rustdoc. No new product hotspot/cycle is reported; short test clone reports remain.
+Native explicit focus, independent definition changes and Follow Caret checks
+pass; final menu polish and evidence recording are underway.
+
 ## 2026-10-30 — Exact background reference focus (Codex)
 
 Find References now pins an exact scoped symbol independently of caret/file

@@ -22,7 +22,8 @@ document-scoped locals and preserves their document identity across navigation.
 
 Direct reference rows retain exact SCIP coordinates, sort/deduplicate sites and
 reject invalid paths, negative/reversed/empty coordinates and unknown encodings.
-Labels use indexed enclosing extents with full coordinate containment, falling
+Labels share SemanticIndex enclosing-definition lookup with the legacy caller API,
+using full coordinate containment and checked/widened extent arithmetic, falling
 back to the path. Indexed references do not prove calls; these rows have no invented
 recursive call relationships. Parsed/validated call-tree disclosure remains open.
 Navigation reuses the existing asynchronous encoding/source-provenance path.
@@ -35,11 +36,11 @@ unavailable semantics are visible without replacing source or adding history.
 
 ## Verification
 
-Eight new tests cover exact same-line declaration identities, UTF-16 with Unicode,
+Nine new tests cover exact same-line declaration identities, UTF-16 with Unicode,
 local isolation, explicit focus across files, Follow Caret, same-context idle work,
 replacement indexes, retired publications, cancellation, deduplication, invalid
 coordinates, stale/Before rejection, shortcut ownership, and application source/
-caret/history preservation. Full workspace: 218 application tests pass, one external
+caret/history preservation. Full workspace: 219 application tests pass, one external
 Clang check ignored, 5 reader-text tests and 30 doctests pass. Formatting, Clippy
 with warnings denied, build and rustdoc pass.
 
