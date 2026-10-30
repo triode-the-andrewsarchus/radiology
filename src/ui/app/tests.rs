@@ -920,8 +920,11 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
 
 fn write_critical_index(root: &Path, text: &str) {
     let symbol = b"rust-analyzer cargo core 0 clone().";
-    let start = text.find("clone").unwrap() as u8;
-    let mut occurrence = vec![0x0a, 3, 0, start, start + 5, 0x12, symbol.len() as u8];
+    let byte = text.find("clone").unwrap();
+    let line = text[..byte].bytes().filter(|&b| b == b'\n').count() as u8;
+    let line_start = text[..byte].rfind('\n').map_or(0, |p| p + 1);
+    let start = (byte - line_start) as u8;
+    let mut occurrence = vec![0x0a, 3, line, start, start + 5, 0x12, symbol.len() as u8];
     occurrence.extend_from_slice(symbol);
     let mut document = vec![
         0x0a,
@@ -1012,4 +1015,77 @@ fn critical_marks_refresh_without_reader_changes_and_restore_after_restart() {
         Some(&Criticality::Critical)
     );
     assert!(!reopened.critical_projection().unwrap().is_receded(start));
+}
+
+#[test]
+fn critical_fold_counts_refresh_with_policy_and_clear_on_mode_source_index_and_repository_changes()
+{
+    use crate::critical::{
+        overrides::{MarkEdit, MarkTarget},
+        Criticality,
+    };
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text = "fn demo() {\n    clone(); unknown();\n}\n";
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    write_critical_index(&root, text);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.jump_to_location("a.rs", 2, text.find("clone").unwrap());
+    settle(&mut app);
+    app.fold_store.toggle(1);
+    app.set_source_mode(SourceMode::Critical);
+    settle(&mut app);
+    let label = |app: &RadiologyApp| {
+        app.critical_annotations()
+            .unwrap()
+            .at_line(app.open_buffer.as_ref().unwrap(), 1)
+            .unwrap()
+            .count
+            .label()
+    };
+    assert_eq!(label(&app), "0+");
+    let source = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    assert!(app.apply_critical_mark(MarkEdit {
+        target: MarkTarget::Symbol("rust-analyzer cargo core 0 clone().".into()),
+        decision: Some(Criticality::Critical)
+    }));
+    assert!(app.critical_annotations().is_none());
+    settle(&mut app);
+    assert_eq!(label(&app), "1+");
+    assert!(app.fold_store.is_folded(1));
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_eq!(format!("{:?}", app.history), history);
+    app.set_source_mode(SourceMode::Normal);
+    assert!(app.critical_annotations().is_none());
+    app.set_source_mode(SourceMode::Critical);
+    settle(&mut app);
+    assert_eq!(label(&app), "1+");
+    let mut wire = std::fs::read(root.join("index.scip")).unwrap();
+    let offset = wire.windows(5).position(|bytes| bytes == b"clone").unwrap();
+    wire[offset..offset + 5].copy_from_slice(b"other");
+    std::fs::write(root.join("index.scip"), wire).unwrap();
+    app.execute_command(&Context::default(), ToolbarAction::ReloadIndexImport);
+    // The current index remains usable until its replacement publishes.
+    assert_eq!(label(&app), "1+");
+    settle(&mut app);
+    assert_eq!(label(&app), "0+");
+    Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = Some(ReviewRevision::Before);
+    app.refresh_critical_projection();
+    settle(&mut app);
+    assert!(app.critical_annotations().is_none());
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app
+        .critical_annotations()
+        .unwrap()
+        .matches(app.open_buffer.as_ref().unwrap()));
+    let empty = dir.path().join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    app.open_repository(&empty);
+    settle(&mut app);
+    assert!(app.critical_annotations().is_none());
+    assert!(!app.is_critical_loading());
 }

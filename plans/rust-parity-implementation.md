@@ -95,9 +95,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,
   independent inspector keyboard preview/commit behavior.
-- Critical Lens call graph, frontier/hover summaries, fold annotations and broader
-  acceptance. Exact background projection and persisted symbol/package marking
-  menus are integrated; see [mark acceptance](rust-critical-marks.md).
+- Critical Lens pointer-dwell hover summaries/navigation, progressive fold-count
+  publication and broader corpus/runtime acceptance. Parsed summaries, bounded
+  frontiers and snapshot workers now feed source fold counts; see
+  [graph/count acceptance](rust-call-graph.md). Exact background projection and
+  persisted symbol/package menus are integrated; see [marks](rust-critical-marks.md).
 - Complete PR workflow: recent-list chooser, cancellation/timeout of child
   processes, exact refresh caret/viewport/rename mapping and notice behavior,
   snapshot-cache retention, pinned After indexing and reuse provenance, disabled

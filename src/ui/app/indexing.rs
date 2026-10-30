@@ -9,6 +9,7 @@ use crate::semantic::loader::IndexImportStatus;
 impl RadiologyApp {
     pub(super) fn reset_index_state(&mut self) {
         self.critical_lens.stop();
+        self.critical_annotations.stop();
         self.index_importer = Default::default();
         self.index_generator = Default::default();
         self.generation_report = None;

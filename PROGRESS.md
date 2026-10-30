@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Source Critical Lens fold counts (Codex)
+
+Connected snapshot-bound count sweeps to the standalone reader. Collapsed
+functions show reachable counts, partial `n+` and honest no-body markers in
+Critical mode; Normal retains hidden-line totals. Disclosure/count/line numbers
+have separate gutter lanes. Tooltip/accessibility preserve hidden lines and
+coverage reasons; count clicks toggle folds. All captured-input transitions
+retire stale work, with no caret-driven graph work or inspector/outline counts.
+App/pointer tests cover lifecycle, replacement index, policy, fold activation and
+source preservation. Native UTF-16 checks verify 2 hidden lines vs 1+, mark-driven
+0+, expanded count hit target, tooltip and Normal restoration; app/compositors
+exit zero. Full checks pass 185 application tests, 5 reader-text tests,
+30 doctests, fmt, Clippy and build. Architecture retains short test/footer clone
+reports, without a new product hotspot/cycle. Hover and progressive publication
+remain open, alongside the broader parity queue. [Evidence](plans/rust-call-graph.md).
+
 ## 2026-10-30 — Snapshot-bound graph worker and source-count service (Codex)
 
 Added canonical definition body loading through captured SourceRead storage,

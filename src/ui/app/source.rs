@@ -26,6 +26,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn refresh_critical_projection(&mut self) {
+        self.refresh_critical_annotations();
         if self.mode == SourceMode::Critical {
             if let Some(buffer) = &self.open_buffer {
                 let index = (buffer.revision != Some(ReviewRevision::Before))
@@ -43,6 +44,45 @@ impl RadiologyApp {
         }
     }
 
+    fn refresh_critical_annotations(&mut self) {
+        self.critical_annotations.stop();
+        if self.mode != SourceMode::Critical {
+            return;
+        }
+        let (Some(buffer), Some(index), Some(root)) = (
+            &self.open_buffer,
+            &self.semantic_index,
+            &self.repository_root,
+        ) else {
+            return;
+        };
+        if buffer.revision == Some(ReviewRevision::Before) {
+            return;
+        }
+        let source = self.review.as_ref().map_or_else(
+            || SourceRead::Checkout(root.clone()),
+            |review| SourceRead::Review(review.clone()),
+        );
+        self.critical_annotations.start(
+            crate::critical::worker::GraphInputs {
+                source,
+                buffer: buffer.clone(),
+                calls: self.call_sites.clone(),
+                index: index.clone(),
+                overrides: self.critical_marks.overrides().clone(),
+            },
+            self.fold_ranges.clone(),
+        );
+    }
+
+    /// Returns callable counts only for the current exact source/revision.
+    #[must_use]
+    pub fn critical_annotations(&self) -> Option<&crate::critical::annotations::SourceAnnotations> {
+        self.open_buffer
+            .as_ref()
+            .and_then(|buffer| self.critical_annotations.current(buffer))
+    }
+
     /// Returns source-local preparation or syntax coverage for the active lens.
     #[must_use]
     pub fn critical_status(&self) -> Option<&'static str> {
@@ -53,6 +93,10 @@ impl RadiologyApp {
             "Preparing Critical Lens…"
         } else if self.critical_lens.error().is_some() {
             "Critical Lens unavailable"
+        } else if self.critical_annotations.is_running() {
+            "Preparing critical counts…"
+        } else if self.critical_annotations.error().is_some() {
+            "Critical counts unavailable"
         } else if !self.call_sites.supported {
             "Call syntax unavailable"
         } else {
@@ -63,7 +107,7 @@ impl RadiologyApp {
     /// Returns whether call-focused source preparation is awaiting publication.
     #[must_use]
     pub fn is_critical_loading(&self) -> bool {
-        self.critical_lens.is_running()
+        self.critical_lens.is_running() || self.critical_annotations.is_running()
     }
 
     /// Returns the current exact-source Critical Lens presentation, when ready.
@@ -150,10 +194,11 @@ impl RadiologyApp {
         if self.critical_marks.is_busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
+        self.critical_annotations.poll();
         if let Some(error) = self.critical_lens.poll() {
             self.error = Some(error);
         }
-        if self.critical_lens.is_running() {
+        if self.is_critical_loading() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
         if let Some(result) = self.source_loader.poll() {

@@ -84,3 +84,46 @@ publication. Full checks pass 183 application tests, 5 reader-text tests,
 assertion clone shared with frontier tests; no new product clone/hotspot/cycle,
 maximum CCN unchanged and average CCN down 0.02. Native I/O/Tree-sitter cancellation
 is still checked around each operation rather than interrupting it internally.
+
+## Source fold-count integration and acceptance (2026-10-30)
+
+The standalone reader now requests the annotation service in Critical mode when
+an index and displayed source are available. Source/index/policy/repository/mode
+transitions retire old sweeps and publications; Before never consumes the After
+index. The previous usable index/count remains visible while a replacement index
+loads, and replacement publication starts a fresh count request. Caret movement
+schedules no graph work. Color projection remains a separate job, so graph reads
+do not block call-focused source presentation. Shutdown cancels count work.
+
+Collapsed callable folds show an outlined reachable count in Critical mode;
+partial coverage reads `n+`, proven zero/no-body recede. Normal mode retains hidden
+line counts. Non-callable folds retain their ordinary presentation. Count tooltip
+and accessible button text retain hidden-line totals plus coverage reasons. The
+existing gutter now has separate disclosure/count/line-number lanes (104 points,
+matching the Swift layout), reusing existing fonts and colors. Clicking either
+disclosure or count still toggles the fold. No inspector or outline count section
+was added.
+
+Application verification covers policy recomputation with source/history/folds
+preserved, mode removal/restoration, replacement-index recomputation, Before
+isolation, document changes and repository retirement. A pointer replay verifies
+the actual painted count differs from hidden-line count, activates the same fold
+and preserves source bytes/caret. Full checks pass 185 application tests,
+5 reader-text tests, 30 doctests, rustfmt, Clippy and binary build.
+
+Private native Weston/Niri UTF-16 fixture acceptance verifies Normal's two hidden
+lines, Critical's `1+` (system call plus unresolved site), expansion by clicking the
+count, a source-menu Non-Critical decision yielding `0+`, and the tooltip retaining
+two hidden lines plus partial/unresolved coverage. Normal restoration retains the
+fold. Screenshots are under `/tmp/radiology-count-native/`: `normal-hidden-lines.png`,
+`critical-count.png`, `expanded-from-count.png`, `partial-zero-and-detail.png` and
+`normal-restored.png`. App and both compositors exit zero. The reusable sibling
+acceptance harness is invoked only for testing; no runtime dependency was added.
+Architecture retains short test assertion/fixture clones and pre-existing footer
+label sequences; no new product hotspot or cycle, max CCN remains 100 and average
+CCN is down 0.02 from before-graph-worker. Duplication remains about 0.7%.
+
+Still required: pointer-dwell hover summaries/navigation/grace behavior,
+progressive fold-sweep publication and broader corpus/large-file/cancellation
+acceptance. Parsed graph facts do not yet replace the references-derived caller
+tree. Full Rust/Swift parity remains open.

@@ -68,6 +68,8 @@ pub struct SourceViewContent<'a> {
     pub mark_error: Option<&'a str>,
     /// Exact-source call projection; absent while preparing or in Normal mode.
     pub projection: Option<&'a crate::critical::SourceProjection>,
+    /// Background reachable-operation counts for source function folds.
+    pub annotations: Option<&'a crate::critical::annotations::SourceAnnotations>,
     /// Active lens preparation/coverage, independent of semantic index status.
     pub critical_status: Option<&'static str>,
     /// Immutable source snapshot.
@@ -109,7 +111,7 @@ pub struct SourceView;
 
 impl SourceView {
     /// Width in points reserved for the gutter area (line numbers, fold chevrons, diff stripes).
-    pub const GUTTER_WIDTH: f32 = 72.0;
+    pub const GUTTER_WIDTH: f32 = 104.0;
 
     /// Renders source chrome and the measured, selectable source viewport.
     pub fn show(
@@ -123,6 +125,7 @@ impl SourceView {
             mark_context,
             mark_error,
             projection,
+            annotations,
             critical_status,
             buffer,
             highlighted_lines,
@@ -242,6 +245,7 @@ impl SourceView {
                     mode,
                     mark_context,
                     projection,
+                    annotations,
                     buffer,
                     highlights: highlighted_lines,
                     caret_line,
@@ -515,6 +519,7 @@ mod tests {
                             mark_context: None,
                             mark_error: None,
                             projection: None,
+                            annotations: None,
                             critical_status: None,
                             buffer: &buffer,
                             highlighted_lines: &highlighted,
