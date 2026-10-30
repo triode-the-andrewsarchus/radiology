@@ -33,6 +33,14 @@ fn repository(root: &Path) {
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
 }
 
+fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
+    let (dir, mut app) = reader();
+    repository(dir.path());
+    app.open_repository(dir.path());
+    settle(&mut app);
+    (dir, app)
+}
+
 #[test]
 fn cross_file_navigation_preserves_departure_column_without_file_start_stop() {
     let (dir, mut app) = reader();
@@ -55,10 +63,7 @@ fn cross_file_navigation_preserves_departure_column_without_file_start_stop() {
 
 #[test]
 fn navigation_reveals_fold_and_failed_open_preserves_current_document() {
-    let (dir, mut app) = reader();
-    repository(dir.path());
-    app.open_repository(dir.path());
-    settle(&mut app);
+    let (_dir, mut app) = opened_repository();
     assert!(app.fold_store.is_folded(1));
     app.jump_to_location("a.rs", 2, 0);
     settle(&mut app);
@@ -339,10 +344,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
 
 #[test]
 fn pending_source_keeps_the_reader_and_history_until_success_or_cancellation() {
-    let (dir, mut app) = reader();
-    repository(dir.path());
-    app.open_repository(dir.path());
-    settle(&mut app);
+    let (dir, mut app) = opened_repository();
     app.jump_to_location("a.rs", 1, 5);
     let original = app.open_buffer.as_ref().unwrap().clone();
     let history = app.history.current().cloned();
@@ -399,10 +401,7 @@ fn current_document_navigation_and_repository_changes_retire_stale_reads() {
 
 #[test]
 fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_bytes() {
-    let (dir, mut app) = reader();
-    repository(dir.path());
-    app.open_repository(dir.path());
-    settle(&mut app);
+    let (dir, mut app) = opened_repository();
     app.open_file("b.rs");
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
@@ -1471,13 +1470,7 @@ fn reference_key(app: &mut RadiologyApp, ctx: &Context, key: egui::Key) -> bool 
     let mut consumed = false;
     let _ = ctx.run(
         egui::RawInput {
-            events: vec![egui::Event::Key {
-                key,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::NONE,
-            }],
+            events: vec![crate::ui::commands::test_key(key)],
             ..Default::default()
         },
         |ctx| {
@@ -1682,13 +1675,7 @@ fn caller_controls_leave_global_definition_shortcuts_available() {
     });
     let _ = ctx.run(
         egui::RawInput {
-            events: vec![egui::Event::Key {
-                key: egui::Key::F12,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::NONE,
-            }],
+            events: vec![crate::ui::commands::test_key(egui::Key::F12)],
             ..Default::default()
         },
         |ctx| app.handle_shortcuts(ctx),
@@ -1696,4 +1683,71 @@ fn caller_controls_leave_global_definition_shortcuts_available() {
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
     assert_eq!((app.caret_line, app.caret_col), (1, 3));
+}
+
+#[test]
+fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
+    use crate::ui::bookmark_list::{BookmarkAction, BookmarkList};
+    use eframe::App;
+    let (dir, mut app) = opened_repository();
+    for (path, line) in [("a.rs", 1), ("a.rs", 2), ("b.rs", 1)] {
+        app.jump_to_location(path, line, 0);
+        settle(&mut app);
+        app.toggle_current_bookmark();
+    }
+    let ids: Vec<_> = app
+        .bookmarks
+        .bookmarks
+        .iter()
+        .map(|bookmark| bookmark.id)
+        .collect();
+    let ctx = Context::default();
+    ctx.memory_mut(|memory| memory.request_focus(BookmarkList::focus_id()));
+    let mut input = egui::RawInput {
+        events: [egui::Key::Home, egui::Key::Delete, egui::Key::Enter]
+            .into_iter()
+            .map(crate::ui::commands::test_key)
+            .collect(),
+        ..Default::default()
+    };
+    app.raw_input_hook(&ctx, &mut input);
+    assert!(input.events.is_empty());
+    settle(&mut app);
+    assert_eq!(app.bookmark_list.selected, Some(ids[1]));
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!(app.caret_line, 2);
+    app.handle_bookmark_action(
+        &ctx,
+        BookmarkAction::Move {
+            id: ids[1],
+            slot: 1,
+        },
+    );
+    assert_eq!(app.bookmark_list.selected, Some(ids[1]));
+    assert_eq!(app.bookmarks.bookmarks[1].id, ids[1]);
+    let scope = app.bookmark_scope().unwrap();
+    let saved = BookmarkStore::load_in(&dir.path().join("settings"), &scope);
+    assert_eq!(saved.bookmarks, app.bookmarks.bookmarks);
+    app.handle_bookmark_action(&ctx, BookmarkAction::Open(ids[0])); // Removed identity cannot target its old slot.
+    assert!(!app.is_source_loading());
+    assert_eq!(app.caret_line, 2);
+    app.pending_pr = Some(42);
+    app.handle_bookmark_action(&ctx, BookmarkAction::Remove(ids[1]));
+    assert_eq!(app.bookmarks.bookmarks.len(), 2);
+    app.pending_pr = None;
+    app.active_pr = Some(PullRequestSummary {
+        number: 42,
+        title: "Other scope".into(),
+        state: "OPEN".into(),
+        base_ref_oid: None,
+        updated_at: String::new(),
+        head_ref_name: "feature".into(),
+        base_ref_name: "main".into(),
+        head_ref_oid: None,
+    });
+    app.load_bookmarks();
+    assert!(app.bookmarks.bookmarks.is_empty());
+    assert!(app.bookmark_list.selected.is_none());
+    app.handle_bookmark_action(&ctx, BookmarkAction::Open(ids[1]));
+    assert!(!app.is_source_loading());
 }

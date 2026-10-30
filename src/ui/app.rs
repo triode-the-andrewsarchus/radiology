@@ -1,6 +1,7 @@
 //! Main application model and EGUI event loop lifecycle.
 
 mod actions;
+mod bookmarks;
 mod critical_marks;
 mod indexing;
 mod references;
@@ -141,6 +142,7 @@ pub struct RadiologyApp {
     definition_identity: Option<(SemanticSymbolID, std::ops::Range<usize>)>,
     definition_expanded: bool,
     reference_viewport: crate::ui::reference_list::ReferenceViewport,
+    bookmark_list: crate::ui::bookmark_list::BookmarkList,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -259,6 +261,7 @@ impl RadiologyApp {
             definition_identity: None,
             definition_expanded: false,
             reference_viewport: Default::default(),
+            bookmark_list: Default::default(),
             active_pr: None,
             review: None,
             review_rx: None,
@@ -496,50 +499,13 @@ impl RadiologyApp {
         self.pr_changes.clear();
         self.line_changes = None;
         self.bookmarks = BookmarkStore::new();
+        self.bookmark_list = Default::default();
         self.caret_line = 1;
         self.caret_col = 0;
         self.scroll_to_line = None;
         self.modal = ActiveModal::None;
         self.sidebar_tab = SidebarTab::Files;
         self.error = None;
-    }
-
-    fn bookmark_scope(&self) -> Option<BookmarkScope> {
-        self.repository_root
-            .as_ref()
-            .map(|root| BookmarkScope::new(root, self.active_pr.as_ref().map(|pr| pr.number)))
-    }
-
-    fn load_bookmarks(&mut self) {
-        if let (Some(dir), Some(scope)) = (self.session.config_directory(), self.bookmark_scope()) {
-            self.bookmarks = BookmarkStore::load_in(&dir, &scope);
-        }
-    }
-
-    fn save_bookmarks(&mut self) {
-        if let (Some(dir), Some(scope)) = (self.session.config_directory(), self.bookmark_scope()) {
-            if let Err(error) = self.bookmarks.save_in(&dir, &scope) {
-                self.error = Some(format!("Bookmarks could not be saved: {error}"));
-            }
-        }
-    }
-
-    fn open_bookmark(&mut self, index: usize) {
-        let Some(bookmark) = self.bookmarks.get_by_index(index).cloned() else {
-            return;
-        };
-        let location =
-            SourceLocation::with_revision(&bookmark.path, bookmark.byte_offset, bookmark.revision);
-        self.request_navigation(
-            location,
-            crate::source::loader::SourceTarget::Bookmark(bookmark),
-            source::NavigationIntent {
-                record_history: true,
-                reveal: true,
-                force_read: true,
-                ..Default::default()
-            },
-        );
     }
 
     /// Refreshes working tree Git changes when no pull request is actively being reviewed.
@@ -619,6 +585,7 @@ impl RadiologyApp {
         }
         let reader_focused = self.source_viewport.has_focus(ctx)
             || self.reference_viewport.has_focus(ctx)
+            || crate::ui::bookmark_list::BookmarkList::has_focus(ctx)
             || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id()));
         for command in super::commands::take_shortcuts(
             ctx,
@@ -633,6 +600,7 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
+            self.handle_bookmark_keys(ctx, input);
             for action in self.reference_viewport.take_raw_actions(ctx, input) {
                 self.handle_reference_action(action);
             }
@@ -924,8 +892,12 @@ impl eframe::App for RadiologyApp {
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
+                            bookmarks_enabled: self.bookmarks_enabled(),
+                            can_toggle_bookmark: self.can_toggle_bookmark(),
+                            current_bookmarked: self.current_bookmarked(),
                         },
                         &mut self.reference_viewport,
+                        &mut self.bookmark_list,
                     ) {
                         match action {
                             InspectorAction::Reference(action) => {
@@ -946,18 +918,8 @@ impl eframe::App for RadiologyApp {
                                     self.navigate(buffer.location_at_byte(byte), true);
                                 }
                             }
-                            InspectorAction::OpenBookmark(index) => self.open_bookmark(index),
-                            InspectorAction::RemoveBookmark(id) => {
-                                self.bookmarks.remove(id);
-                                self.save_bookmarks();
-                            }
-                            InspectorAction::MoveBookmarkUp(idx) => {
-                                self.bookmarks.move_up(idx);
-                                self.save_bookmarks();
-                            }
-                            InspectorAction::MoveBookmarkDown(idx) => {
-                                self.bookmarks.move_down(idx);
-                                self.save_bookmarks();
+                            InspectorAction::Bookmark(action) => {
+                                self.handle_bookmark_action(ctx, action)
                             }
                         }
                     }

@@ -56,13 +56,7 @@ impl RadiologyApp {
             GoToDefinition => self.go_to_definition(),
             FindReferences => self.find_references_at_caret(),
             OpenBookmark(index) => self.open_bookmark(index),
-            ToggleBookmark => {
-                if let Some(buffer) = &self.open_buffer {
-                    self.bookmarks
-                        .toggle(buffer, buffer.byte_offset(self.caret_line, self.caret_col));
-                    self.save_bookmarks();
-                }
-            }
+            ToggleBookmark => self.toggle_current_bookmark(),
             CollapseFunctions => self.fold_store.collapse_all_functions(&self.fold_ranges),
             FoldToDefinitions => self.fold_store.fold_to_definitions(&self.fold_ranges),
             OpenQuickFilePicker => {

@@ -216,6 +216,17 @@ pub(crate) fn retain_inspector_keys(ctx: &egui::Context, id: egui::Id) {
 }
 
 #[cfg(test)]
+pub(crate) fn test_key(key: Key) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
