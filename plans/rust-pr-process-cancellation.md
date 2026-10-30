@@ -110,6 +110,7 @@ Git-created stale lock files need broader acceptance. Worktree pruning is not a
 promise to recover every interrupted Git metadata/lock state. Successful repeated
 preparation currently retains independent trees, including unchanged-head refreshes;
 reusing proven complete trees belongs with cache provenance/retention work.
-The recent PR chooser, pinned After indexing, exact refresh caret/fold/pin/rename
+The [recent PR chooser](rust-pr-chooser.md) is now integrated and accepted natively.
+Pinned After indexing, exact refresh caret/fold/pin/rename
 mapping, notice/retry behavior and final UI/scaling/accessibility acceptance remain
 on the [full parity queue](rust-parity-implementation.md).

@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Native recent PR chooser acceptance (Codex)
+
+Recent chooser `99c0ae4` and tooltip follow-ups `cb106b0`/`87e31b8` are pushed.
+Native checks cover automatic 25-entry loading, wrapped titles/states, live list
+Cancel/reaping, retained data on authentication failure, recovery, an accepted
+empty list with active fallback, merged PR selection, same-commit bookmark scope,
+manual #99 outside the list and Exit PR retaining entries. Checkout HEAD/status/
+bytes stay unchanged. Final light/dark popup captures suppress header tooltip
+overlap; tracked app/compositor exits are zero. [Contract and hashed local evidence](plans/rust-pr-chooser.md).
+Final gates pass 365 app tests, eight shared tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc. Clone groups fall 91→90; four comparison flags are verified
+unchanged baseline fragments, with no new function hotspot/cycle. Full parity
+remains open: private-store concurrency/lock recovery and retention, full index
+provenance/provisioning/pinned After indexing, PR refresh mapping and final
+UI/accessibility/scaling/font-glyph/sibling reuse acceptance. Commit and push each increment.
+
 ## 2026-10-30 — PR menu tooltip overlap repair (Codex)
 
 Native chooser acceptance exposed the header tooltip covering open menu rows.
