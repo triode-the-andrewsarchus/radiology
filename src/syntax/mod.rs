@@ -9,6 +9,7 @@ pub mod folds;
 pub mod highlighter;
 pub mod language;
 pub mod outline;
+mod review_folds;
 pub mod test_detector;
 
 pub use folds::{FoldDetector, FoldRange, FoldStore};
@@ -49,7 +50,7 @@ impl DocumentSyntax {
                 calls::CallSites::default(),
             )
         };
-        let folds = FoldDetector::from_symbols(buffer, &symbols);
+        let folds = FoldDetector::from_symbols(buffer, &symbols, &calls);
         Self {
             symbols,
             folds,
@@ -58,3 +59,6 @@ impl DocumentSyntax {
         }
     }
 }
+
+#[cfg(test)]
+mod fold_defaults_tests;

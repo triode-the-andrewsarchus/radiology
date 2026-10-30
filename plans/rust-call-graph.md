@@ -156,3 +156,10 @@ NEUTRAL: no new clone/hotspot/cycle, max CCN unchanged, average CCN down 0.01.
 No drawing/typography changed; existing renderer acceptance remains applicable.
 Earlier whole-batch-only/pending-progress statements are superseded. Request/revisit
 cache reuse and the broader graph/language/runtime acceptance queue remain open.
+
+## Body-aligned folds (2026-10-30)
+
+Call scopes now retain exact body/annotated ranges. Source fold counts match both
+body start/end lines, while initial body/PR folding keeps multiline signatures
+visible. See [fold contract](rust-fold-restoration.md). Graph lexical ownership
+and summary classification are unchanged.

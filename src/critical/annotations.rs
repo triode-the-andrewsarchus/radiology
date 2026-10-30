@@ -161,17 +161,20 @@ fn compute(
         .scopes
         .iter()
         .enumerate()
-        .filter(|(_, scope)| scope.has_body && !scope.closure)
+        .filter(|(_, scope)| scope.has_body() && !scope.closure)
     {
         scopes
-            .entry(buffer.line_at_byte(scope.range.start))
+            .entry((
+                buffer.line_at_byte(scope.body_range.as_ref().unwrap().start),
+                buffer.line_at_byte(scope.body_range.as_ref().unwrap().end),
+            ))
             .or_insert(i);
     }
     let mut worker = CallGraphWorker::new(inputs);
     let mut entries = BTreeMap::new();
     for fold in folds {
         check_cancel(cancel)?;
-        let Some(&scope) = scopes.get(&fold.start_line) else {
+        let Some(&scope) = scopes.get(&(fold.start_line, fold.end_line)) else {
             continue;
         };
         let frontier = worker.frontier_in_source(scope, cancel)?;

@@ -86,11 +86,12 @@ for simultaneous inspector regions and source keyboard exclusion.
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
-- Remaining source presentation: initial fold defaults and exact PR-refresh fold/pin
-  mapping, AST-aware fallback occurrence scope, enclosing-function body
+- Remaining source presentation: broader query/Fold to Definitions behavior and exact
+  PR-refresh fold/pin mapping, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
-  fold restoration is integrated; see [acceptance](rust-fold-restoration.md).
+  fold restoration and initial body/PR defaults are integrated; see
+  [acceptance](rust-fold-restoration.md).
 - Swift/Kotlin highlighting and broader declaration/query-based folds/scopes;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
@@ -105,7 +106,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Complete PR workflow: recent-list chooser, cancellation/timeout of child
   processes, exact refresh caret/viewport/rename mapping and notice behavior,
   snapshot-cache retention, pinned After indexing and reuse provenance, disabled
-  unavailable revision/change controls and one-time review folding defaults.
+  unavailable revision/change controls and late-data/refresh folding behavior.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,

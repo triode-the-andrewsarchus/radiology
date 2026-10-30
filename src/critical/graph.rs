@@ -239,7 +239,7 @@ pub fn summarize(
     let Some(scope) = sites.scopes.get(scope_index) else {
         return fail(NoBodyReason::NoSyntax);
     };
-    if !scope.has_body {
+    if !scope.has_body() {
         return fail(NoBodyReason::Abstract);
     }
     let resolver = CalleeResolver::new(buffer, index);

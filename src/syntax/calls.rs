@@ -28,27 +28,61 @@ pub struct CallableScope {
     pub range: Range<usize>,
     /// Declaration name bytes, when the grammar exposes a name field.
     pub name: Option<Range<usize>>,
-    /// False for abstract signatures without a parsed body.
-    pub has_body: bool,
+    /// Parsed body bytes, absent for abstract signatures.
+    pub body_range: Option<Range<usize>>,
+    /// Declaration bytes including attached Rust attributes or Python decorators.
+    pub annotated_range: Range<usize>,
 }
 
 impl CallableScope {
+    /// Returns whether this callable has a parsed body rather than an abstract signature.
+    #[must_use]
+    pub fn has_body(&self) -> bool {
+        self.body_range.is_some()
+    }
+
     fn from_node(node: Node<'_>, closure: bool) -> Self {
         let mut cursor = node.walk();
-        let has_body = closure
-            || node.child_by_field_name("body").is_some()
-            || node
-                .named_children(&mut cursor)
-                .any(|child| matches!(child.kind(), "block" | "function_body"));
+        let body = node.child_by_field_name("body").or_else(|| {
+            node.named_children(&mut cursor)
+                .find(|child| matches!(child.kind(), "block" | "function_body"))
+        });
         Self {
             closure,
             range: node.byte_range(),
             name: node
                 .child_by_field_name("name")
                 .map(|name| name.byte_range()),
-            has_body,
+            body_range: body
+                .map(|body| body.byte_range())
+                .or_else(|| closure.then(|| node.byte_range())),
+            annotated_range: annotated_range(node),
         }
     }
+}
+
+fn annotated_range(node: Node<'_>) -> Range<usize> {
+    let mut range = node.byte_range();
+    if node.kind() == "function_definition" {
+        if let Some(parent) = node
+            .parent()
+            .filter(|parent| parent.kind() == "decorated_definition")
+        {
+            return parent.byte_range();
+        }
+    }
+    if node.kind() == "function_item" {
+        let mut previous = node.prev_named_sibling();
+        while let Some(sibling) = previous {
+            match sibling.kind() {
+                "attribute_item" => range.start = sibling.start_byte(),
+                "line_comment" | "block_comment" => {}
+                _ => break,
+            }
+            previous = sibling.prev_named_sibling();
+        }
+    }
+    range
 }
 
 /// Call-query coverage for one exact document parse.
@@ -130,7 +164,8 @@ fn query(grammar: SupportedGrammar) -> Result<&'static Query, String> {
                 C => "(function_definition) @scope.function",
             };
             let scopes = scopes.lines().filter(|line| line.contains("@scope.function") || line.contains("@scope.closure")).collect::<Vec<_>>().join("\n");
-            let source = format!("{source}\n{scopes}");
+            let protocol_scope = if grammar == Swift { "(protocol_function_declaration) @scope.function" } else { "" };
+            let source = format!("{source}\n{scopes}\n{protocol_scope}");
             (grammar, Query::new(&grammar.language(), &source).map_err(|error| error.to_string()))
         }).collect()
     }).get(&grammar).expect("registered call grammar").as_ref().map_err(Clone::clone)
@@ -318,7 +353,7 @@ mod tests {
                 !syntax.calls.scopes.is_empty(),
                 "missing callable scope for {path}"
             );
-            assert!(syntax.calls.scopes[0].has_body, "missing body for {path}");
+            assert!(syntax.calls.scopes[0].has_body(), "missing body for {path}");
             assert!(
                 syntax.calls.sites.iter().all(|site| site.owner == Some(0)),
                 "wrong lexical ownership for {path}"

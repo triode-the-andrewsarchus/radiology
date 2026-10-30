@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Initial callable-body and PR fold defaults (Codex)
+
+Fresh files collapse parsed bodies while retaining multiline signatures and open
+containers. PR defaults open changed bodies/headers/annotations and ancestors on
+the correct revision side, with careful empty-side/EOF ownership. Default choices
+are prepared in the source worker and applied once before destination reveal;
+manual/restored fully expanded sets remain initialized and are never overwritten.
+Body ranges now drive function folds and count matching. Eight new syntax/app
+tests include pinned Git data, Rust/Python ownership, abstract Swift signatures,
+Hide Tests and manual revisit choices. Native first-open/signature/sibling and
+restored-expansion checks pass; app/compositors exit zero. Full gates: 203 app
+tests, 5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. Architecture
+retains short test clones, without a new product hotspot/cycle. Fold to Definitions,
+broader query coverage, late-data/refresh mapping and full parity remain open.
+[Contract and evidence](plans/rust-fold-restoration.md).
+
 ## 2026-10-30 — Exact-document fold choices and shared presentation memory (Codex)
 
 File return and unchanged reload now restore collapsed regions by path/revision/
