@@ -135,3 +135,24 @@ interactive popup destinations and exact Back restoration. See
 [hover implementation and native evidence](rust-critical-hover.md). Earlier hover
 absence statements are superseded. Progressive count publication, request/revisit
 cache reuse and broader language/runtime acceptance remain open.
+
+## Progressive function counts (2026-10-30)
+
+The fold sweep now publishes after every six completed functions and flushes the
+remainder, yielding between roots. Completed counts appear while later bodies are
+still being analyzed. A request-local coalescing slot stores unconsumed deltas;
+there is no per-event queue or repeated cloning of the whole prefix. The existing
+LatestRead still owns cancellation and terminal publication. Replacement drops the
+reader's old slot, so late writes from a retired source/policy remain unreachable.
+Poll observes terminal completion before draining progress, ensuring a final batch
+racing that frame cannot be lost. A later failure preserves completed function
+counts with the failure reported separately. Source identity guards are unchanged.
+
+Three new tests prove six-plus-one publication/cancellation, actual counts visible
+while a controlled worker is confirmed running, retention after later failure and
+late old-slot writes after a new policy starts. Gates pass: 193 application tests,
+5 reader-text tests, 30 doctests, fmt, Clippy, build and rustdoc. Architecture is
+NEUTRAL: no new clone/hotspot/cycle, max CCN unchanged, average CCN down 0.01.
+No drawing/typography changed; existing renderer acceptance remains applicable.
+Earlier whole-batch-only/pending-progress statements are superseded. Request/revisit
+cache reuse and the broader graph/language/runtime acceptance queue remain open.

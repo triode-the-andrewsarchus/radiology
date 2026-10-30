@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Progressive source function counts (Codex)
+
+Fold counts now publish six completed functions at a time and flush the remainder,
+yielding between roots. A request-local coalescing slot and existing LatestRead
+retain cancellation/generation ownership without an event backlog or whole-prefix
+cloning. Completion drains the final batch; later errors retain valid counts.
+Three new tests prove live progress, late-error retention and retired-slot isolation.
+Full gates pass: 193 application tests, 5 reader-text tests, 30 doctests, fmt,
+Clippy, build and rustdoc. Architecture is NEUTRAL, with no new clone/hotspot/cycle.
+Full parity and request/revisit cache reuse remain open.
+[Contract](plans/rust-call-graph.md).
+
 ## 2026-10-30 — Interactive Critical Lens source hover (Codex)
 
 Connected exact measured source hits to dwell/grace summaries with stable popup

@@ -95,8 +95,8 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,
   independent inspector keyboard preview/commit behavior.
-- Critical Lens progressive fold-count publication, request/revisit cache reuse
-  and broader corpus/runtime acceptance. Pointer-dwell hover summaries/navigation
+- Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
+  Fold counts now publish progressively with retired-request isolation. Pointer-dwell hover summaries/navigation
   are integrated; see [hover acceptance](rust-critical-hover.md). Parsed summaries, bounded
   frontiers and snapshot workers now feed source fold counts; see
   [graph/count acceptance](rust-call-graph.md). Exact background projection and

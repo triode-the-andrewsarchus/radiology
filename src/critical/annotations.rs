@@ -8,7 +8,7 @@ use super::{
 use crate::{background::LatestRead, source::SourceBuffer, syntax::FoldRange};
 use std::{
     collections::BTreeMap,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
 /// Count and coverage detail for one source function's fold lane.
@@ -44,10 +44,28 @@ impl SourceAnnotations {
     }
 }
 
+// A request owns its slot. Retirement drops the reader's handle, so an old
+// worker cannot publish into a replacement even when source paths are identical.
+#[derive(Clone)]
+struct PendingCounts {
+    buffer: Arc<SourceBuffer>,
+    entries: Arc<Mutex<BTreeMap<usize, FoldAnnotation>>>,
+}
+
+impl PendingCounts {
+    fn publish(&self, mut batch: BTreeMap<usize, FoldAnnotation>) {
+        self.entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .append(&mut batch);
+    }
+}
+
 /// Owns source-count requests without moving caret, selection or navigation history.
 #[derive(Default)]
 pub struct CriticalAnnotations {
-    job: LatestRead<Result<SourceAnnotations, String>>,
+    job: LatestRead<Result<(), String>>,
+    pending: Option<PendingCounts>,
     current: Option<SourceAnnotations>,
     error: Option<String>,
 }
@@ -56,13 +74,19 @@ impl CriticalAnnotations {
     /// Schedules a fold-only sweep on the existing bounded read-worker pool.
     pub fn start(&mut self, inputs: GraphInputs, folds: Vec<FoldRange>) {
         self.stop();
+        let pending = PendingCounts {
+            buffer: inputs.buffer.clone(),
+            entries: Default::default(),
+        };
+        self.pending = Some(pending.clone());
         self.job
-            .spawn(move |cancel| compute(inputs, &folds, cancel));
+            .spawn(move |cancel| compute(inputs, &folds, cancel, |batch| pending.publish(batch)));
     }
 
     /// Retires pending work and all publications when any captured input changes.
     pub fn stop(&mut self) {
         self.job.stop();
+        self.pending = None;
         self.current = None;
         self.error = None;
     }
@@ -87,14 +111,39 @@ impl CriticalAnnotations {
         self.error.as_deref()
     }
 
-    /// Publishes the current completed request, ignoring retired generations.
+    /// Merges available batches while running and drains the final batch on completion.
+    /// Completed function counts remain usable if later analysis fails.
     pub fn poll(&mut self) {
-        match self.job.poll() {
-            Ok(Some(Ok(annotations))) => self.current = Some(annotations),
+        // Observe completion first: its channel send follows the final slot write.
+        // Draining afterward cannot lose a last batch racing this frame's poll.
+        let completion = self.job.poll();
+        self.take_progress();
+        match completion {
+            Ok(Some(Ok(()))) => {}
             Ok(Some(Err(error))) => self.error = Some(error),
             Err(_) => self.error = Some("Critical count worker stopped unexpectedly".into()),
             Ok(None) => {}
         }
+    }
+
+    fn take_progress(&mut self) {
+        let Some(pending) = &self.pending else {
+            return;
+        };
+        let batch = std::mem::take(
+            &mut *pending
+                .entries
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()),
+        );
+        if batch.is_empty() {
+            return;
+        }
+        let current = self.current.get_or_insert_with(|| SourceAnnotations {
+            buffer: pending.buffer.clone(),
+            entries: BTreeMap::new(),
+        });
+        current.entries.extend(batch);
     }
 }
 
@@ -102,7 +151,8 @@ fn compute(
     inputs: GraphInputs,
     folds: &[FoldRange],
     cancel: &AtomicBool,
-) -> Result<SourceAnnotations, String> {
+    mut publish: impl FnMut(BTreeMap<usize, FoldAnnotation>),
+) -> Result<(), String> {
     check_cancel(cancel)?;
     let buffer = inputs.buffer.clone();
     let mut scopes = BTreeMap::new();
@@ -132,8 +182,17 @@ fn compute(
                 detail: frontier.status_detail(),
             },
         );
+        check_cancel(cancel)?;
+        if entries.len() >= 6 {
+            publish(std::mem::take(&mut entries));
+        }
+        std::thread::yield_now();
     }
-    Ok(SourceAnnotations { buffer, entries })
+    check_cancel(cancel)?;
+    if !entries.is_empty() {
+        publish(entries);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
