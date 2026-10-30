@@ -286,7 +286,7 @@ pub(crate) fn show_coverage(
     loading: bool,
 ) -> Option<ReferenceAction> {
     if results.reference_count == 0 && !loading {
-        ui.colored_label(theme.text_muted, "No indexed references.");
+        ui.colored_label(theme.text_muted, "No references shown.");
     }
     if results.unmapped > 0 || !results.unreadable.is_empty() {
         ui.colored_label(theme.text_muted, format!("{} unmapped · {} unreadable files", results.unmapped, results.unreadable.len()))
@@ -306,6 +306,7 @@ pub(crate) fn show_coverage(
                 .add_enabled(!loading, egui::Button::new("Load More").small())
                 .clicked()
             {
+                ui.memory_mut(|memory| memory.request_focus(ReferenceViewport::focus_id()));
                 action = Some(ReferenceAction::More);
             }
         });
@@ -331,16 +332,47 @@ fn paint_source_line(ui: &Ui, theme: &AppTheme, hit: &ReferenceHit, rect: egui::
             (x(emphasis.start) - rect.width() * 0.25).max(0.0)
         }
     });
+    let ellipsis =
+        ui.painter()
+            .layout_no_wrap("…".into(), egui::FontId::monospace(12.0), theme.text_muted);
+    let left = if offset > 0.0 { ellipsis.size().x } else { 0.0 };
+    let right = if galley.size().x - offset + left > rect.width() {
+        ellipsis.size().x
+    } else {
+        0.0
+    };
+    let clip = egui::Rect::from_min_max(
+        egui::pos2(rect.left() + left, rect.top()),
+        egui::pos2(
+            (rect.right() - right).max(rect.left() + left),
+            rect.bottom(),
+        ),
+    );
     ui.painter()
-        .with_clip_rect(rect.intersect(ui.clip_rect()))
+        .with_clip_rect(clip.intersect(ui.clip_rect()))
         .galley(
             egui::pos2(
-                rect.left() - offset,
+                rect.left() + left - offset,
                 rect.center().y - galley.size().y / 2.0,
             ),
             galley,
             theme.text_primary,
         );
+    let y = rect.center().y - ellipsis.size().y / 2.0;
+    if left > 0.0 {
+        ui.painter().galley(
+            egui::pos2(rect.left(), y),
+            ellipsis.clone(),
+            theme.text_muted,
+        );
+    }
+    if right > 0.0 {
+        ui.painter().galley(
+            egui::pos2(rect.right() - right, y),
+            ellipsis,
+            theme.text_muted,
+        );
+    }
 }
 
 fn render_group(
@@ -553,5 +585,109 @@ mod tests {
             assert_eq!(frame(Some(key)), [expected]);
             assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
         }
+    }
+    #[test]
+    fn narrow_source_rows_keep_the_indexed_match_visible_and_mark_cropped_text() {
+        let ctx = Context::default();
+        let mut hit = test_hit(0);
+        hit.source_line.text = format!("{}target();{}", "prefix ".repeat(40), " tail".repeat(40));
+        let start = hit.source_line.text.find("target").unwrap();
+        hit.source_line.emphasis = Some(start..start + 6);
+        hit.byte_range = start..start + 6;
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(220.0, 160.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    render_row(ui, &AppTheme::dark(), &hit, 0, false, false);
+                });
+            },
+        );
+        let source = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == hit.source_line.text => {
+                    Some((shape.clip_rect, text))
+                }
+                _ => None,
+            })
+            .unwrap();
+        for position in [start, start + 6] {
+            let cursor = source
+                .1
+                .galley
+                .from_ccursor(egui::text::CCursor::new(position));
+            let point = source.1.pos
+                + source
+                    .1
+                    .galley
+                    .pos_from_cursor(&cursor)
+                    .left_center()
+                    .to_vec2();
+            assert!(
+                source.0.contains(point),
+                "indexed match is outside the row clip"
+            );
+        }
+        assert!(output.shapes.iter().any(
+            |shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "…")
+        ));
+    }
+
+    #[test]
+    fn load_more_returns_focus_to_the_reference_list() {
+        let ctx = Context::default();
+        let mut results = test_results(vec![test_hit(0)]);
+        results.omitted = 2;
+        let mut viewport = ReferenceViewport::default();
+        let mut action = None;
+        let mut render = |events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(320.0, 300.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        action = show_coverage(ui, &AppTheme::dark(), &results, false);
+                        viewport.show(ui, &AppTheme::dark(), &results, Some(0), &BTreeMap::new());
+                    });
+                },
+            )
+        };
+        let initial = render(vec![]);
+        let position = initial
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == "Load More" => {
+                    Some(text.pos + egui::vec2(10.0, 7.0))
+                }
+                _ => None,
+            })
+            .unwrap();
+        for pressed in [true, false] {
+            render(vec![
+                Event::PointerMoved(position),
+                Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                },
+            ]);
+        }
+        assert_eq!(action, Some(ReferenceAction::More));
+        assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
     }
 }
