@@ -1,6 +1,6 @@
 //! A source-bound landing cue whose clock starts when the reader paints it.
 
-use crate::source::SourceBuffer;
+use crate::source::{ReviewRevision, SourceBuffer};
 use std::time::Duration;
 
 const HOLD: f64 = 0.9;
@@ -12,7 +12,7 @@ pub(super) struct DestinationFeedback {
 }
 
 struct Target {
-    document: (String, String),
+    document: (String, Option<ReviewRevision>, String),
     byte: usize,
     started: Option<f64>,
 }
@@ -27,7 +27,11 @@ pub(super) struct FeedbackFrame {
 impl DestinationFeedback {
     pub fn request(&mut self, buffer: &SourceBuffer, byte: usize) {
         self.target = Some(Target {
-            document: (buffer.position_key(), buffer.content_digest().to_owned()),
+            document: (
+                buffer.path.clone(),
+                buffer.revision,
+                buffer.content_digest().to_owned(),
+            ),
             byte: buffer.clamp_to_char_boundary(byte.min(buffer.byte_len())),
             started: None,
         });
@@ -44,8 +48,9 @@ impl DestinationFeedback {
         animate: bool,
     ) -> Option<FeedbackFrame> {
         let target = self.target.as_mut()?;
-        if target.document.0 != buffer.position_key()
-            || target.document.1 != buffer.content_digest()
+        if target.document.0 != buffer.path
+            || target.document.1 != buffer.revision
+            || target.document.2 != buffer.content_digest()
             || !now.is_finite()
         {
             self.cancel();
@@ -111,6 +116,12 @@ mod tests {
             assert!(feedback.frame(&other, 1.0, true).is_none());
             assert!(feedback.frame(&source, 1.0, true).is_none());
         }
+        let before =
+            SourceBuffer::from_bytes("a.rs", source.data.clone(), Some(ReviewRevision::Before))
+                .unwrap();
+        let colon_path = SourceBuffer::from_str("before:a.rs", &source.text);
+        feedback.request(&before, 3);
+        assert!(feedback.frame(&colon_path, 1.0, true).is_none());
         feedback.request(&source, 3);
         feedback.cancel();
         assert!(feedback.frame(&source, 1.0, true).is_none());
