@@ -641,6 +641,37 @@ impl SemanticIndex {
         self.find_definition_for_id(&id)
     }
 
+    /// Returns all direct definitions, falling back to indexed definition relationships.
+    pub(crate) fn definition_locations_for_id(
+        &self,
+        id: &SemanticSymbolID,
+    ) -> Vec<(&str, &ScipRange)> {
+        if let Some(definitions) = self
+            .definitions
+            .get(id)
+            .filter(|definitions| !definitions.is_empty())
+        {
+            return definitions
+                .iter()
+                .map(|(path, range)| (path.as_str(), range))
+                .collect();
+        }
+        self.symbols
+            .get(id)
+            .into_iter()
+            .flat_map(|symbol| &symbol.relationships)
+            .filter(|relationship| relationship.is_definition)
+            .flat_map(|relationship| {
+                let related = SemanticSymbolID::new(
+                    &relationship.symbol,
+                    id.document.as_deref().unwrap_or(""),
+                );
+                self.definitions.get(&related).into_iter().flatten()
+            })
+            .map(|(path, range)| (path.as_str(), range))
+            .collect()
+    }
+
     /// Resolves the canonical definition file path and coordinate range for `id`.
     #[must_use]
     pub fn find_definition_for_id(&self, id: &SemanticSymbolID) -> Option<(&str, &ScipRange)> {

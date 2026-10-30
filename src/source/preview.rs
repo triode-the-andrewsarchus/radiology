@@ -56,10 +56,31 @@ pub enum PreviewPhase {
     Unavailable(String),
 }
 
-pub(crate) struct PreviewInputs {
+/// Captured storage, displayed bytes and index for exact-source semantic queries.
+pub struct SourceQueryInputs {
+    /// Checkout or pinned review storage selected before the query starts.
     pub source: SourceRead,
+    /// Immutable displayed bytes, which take precedence over storage reads.
     pub buffer: Arc<SourceBuffer>,
+    /// Immutable index whose coordinates and source provenance must be validated.
     pub index: Arc<SemanticIndex>,
+}
+
+impl SourceQueryInputs {
+    pub(crate) fn read(&self, path: &str) -> Result<Arc<SourceBuffer>, String> {
+        if !SourceLocation::is_repository_path(path) {
+            return Err("Invalid repository-relative source path".into());
+        }
+        if path == self.buffer.path {
+            Ok(self.buffer.clone())
+        } else {
+            self.source.read(&SourceLocation::with_revision(
+                path,
+                0,
+                self.buffer.revision,
+            ))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,7 +99,7 @@ pub(crate) struct PreviewTarget {
 /// Owns a replaceable source excerpt and rejects retired worker publications.
 #[derive(Default)]
 pub struct SourcePreviewLoader {
-    inputs: Option<Arc<PreviewInputs>>,
+    inputs: Option<Arc<SourceQueryInputs>>,
     target: Option<PreviewTarget>,
     job: LatestRead<Result<SourcePreview, String>>,
     phase: PreviewPhase,
@@ -93,7 +114,7 @@ impl SourcePreviewLoader {
 
     pub(crate) fn request(
         &mut self,
-        inputs: Option<Arc<PreviewInputs>>,
+        inputs: Option<Arc<SourceQueryInputs>>,
         target: Option<PreviewTarget>,
     ) -> bool {
         let same_inputs = match (&self.inputs, &inputs) {
@@ -137,7 +158,7 @@ impl SourcePreviewLoader {
 }
 
 fn prepare(
-    inputs: &PreviewInputs,
+    inputs: &SourceQueryInputs,
     target: &PreviewTarget,
     cancel: &AtomicBool,
 ) -> Result<SourcePreview, String> {
@@ -145,15 +166,7 @@ fn prepare(
     if inputs.buffer.revision == Some(ReviewRevision::Before) {
         return Err("After semantic previews are unavailable in Before source.".into());
     }
-    let buffer = if target.path == inputs.buffer.path {
-        inputs.buffer.clone()
-    } else {
-        inputs.source.read(&SourceLocation::with_revision(
-            &target.path,
-            0,
-            inputs.buffer.revision,
-        ))?
-    };
+    let buffer = inputs.read(&target.path)?;
     check_cancel(cancel)?;
     let range = inputs
         .index
@@ -216,7 +229,11 @@ fn declaration_end(symbols: &[DocumentSymbol], byte: usize) -> Option<usize> {
         .map(|symbol| symbol.range.end)
 }
 
-fn preview_line(buffer: &SourceBuffer, number: usize, occurrence: &Range<usize>) -> PreviewLine {
+pub(crate) fn preview_line(
+    buffer: &SourceBuffer,
+    number: usize,
+    occurrence: &Range<usize>,
+) -> PreviewLine {
     const LINE_BYTES: usize = 2048;
     let line = buffer.line_byte_range(number);
     let focus = if line.contains(&occurrence.start) {
@@ -226,8 +243,10 @@ fn preview_line(buffer: &SourceBuffer, number: usize, occurrence: &Range<usize>)
     };
     let start = buffer.clamp_to_char_boundary(focus.saturating_sub(LINE_BYTES / 4).max(line.start));
     let end = buffer.clamp_to_char_boundary(start.saturating_add(LINE_BYTES).min(line.end));
-    let emphasis = (start <= occurrence.start && occurrence.end <= end)
-        .then(|| occurrence.start - start..occurrence.end - start);
+    let overlap = occurrence.start.max(start)..occurrence.end.min(end);
+    let emphasis =
+        (overlap.start < overlap.end).then(|| overlap.start - start..overlap.end - start);
+
     PreviewLine {
         number,
         text: buffer.text[start..end].to_owned(),
@@ -249,7 +268,7 @@ mod tests {
     use super::*;
     use crate::semantic::{ScipDocument, ScipIndex};
 
-    fn inputs(buffer: SourceBuffer) -> Arc<PreviewInputs> {
+    fn inputs(buffer: SourceBuffer) -> Arc<SourceQueryInputs> {
         let mut index = SemanticIndex::from_scip(ScipIndex {
             documents: vec![ScipDocument {
                 relative_path: buffer.path.clone(),
@@ -262,7 +281,7 @@ mod tests {
             .source_digests
             .insert(buffer.path.clone(), buffer.content_digest().into());
         let buffer = Arc::new(buffer);
-        Arc::new(PreviewInputs {
+        Arc::new(SourceQueryInputs {
             source: SourceRead::Buffer(buffer.clone()),
             buffer,
             index: Arc::new(index),

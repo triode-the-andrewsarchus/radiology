@@ -131,7 +131,7 @@ pub struct RadiologyApp {
         crate::semantic::indexing::tools::ToolAvailability,
     >,
     reference_context: ReferenceContext,
-    preview_inputs: Option<Arc<crate::source::preview::PreviewInputs>>,
+    preview_inputs: Option<Arc<crate::source::preview::SourceQueryInputs>>,
     definition_preview: crate::source::preview::SourcePreviewLoader,
     definition_identity: Option<(SemanticSymbolID, std::ops::Range<usize>)>,
     definition_expanded: bool,
