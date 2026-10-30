@@ -68,6 +68,10 @@ and the remaining generation/cache requirements.
   document/revision/content activation restores them after navigation and rejects
   changed bytes. Scrollable group controls remove individual/current-document
   pins. [Pin acceptance and remaining scope](rust-occurrence-pins.md).
+- Critical Lens uses background, exact-source call projections with shared Swift
+  queries and semantic classification. Ordinary resolved callees recede; unknown
+  and critical call names remain prominent. Renderer span splitting preserves
+  original text/geometry and replaces color/name guessing. [Lens limits](rust-critical-lens.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -91,8 +95,9 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
   explicit Find References and Follow Caret, full source definition previews,
   independent inspector keyboard preview/commit behavior.
-- Semantic Critical Lens projection, persisted symbol/package marks, call graph,
-  frontier/hover summaries and fold annotations.
+- Critical Lens persisted symbol/package marks and menus, call graph,
+  frontier/hover summaries, fold annotations and broader acceptance. Exact
+  background source projection is integrated.
 - Complete PR workflow: recent-list chooser, cancellation/timeout of child
   processes, exact refresh caret/viewport/rename mapping and notice behavior,
   snapshot-cache retention, pinned After indexing and reuse provenance, disabled

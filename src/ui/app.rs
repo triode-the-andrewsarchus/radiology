@@ -102,7 +102,9 @@ pub struct RadiologyApp {
     /// Pinned token occurrence groups.
     pub pin_store: OccurrencePinStore,
     /// SCIP semantic index if loaded.
-    pub semantic_index: Option<SemanticIndex>,
+    pub semantic_index: Option<Arc<SemanticIndex>>,
+    call_sites: Arc<crate::syntax::calls::CallSites>,
+    critical_lens: crate::critical::service::CriticalLens,
     /// Configurable tool lookup context shared by probes and generation.
     pub index_tools: crate::semantic::indexing::tools::ToolDirectory,
     index_importer: crate::semantic::loader::IndexImporter,
@@ -213,6 +215,8 @@ impl RadiologyApp {
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
+            call_sites: Default::default(),
+            critical_lens: Default::default(),
             index_tools,
             index_importer: Default::default(),
             index_generator: Default::default(),
@@ -438,6 +442,8 @@ impl RadiologyApp {
         self.open_buffer = None;
         self.history.clear();
         self.pin_store.clear();
+        self.call_sites = Default::default();
+        self.critical_lens.stop();
         self.fold_store.unfold_all();
         self.fold_ranges.clear();
         self.outline_symbols.clear();
@@ -660,7 +666,7 @@ impl eframe::App for RadiologyApp {
                     ctx,
                     &self.theme,
                     self.semantic_index
-                        .as_ref()
+                        .as_deref()
                         .filter(|_| self.active_revision != Some(ReviewRevision::Before)),
                     &self.outline_symbols,
                 ) {
@@ -840,7 +846,7 @@ impl eframe::App for RadiologyApp {
                         .as_ref()
                         .filter(|buf| buf.revision != Some(ReviewRevision::Before))
                         .and_then(|buf| {
-                            self.semantic_index.as_ref().and_then(|idx| {
+                            self.semantic_index.as_deref().and_then(|idx| {
                                 let byte = buf.byte_offset(self.caret_line, self.caret_col);
                                 idx.occurrence_at_byte(buf, byte).and_then(|occ| {
                                     idx.symbol_info_for_id(&SemanticSymbolID::new(
@@ -852,7 +858,7 @@ impl eframe::App for RadiologyApp {
                         });
 
                     let def_loc = current_sym_info.and_then(|s| {
-                        self.semantic_index.as_ref().and_then(|idx| {
+                        self.semantic_index.as_deref().and_then(|idx| {
                             idx.find_definition_for_id(&SemanticSymbolID::new(
                                 &s.symbol,
                                 self.selected_path.as_deref().unwrap_or(""),
@@ -966,6 +972,8 @@ impl eframe::App for RadiologyApp {
                         &self.theme,
                         SourceViewContent {
                             mode: self.mode,
+                            projection: self.critical_lens.projection(&buf),
+                            critical_status: self.critical_status(),
                             buffer: &buf,
                             highlighted_lines: &self.highlighted_lines,
                             caret_line: &mut self.caret_line,
@@ -977,11 +985,13 @@ impl eframe::App for RadiologyApp {
                             wrap_lines: self.session.wrap_lines,
                             enclosing_symbols: &enclosing,
                             scroll_to_line: &mut self.scroll_to_line,
-                            has_semantic_index: self.semantic_index.as_ref().is_some_and(|index| {
-                                index.documents.contains_key(&buf.path)
-                                    && index.matches_buffer(&buf)
-                                    && index.column_encoding(&buf.path).is_some()
-                            }) && buf.revision != Some(ReviewRevision::Before),
+                            has_semantic_index: self.semantic_index.as_deref().is_some_and(
+                                |index| {
+                                    index.documents.contains_key(&buf.path)
+                                        && index.matches_buffer(&buf)
+                                        && index.column_encoding(&buf.path).is_some()
+                                },
+                            ) && buf.revision != Some(ReviewRevision::Before),
                             keyboard_enabled: matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,
                             font_size: self.session.source_font_size,

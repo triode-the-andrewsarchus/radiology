@@ -8,6 +8,7 @@ use crate::semantic::loader::IndexImportStatus;
 
 impl RadiologyApp {
     pub(super) fn reset_index_state(&mut self) {
+        self.critical_lens.stop();
         self.index_importer = Default::default();
         self.index_generator = Default::default();
         self.generation_report = None;
@@ -127,8 +128,9 @@ impl RadiologyApp {
     /// Embedded hosts may drive this independently of the eframe loop.
     pub fn poll_index(&mut self, ctx: &Context) {
         if let Some(index) = self.index_importer.poll() {
-            self.semantic_index = Some(index);
+            self.semantic_index = Some(Arc::new(index));
             self.refresh_symbol_context();
+            self.refresh_critical_projection();
         }
         match self.index_plan_job.poll() {
             Ok(Some(plan)) => self.index_plan = plan,
@@ -150,8 +152,9 @@ impl RadiologyApp {
         let loading_cache = self.index_cache_status() == &CacheLoadStatus::Loading;
         if let Some(generated) = self.index_generator.poll() {
             if let Some(index) = generated.index {
-                self.semantic_index = Some(index);
+                self.semantic_index = Some(Arc::new(index));
                 self.refresh_symbol_context();
+                self.refresh_critical_projection();
             }
             self.index_plan = generated.report.plan.clone();
             self.generation_report = Some(generated.report);

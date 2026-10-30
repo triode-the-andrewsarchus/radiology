@@ -5,6 +5,7 @@
 
 pub mod lens;
 pub mod projection;
+pub mod service;
 
 pub use lens::{
     CountAnnotation, CountCompleteness, Criticality, CriticalityClassification,
