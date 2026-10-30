@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Native pinned index acceptance and accurate partial-index warnings (Codex)
+
+Implementation `509d0c2` is pushed. Native Generate After Index used exact committed
+source in a disposable workspace; partial coverage stayed explicit. A controlled
+compiler failure retained accepted semantics; reload and restart reused the cache
+without another indexer run. Two runs total: success and deliberate failure.
+Checkout HEAD/status/bytes remain unchanged; temporary artifacts are removed.
+Native follow-up exposed false stale-source warnings for Before and files omitted
+from a partial index. Warnings now require an indexed After/checkout document with
+changed bytes. Rendered UI regression checks and final native captures verify both
+cases. Five focused review tests, strict Clippy and build pass after the final fix;
+full 384 app tests/eight shared/30 doctests, fmt and rustdoc passed before its final
+uncovered-file predicate adjustment. [Contract and hashed native evidence](plans/rust-pinned-index.md).
+Full parity remains open: complete index lifecycle/provisioning/version-aware reuse,
+precise PR refresh restoration, broader recovery and final UI/sibling acceptance.
+Commit and push each increment.
+
 ## 2026-10-30 — Pinned After index generation and cache reload (Codex)
 
 Review generation now reuses the isolated indexing pipeline with snapshot-owned

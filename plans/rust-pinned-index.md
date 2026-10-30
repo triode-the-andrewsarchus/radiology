@@ -54,7 +54,39 @@ exact unchanged baseline text. New duplicate indexer fixtures share one helper;
 baseline preparation and verification form one cohesive request stage.
 Logs: `/tmp/radiology-pinned-index-{all-tests,clippy,build,doc}.log`.
 
-Native Generate/Reload acceptance is pending. Full parity remains open: complete
+## Native acceptance and warning cleanup
+
+A private 1280×900 Wayland session opened PR #7 at pinned commit
+`c415aae8e23e15932f59e926146c4983753b976f`. Generate After Index ran the controlled
+indexer in a disposable workspace containing the committed After source, not the
+dirty checkout. One indexed document and one missing source file correctly produce
+partial coverage. A controlled compiler failure retained accepted semantic data;
+Reload Index restored the saved cache. Reopening the app and review reused that
+cache. Exactly two tool runs occurred: initial success and deliberate failure;
+reload and both restarts added none. Both workspaces and their artifacts were removed.
+The checkout HEAD, dirty status and source bytes compare unchanged.
+
+The native check exposed a stale-source warning while viewing Before, and another
+for an unindexed file in a partial index. The follow-up limits that warning to
+indexed documents with mismatched bytes. A rendered UI test checks Before and an
+unindexed After manifest. Native final captures confirm the source-only Before
+reader and the uncovered After manifest without false mismatch/reload warnings.
+The final focused five review tests, strict Clippy and build pass; the full
+384/eight/30 test run and rustdoc also passed before the final uncovered-file
+predicate adjustment. No additional compiler integration or broad UI audit is implied.
+
+Artifacts: `/tmp/radiology-pinned-index-native/manifest.json`, `acceptance.json`,
+`tool-runs.jsonl`, and the hashed captures `after-generated-projects.png`,
+`failed-reindex-retained.png`, `cached-after-reload-accepted.png`,
+`final-reopened-partial-cache.png`, `final-cached-after-source.png`, and
+`final-before-source-only.png`. Initial and final tracked app and compositor exit
+statuses are zero; the QA hover helper's -15 is intentional cleanup. The capture
+helper tracks repeated app names by their latest process, so it does not retain a
+separate exit-status record for the intermediate restart. Sibling capture helpers
+are QA only; the app remains independently built and run. Controlled tool/gh
+responses use local fixtures and make no remote PR writes.
+
+Full parity remains open: complete
 provisioning/version/project cache lifecycle, precise PR refresh restoration,
 broader corrupt-store recovery, and final visual/accessibility/scaling and sibling
 reuse acceptance.
