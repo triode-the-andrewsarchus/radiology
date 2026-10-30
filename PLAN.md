@@ -14,6 +14,10 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits as work progresses.
 
+[Bookmark pane behavior and native acceptance](plans/rust-bookmark-pane.md)
+records identity-based keyboard selection, shortcut assignment, drag reordering,
+scoped persistence and remaining bookmark/outline acceptance.
+
 [Shared source viewport primitives and integration contract](plans/shared-text-viewport.md)
 records the standalone `reader-text` package extracted from existing host mechanisms.
 
