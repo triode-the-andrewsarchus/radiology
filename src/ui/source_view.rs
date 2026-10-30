@@ -95,6 +95,8 @@ pub struct SourceViewContent<'a> {
     pub fold_error: Option<&'a str>,
     /// Recoverable parsed occurrence preparation failure.
     pub occurrence_error: Option<&'a str>,
+    /// Optional reason the native colors fell back to basic highlighting.
+    pub highlight_error: Option<&'a str>,
     /// Active collapsed ranges.
     pub fold_store: &'a mut FoldStore,
     /// Revision-specific diff overlays.
@@ -148,6 +150,7 @@ impl SourceView {
             fold_ranges,
             fold_error,
             occurrence_error,
+            highlight_error,
             fold_store,
             line_changes,
             pin_store,
@@ -304,6 +307,7 @@ impl SourceView {
                     ("Mark settings unavailable", mark_error),
                     ("Folding unavailable", fold_error),
                     ("Occurrence highlighting unavailable", occurrence_error),
+                    ("Basic syntax colors", highlight_error),
                 ]
                 .into_iter()
                 .filter_map(|(label, error)| error.map(|error| (label, error)))
@@ -570,6 +574,7 @@ mod tests {
                             fold_ranges: &[],
                             fold_error: None,
                             occurrence_error: None,
+                            highlight_error: None,
                             fold_store: &mut folds,
                             line_changes: None,
                             pin_store: &pins,

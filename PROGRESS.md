@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-30 — Native Swift/Kotlin colors and retained theme captures (Codex)
+
+Prepared/pushed native capture rules and shared query/identity reuse (`29b6132`).
+Swift and Kotlin now color from the shared native parse instead of Syntect/plain
+fallback. Kotlin's native node roles cover declarations/types/properties/calls/
+strings/numbers/constants/annotations; Swift reuses its shipped rules. A bounded
+sweep preserves half-open overlap precedence and exact Unicode/CRLF line bytes.
+Source-loader theme requests retain the capture Arc and source Arc without a new
+parse or checkout read. Foreign/stale captures are rejected; failures retain basic
+colors with a recoverable footer. Other languages keep their prior appearance.
+Shared bounded query visits and typed SourceIdentity remove new duplication
+across colors, occurrences and calls. Full gates pass 318 app tests (one external
+Clang fixture ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build
+and rustdoc. Native Swift/Kotlin light/dark and folded/expanded checks pass; all
+private app/compositor exits zero. Architecture adds no hotspot/cycle/clone group
+and lowers duplication; only baseline source-view test fragments remain flagged.
+[Contract and hashed evidence](plans/rust-native-highlights.md).
+Full parity remains open: broader language/visual/accessibility/scaling acceptance,
+PR refresh mapping, source/graph/context caches, background/index/PR lifecycle
+and sibling palette/chrome integration. Keep committing and pushing each increment.
+
 ## 2026-10-30 — Transient occurrence clicks and outlined pins (Codex)
 
 Pinned and single-click transient groups now share one resolver and canonical

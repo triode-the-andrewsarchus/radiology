@@ -1,4 +1,4 @@
-//! Syntax highlighting engine using `syntect` and precompiled themes.
+//! Syntect fallback highlighting and styled spans for source rendering.
 
 use egui::Color32;
 use syntect::easy::HighlightLines;

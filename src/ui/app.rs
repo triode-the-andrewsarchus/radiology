@@ -111,6 +111,7 @@ pub struct RadiologyApp {
     pub semantic_index: Option<Arc<SemanticIndex>>,
     call_sites: Arc<crate::syntax::calls::CallSites>,
     syntactic_occurrences: crate::syntax::occurrences::SyntacticOccurrences,
+    native_highlights: Arc<crate::syntax::native_highlights::NativeHighlights>,
     critical_lens: crate::critical::service::CriticalLens,
     critical_annotations: crate::critical::annotations::CriticalAnnotations,
     critical_graph_inputs: Option<Arc<crate::critical::worker::GraphInputs>>,
@@ -243,6 +244,7 @@ impl RadiologyApp {
             semantic_index: None,
             call_sites: Default::default(),
             syntactic_occurrences: Default::default(),
+            native_highlights: Default::default(),
             critical_lens: Default::default(),
             critical_annotations: Default::default(),
             critical_graph_inputs: None,
@@ -498,6 +500,7 @@ impl RadiologyApp {
         self.pin_store.clear();
         self.call_sites = Default::default();
         self.syntactic_occurrences = Default::default();
+        self.native_highlights = Default::default();
         self.critical_lens.stop();
         self.critical_annotations.stop();
         self.critical_graph_inputs = None;
@@ -1022,6 +1025,7 @@ impl eframe::App for RadiologyApp {
                             fold_ranges: &self.fold_ranges,
                             fold_error: self.fold_error.as_deref(),
                             occurrence_error: self.syntactic_occurrences.error.as_deref(),
+                            highlight_error: self.native_highlights.error.as_deref(),
                             fold_store: &mut self.fold_store,
                             line_changes: self.line_changes.as_ref(),
                             pin_store: &self.pin_store,
