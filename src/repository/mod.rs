@@ -12,6 +12,7 @@ pub mod file_node;
 pub mod filters;
 pub(crate) mod git;
 pub(crate) mod git_refresh;
+pub(crate) mod identity;
 pub mod quick_search;
 
 pub use classifier::{SourceFileClassifier, TestPathClassifier};

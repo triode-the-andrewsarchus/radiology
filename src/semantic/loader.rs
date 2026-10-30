@@ -163,20 +163,7 @@ pub(crate) fn read_scip(path: &Path, cancel: &AtomicBool) -> Result<Option<ScipI
 }
 
 /// Opens a regular file without following its final symlink or blocking on a FIFO.
-pub(crate) fn open_regular_file(path: &Path) -> std::io::Result<std::fs::File> {
-    let mut options = std::fs::File::options();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    let file = options.open(path)?;
-    if !file.metadata()?.is_file() {
-        return Err(std::io::Error::other("Index/input is not a regular file"));
-    }
-    Ok(file)
-}
+pub(crate) use crate::repository::identity::open_regular_file;
 
 /// Reads bounded index data for both SCIP imports and persisted normalized indexes.
 pub(crate) fn read_index_bytes(

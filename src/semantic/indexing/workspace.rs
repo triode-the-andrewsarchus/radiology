@@ -1,12 +1,14 @@
 //! Disposable copies of real build inputs with byte/type/mode verification.
 
 use super::inventory::{check_cancel, validate_input_path, InputInventory};
+use crate::repository::identity::{
+    bytes_identity, file_mode, hash_file, link_bytes, read_identity, FileIdentity as Identity,
+};
 use crate::semantic::loader::open_regular_file as open_input;
-use sha1::Sha1;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs::{self, File, Metadata};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
@@ -26,14 +28,6 @@ impl Default for WorkspaceLimits {
             file_bytes: 256 * 1024 * 1024,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Identity {
-    blob: String,
-    sha256: String,
-    mode: u32,
-    link: bool,
 }
 
 #[derive(Debug)]
@@ -188,7 +182,7 @@ impl IndexingWorkspace {
             add_budget(metadata.len(), limits, &mut total)?;
             inputs.insert(
                 path.clone(),
-                read_identity(&input, limits.file_bytes, cancel)?,
+                read_identity(&input, limits.file_bytes, || check_cancel(cancel))?,
             );
         }
         Ok(fingerprint(inputs.iter()))
@@ -223,7 +217,13 @@ impl IndexingWorkspace {
             return Err("Snapshot input inventory changed".into());
         }
         for (path, input) in &self.inputs {
-            if expected.get(path) != Some(&input.original.blob) {
+            let blob = expected.get(path);
+            let actual = if blob.is_some_and(|blob| blob.len() == 64) {
+                &input.original.blob_sha256
+            } else {
+                &input.original.blob
+            };
+            if blob != Some(actual) {
                 return Err(format!("Snapshot input changed: {path}"));
             }
         }
@@ -234,8 +234,10 @@ impl IndexingWorkspace {
         for (path, input) in &self.inputs {
             check_cancel(cancel)?;
             reject_link_parents(root, path)?;
-            let identity = read_identity(&root.join(path), self.limits.file_bytes, cancel)
-                .map_err(|e| format!("{path}: {e}"))?;
+            let identity = read_identity(&root.join(path), self.limits.file_bytes, || {
+                check_cancel(cancel)
+            })
+            .map_err(|e| format!("{path}: {e}"))?;
             let expected = if original {
                 &input.original
             } else {
@@ -331,83 +333,11 @@ fn copy_file(
         &mut file,
         metadata.len(),
         file_mode(metadata),
-        cancel,
+        || check_cancel(cancel),
         |bytes| output.write_all(bytes).map_err(|e| e.to_string()),
     )?;
     fs::set_permissions(destination, metadata.permissions()).map_err(|e| e.to_string())?;
     Ok(identity)
-}
-
-fn read_identity(path: &Path, limit: u64, cancel: &AtomicBool) -> Result<Identity, String> {
-    let metadata = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-    if metadata.file_type().is_symlink() {
-        return Ok(bytes_identity(
-            link_bytes(&fs::read_link(path).map_err(|e| e.to_string())?)?,
-            0,
-            true,
-        ));
-    }
-    if !metadata.is_file() || metadata.len() > limit {
-        return Err("Input type or size changed".into());
-    }
-    let mut file = open_input(path).map_err(|e| e.to_string())?;
-    hash_file(
-        &mut file,
-        metadata.len(),
-        file_mode(&metadata),
-        cancel,
-        |_| Ok(()),
-    )
-}
-
-fn hash_file(
-    file: &mut File,
-    size: u64,
-    mode: u32,
-    cancel: &AtomicBool,
-    mut consume: impl FnMut(&[u8]) -> Result<(), String>,
-) -> Result<Identity, String> {
-    let mut blob = Sha1::new();
-    blob.update(format!("blob {size}\0"));
-    let mut digest = Sha256::new();
-    let mut copied = 0;
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        check_cancel(cancel)?;
-        let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
-        if count == 0 {
-            break;
-        }
-        copied += count as u64;
-        if copied > size {
-            return Err("Input grew while preparing the index".into());
-        }
-        let bytes = &buffer[..count];
-        blob.update(bytes);
-        digest.update(bytes);
-        consume(bytes)?;
-    }
-    if copied != size {
-        return Err("Input shrank while preparing the index".into());
-    }
-    Ok(Identity {
-        blob: format!("{:x}", blob.finalize()),
-        sha256: format!("{:x}", digest.finalize()),
-        mode,
-        link: false,
-    })
-}
-
-fn bytes_identity(bytes: &[u8], mode: u32, link: bool) -> Identity {
-    let mut blob = Sha1::new();
-    blob.update(format!("blob {}\0", bytes.len()));
-    blob.update(bytes);
-    Identity {
-        blob: format!("{:x}", blob.finalize()),
-        sha256: format!("{:x}", Sha256::digest(bytes)),
-        mode,
-        link,
-    }
 }
 
 fn reject_link_parents(root: &Path, path: &str) -> Result<(), String> {
@@ -471,34 +401,12 @@ pub(crate) fn destination_path(path: &Path) -> Result<PathBuf, String> {
 }
 
 #[cfg(unix)]
-fn link_bytes(path: &Path) -> Result<&[u8], String> {
-    use std::os::unix::ffi::OsStrExt;
-    Ok(path.as_os_str().as_bytes())
-}
-#[cfg(not(unix))]
-fn link_bytes(path: &Path) -> Result<&[u8], String> {
-    path.to_str()
-        .map(str::as_bytes)
-        .ok_or("Link target is not UTF-8".into())
-}
-
-#[cfg(unix)]
 fn create_link(target: &Path, destination: &Path) -> Result<(), String> {
     std::os::unix::fs::symlink(target, destination).map_err(|e| e.to_string())
 }
 #[cfg(not(unix))]
 fn create_link(_: &Path, _: &Path) -> Result<(), String> {
     Err("Build-input symbolic links require a POSIX host".into())
-}
-
-#[cfg(unix)]
-fn file_mode(metadata: &Metadata) -> u32 {
-    use std::os::unix::fs::PermissionsExt;
-    metadata.permissions().mode() & 0o777
-}
-#[cfg(not(unix))]
-fn file_mode(metadata: &Metadata) -> u32 {
-    u32::from(metadata.permissions().readonly())
 }
 
 #[cfg(test)]
