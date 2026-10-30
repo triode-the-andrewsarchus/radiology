@@ -1,9 +1,9 @@
 //! Non-semantic function-local spelling groups from an exact shared parse.
 
 use super::SupportedGrammar;
-use crate::source::{ReviewRevision, SourceBuffer};
+use crate::source::{buffer::SourceIdentity, SourceBuffer};
 use std::{collections::BTreeMap, ops::Range};
-use tree_sitter::{Node, QueryCursor, StreamingIterator};
+use tree_sitter::Node;
 
 /// A drawing-only spelling group; never a definition or reference identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,9 +21,7 @@ pub struct SyntacticSelection {
 pub struct SyntacticOccurrences {
     scopes: Vec<Range<usize>>,
     words: BTreeMap<String, Vec<Range<usize>>>,
-    path: String,
-    revision: Option<ReviewRevision>,
-    digest: String,
+    identity: Option<SourceIdentity>,
     /// Query or fact-limit failure; failed queries publish no partial groups.
     pub error: Option<String>,
 }
@@ -38,9 +36,7 @@ impl SyntacticOccurrences {
             Ok((scopes, words)) => Self {
                 scopes,
                 words,
-                path: buffer.path.clone(),
-                revision: buffer.revision,
-                digest: buffer.content_digest().to_owned(),
+                identity: Some(SourceIdentity::new(buffer)),
                 error: None,
             },
             Err(error) => Self {
@@ -51,12 +47,14 @@ impl SyntacticOccurrences {
     }
 
     /// Returns a same-spelling group only for the exact source and callable scope.
+    ///
     /// Shadowed bindings remain one decoration; semantic navigation must use SCIP.
     #[must_use]
     pub fn selection(&self, buffer: &SourceBuffer, byte: usize) -> Option<SyntacticSelection> {
-        if self.path != buffer.path
-            || self.revision != buffer.revision
-            || self.digest != buffer.content_digest()
+        if self
+            .identity
+            .as_ref()
+            .is_none_or(|identity| !identity.matches(buffer))
         {
             return None;
         }
@@ -90,32 +88,25 @@ fn extract(
     root: Node<'_>,
     limit: usize,
 ) -> Result<(Vec<Range<usize>>, Words), String> {
-    let query = super::queries::query(grammar, super::queries::QueryRole::Occurrences)?;
-    let mut cursor = QueryCursor::new();
-    cursor.set_match_limit(65_536);
     let mut scopes = Vec::new();
-    let mut excluded = Vec::<Range<usize>>::new();
-    let mut matches = cursor.matches(query, root, &buffer.data[..]);
-    while let Some(found) = matches.next() {
-        for capture in found.captures {
-            let name = query.capture_names()[capture.index as usize];
+    let mut excluded = Vec::new();
+    super::queries::visit_captures(
+        buffer,
+        grammar,
+        super::queries::QueryRole::Occurrences,
+        root,
+        limit,
+        |name, node, _| {
             if name.starts_with("scope.") {
-                scopes.push(capture.node.byte_range());
+                scopes.push(node.byte_range());
             } else if ["comment", "string", "number", "keyword"]
                 .iter()
                 .any(|prefix| name.starts_with(prefix))
             {
-                excluded.push(capture.node.byte_range());
+                excluded.push(node.byte_range());
             }
-            if scopes.len() + excluded.len() > limit {
-                return Err("Occurrence query exceeded its fact limit".into());
-            }
-        }
-    }
-    drop(matches);
-    if cursor.did_exceed_match_limit() {
-        return Err("Occurrence query exceeded its match limit".into());
-    }
+        },
+    )?;
     scopes.sort_by_key(|range| (range.start, range.end));
     scopes.dedup();
     let excluded = reader_text::union_ranges(excluded);

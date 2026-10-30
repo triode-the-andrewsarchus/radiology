@@ -9,6 +9,7 @@ pub(crate) mod fold_queries;
 pub mod folds;
 pub mod highlighter;
 pub mod language;
+pub mod native_highlights;
 pub mod occurrences;
 pub mod outline;
 mod queries;
@@ -37,6 +38,8 @@ pub struct DocumentSyntax {
     pub calls: calls::CallSites,
     /// Exact parsed callable scopes and excluded syntax for non-semantic pins.
     pub occurrences: occurrences::SyntacticOccurrences,
+    /// Native source colors retained for exact-buffer theme changes.
+    pub native_highlights: std::sync::Arc<native_highlights::NativeHighlights>,
 }
 
 impl DocumentSyntax {
@@ -47,7 +50,7 @@ impl DocumentSyntax {
             .grammar
             .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
         let (symbols, tests, calls, folds, fold_error, folds_supported, occurrences) =
-            if let Some((grammar, tree)) = parsed {
+            if let Some((grammar, ref tree)) = parsed {
                 let (folds, error) =
                     match FoldDetector::from_tree(buffer, grammar, tree.root_node()) {
                         Ok(folds) => (folds, None),
@@ -82,6 +85,16 @@ impl DocumentSyntax {
             tests,
             calls,
             occurrences,
+            native_highlights: std::sync::Arc::new(parsed.as_ref().map_or_else(
+                native_highlights::NativeHighlights::default,
+                |(grammar, tree)| {
+                    native_highlights::NativeHighlights::from_tree(
+                        buffer,
+                        *grammar,
+                        tree.root_node(),
+                    )
+                },
+            )),
         }
     }
 }
