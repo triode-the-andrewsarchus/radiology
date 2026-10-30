@@ -196,3 +196,73 @@ fn kotlin_lambda_header_changes_do_not_open_sibling_closures() {
     assert!(!store.is_folded(3));
     assert!(store.is_folded(6));
 }
+
+#[test]
+fn kotlin_import_lists_group_parsed_members_with_comments_and_exact_unicode_crlf_bounds() {
+    let text = "// leading café 😀\r\npackage demo\r\n\r\nimport demo.First as Premier\r\n// between 😀\r\n\r\nimport demo.second.*;\r\n/* between */\r\nimport demo.Third\r\n// trailing: must remain visible\r\nfun run() {\r\n work()\r\n}\r\n";
+    let buffer = SourceBuffer::from_str("example.kt", text);
+    let syntax = DocumentSyntax::analyze(&buffer);
+    assert!(syntax.folds_supported, "{:?}", syntax.fold_error);
+    let imports: Vec<_> = syntax
+        .folds
+        .iter()
+        .filter(|fold| fold.kind == FoldKind::Imports)
+        .collect();
+    assert_eq!(imports.len(), 1);
+    let fold = imports[0];
+    assert_eq!(
+        fold.byte_range,
+        text.find("import").unwrap()..text.find("\r\n// trailing").unwrap()
+    );
+    assert_eq!((fold.start_line, fold.end_line), (4, 9));
+    assert!(!fold.contains_declarations);
+    assert!(fold.owner_range.is_none());
+    let mut store = FoldStore::new();
+    store.apply_initial_defaults(&buffer, &syntax.folds, None);
+    assert!(!store.is_folded(4), "imports stay open by default");
+    store.toggle(4);
+    for line in 5..=9 {
+        assert!(store.is_line_hidden(line, &syntax.folds));
+    }
+    for line in [1, 2, 3, 4, 10, 11] {
+        assert!(!store.is_line_hidden(line, &syntax.folds));
+    }
+    store.fold_to_definitions(&syntax.folds);
+    assert!(!store.is_folded(4));
+    assert!(store.is_folded(11));
+    assert_eq!(buffer.text, text);
+}
+
+#[test]
+fn kotlin_import_grouping_does_not_turn_strings_single_lines_or_errors_into_import_lists() {
+    for text in [
+        "import demo.One\nval text = \"import demo.Fake\\nimport demo.Other\"\n",
+        "val text = \"import demo.One\\nimport demo.Two\"\n",
+    ] {
+        let buffer = SourceBuffer::from_str("a.kt", text);
+        let syntax = DocumentSyntax::analyze(&buffer);
+        assert!(syntax.folds_supported, "{:?}", syntax.fold_error);
+        assert!(!syntax
+            .folds
+            .iter()
+            .any(|fold| fold.kind == FoldKind::Imports));
+    }
+    let buffer =
+        SourceBuffer::from_str("a.kt", "import demo.One\n!!! broken !!!\nimport demo.Two\n");
+    let syntax = DocumentSyntax::analyze(&buffer);
+    assert!(!syntax
+        .folds
+        .iter()
+        .any(|fold| fold.kind == FoldKind::Imports));
+    let grammar = SupportedGrammar::Kotlin;
+    let buffer = SourceBuffer::from_str(
+        "a.kt",
+        "import demo.One\nimport demo.Two\nimport demo.Three\n",
+    );
+    let tree = grammar.parse(&buffer.data).unwrap();
+    let query =
+        crate::syntax::queries::query(grammar, crate::syntax::queries::QueryRole::Folds).unwrap();
+    assert!(extract(&buffer, tree.root_node(), query, 2)
+        .unwrap_err()
+        .contains("fact limit"));
+}

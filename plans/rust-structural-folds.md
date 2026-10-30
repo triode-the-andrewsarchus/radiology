@@ -73,9 +73,52 @@ outline-based inference, with no generic scheduling layer added.
 
 ## Remaining parity limits
 
-The gutter still exposes one fold per physical header row. Exact multiple-fold
-controls on the same row, Kotlin import grouping, broader C++ grammar support,
+The gutter still exposes one fold per physical header row. Overlapping-range retention/selection on the same row, broader C++ grammar support,
 outline/query unification, large-file/scaling/light-mode acceptance and PR-refresh/
 late-data viewport mapping remain open. The grammar fixture checks establish the
 supported cases, not exhaustive language coverage. Full Rust/Swift parity remains
 open.
+
+
+## Kotlin import lists (2026-10-30)
+
+The Kotlin adapter now emits `fold.imports.member` for imports directly under the
+native `source_file`. kotlin-ng has no Swift-grammar `import_list` node. The first
+member reconstructs a parsed sibling run through whitespace and comment extras;
+its range ends at the last import, excluding trailing comments and declarations.
+An error or other named sibling terminates the run. Later members do not emit
+additional folds. Each member counts toward the existing query fact limit, so a
+large list cannot evade limits by becoming one folded range. Exact original
+UTF-8/CRLF spans feed the existing fold store and viewport with no extra parse,
+text-pattern recognition, cache or dependency. Single-line imports do not fold.
+
+Regression tests cover aliases, star imports, semicolons, Unicode/CRLF, interior
+comments/blank lines, outside headers/trailing comments, string impostors and
+parse errors. Defaults leave imports open; manual toggling hides the remaining
+import rows; Fold to Definitions expands them. Full gates pass 298 application
+tests (one external-Clang fixture ignored), five reader-text tests, 30 doctests,
+fmt, strict Clippy, build and rustdoc. Architecture is NEUTRAL against
+`before-kotlin-import-folds`: +110 NLOC, three functions, no new hotspot/cycle/clone.
+
+The same-row requirement has been corrected against current Swift source:
+`LineNumberGutter.fold(onHeaderLine:)` also renders one disclosure per row. The
+remaining difference is Rust dropping overlapping candidates and using line-keyed
+state, while Swift retains byte-range identities and chooses the first range for
+a gutter row. Future work must preserve those identities, initial callable folds
+and reveal/restore behavior; adding multiple controls is not the Swift contract.
+The existing Rust line projection also keeps the first import visible when
+collapsed; exact Swift non-delimited header projection remains part of byte-range
+fold parity. Kotlin grouping closes the missing parsed-list capability, not the
+complete fold-rendering audit.
+
+
+Native acceptance uses `/tmp/radiology-kotlin-import-native/expanded.png`,
+`collapsed.png`, `reexpanded.png` and `build-evidence.json`. A real Kotlin CRLF
+fixture includes a Unicode comment, alias/star imports, an interior comment and a
+trailing comment. Pointer collapse hides rows 5–7, preserves row 8's trailing
+comment and the function header, and re-expansion restores the original view.
+App PID 4093976 and private Weston/Niri exit zero; persistent pointer helpers are
+intentionally terminated. Binary SHA-256 is
+`c31af3dc2f225c4d0771189582b5fe8903eced555410fe6c6491712a31df2130`, based on
+`e1c6905` plus this implementation. The sibling compositor helper is used only by
+the external acceptance driver; the product remains independently buildable.

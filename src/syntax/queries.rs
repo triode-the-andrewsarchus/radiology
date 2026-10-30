@@ -95,7 +95,10 @@ fn fold_source(grammar: SupportedGrammar) -> String {
         let folds = folds
             .replace("(statements)", "(block)")
             .replace("(control_structure_body)", "(block)")
-            .replace("(import_list)", "(import)")
+            .replace(
+                "(import_list) @fold.imports",
+                "(source_file (import) @fold.imports.member)",
+            )
             .replace("(multiline_comment)", "(block_comment)");
         let symbols = symbols
             .replace("(type_identifier)", "(identifier)")
