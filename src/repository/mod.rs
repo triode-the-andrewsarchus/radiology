@@ -10,6 +10,7 @@ pub mod classifier;
 pub mod discovery;
 pub mod file_node;
 pub mod filters;
+pub(crate) mod git;
 pub(crate) mod git_refresh;
 pub mod quick_search;
 
@@ -18,3 +19,6 @@ pub use discovery::RepositoryDiscovery;
 pub use file_node::{FileNode, RepositoryFile};
 pub use filters::SourceFilters;
 pub use quick_search::{QuickFileSearch, QuickFileSearchResponse};
+
+#[cfg(test)]
+mod test_support;

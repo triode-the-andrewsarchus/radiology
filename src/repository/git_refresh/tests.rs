@@ -1,23 +1,7 @@
 use super::*;
-
-fn git(root: &Path, args: &[&str]) {
-    let output = std::process::Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn repository(root: &Path) {
-    git(root, &["init", "-q"]);
-    git(root, &["config", "user.email", "test@example.invalid"]);
-    git(root, &["config", "user.name", "Test"]);
-}
+#[cfg(unix)]
+use crate::repository::test_support::fake_git;
+use crate::repository::test_support::{git, repository};
 
 #[test]
 fn snapshots_preserve_literal_paths_counts_binary_files_and_displayed_source_identity() {
@@ -116,15 +100,6 @@ fn new_source_hunks_cover_the_exact_displayed_untracked_file() {
         .unwrap()
         .changes
         .is_empty());
-}
-
-#[cfg(unix)]
-fn fake_git(root: &Path, script: &str) -> PathBuf {
-    use std::os::unix::fs::PermissionsExt;
-    let path = root.join("fake-git");
-    std::fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
-    path
 }
 
 #[cfg(unix)]

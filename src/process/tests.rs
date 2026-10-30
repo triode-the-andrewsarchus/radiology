@@ -96,7 +96,10 @@ fn spawn_failure_and_signalled_exit_are_distinct() {
         run(&command, &AtomicBool::new(false), Duration::from_secs(5))
             .unwrap_err()
             .kind,
-        RunFailureKind::Io(_)
+        RunFailureKind::Spawn {
+            kind: std::io::ErrorKind::NotFound,
+            ..
+        }
     ));
 }
 
