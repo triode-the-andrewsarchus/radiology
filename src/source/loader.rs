@@ -3,7 +3,7 @@
 use super::{ColumnEncoding, SourceBuffer, SourceLocation};
 use crate::{
     bookmarks::bookmark::SourceBookmark,
-    pull_request::diff::{FileLineChanges, UnifiedDiffParser},
+    pull_request::diff::FileLineChanges,
     pull_request::review::ReviewSnapshot,
     syntax::{
         highlighter::{HighlightedSpan, SyntaxHighlighter},
@@ -12,7 +12,11 @@ use crate::{
 };
 use std::{
     path::PathBuf,
-    sync::{atomic::Ordering, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
 };
 
 /// Immutable source storage selected before a request leaves the reader thread.
@@ -30,21 +34,38 @@ impl SourceRead {
     /// Reads canonical repository-relative source from the selected storage.
     ///
     /// # Errors
-    /// Returns path, Git, file-size, UTF-8 or I/O validation failures.
+    /// Returns path, Git, file-size, UTF-8 or I/O validation failures, including
+    /// a read exceeding its 30-second deadline.
     pub fn read(&self, location: &SourceLocation) -> Result<Arc<SourceBuffer>, String> {
+        self.read_cancellable(
+            location,
+            &AtomicBool::new(false),
+            Instant::now() + Duration::from_secs(30),
+        )
+    }
+
+    pub(crate) fn read_cancellable(
+        &self,
+        location: &SourceLocation,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Arc<SourceBuffer>, String> {
+        check_source(cancel, deadline)?;
         if !SourceLocation::is_repository_path(&location.path) {
             return Err("Invalid repository-relative source path".into());
         }
-        match self {
+        let buffer = match self {
             Self::Checkout(root) => {
                 SourceBuffer::read(&root.join(&location.path), &location.path, None)
                     .map(Arc::new)
                     .map_err(|error| error.to_string())
             }
             Self::Review(snapshot) => snapshot
-                .read(
+                .read_cancellable(
                     &location.path,
                     location.revision.unwrap_or(super::ReviewRevision::After),
+                    cancel,
+                    deadline,
                 )
                 .map(Arc::new),
             Self::Buffer(buffer)
@@ -53,24 +74,27 @@ impl SourceRead {
                 Ok(buffer.clone())
             }
             Self::Buffer(_) => Err("Source snapshot does not match the requested document".into()),
-        }
+        }?;
+        check_source(cancel, deadline)?;
+        Ok(buffer)
     }
 
-    fn changes(&self, location: &SourceLocation) -> Option<FileLineChanges> {
+    fn changes(
+        &self,
+        buffer: &SourceBuffer,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Option<FileLineChanges>, String> {
         match self {
-            Self::Review(snapshot) => snapshot.diffs.get(&location.path).cloned(),
-            Self::Checkout(root) => {
-                let output = std::process::Command::new("git")
-                    .args(["diff", "--no-ext-diff", "-U0", "HEAD", "--", &location.path])
-                    .current_dir(root)
-                    .output()
-                    .ok()?;
-                output
-                    .status
-                    .success()
-                    .then(|| UnifiedDiffParser::parse(&String::from_utf8_lossy(&output.stdout)))
+            Self::Review(snapshot) => Ok(snapshot.diffs.get(&buffer.path).cloned()),
+            Self::Checkout(root) => crate::repository::git::GitRead {
+                root,
+                executable: std::path::Path::new("git"),
+                cancel,
+                deadline,
             }
-            Self::Buffer(_) => None,
+            .checkout_source_lines(buffer),
+            Self::Buffer(_) => Ok(None),
         }
     }
 }
@@ -174,11 +198,8 @@ impl SourceLoader {
         highlighter: Arc<SyntaxHighlighter>,
         dark_mode: bool,
     ) {
-        self.job.spawn(move |cancel| {
-            prepare(request, &highlighter, dark_mode, || {
-                cancel.load(Ordering::Relaxed)
-            })
-        });
+        self.job
+            .spawn(move |cancel| prepare(request, &highlighter, dark_mode, cancel));
     }
 
     /// Retires queued work/publication while preserving the host's current source.
@@ -201,21 +222,29 @@ impl SourceLoader {
     }
 }
 
+fn check_source(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        Err("Source request cancelled".into())
+    } else if Instant::now() >= deadline {
+        Err("Source request timed out".into())
+    } else {
+        Ok(())
+    }
+}
+
 fn prepare(
     request: SourceLoadRequest,
     highlighter: &SyntaxHighlighter,
     dark_mode: bool,
-    cancelled: impl Fn() -> bool,
+    cancel: &AtomicBool,
 ) -> Result<PreparedSource, String> {
-    let check = || {
-        if cancelled() {
-            Err("Source request cancelled".to_string())
-        } else {
-            Ok(())
-        }
-    };
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let check = || check_source(cancel, deadline);
+    let cancelled = || check().is_err();
     check()?;
-    let buffer = request.source.read(&request.location)?;
+    let buffer = request
+        .source
+        .read_cancellable(&request.location, cancel, deadline)?;
     check()?;
     let destination = request.target.resolve(&buffer)?;
     let syntax = (!matches!(request.source, SourceRead::Buffer(_)))
@@ -227,18 +256,18 @@ fn prepare(
         .or(request.native_highlights.as_deref())
         .filter(|native| native.matches(&buffer));
     let highlights = if let Some(native) = native {
-        native.recolor(&buffer, dark_mode, &cancelled)
+        native.recolor(&buffer, dark_mode, cancelled)
     } else {
         highlighter.highlight_document_cancellable(
             highlighter.find_syntax_for_path(&buffer.path),
             &buffer.text,
             dark_mode,
-            &cancelled,
+            cancelled,
         )
-    }
-    .ok_or("Source request cancelled")?;
+    };
     check()?;
-    let changes = request.source.changes(&request.location);
+    let highlights = highlights.ok_or("Source request cancelled")?;
+    let changes = request.source.changes(&buffer, cancel, deadline)?;
     check()?;
     let initial_folds = syntax
         .as_ref()
@@ -264,6 +293,15 @@ fn prepare(
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
+
+    fn request(root: &std::path::Path, path: &str, target: SourceTarget) -> SourceLoadRequest {
+        SourceLoadRequest {
+            source: SourceRead::Checkout(root.to_path_buf()),
+            location: SourceLocation::new(path, 0),
+            target,
+            native_highlights: None,
+        }
+    }
 
     fn finish(loader: &mut SourceLoader) -> Result<PreparedSource, String> {
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -317,21 +355,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("old.rs"), "fn old() {}\n".repeat(1000)).unwrap();
         std::fs::write(dir.path().join("new.rs"), "fn café() {\r\n 1;\r\n}\r\n").unwrap();
-        let request = |path: &str, target| SourceLoadRequest {
-            source: SourceRead::Checkout(dir.path().to_path_buf()),
-            location: SourceLocation::new(path, 0),
-            target,
-            native_highlights: None,
-        };
         let highlighter = Arc::new(SyntaxHighlighter::new());
         let mut loader = SourceLoader::default();
         loader.start(
-            request("old.rs", SourceTarget::Byte(0)),
+            request(dir.path(), "old.rs", SourceTarget::Byte(0)),
             highlighter.clone(),
             true,
         );
         loader.start(
             request(
+                dir.path(),
                 "new.rs",
                 SourceTarget::Encoded {
                     line: 1,
@@ -379,10 +412,63 @@ mod tests {
         assert!(recolored.syntax.is_none());
         assert!(!recolored.dark_mode);
         loader.start(
-            request("missing.rs", SourceTarget::Byte(0)),
+            request(dir.path(), "missing.rs", SourceTarget::Byte(0)),
             highlighter,
             true,
         );
         assert!(finish(&mut loader).is_err());
+    }
+    #[test]
+    fn checkout_hunks_use_literal_paths_and_cover_untracked_source_on_first_open() {
+        use crate::repository::test_support::{git, repository};
+        let dir = tempfile::tempdir().unwrap();
+        repository(dir.path());
+        let path = "literal[ab] café.rs";
+        std::fs::write(dir.path().join(path), "old\n").unwrap();
+        std::fs::write(dir.path().join("literala café.rs"), "old\n").unwrap();
+        git(dir.path(), &["add", "."]);
+        git(dir.path(), &["commit", "-qm", "initial"]);
+        std::fs::write(dir.path().join(path), "new\nsecond\n").unwrap();
+        std::fs::write(dir.path().join("literala café.rs"), "other\n".repeat(9)).unwrap();
+        let highlighter = Arc::new(SyntaxHighlighter::new());
+        let mut loader = SourceLoader::default();
+        loader.start(
+            request(dir.path(), path, SourceTarget::Byte(0)),
+            highlighter.clone(),
+            true,
+        );
+        let prepared = finish(&mut loader).unwrap();
+        assert_eq!(prepared.changes.as_ref().unwrap().total_additions(), 2);
+        assert_eq!(prepared.changes.as_ref().unwrap().total_deletions(), 1);
+        let untracked = "new[1].rs";
+        std::fs::write(dir.path().join(untracked), "fn new_file() {}\n").unwrap();
+        loader.start(
+            request(dir.path(), untracked, SourceTarget::Byte(0)),
+            highlighter,
+            true,
+        );
+        let prepared = finish(&mut loader).unwrap();
+        assert_eq!(prepared.changes.as_ref().unwrap().total_additions(), 1);
+        assert_eq!(prepared.changes.as_ref().unwrap().total_deletions(), 0);
+    }
+
+    #[test]
+    fn cancellable_reads_reject_retired_or_expired_requests_before_publication() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("source.rs"), "fn sample() {}\n").unwrap();
+        let storage = SourceRead::Checkout(dir.path().into());
+        let location = SourceLocation::new("source.rs", 0);
+        let error = storage
+            .read_cancellable(
+                &location,
+                &AtomicBool::new(true),
+                Instant::now() + Duration::from_secs(1),
+            )
+            .unwrap_err();
+        assert!(error.contains("cancelled"));
+        let error = storage
+            .read_cancellable(&location, &AtomicBool::new(false), Instant::now())
+            .unwrap_err();
+        assert!(error.contains("timed out"));
     }
 }

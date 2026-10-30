@@ -1,5 +1,13 @@
 # Background source loading
 
+2026-10-30 update: checkout hunks and pinned blob reads now share bounded process-
+group execution. The source request flag and cooperative 30-second deadline reach
+Git; native parser stages still require finer interruption. Checkout hunks are
+validated against exact disk bytes, use literal pathspecs, cover added files on
+first open and reject a moving HEAD. Pinned blobs verify advertised versus actual
+size. The new fixture suite and architecture checks pass; native live-process
+acceptance is pending for this increment.
+
 `source::loader::SourceLoader` prepares immutable source on the existing bounded
 blocking pool. The reader now routes file opens, bookmarks, encoded definitions, revision
 changes and new-document history navigation through this worker. Theme changes

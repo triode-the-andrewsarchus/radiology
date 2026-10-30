@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Bounded cancellable source Git reads (Codex)
+
+Source loading now shares the repository process runner for checkout hunks and
+pinned review blobs. The request cancellation flag and one 30-second cooperative
+deadline reach both operations; timeout/output/Git failures retain the prior reader
+through the existing error path. Checkout refresh and file opens share exact-disk
+hunk validation, literal pathspecs and added-file handling. Pinned reads verify
+size metadata against bounded raw blob bytes. Full workspace checks pass 339 app
+tests (one external-Clang fixture ignored), eight shared-text tests, 30 doctests,
+fmt, strict Clippy, build and rustdoc. Architecture comparison is neutral with no
+new problems. Native live-child cancellation and failure/retry acceptance are
+still pending for this increment. Full parity and finer native/decode/other-job
+interruption remain open. Commit and push every increment.
+
 ## 2026-10-30 — Cancellable repository opening and deferred launch intent (Codex)
 
 Shared bounded Git reads committed/pushed as `d8ed022`. Root lookup, file enumeration,
