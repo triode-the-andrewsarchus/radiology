@@ -20,9 +20,10 @@ Replacing/cancelling a request retires its publication and signals its subproces
 Recoloring still reuses immutable bytes/captures and does not read Git or disk.
 SourceRead::read and ReviewSnapshot::read retain their synchronous public APIs,
 with a bounded default deadline; callers with a job flag use the internal
-cancellable path. Existing context/preview/graph callers that use the default
-read still need their own cancellation propagation, rather than publication-only
-retirement. Broader PR preparation/fetch cancellation is also a separate task.
+cancellable path. [Semantic source consumers](rust-analysis-source-cancellation.md)
+now propagate the same request flag/deadline through previews, references, caller
+traces and Critical Lens, including cache-safety and live-child checks. Broader PR
+preparation/fetch cancellation remains a separate task.
 
 ## Shared checkout hunks
 

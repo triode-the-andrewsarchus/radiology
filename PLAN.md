@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Semantic source cancellation](plans/rust-analysis-source-cancellation.md) records
+preview/reference/caller/graph propagation, cache safety and live-child verification.
+
 [Bounded source Git reads](plans/rust-source-process-cancellation.md) records request
 cancellation, shared exact-source hunks, raw pinned blobs and native live-child checks.
 

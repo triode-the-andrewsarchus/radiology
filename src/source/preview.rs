@@ -1,6 +1,9 @@
 //! Bounded real-source excerpts with exact index and snapshot validation.
 
-use super::{loader::SourceRead, ReviewRevision, SourceBuffer, SourceLocation};
+use super::{
+    loader::{check_source, SourceRead, SOURCE_READ_TIMEOUT},
+    ReviewRevision, SourceBuffer, SourceLocation,
+};
 use crate::{
     background::LatestRead,
     semantic::{ScipRange, SemanticIndex},
@@ -12,6 +15,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::Instant,
 };
 
 /// One numbered canonical source line in a bounded preview.
@@ -67,18 +71,24 @@ pub struct SourceQueryInputs {
 }
 
 impl SourceQueryInputs {
-    pub(crate) fn read(&self, path: &str) -> Result<Arc<SourceBuffer>, String> {
+    pub(crate) fn read(
+        &self,
+        path: &str,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Arc<SourceBuffer>, String> {
+        check_source(cancel, deadline)?;
         if !SourceLocation::is_repository_path(path) {
             return Err("Invalid repository-relative source path".into());
         }
         if path == self.buffer.path {
             Ok(self.buffer.clone())
         } else {
-            self.source.read(&SourceLocation::with_revision(
-                path,
-                0,
-                self.buffer.revision,
-            ))
+            self.source.read_cancellable(
+                &SourceLocation::with_revision(path, 0, self.buffer.revision),
+                cancel,
+                deadline,
+            )
         }
     }
 }
@@ -166,7 +176,8 @@ fn prepare(
     if inputs.buffer.revision == Some(ReviewRevision::Before) {
         return Err("After semantic previews are unavailable in Before source.".into());
     }
-    let buffer = inputs.read(&target.path)?;
+    let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
+    let buffer = inputs.read(&target.path, cancel, deadline)?;
     check_cancel(cancel)?;
     let range = inputs
         .index
@@ -462,4 +473,24 @@ mod tests {
             preview
         );
     }
+    #[test]
+    fn displayed_query_bytes_obey_retirement_and_deadlines_without_an_io_fallback() {
+        let inputs = inputs(SourceBuffer::from_str("shown.rs", "fn shown() {}\n"));
+        let future = Instant::now() + SOURCE_READ_TIMEOUT;
+        assert!(inputs
+            .read("shown.rs", &AtomicBool::new(true), future)
+            .unwrap_err()
+            .contains("cancelled"));
+        assert!(inputs
+            .read("shown.rs", &AtomicBool::new(false), Instant::now())
+            .unwrap_err()
+            .contains("timed out"));
+        let buffer = inputs
+            .read("shown.rs", &AtomicBool::new(false), future)
+            .unwrap();
+        assert!(Arc::ptr_eq(&buffer, &inputs.buffer));
+    }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod cancellation_tests;
