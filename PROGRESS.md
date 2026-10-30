@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-30 — Global reader shortcuts from caller controls (Codex)
+
+Caller controls now participate in the reader-owned non-text focus check.
+A new application regression verifies F12 navigates from a focused caller
+control without being suppressed as text input. Full gates pass 262 app tests
+(one external-Clang ignored), 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Native core caller acceptance passes at bc3a929; the focused
+final-build F12 smoke and final evidence documentation follow.
+
 ## 2026-10-30 — Pre-frame caller input ownership (Codex)
 
 Consecutive-frame native input exposed egui 0.27 delaying focus filters until

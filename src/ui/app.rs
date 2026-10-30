@@ -610,10 +610,8 @@ impl RadiologyApp {
             }
         }
         let reader_focused = self.source_viewport.has_focus(ctx)
-            || ctx.memory(|memory| {
-                memory.has_focus(crate::ui::reference_list::ReferenceViewport::focus_id())
-                    || memory.has_focus(ContextInspector::definition_focus_id())
-            });
+            || self.reference_viewport.has_focus(ctx)
+            || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id()));
         for command in super::commands::take_shortcuts(
             ctx,
             !matches!(self.modal, ActiveModal::None),
