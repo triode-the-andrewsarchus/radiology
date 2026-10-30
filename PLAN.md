@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Recent PR chooser](plans/rust-pr-chooser.md) records the repository-scoped 25-entry
+list, compact switcher/Exit PR, keyboard behavior and native failure/recovery checks.
+
 [PR process cancellation](plans/rust-pr-process-cancellation.md) records shared
 metadata/fetch/snapshot deadlines, tree ownership and native Cancel/recovery checks.
 
