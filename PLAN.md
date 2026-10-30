@@ -52,6 +52,10 @@ Trace More, guarded navigation and native acceptance.
 source-line hits, definition/reference counts, coverage, expandable queries and
 native keyboard/navigation acceptance.
 
+[Inspector metadata and implementation context](plans/rust-inspector-metadata.md)
+records bounded under-caret facts, scoped local/package explanations and current
+background/UI integration status.
+
 [Inspector source previews and navigation](plans/rust-inspector-previews.md) records
 bounded source excerpts, independent reference selection/disclosure/commit,
 keyboard focus and remaining inspector presentation/call-tree work.

@@ -385,20 +385,7 @@ mod tests {
         definition: bool,
     ) -> ScipOccurrence {
         let byte = buffer.text.find(text).unwrap();
-        let line = buffer.line_at_byte(byte);
-        let column = buffer.text[buffer.line_starts[line - 1]..byte]
-            .encode_utf16()
-            .count() as i32;
-        ScipOccurrence {
-            symbol: symbol.into(),
-            symbol_roles: i32::from(definition),
-            range: ScipRange::from_packed(&[
-                line as i32 - 1,
-                column,
-                column + text.encode_utf16().count() as i32,
-            ]),
-            ..Default::default()
-        }
+        super::super::test_support::occurrence(buffer, byte..byte + text.len(), symbol, definition)
     }
 
     fn fixture() -> (tempfile::TempDir, SourceQueryInputs, SemanticSymbolID) {

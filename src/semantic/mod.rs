@@ -7,6 +7,7 @@
 
 pub(crate) mod callees;
 pub mod caller_tree;
+pub mod context;
 pub mod disclosure;
 pub mod incoming_calls;
 pub mod index;
@@ -21,3 +22,6 @@ pub use caller_tree::{
 };
 pub use index::SemanticIndex;
 pub use scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation};
+
+#[cfg(test)]
+pub(crate) mod test_support;
