@@ -1703,13 +1703,8 @@ fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
         .collect();
     let ctx = Context::default();
     ctx.memory_mut(|memory| memory.request_focus(BookmarkList::focus_id()));
-    let mut input = egui::RawInput {
-        events: [egui::Key::Home, egui::Key::Delete, egui::Key::Enter]
-            .into_iter()
-            .map(crate::ui::commands::test_key)
-            .collect(),
-        ..Default::default()
-    };
+    let mut input =
+        crate::ui::commands::test_input(&[egui::Key::Home, egui::Key::Delete, egui::Key::Enter]);
     app.raw_input_hook(&ctx, &mut input);
     assert!(input.events.is_empty());
     settle(&mut app);
@@ -1750,4 +1745,52 @@ fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
     assert!(app.bookmark_list.selected.is_none());
     app.handle_bookmark_action(&ctx, BookmarkAction::Open(ids[1]));
     assert!(!app.is_source_loading());
+}
+
+#[test]
+fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure() {
+    use crate::ui::outline_list::OutlineList;
+    use eframe::App;
+    let (dir, mut app) = opened_repository();
+    let text = "// café 😀 origin\nfn large() {\n let x = 1;\n let y = 2;\n}\n\nfn small() {}\n";
+    std::fs::write(dir.path().join("a.rs"), text).unwrap();
+    app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
+    settle(&mut app);
+    let origin = app
+        .open_buffer
+        .as_ref()
+        .unwrap()
+        .location_at_byte(text.find("origin").unwrap());
+    app.navigate(origin.clone(), false);
+    app.history.clear();
+    app.history.visit(origin.clone());
+    let caret = (app.caret_line, app.caret_col);
+    let ctx = Context::default();
+    ctx.memory_mut(|memory| memory.request_focus(OutlineList::focus_id()));
+    let mut input = crate::ui::commands::test_input(&[egui::Key::Home, egui::Key::ArrowDown]);
+    app.raw_input_hook(&ctx, &mut input);
+    assert!(input.events.is_empty());
+    assert_eq!((app.caret_line, app.caret_col), caret);
+    assert_eq!(app.history.current(), Some(&origin));
+    assert!(!app.history.can_go_back());
+    assert!(app.under_caret.is_none());
+    let stale = app.outline_list.key(egui::Key::Enter).unwrap();
+    let mut input = egui::RawInput {
+        events: vec![crate::ui::commands::test_key(egui::Key::Enter)],
+        ..Default::default()
+    };
+    app.raw_input_hook(&ctx, &mut input);
+    settle(&mut app);
+    let small = text.find("small").unwrap();
+    assert_eq!(app.history.current().unwrap().byte_offset, small);
+    app.execute_command(&ctx, ToolbarAction::NavigateBack);
+    settle(&mut app);
+    assert_eq!(app.history.current(), Some(&origin));
+    assert_eq!((app.caret_line, app.caret_col), caret);
+    app.open_file("b.rs");
+    settle(&mut app);
+    let destination = app.history.current().cloned();
+    app.handle_outline_action(stale);
+    assert_eq!(app.history.current(), destination.as_ref());
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
 }

@@ -64,6 +64,7 @@ impl RadiologyApp {
         self.under_caret_error = None;
         self.definition_expanded = false;
         self.reference_viewport = Default::default();
+        self.outline_list = Default::default();
     }
 
     fn refresh_semantic_inputs(&mut self) -> bool {

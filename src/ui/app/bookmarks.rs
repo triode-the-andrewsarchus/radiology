@@ -26,7 +26,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn open_bookmark(&mut self, index: usize) {
-        if !self.bookmarks_enabled() {
+        if !self.repository_interaction_ready() {
             return;
         }
         let Some(bookmark) = self.bookmarks.get_by_index(index).cloned() else {
@@ -49,16 +49,8 @@ impl RadiologyApp {
 }
 
 impl RadiologyApp {
-    pub(super) fn bookmarks_enabled(&self) -> bool {
-        self.repository_root.is_some() && self.pending_pr.is_none() && self.review_rx.is_none()
-    }
-
-    pub(super) fn can_toggle_bookmark(&self) -> bool {
-        self.bookmarks_enabled() && self.open_buffer.is_some() && !self.is_source_loading()
-    }
-
     pub(super) fn toggle_current_bookmark(&mut self) {
-        if !self.can_toggle_bookmark() {
+        if !self.source_location_ready() {
             return;
         }
         let Some(buffer) = &self.open_buffer else {
@@ -91,10 +83,15 @@ impl RadiologyApp {
     }
 
     pub(super) fn handle_bookmark_keys(&mut self, ctx: &Context, input: &mut egui::RawInput) {
-        if !self.bookmarks_enabled() {
+        if !self.repository_interaction_ready() {
             return;
         }
-        for key in BookmarkList::take_keys(ctx, input) {
+        for key in crate::ui::commands::take_focused_keys(
+            ctx,
+            input,
+            BookmarkList::focus_id(),
+            BookmarkList::KEYS,
+        ) {
             if let Some(action) = self.bookmark_list.key(key, &self.bookmarks) {
                 self.handle_bookmark_action(ctx, action);
             }
@@ -102,7 +99,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn handle_bookmark_action(&mut self, ctx: &Context, action: BookmarkAction) {
-        if !self.bookmarks_enabled() {
+        if !self.repository_interaction_ready() {
             return;
         }
         match action {

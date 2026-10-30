@@ -4,6 +4,7 @@ mod actions;
 mod bookmarks;
 mod critical_marks;
 mod indexing;
+mod outline;
 mod references;
 mod reviews;
 mod source;
@@ -143,6 +144,7 @@ pub struct RadiologyApp {
     definition_expanded: bool,
     reference_viewport: crate::ui::reference_list::ReferenceViewport,
     bookmark_list: crate::ui::bookmark_list::BookmarkList,
+    outline_list: crate::ui::outline_list::OutlineList,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -262,6 +264,7 @@ impl RadiologyApp {
             definition_expanded: false,
             reference_viewport: Default::default(),
             bookmark_list: Default::default(),
+            outline_list: Default::default(),
             active_pr: None,
             review: None,
             review_rx: None,
@@ -565,6 +568,16 @@ impl RadiologyApp {
         self.refresh_current_diff();
     }
 
+    pub(super) fn repository_interaction_ready(&self) -> bool {
+        self.repository_root.is_some() && self.pending_pr.is_none() && self.review_rx.is_none()
+    }
+
+    pub(super) fn source_location_ready(&self) -> bool {
+        self.repository_interaction_ready()
+            && self.open_buffer.is_some()
+            && !self.is_source_loading()
+    }
+
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
@@ -586,6 +599,7 @@ impl RadiologyApp {
         let reader_focused = self.source_viewport.has_focus(ctx)
             || self.reference_viewport.has_focus(ctx)
             || crate::ui::bookmark_list::BookmarkList::has_focus(ctx)
+            || crate::ui::outline_list::OutlineList::has_focus(ctx)
             || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id()));
         for command in super::commands::take_shortcuts(
             ctx,
@@ -601,6 +615,7 @@ impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
             self.handle_bookmark_keys(ctx, input);
+            self.handle_outline_keys(ctx, input);
             for action in self.reference_viewport.take_raw_actions(ctx, input) {
                 self.handle_reference_action(action);
             }
@@ -865,6 +880,7 @@ impl eframe::App for RadiologyApp {
                         .active_pr
                         .as_ref()
                         .map_or_else(|| "Checkout".to_string(), |pr| format!("PR #{}", pr.number));
+                    self.sync_outline();
                     if let Some(action) = ContextInspector::show(
                         ui,
                         &self.theme,
@@ -892,12 +908,14 @@ impl eframe::App for RadiologyApp {
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
-                            bookmarks_enabled: self.bookmarks_enabled(),
-                            can_toggle_bookmark: self.can_toggle_bookmark(),
+                            bookmarks_enabled: self.repository_interaction_ready(),
+                            can_toggle_bookmark: self.source_location_ready(),
                             current_bookmarked: self.current_bookmarked(),
+                            outline_enabled: self.outline_available(),
                         },
                         &mut self.reference_viewport,
                         &mut self.bookmark_list,
+                        &mut self.outline_list,
                     ) {
                         match action {
                             InspectorAction::Reference(action) => {
@@ -918,6 +936,7 @@ impl eframe::App for RadiologyApp {
                                     self.navigate(buffer.location_at_byte(byte), true);
                                 }
                             }
+                            InspectorAction::Outline(action) => self.handle_outline_action(action),
                             InspectorAction::Bookmark(action) => {
                                 self.handle_bookmark_action(ctx, action)
                             }

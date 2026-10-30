@@ -2,7 +2,7 @@
 
 use crate::bookmarks::{bookmark::SourceBookmark, store::BookmarkStore};
 use crate::theme::AppTheme;
-use egui::{Context, Key, Modifiers, RichText, Ui};
+use egui::{Context, Key, RichText, Ui};
 use uuid::Uuid;
 
 /// Bookmark commands carry stable identities rather than mutable shortcut slots.
@@ -33,33 +33,23 @@ pub struct BookmarkList {
 struct BookmarkDrag(Uuid);
 
 impl BookmarkList {
+    pub(crate) const KEYS: &[Key] = &[
+        Key::ArrowUp,
+        Key::ArrowDown,
+        Key::Home,
+        Key::End,
+        Key::Enter,
+        Key::Delete,
+        Key::Backspace,
+        Key::Escape,
+    ];
+
     pub(super) fn focus_id() -> egui::Id {
         egui::Id::new("bookmark_list_focus")
     }
 
     pub(super) fn has_focus(ctx: &Context) -> bool {
         ctx.memory(|memory| memory.has_focus(Self::focus_id()))
-    }
-
-    pub(super) fn take_keys(ctx: &Context, input: &mut egui::RawInput) -> Vec<Key> {
-        if !Self::has_focus(ctx) {
-            return Vec::new();
-        }
-        super::commands::take_event_actions(&mut input.events, |key, modifiers| {
-            (modifiers == Modifiers::NONE
-                && matches!(
-                    key,
-                    Key::ArrowUp
-                        | Key::ArrowDown
-                        | Key::Home
-                        | Key::End
-                        | Key::Enter
-                        | Key::Delete
-                        | Key::Backspace
-                        | Key::Escape
-                ))
-            .then_some(key)
-        })
     }
 
     pub(super) fn key(&mut self, key: Key, store: &BookmarkStore) -> Option<BookmarkAction> {
@@ -71,13 +61,7 @@ impl BookmarkList {
             }
             Key::Escape => self.selected = None,
             Key::Home | Key::End | Key::ArrowUp | Key::ArrowDown => {
-                let last = store.bookmarks.len().checked_sub(1)?;
-                let next = match key {
-                    Key::Home => 0,
-                    Key::End => last,
-                    Key::ArrowUp => index.map_or(last, |i| i.saturating_sub(1)),
-                    _ => index.map_or(0, |i| (i + 1).min(last)),
-                };
+                let next = super::commands::list_selection(key, index, store.bookmarks.len())?;
                 self.selected = Some(store.bookmarks[next].id);
                 self.reveal = true;
             }
@@ -147,30 +131,19 @@ impl BookmarkList {
         let row_height = ui.text_style_height(&egui::TextStyle::Body)
             + ui.text_style_height(&egui::TextStyle::Small) * 2.0
             + 10.0;
-        let stride = row_height + ui.spacing().item_spacing.y;
         let mut scroll = egui::ScrollArea::vertical()
             .id_source("reader_bookmarks")
             .auto_shrink([false, false]);
-        if std::mem::take(&mut self.reveal) {
-            if let Some(index) = self.selected.and_then(|id| store.index_of(id)) {
-                // Keep the existing offset when selection is already fully visible.
-                let offset = egui::scroll_area::State::load(
-                    ui.ctx(),
-                    ui.make_persistent_id(egui::Id::new("reader_bookmarks")),
-                )
-                .map_or(0.0, |state| state.offset.y);
-                let top = index as f32 * stride;
-                let bottom = top + row_height;
-                let next = if top < offset {
-                    top
-                } else if bottom > offset + region.height() {
-                    bottom - region.height()
-                } else {
-                    offset
-                };
-                scroll = scroll.vertical_scroll_offset(next.max(0.0));
-            }
-        }
+        let reveal = std::mem::take(&mut self.reveal)
+            .then(|| self.selected.and_then(|id| store.index_of(id)))
+            .flatten();
+        scroll = super::commands::reveal_list_row(
+            ui,
+            scroll,
+            egui::Id::new("reader_bookmarks"),
+            reveal,
+            row_height,
+        );
         scroll.show_rows(ui, row_height, store.bookmarks.len(), |ui, rows| {
             if store.bookmarks.is_empty() {
                 ui.colored_label(theme.text_muted, "Ctrl+D to bookmark this location.");
@@ -373,6 +346,7 @@ fn bookmark_menu(ui: &mut Ui, store: &BookmarkStore, index: usize) -> Option<Boo
 mod tests {
     use super::*;
     use crate::{bookmarks::bookmark::SourceBookmark, source::SourceBuffer};
+    use egui::Modifiers;
 
     #[test]
     fn list_keys_require_focus_and_leave_modified_global_keys_and_releases_available() {
@@ -399,10 +373,24 @@ mod tests {
             ..Default::default()
         };
         let original = input.events.clone();
-        assert!(BookmarkList::take_keys(&ctx, &mut input).is_empty());
+        assert!(super::super::commands::take_focused_keys(
+            &ctx,
+            &mut input,
+            BookmarkList::focus_id(),
+            BookmarkList::KEYS
+        )
+        .is_empty());
         assert_eq!(input.events, original);
         ctx.memory_mut(|memory| memory.request_focus(BookmarkList::focus_id()));
-        assert_eq!(BookmarkList::take_keys(&ctx, &mut input), [Key::ArrowDown]);
+        assert_eq!(
+            super::super::commands::take_focused_keys(
+                &ctx,
+                &mut input,
+                BookmarkList::focus_id(),
+                BookmarkList::KEYS
+            ),
+            [Key::ArrowDown]
+        );
         assert_eq!(input.events, original[1..]);
     }
 
@@ -417,27 +405,9 @@ mod tests {
         };
         let mut list = BookmarkList::default();
         let render = |list: &mut BookmarkList| {
-            ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(300.0, 260.0),
-                    )),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        list.show(ui, &AppTheme::dark(), &store, "Checkout", Some(false));
-                    });
-                },
-            )
-            .shapes
-            .into_iter()
-            .filter_map(|shape| match shape.shape {
-                egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
-                _ => None,
+            crate::ui::test_support::painted_text(&ctx, egui::vec2(300.0, 240.0), |ui| {
+                list.show(ui, &AppTheme::dark(), &store, "Checkout", Some(false));
             })
-            .collect::<Vec<_>>()
         };
         // The first layout discovers the viewport size; subsequent layouts use that geometry.
         render(&mut list);
