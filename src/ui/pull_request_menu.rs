@@ -27,15 +27,16 @@ impl PullRequestMenu<'_> {
             .map(|number| format!("#{number}…"))
             .or_else(|| self.active.map(|pr| format!("#{}", pr.number)))
             .unwrap_or_else(|| "Pull Request".into());
-        ui.menu_button(title, |ui| action = self.contents(ui))
-            .response
-            .on_hover_text(
+        let menu = ui.menu_button(title, |ui| action = self.contents(ui));
+        if menu.inner.is_none() {
+            menu.response.on_hover_text(
                 self.active
                     .map(|pr| format!("#{} {} · {}", pr.number, pr.title, pr.state_title()))
                     .unwrap_or_else(|| {
                         "Review a recent pull request or open a number (Ctrl+P).".into()
                     }),
             );
+        }
         if (self.active.is_some() || self.pending.is_some())
             && ui
                 .button("Exit PR")
