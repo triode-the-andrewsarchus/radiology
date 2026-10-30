@@ -88,6 +88,9 @@ and the remaining generation/cache requirements.
   counts, local scope/source context, Here/package/unavailable states and exact
   alternative destinations. Parsed impl/extension type links feed references.
   Native Return/Back and type F12 acceptance pass. [Inspector metadata](rust-inspector-metadata.md).
+- Bookmark pane has UUID-based list selection, ordered Return/Delete navigation,
+  header toggling, drag insertion and direct shortcut assignment, with scoped
+  persistence and native restart acceptance. [Contract and remaining audit](rust-bookmark-pane.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -111,7 +114,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
-- Broader inspector keyboard/outline/bookmark/accessibility parity, mixed-language
+- Outline keyboard and broader bookmark/accessibility parity, mixed-language
   and long-name corpus, pinned-review and light/dark/scaling acceptance.
   Background metadata, local/package explanations and impl/extension type links
   are integrated; see [metadata acceptance](rust-inspector-metadata.md).
@@ -134,7 +137,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Commit discipline
 
-The user explicitly requested incremental commits. Keep backend mechanisms,
+The user explicitly requested incremental commits and pushing after each commit. Keep backend mechanisms,
 integration/UI work, and documentation in reviewable commits as work progresses.
 Do not merge to main. Initial commits:
 

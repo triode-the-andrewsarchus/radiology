@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Bookmark pane controls and ordered keyboard input (Codex)
+
+Committed/pushed identity slot assignment (`b4c4a36`) and pane integration
+(`c00308e`). Bookmarks now support independent UUID selection, Up/Down/Home/End,
+Return/Delete/Escape, header current-location toggling, drag insertion and direct
+shortcut-slot menus. Visible-row painting bounds long lists. Mutations save in
+scope, stale IDs do not open replaced slots, and scope transitions retire state.
+Full checks pass 277 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Native checks verify navigation, deletion, header toggling,
+reordering and persisted restart on the final binary. Architecture has no new
+product hotspot/cycle; one newly detected existing test-assertion clone remains
+recorded. [Contract and exact evidence](plans/rust-bookmark-pane.md).
+The user now requires pushing after every commit; preserve that instruction.
+Outline keyboard behavior and the broader parity queue remain open.
+
 ## 2026-10-30 — Native inspector metadata acceptance (Codex)
 
 Native checks verify Unicode local scope/count/source context, recorded function
