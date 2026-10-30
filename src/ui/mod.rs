@@ -5,6 +5,8 @@
 //! [`ContextInspector`] with symbol definition details, caller trees, outline, and bookmarks,
 //! and modal dialogs for quick file jumping and symbol navigation.
 
+mod critical_menu;
+
 pub mod app;
 pub mod commands;
 pub mod context_inspector;

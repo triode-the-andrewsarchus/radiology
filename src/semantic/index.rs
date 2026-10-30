@@ -553,11 +553,10 @@ impl SemanticIndex {
             if id.is_local() {
                 continue;
             }
-            if let Some(package) = SCIPSymbolHeader::parse(&id.symbol)
-                .and_then(|header| header.package_name().map(str::to_owned))
-            {
-                idx.repository_packages.insert(package);
-            }
+            idx.repository_packages.extend(
+                SCIPSymbolHeader::parse(&id.symbol)
+                    .and_then(|header| header.package_name().map(str::to_owned)),
+            );
             if let Some((first_path, first_range)) = canonical_definition(defs) {
                 let sym_info = idx.symbols.get(id);
                 let name = sym_info

@@ -1,6 +1,7 @@
 //! Main application model and EGUI event loop lifecycle.
 
 mod actions;
+mod critical_marks;
 mod indexing;
 mod reviews;
 mod source;
@@ -105,6 +106,7 @@ pub struct RadiologyApp {
     pub semantic_index: Option<Arc<SemanticIndex>>,
     call_sites: Arc<crate::syntax::calls::CallSites>,
     critical_lens: crate::critical::service::CriticalLens,
+    critical_marks: crate::critical::marks::MarkSession,
     /// Configurable tool lookup context shared by probes and generation.
     pub index_tools: crate::semantic::indexing::tools::ToolDirectory,
     index_importer: crate::semantic::loader::IndexImporter,
@@ -187,6 +189,10 @@ impl RadiologyApp {
         let index_tools = crate::semantic::indexing::tools::ToolDirectory::from_environment(
             session.config_directory().map(|path| path.join("tools")),
         );
+        let critical_marks =
+            crate::critical::marks::MarkSession::new(session.config_directory().map(|path| {
+                crate::critical::overrides::OverrideStore::new(path.join("critical-marks"))
+            }));
         Self {
             theme: if session.dark_mode {
                 AppTheme::dark()
@@ -217,6 +223,7 @@ impl RadiologyApp {
             semantic_index: None,
             call_sites: Default::default(),
             critical_lens: Default::default(),
+            critical_marks,
             index_tools,
             index_importer: Default::default(),
             index_generator: Default::default(),
@@ -291,6 +298,7 @@ impl RadiologyApp {
             .to_string();
 
         self.repository_root = Some(root.clone());
+        self.critical_marks.open(root.clone());
         self.repository_name = Some(name);
         self.session.active_pr = None;
         self.session.record_repository(root.to_string_lossy());
@@ -425,6 +433,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.critical_marks.close();
         self.cancel_source_load();
         self.reset_index_state();
         self.source_find = Default::default();
@@ -615,6 +624,15 @@ impl RadiologyApp {
 }
 
 impl eframe::App for RadiologyApp {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.cancel_source_load();
+        self.index_generator.stop();
+        self.index_importer.stop();
+        if let Err(error) = self.flush_critical_marks(std::time::Duration::from_secs(10)) {
+            tracing::warn!(%error, "Critical Lens marks were not saved at shutdown");
+        }
+    }
+
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_review(ctx);
         self.poll_source(ctx);
@@ -972,6 +990,13 @@ impl eframe::App for RadiologyApp {
                         &self.theme,
                         SourceViewContent {
                             mode: self.mode,
+                            mark_context: self.semantic_index.as_deref().map(|index| {
+                                crate::critical::menu::MarkContext {
+                                    index,
+                                    overrides: self.critical_marks.overrides(),
+                                }
+                            }),
+                            mark_error: self.critical_marks.error(),
                             projection: self.critical_lens.projection(&buf),
                             critical_status: self.critical_status(),
                             buffer: &buf,
@@ -1042,6 +1067,9 @@ impl eframe::App for RadiologyApp {
                                 self.pin_store.remove(&symbol);
                             }
                             SourceViewAction::ClearPins => self.pin_store.clear_current(),
+                            SourceViewAction::SetCriticality(edit) => {
+                                self.apply_critical_mark(edit);
+                            }
                             SourceViewAction::OpenGoToLine => {
                                 self.modal = ActiveModal::GoToLine(GoToLineModal::default());
                             }

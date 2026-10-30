@@ -76,3 +76,11 @@ verified; reader load/save/menu/projection integration is pending. Marking UI, c
 frontier summaries, hover models, count/fold annotations, complete query coverage
 and full visual/interaction acceptance remain required. This backend alone does
 not complete Critical Lens or the broader Rust/Swift parity goal.
+
+## Persisted source decisions (2026-10-30)
+
+Repository-scoped symbol/package menus now feed the background projection in
+Normal/Critical mode, with exact semantic targeting, durable lifecycle and restart
+acceptance. See [mark contract and verification](rust-critical-marks.md). Earlier
+statements that reader overrides are empty or menus remain absent are superseded.
+Call graph/frontier and hover/fold annotations remain open.
