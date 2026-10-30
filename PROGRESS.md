@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Parsed Kotlin import grouping (Codex)
+
+Adapted the missing kotlin-ng import-list node into one parsed sibling-run fold.
+Comments/blank lines between imports are included; trailing comments, declarations
+and errors terminate the range. Imports remain expanded by default and Fold to
+Definitions expands manual import folds. Every captured import counts toward
+fact limits. Exact Unicode/CRLF, aliases/stars/semicolons, string impostors,
+errors and command policy are covered. Full gates pass 298 app tests (one external
+Clang fixture ignored), five reader-text tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc. Native collapse/reopen preserves the trailing comment and
+function header; all private app/compositor exits zero. Architecture is NEUTRAL.
+[Details/evidence](plans/rust-structural-folds.md).
+The same-row queue is corrected: Swift also shows one gutter disclosure per row;
+remaining work is byte-range identity/overlap retention and exact non-delimited
+header projection. Broader cache/background/index/PR lifecycle, visual/accessibility
+acceptance and sibling UI reuse remain open. Push after every commit.
+
 ## 2026-10-30 — Enclosing callable shading and blank-line hit geometry (Codex)
 
 Implemented Swift's signature-through-body neutral wash using existing parsed

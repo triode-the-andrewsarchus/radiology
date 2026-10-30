@@ -16,6 +16,7 @@ pub(super) fn extract(
     let names = query.capture_names();
     let mut folds = BTreeMap::<(usize, usize), FoldRange>::new();
     let mut declarations = Vec::<Range<usize>>::new();
+    let mut import_members = 0usize;
     let mut matches = cursor.matches(query, root, &buffer.data[..]);
     while let Some(found) = matches.next() {
         for capture in found.captures {
@@ -24,7 +25,15 @@ pub(super) fn extract(
             if name.starts_with("symbol.") {
                 declarations.push(range);
             } else if let Some(kind) = fold_kind(name) {
-                if let Some(fold) = make_fold(buffer, capture.node, kind) {
+                let range = if name == "fold.imports.member" {
+                    import_members += 1;
+                    import_group(capture.node)
+                } else {
+                    Some(range)
+                };
+                if let Some(fold) =
+                    range.and_then(|range| make_fold(buffer, capture.node, kind, range))
+                {
                     folds
                         .entry((fold.byte_range.start, fold.byte_range.end))
                         .and_modify(|old| {
@@ -35,7 +44,12 @@ pub(super) fn extract(
                         .or_insert(fold);
                 }
             }
-            if folds.len().saturating_add(declarations.len()) > fact_limit {
+            if folds
+                .len()
+                .saturating_add(declarations.len())
+                .saturating_add(import_members)
+                > fact_limit
+            {
                 return Err("Folding query exceeded its fact limit".into());
             }
         }
@@ -72,14 +86,42 @@ fn fold_kind(name: &str) -> Option<FoldKind> {
         "fold.function" => Some(FoldKind::Callable),
         "fold.type" => Some(FoldKind::Type),
         "fold.comment" => Some(FoldKind::Comment),
-        "fold.imports" => Some(FoldKind::Imports),
+        "fold.imports" | "fold.imports.member" => Some(FoldKind::Imports),
         "fold.block" => Some(FoldKind::Block),
         _ => None,
     }
 }
 
-fn make_fold(buffer: &SourceBuffer, node: Node<'_>, kind: FoldKind) -> Option<FoldRange> {
-    let range = node.byte_range();
+// kotlin-ng has no import_list node. Reconstruct only a parsed sibling run;
+// comments may separate members, but errors and declarations must stay visible.
+fn import_group(node: Node<'_>) -> Option<Range<usize>> {
+    let mut previous = node.prev_named_sibling();
+    while let Some(sibling) = previous {
+        match sibling.kind() {
+            "import" => return None, // The first member already owns this run.
+            "line_comment" | "block_comment" => previous = sibling.prev_named_sibling(),
+            _ => break,
+        }
+    }
+    let mut range = node.byte_range();
+    let mut next = node.next_named_sibling();
+    while let Some(sibling) = next {
+        match sibling.kind() {
+            "import" => range.end = sibling.end_byte(),
+            "line_comment" | "block_comment" => {}
+            _ => break,
+        }
+        next = sibling.next_named_sibling();
+    }
+    Some(range)
+}
+
+fn make_fold(
+    buffer: &SourceBuffer,
+    node: Node<'_>,
+    kind: FoldKind,
+    range: Range<usize>,
+) -> Option<FoldRange> {
     let start_line = buffer.line_at_byte(range.start);
     let end_line = buffer.line_at_byte(range.end.saturating_sub(1).max(range.start));
     (end_line > start_line).then(|| FoldRange {
