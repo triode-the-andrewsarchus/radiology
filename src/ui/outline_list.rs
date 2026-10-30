@@ -1,6 +1,7 @@
 //! Source-bound outline selection, hierarchical disclosure, and virtual rows.
 
 use crate::{
+    pull_request::diff::FileLineChanges,
     source::{test_code::TestCodePresentation, SourceBuffer},
     syntax::outline::{outline_rows, DocumentSymbol, SymbolKind},
     theme::AppTheme,
@@ -34,6 +35,7 @@ struct Entry {
     lines: usize,
     has_children: bool,
     hidden: bool,
+    changed: bool,
 }
 
 /// Outline state belongs to one exact document, separate from source selection.
@@ -46,6 +48,7 @@ pub struct OutlineList {
     active: Option<Range<usize>>,
     collapsed: HashSet<usize>,
     test_generation: Option<u64>,
+    changes: Option<FileLineChanges>,
     reveal: bool,
 }
 
@@ -75,6 +78,7 @@ impl OutlineList {
         symbols: &[DocumentSymbol],
         tests: &TestCodePresentation,
         caret: usize,
+        changes: Option<&FileLineChanges>,
     ) {
         let document = (buffer.position_key(), buffer.content_digest().to_owned());
         if self.document.as_ref() != Some(&document) {
@@ -94,6 +98,7 @@ impl OutlineList {
                     lines: row.line_count,
                     has_children: false,
                     hidden: false,
+                    changed: false,
                 })
                 .collect();
             for index in 0..self.entries.len().saturating_sub(1) {
@@ -101,6 +106,7 @@ impl OutlineList {
                     && self.entries[index + 1].depth > self.entries[index].depth;
             }
         }
+        self.sync_changes(buffer, changes);
         if self.test_generation != Some(tests.generation()) {
             for entry in &mut self.entries {
                 entry.hidden = tests.hides_declaration(&entry.range);
@@ -123,6 +129,28 @@ impl OutlineList {
             }
             self.reveal = true;
         }
+    }
+
+    fn sync_changes(&mut self, buffer: &SourceBuffer, changes: Option<&FileLineChanges>) {
+        let changes = changes.filter(|_| buffer.revision.is_some());
+        if self.changes.as_ref() == changes {
+            return;
+        }
+        let bytes: Vec<_> = buffer
+            .revision
+            .zip(changes)
+            .filter(|(_, changes)| !changes.is_binary)
+            .into_iter()
+            .flat_map(|(revision, changes)| changes.changed_lines(revision))
+            .filter_map(|lines| buffer.line_span_byte_range(lines))
+            .collect();
+        for entry in &mut self.entries {
+            entry.changed = entry.callable
+                && bytes
+                    .iter()
+                    .any(|range| range.start < entry.range.end && entry.range.start < range.end);
+        }
+        self.changes = changes.cloned();
     }
 
     fn selected_entry(&self) -> Option<usize> {
@@ -382,11 +410,18 @@ impl OutlineList {
             count,
             theme.text_secondary,
         );
+        let label_right = if entry.changed {
+            ui.painter()
+                .circle_filled(egui::pos2(right - 8.0, rect.center().y), 3.0, theme.accent);
+            right - 16.0
+        } else {
+            right
+        };
         let mut job = egui::text::LayoutJob::simple(
             entry.name.clone(),
             egui::TextStyle::Body.resolve(ui.style()),
             theme.text_primary,
-            (right - x - 24.0).max(0.0),
+            (label_right - x - 24.0).max(0.0),
         );
         job.wrap.max_rows = 1;
         let label = ui.fonts(|fonts| fonts.layout_job(job));
@@ -402,12 +437,17 @@ impl OutlineList {
                 egui::WidgetType::SelectableLabel,
                 selected,
                 format!(
-                    "{} {}. {} lines. {}",
+                    "{} {}. {} lines. {} {}",
                     entry.kind.title(),
                     entry.name,
                     entry.lines,
                     if self.active.as_ref() == Some(&entry.selection) {
                         "Current declaration"
+                    } else {
+                        ""
+                    },
+                    if entry.changed {
+                        "Changed in this pull request"
                     } else {
                         ""
                     }
@@ -421,10 +461,15 @@ impl OutlineList {
                 .interact_pointer_pos()
                 .is_some_and(|point| point.x < x + 16.0);
         response.on_hover_text(format!(
-            "{} · {} lines\nGo to {}",
+            "{} · {} lines\nGo to {}{}",
             entry.kind.title(),
             entry.lines,
-            entry.name
+            entry.name,
+            if entry.changed {
+                "\nContains lines changed by the pull request"
+            } else {
+                ""
+            }
         ));
         (clicked && !disclose, disclose)
     }
@@ -435,13 +480,103 @@ mod tests {
     use super::*;
     use crate::syntax::{outline::SymbolExtractor, test_detector::TestRegionDetector};
 
+    fn changed_names(list: &OutlineList) -> Vec<&str> {
+        list.entries
+            .iter()
+            .filter(|entry| entry.changed)
+            .map(|entry| entry.name.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn review_markers_follow_revision_half_open_bytes_and_live_diff_replacement() {
+        use crate::{pull_request::diff::DiffHunk, source::ReviewRevision};
+        let text = "// café 😀\r\nfn removed() {\r\n first();\r\n}\r\nfn added() {\r\n second();\r\n}\r\nstruct Plain;\r\n";
+        let changes = FileLineChanges {
+            hunks: vec![DiffHunk {
+                before_start: 2,
+                before_count: 3,
+                after_start: 5,
+                after_count: 3,
+            }],
+            is_binary: false,
+        };
+        let tests = TestCodePresentation::default();
+        let mut list = OutlineList::default();
+        for (revision, expected) in [
+            (ReviewRevision::Before, "removed"),
+            (ReviewRevision::After, "added"),
+        ] {
+            let buffer =
+                SourceBuffer::from_bytes("a.rs", text.as_bytes().to_vec(), Some(revision)).unwrap();
+            let symbols = SymbolExtractor::extract(&buffer);
+            list.sync(&buffer, &symbols, &tests, 0, Some(&changes));
+            assert_eq!(changed_names(&list), [expected]);
+            list.key(Key::Home);
+            let selected = list.selected.clone();
+            let mut replacement = changes.clone();
+            replacement.hunks[0].after_count = 10_000; // clip at EOF, never mark Plain
+            list.sync(&buffer, &symbols, &tests, 0, Some(&replacement));
+            assert_eq!(changed_names(&list), [expected]);
+            assert_eq!(list.selected, selected);
+            replacement.is_binary = true;
+            list.sync(&buffer, &symbols, &tests, 0, Some(&replacement));
+            assert!(changed_names(&list).is_empty());
+            list.sync(&buffer, &symbols, &tests, 0, Some(&changes));
+            assert_eq!(changed_names(&list), [expected]);
+            list.sync(&buffer, &symbols, &tests, 0, None);
+            assert!(changed_names(&list).is_empty());
+        }
+        let checkout = SourceBuffer::from_str("a.rs", text);
+        list.sync(
+            &checkout,
+            &SymbolExtractor::extract(&checkout),
+            &tests,
+            0,
+            Some(&changes),
+        );
+        assert!(changed_names(&list).is_empty());
+    }
+
+    #[test]
+    fn nested_callable_markers_use_overlapping_spans_and_reject_empty_eof_changes() {
+        use crate::{pull_request::diff::DiffHunk, source::ReviewRevision};
+        let text = "fn outer() {\n fn inner() { changed(); }\n}\n";
+        let buffer = SourceBuffer::from_bytes(
+            "a.rs",
+            text.as_bytes().to_vec(),
+            Some(ReviewRevision::After),
+        )
+        .unwrap();
+        let symbols = SymbolExtractor::extract(&buffer);
+        let mut changes = FileLineChanges {
+            hunks: vec![DiffHunk {
+                before_start: 2,
+                before_count: 1,
+                after_start: 2,
+                after_count: 1,
+            }],
+            is_binary: false,
+        };
+        let mut list = OutlineList::default();
+        list.sync(&buffer, &symbols, &Default::default(), 0, Some(&changes));
+        assert_eq!(changed_names(&list), ["outer", "inner"]);
+        changes.hunks[0].after_start = buffer.line_count(); // empty trailing line
+        list.sync(&buffer, &symbols, &Default::default(), 0, Some(&changes));
+        assert!(changed_names(&list).is_empty());
+        changes.hunks[0].after_start = 2;
+        changes.hunks[0].after_count = 0; // navigation anchor is not an added source line
+        list.sync(&buffer, &symbols, &Default::default(), 0, Some(&changes));
+        assert!(changed_names(&list).is_empty());
+    }
+
     #[test]
     fn hierarchical_selection_disclosure_and_active_caret_follow_source_identities() {
         let source = SourceBuffer::from_str("main.rs", "// origin\nfn small() {}\nfn large() {\n let x = 1;\n}\nmod outer {\n pub struct Inner;\n pub const VALUE: i32 = 1;\n}\n");
         let symbols = SymbolExtractor::extract(&source);
         let tests = TestCodePresentation::default();
         let mut list = OutlineList::default();
-        list.sync(&source, &symbols, &tests, 0);
+        list.sync(&source, &symbols, &tests, 0, None);
         let Some(OutlineAction::Preview(first)) = list.key(Key::Home) else {
             panic!()
         };
@@ -471,6 +606,7 @@ mod tests {
             &symbols,
             &tests,
             source.text.find("VALUE").unwrap(),
+            None,
         );
         assert!(list.destination(&source, &last).is_some());
         assert_eq!(list.key(Key::Enter), Some(OutlineAction::Commit(last)));
@@ -480,6 +616,7 @@ mod tests {
             &symbols,
             &tests,
             source.text.find("VALUE").unwrap(),
+            None,
         );
         assert!(list.key(Key::Enter).is_none());
     }
@@ -494,18 +631,18 @@ mod tests {
         let mut tests = TestCodePresentation::default();
         tests.load(&source, TestRegionDetector::detect(&source), false);
         let mut list = OutlineList::default();
-        list.sync(&source, &symbols, &tests, 0);
+        list.sync(&source, &symbols, &tests, 0, None);
         list.key(Key::Home);
         let Some(OutlineAction::Preview(target)) = list.key(Key::ArrowDown) else {
             panic!()
         };
         assert_eq!(target.selection.start, source.text.find("hidden").unwrap());
         tests.set_enabled(&source, true);
-        list.sync(&source, &symbols, &tests, 0);
+        list.sync(&source, &symbols, &tests, 0, None);
         assert!(list.destination(&source, &target).is_none());
         assert!(list.selected.is_none());
         tests.set_enabled(&source, false);
-        list.sync(&source, &symbols, &tests, 0);
+        list.sync(&source, &symbols, &tests, 0, None);
         assert!(list.destination(&source, &target).is_some());
         for replacement in [
             SourceBuffer::from_str("other.rs", &source.text),
@@ -523,6 +660,7 @@ mod tests {
                 &SymbolExtractor::extract(&replacement),
                 &tests,
                 0,
+                None,
             );
             assert!(list.destination(&replacement, &target).is_none());
         }
@@ -541,6 +679,7 @@ mod tests {
             &SymbolExtractor::extract(&source),
             &Default::default(),
             0,
+            None,
         );
         let render = |list: &mut OutlineList| {
             crate::ui::test_support::painted_text(&ctx, egui::vec2(300.0, 240.0), |ui| {

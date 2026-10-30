@@ -18,6 +18,7 @@ impl RadiologyApp {
                 &self.outline_symbols,
                 &self.test_code,
                 buffer.byte_offset(self.caret_line, self.caret_col),
+                self.line_changes.as_ref().filter(|_| self.review.is_some()),
             );
         } else {
             self.outline_list = Default::default();
