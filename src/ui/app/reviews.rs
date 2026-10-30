@@ -148,6 +148,7 @@ impl RadiologyApp {
         self.pr_changes = snapshot.changes.clone();
         self.inspect_index_projects();
         self.review = Some(Arc::new(snapshot));
+        self.load_repository_index();
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;
         self.history.clear();

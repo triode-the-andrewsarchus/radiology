@@ -55,6 +55,25 @@ pub(crate) fn fixture_with_sources(
     (temp, root, review)
 }
 
+pub(crate) fn indexing_fixture() -> (tempfile::TempDir, PathBuf, std::sync::Arc<ReviewSnapshot>) {
+    let (owner, root, old) = fixture();
+    git(&root, &["restore", "."]);
+    git(&root, &["checkout", "review"]);
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname='fixture'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    git(&root, &["add", "Cargo.toml"]);
+    git(&root, &["commit", "-m", "build inputs"]);
+    let mut summary = old.summary.clone();
+    summary.head_ref_oid = Some(git(&root, &["rev-parse", "HEAD"]));
+    git(&root, &["checkout", "main"]);
+    std::fs::write(root.join("a file.rs"), "checkout only\n").unwrap();
+    let review = ReviewSnapshot::prepare(&root, summary, &owner.path().join("cache")).unwrap();
+    (owner, root, std::sync::Arc::new(review))
+}
+
 #[test]
 fn pinned_review_uses_merge_base_and_never_checkout_bytes() {
     let (_temp, root, review) = fixture();

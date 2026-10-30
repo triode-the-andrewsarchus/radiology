@@ -7,9 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct Entry {
-    mode: String,
-    blob: String,
+pub(super) struct Entry {
+    pub mode: String,
+    pub blob: String,
 }
 
 pub(super) fn verify(
@@ -130,7 +130,7 @@ fn verify_entry(
     Ok(None)
 }
 
-fn entries(store: &GitStore<'_>, head: &str) -> Result<BTreeMap<String, Entry>, String> {
+pub(super) fn entries(store: &GitStore<'_>, head: &str) -> Result<BTreeMap<String, Entry>, String> {
     let bytes = store.bytes(&["ls-tree", "-rz", head])?;
     let mut entries = BTreeMap::new();
     for record in bytes

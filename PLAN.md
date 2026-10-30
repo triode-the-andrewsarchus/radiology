@@ -510,6 +510,7 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/rust-pinned-index.md](plans/rust-pinned-index.md) — pinned After generation, cache identity, isolated inputs and revision-scoped publication.
 - [plans/rust-pr-tree-cache.md](plans/rust-pr-tree-cache.md) — exact PR tree reuse, snapshot leases, bounded retention, automated evidence and pending native acceptance.
 - [plans/source-breadcrumbs.md](plans/source-breadcrumbs.md) — adaptive path/declaration retention, fixed revision area, type hierarchy, and visual acceptance.
 - [plans/session-restoration.md](plans/session-restoration.md) — last repository/PR persistence, startup precedence, failure recovery, and real relaunch acceptance.

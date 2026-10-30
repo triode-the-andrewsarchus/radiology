@@ -13,11 +13,13 @@ use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// Inputs owned by one checkout generation request.
+/// Inputs owned by one checkout or pinned-review generation request.
 #[derive(Clone)]
 pub struct GenerationRequest {
     /// Viewed repository whose bytes must remain unchanged.
     pub root: PathBuf,
+    /// Pinned review owning this root and its tree lease, or None for a checkout.
+    pub review: Option<Arc<crate::pull_request::review::ReviewSnapshot>>,
     /// Private cache parent, outside the viewed repository.
     pub cache: PathBuf,
     /// Explicit managed/PATH search context.
@@ -26,6 +28,46 @@ pub struct GenerationRequest {
     pub timeout: Duration,
     /// Input-copy limits applied to the pristine and per-strategy workspaces.
     pub limits: WorkspaceLimits,
+}
+
+impl GenerationRequest {
+    pub(super) fn inventory(&self, cancel: &AtomicBool) -> Result<InputInventory, String> {
+        let Some(review) = &self.review else {
+            return InputInventory::discover(&self.root, cancel);
+        };
+        if std::fs::canonicalize(&self.root).map_err(|e| e.to_string())?
+            != std::fs::canonicalize(&review.head_root).map_err(|e| e.to_string())?
+        {
+            return Err("Index input root differs from its pinned review".into());
+        }
+        let inputs = review.head_inputs(cancel)?;
+        let mut inventory = InputInventory::from_paths(inputs.blobs.into_keys())?;
+        inventory.omitted_directories = inputs.omitted_directories;
+        Ok(inventory)
+    }
+
+    fn prepare(&self, cancel: &AtomicBool) -> Result<(InputInventory, IndexingWorkspace), String> {
+        let inventory = self.inventory(cancel)?;
+        let baseline =
+            IndexingWorkspace::create(&self.root, &inventory, &self.cache, self.limits, cancel)?;
+        if let Some(review) = &self.review {
+            baseline.verify_snapshot(&review.head_inputs(cancel)?.blobs)?;
+        }
+        Ok((inventory, baseline))
+    }
+
+    pub(super) fn identity_root(&self) -> Result<PathBuf, String> {
+        std::fs::canonicalize(
+            self.review
+                .as_ref()
+                .map_or(&self.root, |review| &review.object_dir),
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    pub(super) fn revision(&self) -> Option<&str> {
+        self.review.as_ref().map(|review| review.head.as_str())
+    }
 }
 
 /// Latest bounded progress snapshot, without an event backlog.
@@ -67,6 +109,9 @@ pub struct StrategyOutcome {
 /// Provenance and coverage of the last completed generation.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct GenerationReport {
+    /// Exact pinned After commit, or None for a mutable checkout index.
+    #[serde(default)]
+    pub revision: Option<String>,
     /// Plan derived from the full build-input inventory.
     pub plan: IndexPlan,
     /// Project outcomes in plan order.
@@ -285,16 +330,10 @@ fn generate(
     cancel: &AtomicBool,
     state: &Mutex<GenerationProgress>,
 ) -> Result<GeneratedIndex, String> {
-    let inventory = InputInventory::discover(&request.root, cancel)?;
+    let (inventory, baseline) = request.prepare(cancel)?;
     let plan = IndexPlan::inspect(inventory.paths.iter().map(String::as_str));
-    let baseline = IndexingWorkspace::create(
-        &request.root,
-        &inventory,
-        &request.cache,
-        request.limits,
-        cancel,
-    )?;
     let mut report = GenerationReport {
+        revision: request.revision().map(str::to_owned),
         fingerprint: baseline.fingerprint(),
         omitted_directories: inventory.omitted_directories.clone(),
         plan,
@@ -372,13 +411,15 @@ fn source_staleness(
     cancel: &AtomicBool,
 ) -> Result<Option<String>, String> {
     baseline.verify_inputs(cancel)?;
+    if request.review.is_some() {
+        request.inventory(cancel)?;
+        baseline.verify_source(cancel)?;
+    }
     if let Err(reason) = baseline.verify_source(cancel) {
         return Ok(Some(reason));
     }
-    Ok(
-        (InputInventory::discover(&request.root, cancel)? != *inventory)
-            .then(|| "Repository inputs were added or removed during generation".into()),
-    )
+    Ok((request.inventory(cancel)? != *inventory)
+        .then(|| "Repository inputs were added or removed during generation".into()))
 }
 
 fn run_strategy(

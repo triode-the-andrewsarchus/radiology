@@ -34,7 +34,13 @@ fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
     if parent.starts_with(&root) {
         return Err("Index cache must be outside the viewed repository".into());
     }
-    let key = format!("{:x}", Sha256::digest(root.as_os_str().as_encoded_bytes()));
+    let mut identity = Sha256::new();
+    identity.update(request.identity_root()?.as_os_str().as_encoded_bytes());
+    if let Some(revision) = request.revision() {
+        identity.update(b"\0");
+        identity.update(revision);
+    }
+    let key = format!("{:x}", identity.finalize());
     Ok(parent.join(format!("{key}.index.json")))
 }
 
@@ -53,7 +59,7 @@ pub(super) fn save(
     let destination = path(request)?;
     let entry = Entry {
         format: FORMAT,
-        root: fs::canonicalize(&request.root).map_err(|e| e.to_string())?,
+        root: request.identity_root()?,
         inventory,
         scip,
         report,
@@ -107,11 +113,17 @@ fn restore(
     cancel: &AtomicBool,
 ) -> Result<GeneratedIndex, String> {
     let root = fs::canonicalize(&request.root).map_err(|e| e.to_string())?;
-    validate(&entry, &root, cancel)?;
-    let inventory = InputInventory::discover(&root, cancel)?;
+    validate(&entry, &request.identity_root()?, cancel)?;
+    if entry.report.revision.as_deref() != request.revision() {
+        return Err("Index cache belongs to another revision".into());
+    }
+    let inventory = request.inventory(cancel)?;
     let fingerprint =
         IndexingWorkspace::fingerprint_source(&root, &inventory, request.limits, cancel)?;
     if inventory != entry.inventory || fingerprint != entry.report.fingerprint {
+        if request.review.is_some() {
+            return Err("Pinned inputs differ from the cached index".into());
+        }
         entry.report.stale_reason = Some("Repository inputs differ from the cached index".into());
     }
     check_cancel(cancel)?;

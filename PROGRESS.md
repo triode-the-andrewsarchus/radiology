@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Pinned After index generation and cache reload (Codex)
+
+Review generation now reuses the isolated indexing pipeline with snapshot-owned
+leases, raw Git inventories and blob verification. It rejects modified pinned
+inputs and mismatched roots. Cache identity uses object store plus head commit,
+allowing exact reuse after tree replacement; reports retain commit provenance.
+Review entry automatically loads its own cache without checkout-import fallback.
+Generate After Index and Reload Index work in review mode; Before stays source-only.
+[Contract and evidence](plans/rust-pinned-index.md). Full gates pass 384 app tests
+(one ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and rustdoc.
+Architecture has no new hotspot/cycle or clone growth; reported duplicate findings
+are five unchanged baseline test groups, verified fragment by fragment. Native UI
+acceptance follows. Full parity remains open, including complete index lifecycle,
+precise refresh restoration and final UI/sibling reuse acceptance. Push each commit.
+
 ## 2026-10-30 — Background PR tree consumers retain snapshot leases (Codex)
 
 Debounced and running repository searches now own their review snapshot, and

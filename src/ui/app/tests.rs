@@ -56,6 +56,32 @@ fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     (dir, app)
 }
 
+#[cfg(unix)]
+fn rust_indexer_fixture(settings: &Path, document: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    assert!(document.len() < 126);
+    let executable = settings.join("settings/tools/bin/rust-analyzer");
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    let payload = [
+        vec![0x12, (document.len() + 2) as u8, 0x0a, document.len() as u8],
+        document.as_bytes().to_vec(),
+    ]
+    .concat();
+    std::fs::write(executable.with_file_name("fixture.scip"), payload).unwrap();
+    std::fs::write(
+        &executable,
+        r#"#!/bin/sh
+if [ "${1:-}" = --version ]; then printf 'rust-analyzer fixture\n'; exit 0; fi
+while [ "$#" -gt 0 ]; do case "$1" in --output) shift; output=$1;; esac; shift; done
+printf artifact > artifact.bin
+/bin/cat "$(/usr/bin/dirname "$0")/fixture.scip" > "$output"
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    executable
+}
+
 fn assert_folded_headers(app: &RadiologyApp, expected: &[usize]) {
     assert_eq!(
         app.fold_store.collapsed_headers(&app.fold_ranges),
@@ -607,7 +633,6 @@ fn tool_probes_publish_real_versions_and_are_retired_on_repository_changes() {
 #[cfg(unix)]
 #[test]
 fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires_on_switch() {
-    use std::os::unix::fs::PermissionsExt;
     let (dir, mut app) = reader();
     let root = dir.path().join("repo");
     let next = dir.path().join("next");
@@ -618,19 +643,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
         "[package]\nname='fixture'\nversion='0.1.0'\n",
     )
     .unwrap();
-    let executable = dir.path().join("settings/tools/bin/rust-analyzer");
-    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
-    std::fs::write(
-        &executable,
-        r#"#!/bin/sh
-if [ "${1:-}" = --version ]; then printf 'rust-analyzer fixture\n'; exit 0; fi
-while [ "$#" -gt 0 ]; do case "$1" in --output) shift; output=$1;; esac; shift; done
-printf artifact > artifact.bin
-printf '\022\006\012\004a.rs' > "$output"
-"#,
-    )
-    .unwrap();
-    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let executable = rust_indexer_fixture(dir.path(), "a.rs");
     let ctx = Context::default();
     app.open_repository(&root);
     settle(&mut app);

@@ -23,11 +23,6 @@ impl RadiologyApp {
     }
 
     pub(super) fn generate_index(&mut self) {
-        if self.review.is_some() {
-            self.error =
-                Some("Index generation for pull request snapshots is not available yet.".into());
-            return;
-        }
         let Some(request) = self.index_request() else {
             self.error = Some("No private index cache is available for this repository".into());
             return;
@@ -36,10 +31,14 @@ impl RadiologyApp {
     }
 
     fn index_request(&self) -> Option<GenerationRequest> {
-        let root = self.repository_root.clone()?;
-        let cache = self.session.repository_cache(&root)?.join("indexes");
+        let attached = self.repository_root.as_ref()?;
+        let cache = self.session.repository_cache(attached)?.join("indexes");
         Some(GenerationRequest {
-            root,
+            root: self
+                .review
+                .as_ref()
+                .map_or_else(|| attached.clone(), |review| review.head_root.clone()),
+            review: self.review.clone(),
             cache,
             tools: self.index_tools.clone(),
             timeout: std::time::Duration::from_secs(600),
@@ -53,8 +52,10 @@ impl RadiologyApp {
         self.generation_report = None;
         if let Some(request) = self.index_request() {
             self.index_generator.start_cached(request);
-        } else if let Some(root) = &self.repository_root {
-            self.index_importer.start(root.clone());
+        } else if self.review.is_none() {
+            if let Some(root) = &self.repository_root {
+                self.index_importer.start(root.clone());
+            }
         }
     }
 
@@ -168,6 +169,7 @@ impl RadiologyApp {
             self.generation_report = Some(generated.report);
         }
         if loading_cache
+            && self.review.is_none()
             && matches!(
                 self.index_cache_status(),
                 CacheLoadStatus::Missing | CacheLoadStatus::Failed(_)
@@ -211,13 +213,12 @@ impl RadiologyApp {
                     if ui.small_button("Cancel").clicked() {
                         command = Some(ToolbarAction::CancelIndexImport);
                     }
-                } else if self.review.is_none()
-                    && ui
-                        .add_enabled(
-                            !self.index_generator.is_running(),
-                            egui::Button::new("Reload Index").small(),
-                        )
-                        .clicked()
+                } else if ui
+                    .add_enabled(
+                        !self.index_generator.is_running(),
+                        egui::Button::new("Reload Index").small(),
+                    )
+                    .clicked()
                 {
                     command = Some(ToolbarAction::ReloadIndexImport);
                 }
@@ -287,6 +288,9 @@ impl RadiologyApp {
         } else if let Some(report) = &self.generation_report {
             if report.documents == 0 && self.semantic_index.is_some() {
                 ui.label("Previous semantic data retained");
+            }
+            if let Some(revision) = &report.revision {
+                ui.label("After index").on_hover_text(revision);
             }
             ui.label(report.summary()).on_hover_text(
                 report.stale_reason.as_deref().unwrap_or(
@@ -382,14 +386,15 @@ impl RadiologyApp {
                 .clicked()
                 .then_some(ToolbarAction::CancelIndexGeneration);
         }
-        if self.review.is_none()
-            && ui
-                .button(if self.generation_report.is_some() {
-                    "Reindex"
-                } else {
-                    "Generate Index"
-                })
-                .clicked()
+        if ui
+            .button(if self.review.is_some() {
+                "Generate After Index"
+            } else if self.generation_report.is_some() {
+                "Reindex"
+            } else {
+                "Generate Index"
+            })
+            .clicked()
         {
             return Some(ToolbarAction::GenerateIndex);
         }
@@ -405,7 +410,7 @@ impl RadiologyApp {
             return Some(ToolbarAction::CheckIndexTools);
         }
         if self.review.is_some() {
-            ui.label("Index generation for pull request snapshots is not available yet.");
+            ui.label("Indexing uses the pinned After revision. Before remains source-only.");
         }
         None
     }

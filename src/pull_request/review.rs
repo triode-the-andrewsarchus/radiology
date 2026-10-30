@@ -49,7 +49,30 @@ pub struct ReviewSnapshot {
     pub diffs: HashMap<String, FileLineChanges>,
 }
 
+pub(crate) struct SnapshotInputs {
+    pub blobs: std::collections::BTreeMap<String, String>,
+    pub omitted_directories: Vec<String>,
+}
+
 impl ReviewSnapshot {
+    pub(crate) fn head_inputs(&self, cancel: &AtomicBool) -> Result<SnapshotInputs, String> {
+        let control = ReviewControl::new(cancel);
+        let store = GitStore(control.git(&self.object_dir));
+        verify_tree::verify(&store, &self.head, &self.head_root, &control)?;
+        let mut inputs = SnapshotInputs {
+            blobs: Default::default(),
+            omitted_directories: Vec::new(),
+        };
+        for (path, entry) in verify_tree::entries(&store, &self.head)? {
+            if entry.mode == "160000" {
+                inputs.omitted_directories.push(path);
+            } else {
+                inputs.blobs.insert(path, entry.blob);
+            }
+        }
+        Ok(inputs)
+    }
+
     /// Prepares pinned commits and an isolated head tree.
     ///
     /// Git children share a two-minute deadline. Failed attempts remove their
