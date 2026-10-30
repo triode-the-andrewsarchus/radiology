@@ -21,4 +21,4 @@ pub use filters::SourceFilters;
 pub use quick_search::{QuickFileSearch, QuickFileSearchResponse};
 
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;

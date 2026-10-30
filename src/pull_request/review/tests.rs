@@ -107,3 +107,66 @@ fn pinned_review_uses_merge_base_and_never_checkout_bytes() {
         "checkout only\n"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn pinned_blob_reads_are_bounded_cancellable_and_verify_size_metadata() {
+    use crate::repository::test_support::fake_git;
+    let (temp, _root, review) = fixture();
+    let cancel = AtomicBool::new(false);
+    let script = fake_git(
+        temp.path(),
+        "if [ \"$6\" = -s ]; then printf '4\\n'; else printf 'raw\\n'; fi",
+    );
+    let git = GitRead {
+        root: &review.object_dir,
+        executable: &script,
+        cancel: &cancel,
+        deadline: Instant::now() + Duration::from_secs(5),
+    };
+    let buffer = review
+        .read_from_git("a file.rs", ReviewRevision::After, &git)
+        .unwrap();
+    assert_eq!(buffer.text, "raw\n");
+    assert_eq!(buffer.revision, Some(ReviewRevision::After));
+    assert!(review
+        .read_cancellable(
+            "a file.rs",
+            ReviewRevision::Before,
+            &AtomicBool::new(true),
+            git.deadline
+        )
+        .err()
+        .unwrap()
+        .contains("cancelled"));
+    for (body, timeout, expected) in [
+        (
+            "if [ \"$6\" = -s ]; then printf '4\\n'; else printf 'raw'; fi",
+            Duration::from_secs(5),
+            "does not match",
+        ),
+        (
+            "printf '16777217\\n'",
+            Duration::from_secs(5),
+            "maximum allowed size",
+        ),
+        (
+            "if [ \"$6\" = -s ]; then printf '4\\n'; else head -c 17000000 /dev/zero; fi",
+            Duration::from_secs(5),
+            "exceeds 16 MiB",
+        ),
+        ("exec sleep 30", Duration::from_millis(100), "timed out"),
+    ] {
+        let script = fake_git(temp.path(), body);
+        let git = GitRead {
+            executable: &script,
+            deadline: Instant::now() + timeout,
+            ..git
+        };
+        let error = review
+            .read_from_git("a file.rs", ReviewRevision::Before, &git)
+            .err()
+            .unwrap();
+        assert!(error.contains(expected), "{error}");
+    }
+}

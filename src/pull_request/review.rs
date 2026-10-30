@@ -6,12 +6,16 @@
 use super::change::{FileChange, FileChangeStatus};
 use super::diff::{FileLineChanges, UnifiedDiffParser};
 use super::github::PullRequestSummary;
-use crate::repository::file_node::RepositoryFile;
+use crate::repository::{file_node::RepositoryFile, git::GitRead};
 use crate::source::location::ReviewRevision;
 use crate::source::{SourceBuffer, SourceLocation};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{
+    sync::atomic::AtomicBool,
+    time::{Duration, Instant},
+};
 
 /// A review whose source, hunks, and file list belong to pinned commits.
 #[derive(Debug, Clone)]
@@ -160,8 +164,43 @@ impl ReviewSnapshot {
     /// Reads exact review bytes, never the attached checkout's contents.
     ///
     /// # Errors
-    /// Returns an error for an unavailable revision, invalid path, binary, or oversized source.
+    /// Returns an error for an unavailable revision, invalid path, binary, oversized
+    /// source, subprocess failure, or a read exceeding its 30-second deadline.
     pub fn read(&self, path: &str, revision: ReviewRevision) -> Result<SourceBuffer, String> {
+        self.read_cancellable(
+            path,
+            revision,
+            &AtomicBool::new(false),
+            Instant::now() + Duration::from_secs(30),
+        )
+    }
+
+    pub(crate) fn read_cancellable(
+        &self,
+        path: &str,
+        revision: ReviewRevision,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<SourceBuffer, String> {
+        self.read_from_git(
+            path,
+            revision,
+            &GitRead {
+                root: &self.object_dir,
+                executable: Path::new("git"),
+                cancel,
+                deadline,
+            },
+        )
+    }
+
+    fn read_from_git(
+        &self,
+        path: &str,
+        revision: ReviewRevision,
+        git: &GitRead<'_>,
+    ) -> Result<SourceBuffer, String> {
+        git.check()?;
         if !SourceLocation::is_repository_path(path) {
             return Err("Invalid repository-relative source path".into());
         }
@@ -170,16 +209,23 @@ impl ReviewSnapshot {
             ReviewRevision::After => &self.head,
         };
         let object = format!("{commit}:{path}");
-        let store = GitStore(&self.object_dir);
-        let size: u64 = store
-            .text(&["cat-file", "-s", &object])?
+        let size = git.required(&["cat-file", "-s", &object])?;
+        let size: usize = std::str::from_utf8(&size)
+            .map_err(|error| error.to_string())?
+            .trim()
             .parse()
             .map_err(|_| "Invalid blob size")?;
-        if size > SourceBuffer::MAX_FILE_SIZE as u64 {
+        if size > SourceBuffer::MAX_FILE_SIZE {
             return Err("File exceeds maximum allowed size".into());
         }
-        SourceBuffer::from_bytes(path, store.bytes(&["show", &object])?, Some(revision))
-            .map_err(|error| error.to_string())
+        let bytes = git.required(&["cat-file", "blob", &object])?;
+        if bytes.len() != size {
+            return Err("Pinned blob size does not match its metadata".into());
+        }
+        let buffer = SourceBuffer::from_bytes(path, bytes, Some(revision))
+            .map_err(|error| error.to_string())?;
+        git.check()?;
+        Ok(buffer)
     }
 }
 

@@ -4,7 +4,7 @@ use super::git::GitRead;
 use crate::{
     pull_request::{
         change::{nul_records, FileChange, FileChangeStatus},
-        diff::{DiffHunk, FileLineChanges, UnifiedDiffParser},
+        diff::FileLineChanges,
     },
     source::{buffer::SourceIdentity, SourceBuffer},
 };
@@ -68,27 +68,19 @@ fn read_with(
         .optional(&["symbolic-ref", "--quiet", "--short", "HEAD"])?
         .map(|branch| String::from_utf8_lossy(&branch).trim().to_owned())
         .filter(|branch| !branch.is_empty());
-    let head = git.optional(&["rev-parse", "--verify", "HEAD"])?;
-    let has_head = head.is_some();
-    snapshot.changes = git.changes(has_head)?;
-    let added_source = source.as_ref().is_some_and(|buffer| {
-        snapshot
-            .changes
-            .iter()
-            .any(|change| change.path == buffer.path && change.status == FileChangeStatus::Added)
-    });
-    snapshot.lines = git.source_lines(source.as_deref(), has_head && !added_source)?;
-    if git.optional(&["rev-parse", "--verify", "HEAD"])? != head {
+    let head = git.head()?;
+    snapshot.changes = git.changes(head.is_some())?;
+    snapshot.lines = source
+        .as_deref()
+        .map(|buffer| git.source_lines(buffer, head.as_deref()))
+        .transpose()?
+        .flatten();
+    if git.head()? != head {
         return Err("Repository HEAD changed during refresh; retry.".into());
     }
     snapshot.changes.sort_by(|a, b| a.path.cmp(&b.path));
     git.check()?;
     Ok(snapshot)
-}
-
-fn same_source(root: &Path, buffer: &SourceBuffer) -> bool {
-    SourceBuffer::read(&root.join(&buffer.path), &buffer.path, None)
-        .is_ok_and(|disk| disk.content_digest() == buffer.content_digest())
 }
 
 impl GitRead<'_> {
@@ -146,42 +138,6 @@ impl GitRead<'_> {
             }
         }
         Ok(changes)
-    }
-
-    fn source_lines(
-        &self,
-        source: Option<&SourceBuffer>,
-        has_head: bool,
-    ) -> Result<Option<FileLineChanges>, String> {
-        let Some(buffer) = source.filter(|buffer| buffer.revision.is_none()) else {
-            return Ok(None);
-        };
-        if !same_source(self.root, buffer) {
-            return Ok(None);
-        }
-        let lines = if has_head {
-            let patch = self.required(&[
-                "diff",
-                "--no-ext-diff",
-                "--no-textconv",
-                "-U0",
-                "HEAD",
-                "--",
-                &buffer.path,
-            ])?;
-            UnifiedDiffParser::parse(&String::from_utf8_lossy(&patch))
-        } else {
-            FileLineChanges {
-                hunks: vec![DiffHunk {
-                    before_start: 0,
-                    before_count: 0,
-                    after_start: 1,
-                    after_count: buffer.text.lines().count(),
-                }],
-                is_binary: false,
-            }
-        };
-        Ok(same_source(self.root, buffer).then_some(lines))
     }
 }
 
