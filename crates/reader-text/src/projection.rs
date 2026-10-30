@@ -78,25 +78,14 @@ pub fn projected_fragments(
     hidden: &[Range<usize>],
     max_bytes: usize,
 ) -> Vec<ProjectedFragment> {
-    let mut hidden: Vec<_> = hidden
-        .iter()
-        .filter(|range| !range.is_empty())
-        .cloned()
-        .collect();
-    hidden.sort_by_key(|range| (range.start, range.end));
-    let mut union = Vec::<Range<usize>>::new();
-    for range in hidden {
+    for range in hidden.iter().filter(|range| !range.is_empty()) {
         assert!(
             range.end <= source.len()
                 && source.is_char_boundary(range.start)
                 && source.is_char_boundary(range.end)
         );
-        if let Some(last) = union.last_mut().filter(|last| range.start <= last.end) {
-            last.end = last.end.max(range.end);
-        } else {
-            union.push(range);
-        }
     }
+    let union = union_ranges(hidden.to_vec());
     let mut builder = FragmentBuilder::new(max_bytes.max(4));
     let mut start = 0;
     let mut line = 1;
@@ -113,6 +102,23 @@ pub fn projected_fragments(
     }
     builder.finish_row(start);
     builder.output
+}
+
+/// Returns sorted, disjoint intervals, merging overlapping or adjacent ranges.
+/// Empty and reversed ranges contribute no interval; byte validity stays host-owned.
+#[must_use]
+pub fn union_ranges(mut ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
+    ranges.retain(|range| !range.is_empty());
+    ranges.sort_by_key(|range| (range.start, range.end));
+    let mut union = Vec::<Range<usize>>::new();
+    for range in ranges {
+        if let Some(last) = union.last_mut().filter(|last| range.start <= last.end) {
+            last.end = last.end.max(range.end);
+        } else {
+            union.push(range);
+        }
+    }
+    union
 }
 
 struct FragmentBuilder {
