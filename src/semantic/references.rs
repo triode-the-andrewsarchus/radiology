@@ -37,15 +37,15 @@ impl ReferenceTarget {
         if buffer.revision == Some(ReviewRevision::Before) {
             return None;
         }
-        // A name on the same line is insufficient: require an exact definition
-        // at the parsed name's first byte, in the document's declared encoding.
-        let occurrence = index
+        // Bind only the parsed name's first byte in the declared encoding.
+        // Definitions take precedence; implementation headers may refer to a type.
+        let hits = index
             .documents
             .get(&buffer.path)?
             .occurrences
             .iter()
-            .find(|occ| {
-                occ.is_definition()
+            .filter(|occ| {
+                !occ.symbol.is_empty()
                     && occ.range.as_ref().is_some_and(|range| {
                         range.start_line == range.end_line
                             && index.byte_range(buffer, range).is_some_and(|bytes| {
@@ -53,7 +53,15 @@ impl ReferenceTarget {
                                     && !bytes.is_empty()
                             })
                     })
-            })?;
+            });
+        let occurrence = hits.clone().find(|occ| occ.is_definition()).or_else(|| {
+            (declaration.kind == crate::syntax::SymbolKind::Extension)
+                .then(|| {
+                    hits.into_iter()
+                        .find(|occ| occ.symbol_roles & super::scip_proto::SCIP_ROLE_IMPORT == 0)
+                })
+                .flatten()
+        })?;
         let id = SemanticSymbolID::new(&occurrence.symbol, &buffer.path);
         Some(Self {
             name: index.display_name(&id),
@@ -322,6 +330,65 @@ mod tests {
     use super::*;
     use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
     use crate::source::loader::SourceRead;
+
+    #[test]
+    fn implementation_headers_link_only_exact_type_references_and_prefer_definitions() {
+        for (path, text) in [
+            ("a.rs", "struct Thing;\nimpl Thing {}\n"),
+            ("a.swift", "struct Thing {}\nextension Thing {}\n"),
+        ] {
+            let buffer = SourceBuffer::from_str(path, text);
+            let symbols = crate::syntax::SymbolExtractor::extract(&buffer);
+            assert_eq!(
+                symbols[1].kind,
+                crate::syntax::SymbolKind::Extension,
+                "{path}: {symbols:?}"
+            );
+            let first = text.find("Thing").unwrap();
+            let last = text.rfind("Thing").unwrap();
+            let definitions =
+                crate::semantic::test_support::occurrence(&buffer, first..first + 5, "type", true);
+            let reference =
+                crate::semantic::test_support::occurrence(&buffer, last..last + 5, "type", false);
+            let mut index = SemanticIndex::from_scip(ScipIndex {
+                documents: vec![ScipDocument {
+                    relative_path: path.into(),
+                    position_encoding: 2,
+                    occurrences: vec![definitions, reference.clone()],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            assert_eq!(
+                ReferenceTarget::declaration(&index, &buffer, &symbols[1])
+                    .unwrap()
+                    .id
+                    .symbol,
+                "type"
+            );
+            let mut ordinary = symbols[1].clone();
+            ordinary.kind = crate::syntax::SymbolKind::Class;
+            assert!(ReferenceTarget::declaration(&index, &buffer, &ordinary).is_none());
+            let mut alias = reference;
+            alias.symbol = "alias".into();
+            alias.symbol_roles = 1;
+            index
+                .documents
+                .get_mut(path)
+                .unwrap()
+                .occurrences
+                .push(alias);
+            assert_eq!(
+                ReferenceTarget::declaration(&index, &buffer, &symbols[1])
+                    .unwrap()
+                    .id
+                    .symbol,
+                "alias"
+            );
+            index.source_digests.insert(path.into(), "changed".into());
+            assert!(ReferenceTarget::declaration(&index, &buffer, &symbols[1]).is_none());
+        }
+    }
 
     fn fixture() -> (tempfile::TempDir, Arc<SourceQueryInputs>) {
         let root = tempfile::tempdir().unwrap();

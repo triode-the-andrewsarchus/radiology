@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-10-30 — Parsed implementation type links (Codex)
+
+Rust impl and Swift extension declarations have a distinct Implementation outline
+kind. Their exact parsed type-name occurrence may bind reference context through
+an indexed reference; definitions retain precedence, and ordinary declarations
+still require a real definition. A native-grammar Rust/Swift test verifies the
+link, ordinary-class rejection, precedence and stale-source rejection. Targeted
+and full worktree checks pass; inspector metadata/UI integration continues.
+
 ## 2026-10-30 — Exact under-caret metadata query (Codex)
 
 Added bounded SCIP kind/signature/prose, indexed definition/reference facts,
