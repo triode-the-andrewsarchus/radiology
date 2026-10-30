@@ -124,6 +124,13 @@ impl RadiologyApp {
                 && old.head == snapshot.head
                 && old.base == snapshot.base
         }) {
+            if self
+                .review
+                .as_ref()
+                .is_some_and(|old| old.head_root != snapshot.head_root)
+            {
+                self.repository_search = Default::default();
+            }
             self.active_pr = Some(snapshot.summary.clone());
             self.review = Some(Arc::new(snapshot));
             return;
@@ -132,6 +139,7 @@ impl RadiologyApp {
             buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
         });
         self.cancel_source_load();
+        self.repository_search = Default::default();
         self.reset_index_state();
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());

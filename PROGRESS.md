@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Background PR tree consumers retain snapshot leases (Codex)
+
+Debounced and running repository searches now own their review snapshot, and
+indexer probes retain the matching snapshot through their actual worker lifetime.
+Search publication retires on PR/commit/tree replacement; same-tree metadata
+refresh retains current results. Streaming search reuses LatestRead and its bounded
+pool rather than maintaining another cancellation/channel/thread lifecycle. Public
+checkout/search APIs remain compatible. Focused tests exercise pinned bytes,
+debounce release, synchronized retired publication, scope transitions and a real
+blocked tool probe after the reader releases its snapshot. Full gates pass 380 app
+tests (one ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and
+rustdoc. Architecture compares IMPROVED with no new findings or clone/cycle growth.
+[Ownership contract and evidence](plans/rust-pr-tree-cache.md). Full parity remains
+open; pinned After indexing and complete index lifecycle, precise refresh
+restoration, broader corrupt-store recovery and final UI/sibling reuse acceptance
+remain required. Commit and push each increment.
+
 ## 2026-10-30 — Native PR cache reuse and cross-process retention acceptance (Codex)
 
 Implementation `1c81ad3` is pushed. Native preparation reused #7 without another

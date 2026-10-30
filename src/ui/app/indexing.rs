@@ -92,7 +92,12 @@ impl RadiologyApp {
             .iter()
             .map(|strategy| strategy.indexer)
             .collect();
+        let review = self
+            .review
+            .clone()
+            .filter(|review| review.head_root == root);
         self.tool_probe_job.spawn(move |cancel| {
+            let _review = review;
             indexers
                 .into_iter()
                 .take_while(|_| !cancel.load(std::sync::atomic::Ordering::Relaxed))

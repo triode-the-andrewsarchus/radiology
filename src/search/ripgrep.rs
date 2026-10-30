@@ -126,13 +126,13 @@ impl SearchRunner {
         root: &Path,
         options: &SearchOptions,
         cancel: Arc<AtomicBool>,
-        mut on_batch: impl FnMut(Vec<SearchMatch>),
+        on_batch: impl FnMut(Vec<SearchMatch>),
     ) -> Result<bool, SearchError> {
-        if options.query.trim().is_empty() {
-            return Ok(false);
-        }
+        Self::search_cancellable(root, options, &cancel, on_batch).await
+    }
 
-        let mut child = Command::new("rg")
+    fn spawn(root: &Path, options: &SearchOptions) -> Result<tokio::process::Child, SearchError> {
+        Command::new("rg")
             .args(options.build_arguments())
             .current_dir(root)
             .stdout(Stdio::piped())
@@ -144,7 +144,20 @@ impl SearchRunner {
                 } else {
                     SearchError::Io(e)
                 }
-            })?;
+            })
+    }
+
+    pub(crate) async fn search_cancellable(
+        root: &Path,
+        options: &SearchOptions,
+        cancel: &AtomicBool,
+        mut on_batch: impl FnMut(Vec<SearchMatch>),
+    ) -> Result<bool, SearchError> {
+        if options.query.trim().is_empty() {
+            return Ok(false);
+        }
+
+        let mut child = Self::spawn(root, options)?;
 
         let stdout = child.stdout.take().expect("stdout piped");
         let mut stderr = child.stderr.take().expect("stderr piped");

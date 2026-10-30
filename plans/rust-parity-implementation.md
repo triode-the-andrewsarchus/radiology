@@ -153,7 +153,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   persisted symbol/package menus are integrated; see [marks](rust-critical-marks.md).
 - Complete PR workflow: exact refresh caret/viewport/rename mapping and notice
   behavior,
-  snapshot-cache retention, pinned After indexing and reuse provenance, disabled
+  pinned After indexing and reuse provenance, disabled
   unavailable revision/change controls and late-data/refresh folding behavior.
   [Preparation processes](rust-pr-process-cancellation.md) now share cancellation/
   deadlines with native metadata/fetch Cancel and pinned-review recovery checks.
@@ -161,8 +161,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   independent list refresh/cancel, active fallback and explicit Exit PR, with native
   failure/recovery and light/dark checks. [Private-store writer leases](rust-pr-store-recovery.md)
   now cover cross-process preparation and surviving children, staged initialization,
-  isolated fetches and missing-tree recovery. Complete tree reuse/active-snapshot
-  leases/retention and broader corrupt-store recovery remain open.
+  isolated fetches and missing-tree recovery. [Verified tree reuse and retention](rust-pr-tree-cache.md)
+  now cover exact bytes, active snapshot/background-consumer leases, cross-process
+  protection and bounded LRU retention, with native reuse/corruption/restart checks.
+  Broader corrupt-store recovery remains open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,

@@ -39,18 +39,29 @@ impl<T> LatestRead<T> {
     where
         T: Send + 'static,
     {
+        self.spawn_with_sender(move |cancel, sender| {
+            let result = work(cancel);
+            if !cancel.load(Ordering::Relaxed) {
+                let _ = sender.send(result);
+            }
+        });
+    }
+
+    /// Starts a worker that may publish multiple values through one retired channel.
+    pub(crate) fn spawn_with_sender(
+        &mut self,
+        work: impl FnOnce(&AtomicBool, mpsc::Sender<T>) + Send + 'static,
+    ) where
+        T: Send + 'static,
+    {
         self.stop();
         self.cancel = Arc::new(AtomicBool::new(false));
         let cancel = self.cancel.clone();
         let (sender, receiver) = mpsc::channel();
         self.receiver = Some(receiver);
         READ_WORKERS.spawn_blocking(move || {
-            if cancel.load(Ordering::Relaxed) {
-                return;
-            }
-            let result = work(&cancel);
             if !cancel.load(Ordering::Relaxed) {
-                let _ = sender.send(result);
+                work(&cancel, sender);
             }
         });
     }
@@ -65,14 +76,20 @@ impl<T> LatestRead<T> {
     }
 
     pub(crate) fn poll(&mut self) -> Result<Option<T>, mpsc::RecvError> {
+        let result = self.poll_next()?;
+        if result.is_some() {
+            self.receiver = None;
+        }
+        Ok(result)
+    }
+
+    /// Reads one streaming value without retiring later values from the same worker.
+    pub(crate) fn poll_next(&mut self) -> Result<Option<T>, mpsc::RecvError> {
         let Some(receiver) = &self.receiver else {
             return Ok(None);
         };
         match receiver.try_recv() {
-            Ok(result) => {
-                self.receiver = None;
-                Ok(Some(result))
-            }
+            Ok(result) => Ok(Some(result)),
             Err(mpsc::TryRecvError::Empty) => Ok(None),
             Err(mpsc::TryRecvError::Disconnected) => {
                 self.receiver = None;

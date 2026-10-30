@@ -74,3 +74,30 @@ lease holder, not a second graphical app. Active-reader overflow beyond three is
 covered by automated tests. This does not establish final UI parity. Remaining broader work includes indexing provenance
 and provisioning, pinned PR indexing, precise refresh restoration, corrupt-store
 recovery, and visual/accessibility/scaling/font and sibling reuse acceptance.
+
+## Background consumers
+
+Repository-search requests retain their review snapshot through typing debounce,
+queued execution and worker completion, including cancellation retirement. Search
+uses the same bounded LatestRead worker owner as other reader jobs, extended with
+streaming publication; existing checkout and SearchRunner public APIs remain.
+Tool version probes also retain the matching snapshot while using its tree as a
+working directory. Source, preview and analysis requests already retain SourceRead
+snapshots. New indexing work must follow the same ownership rule.
+
+Accepting another PR or different commits retires prior search publication and
+clears old matches. Replacing a tree for identical commits also retires its search;
+exact same-tree metadata refresh preserves current results. Accepted failure and
+Cancel continue to preserve the previous reader.
+
+The consumer increment passes 380 app tests (one ignored), eight shared tests,
+30 doctests, formatting, strict Clippy, build and rustdoc. Added evidence covers
+snapshot retention through debounce, exact pinned search results, release after
+completion/retirement, a live blocked tool probe after the reader drops its
+snapshot, and search scope transitions. A synchronized worker test verifies
+cancellation and rejected late publication. Architecture baseline
+`before-tree-consumer-leases` compares IMPROVED: no new findings or clone/cycle
+growth; streaming search now shares cancellation/channel ownership with LatestRead.
+Logs: `/tmp/radiology-tree-consumer-{all-tests,clippy,build,doc}.log`.
+The earlier native acceptance predates this consumer increment; its focused
+lifetime evidence is automated, including a real child process for tool probing.

@@ -68,3 +68,80 @@ fn switching_pull_requests_with_identical_commits_changes_bookmark_and_session_s
         Some(8)
     );
 }
+
+#[test]
+fn accepted_review_retires_checkout_and_previous_pr_searches_but_reuse_keeps_current_results() {
+    let (_repository, root, snapshot) = crate::pull_request::review::tests::fixture();
+    let (_settings, mut app) = reader();
+    app.open_repository(&root);
+    settle(&mut app);
+    app.repository_search.error = Some("checkout search".into());
+    app.accept_review(snapshot.clone());
+    settle(&mut app);
+    assert!(app.repository_search.error.is_none());
+    app.repository_search.error = Some("current search".into());
+    app.accept_review(snapshot.clone());
+    assert_eq!(
+        app.repository_search.error.as_deref(),
+        Some("current search")
+    );
+    let mut replacement = snapshot.clone();
+    replacement.head_root = replacement.head_root.with_file_name("replacement-tree");
+    app.accept_review(replacement);
+    assert!(app.repository_search.error.is_none());
+    app.repository_search.error = Some("previous PR search".into());
+    let mut other = snapshot;
+    other.summary.number = 8;
+    app.accept_review(other);
+    assert!(app.repository_search.error.is_none());
+    settle(&mut app);
+}
+
+#[cfg(unix)]
+#[test]
+fn live_tool_probe_keeps_its_review_snapshot_after_the_reader_releases_it() {
+    use crate::semantic::indexing::{
+        tools::{ToolAvailability, ToolDirectory},
+        IndexPlan, Indexer,
+    };
+    use std::os::unix::fs::PermissionsExt;
+    let (_repository, _, snapshot) = crate::pull_request::review::tests::fixture();
+    let (settings, mut app) = reader();
+    let bin = settings.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let executable = bin.join("rust-analyzer");
+    std::fs::write(&executable, "#!/bin/sh\nprintf ready > probe-started\nwhile [ ! -f probe-release ]; do /bin/sleep 0.02; done\nprintf 'rust-analyzer fixture-version'\n").unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let root = snapshot.head_root.clone();
+    let snapshot = Arc::new(snapshot);
+    let weak = Arc::downgrade(&snapshot);
+    app.review = Some(snapshot);
+    app.index_plan = IndexPlan::inspect(["Cargo.toml", "a file.rs"]);
+    app.probe_index_tools(
+        ToolDirectory {
+            managed: None,
+            home: None,
+            search_path: vec![bin],
+        },
+        root.clone(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !root.join("probe-started").exists() {
+        assert!(Instant::now() < deadline, "probe did not start");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    app.review = None;
+    assert!(
+        weak.upgrade().is_some(),
+        "live worker must retain the tree lease"
+    );
+    std::fs::write(root.join("probe-release"), "").unwrap();
+    settle(&mut app);
+    assert!(
+        matches!(app.tool_availability(Indexer::Rust), Some(ToolAvailability::Available { version, .. }) if version == "rust-analyzer fixture-version")
+    );
+    assert!(
+        weak.upgrade().is_none(),
+        "finished probe releases the snapshot"
+    );
+}
