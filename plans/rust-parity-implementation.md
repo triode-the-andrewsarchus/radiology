@@ -106,6 +106,9 @@ and the remaining generation/cache requirements.
 - Checkout branch/change refresh uses a cancellable bounded worker snapshot, literal
   NUL paths, exact-source hunk publication and Cancel/Retry/Dismiss controls.
   [Contract and native acceptance](rust-git-refresh.md).
+- Repository root/inventory/initial-tree discovery is cancellable background work;
+  deferred launch destinations, current-reader retention and filter freshness
+  publish as one root transaction. [Host contract](rust-repository-opening.md).
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
 from the PR, renamed/spaced/added/deleted/binary files, application navigation and
@@ -114,7 +117,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
-- Background repository discovery/SCIP decode and semantic context;
+- Finish fine-grained SCIP/native interruption and semantic context/cache work;
   complete index lifecycle with all Swift project strategies, provisioning,
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and source-loader Git

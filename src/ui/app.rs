@@ -7,6 +7,7 @@ mod git;
 mod indexing;
 mod outline;
 mod references;
+mod repository;
 mod reviews;
 mod source;
 #[cfg(test)]
@@ -72,6 +73,11 @@ pub struct RadiologyApp {
     pub repository_name: Option<String>,
     /// Current Git branch name if inside a repository.
     pub branch_name: Option<String>,
+    repository_open: crate::background::LatestRead<
+        Result<crate::repository::discovery::DiscoveredRepository, String>,
+    >,
+    pending_repository: Option<repository::RepositoryRequest>,
+    repository_error: Option<String>,
     git_refresh:
         crate::background::LatestRead<Result<crate::repository::git_refresh::GitSnapshot, String>>,
     git_error: Option<String>,
@@ -227,6 +233,9 @@ impl RadiologyApp {
             repository_root: None,
             repository_name: None,
             branch_name: None,
+            repository_open: Default::default(),
+            pending_repository: None,
+            repository_error: None,
             git_refresh: Default::default(),
             git_error: None,
             all_files: Vec::new(),
@@ -316,56 +325,6 @@ impl RadiologyApp {
         }
     }
 
-    /// Opens the repository located at `path`, discovering files and restoring bookmarks.
-    ///
-    /// Initial source preparation is asynchronous; hosts drive [`Self::poll_source`]
-    /// or the normal frame loop to publish the selected document. Semantic index
-    /// imports also run asynchronously; hosts drive [`Self::poll_index`].
-    pub fn open_repository(&mut self, path: &Path) {
-        let root = RepositoryDiscovery::find_root(path);
-        let files = match RepositoryDiscovery::discover_files(&root) {
-            Ok(files) => files,
-            Err(error) => {
-                self.error = Some(error.to_string());
-                return;
-            }
-        };
-        self.save_bookmarks();
-        self.reset_repository_state();
-        let name = root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("repository")
-            .to_string();
-
-        self.repository_root = Some(root.clone());
-        self.critical_marks.open(root.clone());
-        self.repository_name = Some(name);
-        self.session.active_pr = None;
-        self.session.record_repository(root.to_string_lossy());
-
-        self.all_files = files;
-        self.refresh_file_tree();
-        self.load_bookmarks();
-
-        self.load_repository_index();
-        self.inspect_index_projects();
-
-        let first_file = self
-            .all_files
-            .iter()
-            .find(|f| f.path.to_lowercase() == "readme.md")
-            .or_else(|| self.all_files.iter().find(|f| f.is_source))
-            .or_else(|| self.all_files.first());
-
-        if let Some(f) = first_file {
-            let path_clone = f.path.clone();
-            self.open_file(&path_clone);
-        }
-
-        self.refresh_git_changes();
-    }
-
     /// Rebuilds the hierarchical file tree applying active filters.
     pub fn refresh_file_tree(&mut self) {
         let filtered = self.session.source_filters.filter_files(&self.all_files);
@@ -447,6 +406,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
         self.critical_marks.close();
@@ -553,6 +513,7 @@ impl eframe::App for RadiologyApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.cancel_repository_open();
         self.cancel_source_load();
         self.reference_context = Default::default();
         self.reset_previews();
@@ -567,6 +528,7 @@ impl eframe::App for RadiologyApp {
     }
 
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        self.poll_repository(ctx);
         self.poll_review(ctx);
         self.poll_source(ctx);
         self.poll_git_refresh(ctx);
@@ -693,6 +655,7 @@ impl eframe::App for RadiologyApp {
             });
         }
 
+        self.show_repository_status(ctx);
         self.show_git_status(ctx);
         self.show_source_loading(ctx);
         self.show_index_status(ctx);

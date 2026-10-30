@@ -30,6 +30,23 @@ impl RadiologyApp {
         }
     }
 
+    pub(super) fn checkout_refresh_destination(&self) -> Option<(SourceLocation, SourceTarget)> {
+        if let Some(pending) = &self.pending_navigation {
+            if matches!(pending.request.source, SourceRead::Checkout(_)) {
+                return Some((
+                    pending.request.location.clone(),
+                    pending.request.target.clone(),
+                ));
+            }
+        }
+        self.open_buffer.as_ref().map(|buffer| {
+            let location =
+                buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col));
+            let target = SourceTarget::Byte(location.byte_offset);
+            (location, target)
+        })
+    }
+
     /// Changes source presentation and schedules call projection only when needed.
     pub fn set_source_mode(&mut self, mode: SourceMode) {
         if self.mode != mode {

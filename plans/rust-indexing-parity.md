@@ -409,7 +409,9 @@ The import lifecycle above is only part of R4 in the independent parity review.
   Generate/Reindex/Cancel now retain prior data with per-run outcomes.
 - Index pinned After snapshots and reuse only content-validated strategies.
   Before must remain isolated from After semantic data.
-- Move remaining repository discovery/Git refresh/context work off the UI thread.
+- Finish context/cache responsiveness and finer decode/source-loader interruption.
+  [Repository discovery](rust-repository-opening.md) and
+  [checkout Git refresh](rust-git-refresh.md) are now worker-owned.
 
 ## Import-stage verification
 

@@ -10,19 +10,33 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
-    while app.is_git_refreshing()
+    while app.is_repository_opening()
+        || app.is_git_refreshing()
         || app.is_source_loading()
         || app.is_index_loading()
         || app.is_critical_loading()
         || app.is_marks_loading()
         || app.is_reference_loading()
     {
+        app.poll_repository(&ctx);
         app.poll_git_refresh(&ctx);
         app.poll_source(&ctx);
         app.poll_index(&ctx);
         assert!(
             std::time::Instant::now() < deadline,
             "source preparation timed out"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+fn settle_repository(app: &mut RadiologyApp) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while app.is_repository_opening() {
+        app.poll_repository(&Context::default());
+        assert!(
+            std::time::Instant::now() < deadline,
+            "repository discovery timed out"
         );
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
@@ -472,6 +486,8 @@ fn imported_indexes_publish_asynchronously_and_failed_reload_keeps_prior_data() 
     let ctx = Context::default();
     app.open_repository(&first);
     assert!(app.semantic_index.is_none());
+    assert!(app.is_repository_opening());
+    settle_repository(&mut app);
     assert!(app.is_index_loading());
     settle(&mut app);
     assert!(app
@@ -628,6 +644,11 @@ printf '\022\006\012\004a.rs' > "$output"
     // Reopening must restore persisted data without even a usable indexer.
     std::fs::remove_file(&executable).unwrap();
     app.open_repository(&root);
+    assert!(
+        app.semantic_index.is_some(),
+        "accepted index stays usable during discovery"
+    );
+    settle_repository(&mut app);
     assert!(app.semantic_index.is_none());
     settle(&mut app);
     assert!(app.generation_report().unwrap().cached);
@@ -677,6 +698,7 @@ printf '\022\006\012\004a.rs' > "$output"
 
     // Cancelling an automatic load must not launch a fallback or publish its result.
     app.open_repository(&root);
+    settle_repository(&mut app);
     app.execute_command(&ctx, ToolbarAction::CancelIndexImport);
     settle(&mut app);
     assert_eq!(
@@ -2015,3 +2037,5 @@ fn transient_occurrences_are_click_owned_clear_on_misses_pins_and_document_chang
 }
 
 mod git;
+
+mod repository_open;
