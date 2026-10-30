@@ -39,6 +39,8 @@ pub struct SourceViewport {
     hover_pointer: Option<usize>,
     hover_origin: egui::Pos2,
     preview: Option<(String, String, usize)>,
+    destination: super::destination::DestinationFeedback,
+    destination_frame: Option<super::destination::FeedbackFrame>,
 }
 
 pub(super) struct CanvasContent<'a> {
@@ -123,6 +125,19 @@ impl SourceViewport {
         ctx.memory(|memory| memory.has_focus(Self::focus_id()))
     }
 
+    /// Briefly highlights a successfully resolved destination without changing selection.
+    /// The hold/fade clock begins when these exact source bytes are painted.
+    pub fn flash_destination(&mut self, buffer: &SourceBuffer, byte: usize) {
+        self.destination.request(buffer, byte);
+        self.destination_frame = None;
+    }
+
+    /// Retires pending and visible landing feedback at a host navigation boundary.
+    pub fn cancel_destination(&mut self) {
+        self.destination.cancel();
+        self.destination_frame = None;
+    }
+
     /// Replaces the selection with original-byte endpoints (for local find).
     pub fn select(&mut self, range: Range<usize>) {
         self.selection = Some(ByteSelection {
@@ -134,6 +149,7 @@ impl SourceViewport {
     /// Reveals exact source bytes without moving the caret or replacing selection.
     /// A queued reveal is discarded if the displayed document or bytes change.
     pub fn preview_byte(&mut self, buffer: &SourceBuffer, byte: usize) {
+        self.cancel_destination();
         self.preview = Some((
             buffer.position_key(),
             buffer.content_digest().to_owned(),
@@ -210,6 +226,14 @@ impl SourceViewport {
         self.configure_hover(&content);
         self.hover_pointer = None;
         self.sync(&content);
+        self.destination_frame = self.destination.frame(
+            content.buffer,
+            ui.input(|input| input.time),
+            ui.style().animation_time > 0.0,
+        );
+        if let Some(frame) = self.destination_frame {
+            ui.ctx().request_repaint_after(frame.next_frame);
+        }
         let geometry = CanvasGeometry::new(ui, &content);
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
         ui.interact(
@@ -862,6 +886,42 @@ impl SourceViewport {
         )
     }
 
+    fn paint_destination(
+        &self,
+        painter: &egui::Painter,
+        galley: &egui::Galley,
+        origin: egui::Pos2,
+        rect: Rect,
+        part: &SourceFragment,
+        accent: Color32,
+    ) {
+        let Some(frame) = self.destination_frame else {
+            return;
+        };
+        if !self
+            .row_for_byte(frame.byte)
+            .is_some_and(|(_, owner)| owner == part)
+        {
+            return;
+        }
+        let text = &galley.job.text;
+        let chars = text[..frame.byte.saturating_sub(part.bytes.start).min(text.len())]
+            .chars()
+            .count();
+        let cursor = galley
+            .pos_from_ccursor(egui::text::CCursor::new(chars))
+            .translate(origin.to_vec2());
+        let band = if cursor.height() > 0.0 {
+            Rect::from_min_max(
+                pos2(rect.left(), cursor.top()),
+                pos2(rect.right(), cursor.bottom()),
+            )
+        } else {
+            rect
+        };
+        painter.rect_filled(band, 0.0, accent.gamma_multiply(frame.alpha));
+    }
+
     fn paint_row(
         &self,
         painter: &egui::Painter,
@@ -890,6 +950,7 @@ impl SourceViewport {
                 },
             );
         }
+        self.paint_destination(painter, galley, origin, rect, part, theme.accent);
         let text = &content.buffer.text[part.bytes.clone()];
         for (range, active) in content.find.matches(part.bytes.clone()) {
             paint_match(
@@ -1464,6 +1525,79 @@ mod tests {
             reader.source = source;
             reader.frame(&ctx, Vec::new());
             assert_eq!(reader.viewport.scroll_y, 0.0);
+        }
+    }
+
+    fn feedback_bands(output: &egui::FullOutput, alpha: f32) -> Vec<Rect> {
+        let color = AppTheme::dark().accent.gamma_multiply(alpha);
+        output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect) if rect.fill == color => Some(rect.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn landing_feedback_owns_one_wrapped_unicode_row_and_preserves_source_selection() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new(&format!("{}\r\nend", "é😀 word ".repeat(1200)));
+        reader.now = Some(1.0);
+        reader.frame(&ctx, Vec::new());
+        reader.viewport.select(0..2);
+        let selection = reader.viewport.selection;
+        let byte = reader.source.text.rfind("word").unwrap();
+        reader.viewport.preview_byte(&reader.source, byte);
+        reader.viewport.flash_destination(&reader.source, byte);
+        reader.now = Some(1000.0);
+        let output = reader.frame(&ctx, Vec::new());
+        let bands = feedback_bands(&output, 0.18);
+        assert_eq!(
+            bands.len(),
+            1,
+            "continuation fragments must not duplicate feedback"
+        );
+        let (row, _) = reader.viewport.row_for_byte(byte).unwrap();
+        assert!(bands[0].height() > 0.0);
+        assert!(
+            bands[0].height()
+                < (reader.viewport.rows.offset(row + 1) - reader.viewport.rows.offset(row)) / 2.0,
+            "only the destination's wrapped visual row should flash"
+        );
+        assert!(bands[0].width() > 200.0);
+        assert_eq!((reader.line, reader.column), (1, 0));
+        assert_eq!(reader.viewport.selection, selection);
+        reader.now = Some(1001.005);
+        assert_eq!(
+            feedback_bands(&reader.frame(&ctx, Vec::new()), 0.09).len(),
+            1
+        );
+        reader.now = Some(1001.2);
+        let output = reader.frame(&ctx, Vec::new());
+        assert!(reader.viewport.destination_frame.is_none());
+        assert!(feedback_bands(&output, 0.18).is_empty());
+        assert_eq!(reader.viewport.selection, selection);
+        reader.viewport.flash_destination(&reader.source, byte);
+        reader.viewport.preview_byte(&reader.source, 0);
+        reader.now = Some(2000.0);
+        assert!(feedback_bands(&reader.frame(&ctx, Vec::new()), 0.18).is_empty());
+    }
+
+    #[test]
+    fn empty_and_crlf_destinations_have_a_visible_band_without_changing_the_caret() {
+        for (text, byte) in [("", 0), ("café 😀\r\nsecond\r\n", 12)] {
+            let ctx = egui::Context::default();
+            let mut reader = Reader::new(text);
+            reader.now = Some(1.0);
+            reader.frame(&ctx, Vec::new());
+            reader.viewport.flash_destination(&reader.source, byte);
+            reader.now = Some(10.0);
+            let bands = feedback_bands(&reader.frame(&ctx, Vec::new()), 0.18);
+            assert_eq!(bands.len(), 1);
+            assert!(bands[0].height() > 0.0);
+            assert_eq!((reader.line, reader.column), (1, 0));
         }
     }
 

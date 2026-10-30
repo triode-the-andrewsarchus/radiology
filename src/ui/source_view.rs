@@ -13,6 +13,7 @@ use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
+mod destination;
 mod viewport;
 use egui::{pos2, Color32, Rect, RichText, Ui};
 use viewport::CanvasContent;
