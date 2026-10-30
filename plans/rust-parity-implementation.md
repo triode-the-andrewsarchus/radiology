@@ -91,6 +91,10 @@ and the remaining generation/cache requirements.
 - Bookmark pane has UUID-based list selection, ordered Return/Delete navigation,
   header toggling, drag insertion and direct shortcut assignment, with scoped
   persistence and native restart acceptance. [Contract and remaining audit](rust-bookmark-pane.md).
+- Outline has source-bound keyboard preview/commit, nested disclosure, active
+  declaration following, hidden/stale-target rejection, virtual rows and native
+  clean-session acceptance. First commits seed an otherwise empty history.
+  [Contract and remaining presentation work](rust-outline-pane.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -114,8 +118,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
-- Outline keyboard and broader bookmark/accessibility parity, mixed-language
-  and long-name corpus, pinned-review and light/dark/scaling acceptance.
+- Remaining outline presentation and broader bookmark/accessibility parity,
+  mixed-language and long-name corpus, pinned-review and light/dark/scaling acceptance.
   Background metadata, local/package explanations and impl/extension type links
   are integrated; see [metadata acceptance](rust-inspector-metadata.md).
   Source excerpts, validated caller trees and reference selection/disclosure/commit

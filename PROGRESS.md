@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Outline selection, hierarchical disclosure and exact previews (Codex)
+
+Committed/pushed source-only reveal (`eda2850`), Rust const/static/enum-variant
+outlines (`d6bfbbf`), outline integration (`c84ac93`), and missing first-history
+departure (`49ef722`) and immediate caret/outline binding (`7d351ac`). Arrows/Home/End preview while preserving the source caret,
+selection/context and history; Left/Right disclose nested declarations, and
+Return/click commits exact name bytes. Hidden/stale targets are rejected. Active
+caret following, virtual rows, bounded labels, and existing SVG chevrons are
+integrated. Bookmarks share key routing, movement, reveal geometry and UI fixtures.
+Empty/seeded history regressions verify Unicode Return/Back restoration.
+Full gates pass 283 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Native clean-session and GDB checks are recorded with exact
+build/evidence scope in the [outline contract](plans/rust-outline-pane.md).
+Architecture has no new hotspot/cycle, clone groups stay 91, duplication falls to
+0.69%; remaining touched-file flags are documented. Full parity remains open,
+including PR/source presentation, caches, index/PR lifecycle, broader native
+restart/scaling/accessibility/corpus checks and sibling UI reuse. Keep pushing
+after each commit.
+
 ## 2026-10-30 — Bookmark pane controls and ordered keyboard input (Codex)
 
 Committed/pushed identity slot assignment (`b4c4a36`) and pane integration

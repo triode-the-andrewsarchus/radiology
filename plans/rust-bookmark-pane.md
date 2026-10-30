@@ -84,8 +84,9 @@ PID 3873238 and its restarted PID 3881943 execute that binary. Final evidence:
 
 ## Remaining acceptance and parity work
 
-Outline selection/preview/commit keyboard behavior is still separate unfinished
-work. Also retain the final light/dark/scaling, pinned-PR revision labels,
+Outline selection/preview/commit and hierarchical keyboard behavior are now
+integrated; see [outline acceptance](rust-outline-pane.md). Retain the final
+light/dark/scaling, pinned-PR revision labels,
 long-name/mixed-language corpus, desktop accessibility and large-list drag-edge
 scroll acceptance. Bookmark navigation errors currently use the application error
 surface rather than Swift's dedicated bookmark-region status. Swift's persisted

@@ -109,7 +109,7 @@ CCN17 hotspot was removed rather than suppressing measurement.
 - Broader language, relationship, malformed/partial-index and long-name corpus.
 - Pinned-review metadata/native acceptance, light/dark, scaling and side-by-side
   Swift visual checks.
-- Outline/bookmark keyboard parity and complete definition/inspector focus,
+- Broader outline/bookmark presentation and complete definition/inspector focus,
   enabled-state and accessibility acceptance.
 - Revisit cache reuse, background repository context and finer native-stage
   cancellation within the larger lifecycle work.

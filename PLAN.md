@@ -12,7 +12,11 @@ Async source loading, inline Hide Tests and isolated checkout index generation
 are also integrated, including persistent index reload, supported C/C++ command
 rebasing, unlimited content-bound pins and background call-focused Critical Lens.
 The full parity objective remains open; the review below describes the pre-fix
-snapshot. The user requests incremental commits as work progresses.
+snapshot. The user requests incremental commits and pushing after every commit.
+
+[Outline selection, preview and native acceptance](plans/rust-outline-pane.md)
+records source-bound keyboard navigation, hierarchical disclosure, exact preview/
+commit semantics, shared list mechanisms and remaining outline/inspector work.
 
 [Bookmark pane behavior and native acceptance](plans/rust-bookmark-pane.md)
 records identity-based keyboard selection, shortcut assignment, drag reordering,
