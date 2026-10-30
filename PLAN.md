@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[SCIP cancellation](plans/rust-scip-cancellation.md) records nested decoding and
+semantic-map retirement, malformed-input checks and native Cancel/reload acceptance.
+
 [Native analysis cancellation](plans/rust-native-analysis-cancellation.md) records
 latched parser/query interruption, fact-stage retirement and large-file native acceptance.
 
