@@ -107,7 +107,10 @@ pub fn load(
     }
     check_cancel(cancel)?;
     entry.report.cached = true;
-    let mut index = SemanticIndex::from_scip(entry.scip);
+    let mut index = SemanticIndex::from_scip_cancellable(entry.scip, || {
+        cancel.load(std::sync::atomic::Ordering::Relaxed)
+    })
+    .map_err(|error| error.to_string())?;
     index.source_digests = entry.source_digests;
     check_cancel(cancel)?;
     Ok(Some(GeneratedIndex {

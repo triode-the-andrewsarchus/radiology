@@ -501,12 +501,22 @@ impl SemanticIndex {
     /// Builds an indexed [`SemanticIndex`] from a decoded [`ScipIndex`].
     #[must_use]
     pub fn from_scip(scip: ScipIndex) -> Self {
+        Self::from_scip_cancellable(scip, || false)
+            .expect("uncancelled semantic index construction")
+    }
+
+    pub(crate) fn from_scip_cancellable(
+        scip: ScipIndex,
+        cancelled: impl Fn() -> bool + Sync,
+    ) -> Result<Self, ProtobufError> {
+        super::scip_proto::check_cancelled(&cancelled)?;
         let mut idx = Self {
             default_encoding: scip.text_document_encoding,
             ..Default::default()
         };
 
         for sym in scip.external_symbols {
+            super::scip_proto::check_cancelled(&cancelled)?;
             let id = SemanticSymbolID::new(sym.symbol.clone(), "");
             if !id.is_local() {
                 idx.symbols.entry(id).or_insert(sym);
@@ -514,58 +524,13 @@ impl SemanticIndex {
         }
 
         for doc in scip.documents {
-            let doc_path = doc.relative_path.clone();
-
-            for sym in &doc.symbols {
-                let id = SemanticSymbolID::new(sym.symbol.clone(), &doc_path);
-                if let Some(existing) = idx.symbols.get_mut(&id) {
-                    if existing.display_name.is_empty() && !sym.display_name.is_empty() {
-                        *existing = sym.clone();
-                    }
-                } else {
-                    idx.symbols.insert(id, sym.clone());
-                }
-            }
-
-            for occ in &doc.occurrences {
-                if occ.symbol.is_empty() {
-                    continue;
-                }
-                let Some(range) = &occ.range else {
-                    continue;
-                };
-
-                let id = SemanticSymbolID::new(occ.symbol.clone(), &doc_path);
-                if occ.is_definition() {
-                    idx.definitions
-                        .entry(id.clone())
-                        .or_default()
-                        .push((doc_path.clone(), range.clone()));
-
-                    if let Some(enclosing) = &occ.enclosing_range {
-                        idx.definition_extents
-                            .entry(id.clone())
-                            .or_insert_with(|| (doc_path.clone(), enclosing.clone()));
-                    }
-                } else {
-                    idx.references
-                        .entry(id.clone())
-                        .or_default()
-                        .push((doc_path.clone(), range.clone()));
-                }
-            }
-
-            idx.documents.insert(doc_path, doc);
+            super::scip_proto::check_cancelled(&cancelled)?;
+            idx.add_document(doc, &cancelled)?;
         }
 
         // Symbols appearing only in occurrences still get fallback entries:
-        let all_ids: Vec<SemanticSymbolID> = idx
-            .definitions
-            .keys()
-            .chain(idx.references.keys())
-            .cloned()
-            .collect();
-        for id in all_ids {
+        for id in idx.definitions.keys().chain(idx.references.keys()) {
+            super::scip_proto::check_cancelled(&cancelled)?;
             idx.symbols
                 .entry(id.clone())
                 .or_insert_with(|| ScipSymbolInformation {
@@ -575,17 +540,79 @@ impl SemanticIndex {
                 });
         }
 
+        idx.build_search_entries(&cancelled)?;
+        super::scip_proto::check_cancelled(&cancelled)?;
+        Ok(idx)
+    }
+
+    fn add_document(
+        &mut self,
+        doc: ScipDocument,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<(), ProtobufError> {
+        let doc_path = doc.relative_path.clone();
+
+        for sym in &doc.symbols {
+            super::scip_proto::check_cancelled(cancelled)?;
+            let id = SemanticSymbolID::new(sym.symbol.clone(), &doc_path);
+            if let Some(existing) = self.symbols.get_mut(&id) {
+                if existing.display_name.is_empty() && !sym.display_name.is_empty() {
+                    *existing = sym.clone();
+                }
+            } else {
+                self.symbols.insert(id, sym.clone());
+            }
+        }
+
+        for occ in &doc.occurrences {
+            super::scip_proto::check_cancelled(cancelled)?;
+            if occ.symbol.is_empty() {
+                continue;
+            }
+            let Some(range) = &occ.range else {
+                continue;
+            };
+
+            let id = SemanticSymbolID::new(occ.symbol.clone(), &doc_path);
+            if occ.is_definition() {
+                self.definitions
+                    .entry(id.clone())
+                    .or_default()
+                    .push((doc_path.clone(), range.clone()));
+
+                if let Some(enclosing) = &occ.enclosing_range {
+                    self.definition_extents
+                        .entry(id.clone())
+                        .or_insert_with(|| (doc_path.clone(), enclosing.clone()));
+                }
+            } else {
+                self.references
+                    .entry(id.clone())
+                    .or_default()
+                    .push((doc_path.clone(), range.clone()));
+            }
+        }
+
+        self.documents.insert(doc_path, doc);
+        Ok(())
+    }
+
+    fn build_search_entries(
+        &mut self,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<(), ProtobufError> {
         // Build search entries from non-local definitions:
-        for (id, defs) in &idx.definitions {
+        for (id, defs) in &self.definitions {
+            super::scip_proto::check_cancelled(cancelled)?;
             if id.is_local() {
                 continue;
             }
-            idx.repository_packages.extend(
+            self.repository_packages.extend(
                 SCIPSymbolHeader::parse(&id.symbol)
                     .and_then(|header| header.package_name().map(str::to_owned)),
             );
             if let Some((first_path, first_range)) = canonical_definition(defs) {
-                let sym_info = idx.symbols.get(id);
+                let sym_info = self.symbols.get(id);
                 let name = sym_info
                     .map(|s| {
                         if s.display_name.is_empty() {
@@ -597,7 +624,7 @@ impl SemanticIndex {
                     .unwrap_or_else(|| SCIPSymbolString::fallback_name(&id.symbol));
 
                 if !name.is_empty() {
-                    idx.search_entries.push(SymbolSearchEntry {
+                    self.search_entries.push(SymbolSearchEntry {
                         id: id.clone(),
                         name,
                         kind: sym_info.map_or(0, |s| s.kind),
@@ -609,7 +636,7 @@ impl SemanticIndex {
             }
         }
 
-        idx.search_entries.sort_by(|a, b| {
+        self.search_entries.sort_by(|a, b| {
             (a.name.as_str(), a.path.as_str(), a.line).cmp(&(
                 b.name.as_str(),
                 b.path.as_str(),
@@ -617,7 +644,8 @@ impl SemanticIndex {
             ))
         });
 
-        idx
+        super::scip_proto::check_cancelled(cancelled)?;
+        Ok(())
     }
 
     /// Reads and decodes a `.scip` file from disk into a [`SemanticIndex`].
@@ -1143,3 +1171,6 @@ mod tests {
             .is_none());
     }
 }
+
+#[cfg(test)]
+mod cancellation_tests;

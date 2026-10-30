@@ -355,7 +355,10 @@ fn generate(
     let index = if merged.documents.is_empty() {
         None
     } else {
-        let mut index = SemanticIndex::from_scip(merged);
+        let mut index = SemanticIndex::from_scip_cancellable(merged, || {
+            cancel.load(std::sync::atomic::Ordering::Relaxed)
+        })
+        .map_err(|error| error.to_string())?;
         index.source_digests = source_digests;
         Some(index)
     };

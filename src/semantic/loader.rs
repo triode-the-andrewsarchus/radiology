@@ -113,7 +113,10 @@ fn import(root: &Path, cancel: &AtomicBool) -> Result<Option<ImportedIndex>, Str
         match read_scip(&path, cancel) {
             Ok(Some(scip)) => {
                 return Ok(Some(ImportedIndex {
-                    index: SemanticIndex::from_scip(scip),
+                    index: SemanticIndex::from_scip_cancellable(scip, || {
+                        cancel.load(Ordering::Relaxed)
+                    })
+                    .map_err(|error| error.to_string())?,
                     path,
                 }))
             }
@@ -141,19 +144,21 @@ pub(crate) fn read_scip(path: &Path, cancel: &AtomicBool) -> Result<Option<ScipI
     let Some(bytes) = read_index_bytes(path, cancel)? else {
         return Ok(None);
     };
-    let scip = ScipIndex::decode(&bytes).map_err(|e| e.to_string())?;
+    let scip = ScipIndex::decode_cancellable(&bytes, || cancel.load(Ordering::Relaxed))
+        .map_err(|e| e.to_string())?;
     if scip.documents.is_empty() {
         return Err("Index contains no documents".into());
     }
     // Imported paths must remain repository-relative even for symbol navigation.
-    if scip.documents.iter().any(|document| {
-        !crate::source::location::SourceLocation::is_repository_path(&document.relative_path)
-    }) {
-        return Err("Index contains an invalid repository-relative document path".into());
+    for document in &scip.documents {
+        super::scip_proto::check_cancelled(&|| cancel.load(Ordering::Relaxed))
+            .map_err(|error| error.to_string())?;
+        if !crate::source::location::SourceLocation::is_repository_path(&document.relative_path) {
+            return Err("Index contains an invalid repository-relative document path".into());
+        }
     }
-    if cancel.load(Ordering::Relaxed) {
-        return Ok(None);
-    }
+    super::scip_proto::check_cancelled(&|| cancel.load(Ordering::Relaxed))
+        .map_err(|error| error.to_string())?;
     Ok(Some(scip))
 }
 
