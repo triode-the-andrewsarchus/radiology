@@ -28,6 +28,24 @@ pub enum NoBodyReason {
     NotIndexed,
     /// No call query supports this language.
     UnsupportedLanguage,
+    /// A request's source-memory budget was exhausted.
+    ResourceLimit,
+}
+
+impl NoBodyReason {
+    /// Returns a concise explanation suitable for a reader status or tooltip.
+    #[must_use]
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::External => "defined outside this repository",
+            Self::Abstract => "declaration without a body",
+            Self::NoSyntax => "no matching parsed structure",
+            Self::Unreadable => "file could not be read",
+            Self::NotIndexed => "no matching semantic data",
+            Self::UnsupportedLanguage => "no call-site support for this language",
+            Self::ResourceLimit => "source analysis budget reached",
+        }
+    }
 }
 
 /// Gaps that make reachable counts lower bounds rather than proven totals.
@@ -54,6 +72,30 @@ impl CoverageGaps {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
+    }
+
+    /// Returns all observed gaps without treating absent evidence as ordinary calls.
+    #[must_use]
+    pub fn description(&self) -> String {
+        let mut parts = Vec::new();
+        for (count, label) in [
+            (self.unresolved_sites, "unresolved"),
+            (self.macro_sites, "macro sites"),
+            (self.missing_bodies, "bodies missing"),
+            (self.unknown_callees, "unknown"),
+            (self.conditional_sites, "conditional"),
+        ] {
+            if count > 0 {
+                parts.push(format!("{count} {label}"));
+            }
+        }
+        if self.parse_errors {
+            parts.push("parse errors".into());
+        }
+        if self.truncated {
+            parts.push("truncated".into());
+        }
+        parts.join(" · ")
     }
 
     pub(super) fn merge(&mut self, other: &Self) {

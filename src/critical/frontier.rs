@@ -46,6 +46,17 @@ pub struct CriticalFrontier {
 }
 
 impl CriticalFrontier {
+    /// Returns a coverage explanation for hover and source-gutter presentations.
+    #[must_use]
+    pub fn status_detail(&self) -> String {
+        match &self.coverage {
+            CallCoverage::NoBody(reason) => format!("No body to summarize: {}.", reason.description()),
+            CallCoverage::Partial(gaps) => format!("At least {} critical operations reachable; coverage partial ({}). Nested functions and closures are conditional; unknown callees are not counted.", self.annotation().count, gaps.description()),
+            CallCoverage::Complete if self.annotation().count == 0 => "No critical operations reachable, proven: every call site resolved and every traversed body was parsed.".into(),
+            CallCoverage::Complete => format!("{} critical operations reachable; every call site resolved and every traversed body was parsed.", self.annotation().count),
+        }
+    }
+
     /// Returns the distinct union of direct and indirectly reachable critical callees.
     #[must_use]
     pub fn annotation(&self) -> CountAnnotation {
@@ -107,6 +118,9 @@ impl Traversal {
                 let mut gaps = gaps.clone();
                 gaps.unknown_callees = 0;
                 self.gaps.merge(&gaps);
+            }
+            CallCoverage::NoBody(super::graph::NoBodyReason::ResourceLimit) => {
+                self.gaps.truncated = true
             }
             CallCoverage::NoBody(_) => self.gaps.missing_bodies += 1,
         }
