@@ -189,6 +189,12 @@ impl RadiologyApp {
     ///
     /// Embedded hosts can call this without constructing an eframe window.
     pub fn poll_source(&mut self, ctx: &Context) {
+        if self.definition_preview.poll() {
+            ctx.request_repaint();
+        }
+        if self.definition_preview.is_running() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        }
         if self.reference_context.poll() {
             ctx.request_repaint();
         }

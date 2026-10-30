@@ -131,6 +131,11 @@ pub struct RadiologyApp {
         crate::semantic::indexing::tools::ToolAvailability,
     >,
     reference_context: ReferenceContext,
+    preview_inputs: Option<Arc<crate::source::preview::PreviewInputs>>,
+    definition_preview: crate::source::preview::SourcePreviewLoader,
+    definition_identity: Option<(SemanticSymbolID, std::ops::Range<usize>)>,
+    definition_expanded: bool,
+    reference_viewport: crate::ui::reference_list::ReferenceViewport,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -241,6 +246,11 @@ impl RadiologyApp {
             tool_probe_job: Default::default(),
             tool_availability: Default::default(),
             reference_context: Default::default(),
+            preview_inputs: None,
+            definition_preview: Default::default(),
+            definition_identity: None,
+            definition_expanded: false,
+            reference_viewport: Default::default(),
             active_pr: None,
             review: None,
             review_rx: None,
@@ -468,6 +478,7 @@ impl RadiologyApp {
         self.outline_symbols.clear();
         self.highlighted_lines.clear();
         self.reference_context = Default::default();
+        self.reset_previews();
         self.active_pr = None;
         self.review = None;
         self.review_rx = None;
@@ -582,6 +593,22 @@ impl RadiologyApp {
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
+        if matches!(self.modal, ActiveModal::None) && self.show_inspector {
+            for action in crate::ui::reference_list::ReferenceViewport::take_actions(ctx) {
+                self.handle_reference_action(action);
+            }
+            for action in ContextInspector::take_definition_actions(ctx) {
+                match action {
+                    InspectorAction::ExpandDefinition(expanded) => {
+                        self.definition_expanded = expanded
+                    }
+                    InspectorAction::GoToDefinition => {
+                        self.execute_command(ctx, ToolbarAction::GoToDefinition)
+                    }
+                    _ => {}
+                }
+            }
+        }
         for command in super::commands::take_shortcuts(
             ctx,
             !matches!(self.modal, ActiveModal::None),
@@ -595,6 +622,8 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.cancel_source_load();
+        self.reference_context = Default::default();
+        self.reset_previews();
         self.critical_annotations.stop();
         self.critical_graph_inputs = None;
         self.index_generator.stop();
@@ -880,10 +909,14 @@ impl eframe::App for RadiologyApp {
                         &self.theme,
                         InspectorContent {
                             current_symbol: current_sym_info,
+                            definition_preview: self.definition_preview.phase(),
+                            definition_expanded: self.definition_expanded,
                             definition: def_loc,
                             declaration: enclosing_sym.as_ref(),
                             buffer: self.open_buffer.as_deref(),
                             callers: &self.reference_context.rows,
+                            selected_reference: self.reference_context.selected,
+                            reference_previews: &self.reference_context.previews,
                             reference_target: self
                                 .reference_context
                                 .explicit()
@@ -898,9 +931,16 @@ impl eframe::App for RadiologyApp {
                             bookmarks: &self.bookmarks,
                             scope: &scope,
                         },
+                        &mut self.reference_viewport,
                     ) {
                         match action {
+                            InspectorAction::Reference(action) => {
+                                self.handle_reference_action(action)
+                            }
                             InspectorAction::FollowCaret => self.follow_reference_caret(),
+                            InspectorAction::ExpandDefinition(expanded) => {
+                                self.definition_expanded = expanded
+                            }
                             InspectorAction::GoToDefinition => {
                                 self.execute_command(ctx, ToolbarAction::GoToDefinition)
                             }

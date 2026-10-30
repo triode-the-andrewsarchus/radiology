@@ -100,8 +100,9 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
-  full source definition previews,
-  independent inspector keyboard preview/commit behavior.
+  richer under-caret metadata, external/local explanations and broader inspector
+  keyboard acceptance. Source excerpts and reference selection/disclosure/commit
+  are integrated; [preview contract and remaining scope](rust-inspector-previews.md).
 - Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
   Fold counts now publish progressively with retired-request isolation. Pointer-dwell hover summaries/navigation
   are integrated; see [hover acceptance](rust-critical-hover.md). Parsed summaries, bounded

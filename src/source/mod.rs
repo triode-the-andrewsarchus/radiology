@@ -10,6 +10,7 @@ pub(crate) mod document_memory;
 pub mod find;
 pub mod history;
 pub mod location;
+pub mod preview;
 pub mod selection;
 
 pub use buffer::{SourceBuffer, SourceBufferError};

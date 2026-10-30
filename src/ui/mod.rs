@@ -7,12 +7,14 @@
 
 mod critical_hover;
 mod critical_menu;
+mod source_preview;
 
 pub mod app;
 pub mod commands;
 pub mod context_inspector;
 pub mod icons;
 pub mod modals;
+pub mod reference_list;
 pub mod sidebar;
 pub mod source_find;
 pub mod source_view;

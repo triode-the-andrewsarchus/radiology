@@ -44,6 +44,10 @@ counts and remaining graph/cache acceptance.
 [Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
+[Inspector source previews and navigation](plans/rust-inspector-previews.md) records
+bounded source excerpts, independent reference selection/disclosure/commit,
+keyboard focus and remaining inspector presentation/call-tree work.
+
 [Reference focus and inspector context](plans/rust-reference-context.md) records
 explicit Find References, Follow Caret, exact declaration identities and background
 reference loading, with the remaining preview/call-tree work.
