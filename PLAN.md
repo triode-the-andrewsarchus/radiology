@@ -45,7 +45,8 @@ counts and remaining graph/cache acceptance.
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
 [Source-backed reference results](plans/rust-reference-results.md) records validated
-source-line hits, definition/reference counts, coverage and integration status.
+source-line hits, definition/reference counts, coverage, expandable queries and
+native keyboard/navigation acceptance.
 
 [Inspector source previews and navigation](plans/rust-inspector-previews.md) records
 bounded source excerpts, independent reference selection/disclosure/commit,

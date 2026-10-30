@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-10-30 — Final grouped-reference native acceptance (Codex)
+
+Final-build acceptance verifies honest limited/expanded coverage (511 to 515
+references, one definition, one unmapped and one unreadable file), retained open
+source context, keyboard selection after Load More, exact Return to b.rs line 5
+and Back to the original a.rs use after an emoji. Radiology and both private
+compositors exit zero. Build SHA, screenshots and debugger evidence are recorded
+in the [reference-results contract](plans/rust-reference-results.md). Full gates
+remain 246 app tests, 5 reader-text tests and 30 doctests. Parsed call trees,
+richer context and the broader parity queue remain open.
+
 ## 2026-10-30 — Coalesced Load More focus correction (Codex)
 
 Native debugging found that a same-frame pointer press/release lets list
