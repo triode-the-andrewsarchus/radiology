@@ -746,6 +746,38 @@ impl SemanticIndex {
             })
     }
 
+    /// Finds an indexed lexical owner using full coordinates, without inferring calls.
+    pub(crate) fn enclosing_definition(
+        &self,
+        path: &str,
+        reference: &ScipRange,
+    ) -> Option<SemanticSymbolID> {
+        let start = (reference.start_line, reference.start_col);
+        let end = (reference.end_line, reference.end_col);
+        if start.0 < 0 || start.1 < 0 || end.1 < 0 || start >= end {
+            return None;
+        }
+        self.documents
+            .get(path)?
+            .occurrences
+            .iter()
+            .filter(|occ| occ.is_definition())
+            .filter_map(|occ| {
+                let extent = occ.enclosing_range.as_ref()?;
+                let lower = (extent.start_line, extent.start_col);
+                let upper = (extent.end_line, extent.end_col);
+                (lower.0 >= 0 && lower.1 >= 0 && lower <= start && end <= upper)
+                    .then_some((lower, upper, occ))
+            })
+            .min_by_key(|(lower, upper, _)| {
+                (
+                    i64::from(upper.0) - i64::from(lower.0),
+                    i64::from(upper.1) - i64::from(lower.1),
+                )
+            })
+            .map(|(_, _, occ)| SemanticSymbolID::new(&occ.symbol, path))
+    }
+
     /// Returns the declared column encoding for one indexed document.
     #[must_use]
     pub fn column_encoding(&self, path: &str) -> Option<crate::source::ColumnEncoding> {

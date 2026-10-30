@@ -119,7 +119,7 @@ impl CallerTreeBuilder {
             else {
                 continue;
             };
-            let caller_sym = Self::find_enclosing_symbol(index, ref_path, ref_range.start_line);
+            let caller_sym = index.enclosing_definition(ref_path, ref_range);
             let caller_name = caller_sym
                 .as_ref()
                 .map(|id| index.display_name(id))
@@ -151,29 +151,6 @@ impl CallerTreeBuilder {
         }
 
         nodes
-    }
-
-    fn find_enclosing_symbol(
-        index: &SemanticIndex,
-        path: &str,
-        line: i32,
-    ) -> Option<SemanticSymbolID> {
-        let document = index.documents.get(path)?;
-        document
-            .occurrences
-            .iter()
-            .filter(|occ| occ.is_definition())
-            .filter_map(|occ| {
-                let range = occ.enclosing_range.as_ref().or(occ.range.as_ref())?;
-                (range.start_line <= line && line <= range.end_line).then_some((range, occ))
-            })
-            .min_by_key(|(range, _)| {
-                (
-                    range.end_line - range.start_line,
-                    range.end_col - range.start_col,
-                )
-            })
-            .map(|(_, occ)| SemanticSymbolID::new(&occ.symbol, path))
     }
 }
 

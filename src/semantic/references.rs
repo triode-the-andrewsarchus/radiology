@@ -181,25 +181,8 @@ fn direct_references(
         // Indexed lexical extents can provide a label. They do not prove this
         // reference is a call; parsed/validated call-tree expansion is separate.
         let name = index
-            .documents
-            .get(path)
-            .and_then(|doc| {
-                doc.occurrences
-                    .iter()
-                    .filter(|occ| occ.is_definition())
-                    .filter_map(|occ| {
-                        let extent = occ.enclosing_range.as_ref()?;
-                        let lower = (extent.start_line, extent.start_col);
-                        let upper = (extent.end_line, extent.end_col);
-                        (lower <= start && end <= upper).then_some((lower, upper, occ))
-                    })
-                    .min_by_key(|(lower, upper, _)| {
-                        (upper.0 - lower.0, i64::from(upper.1) - i64::from(lower.1))
-                    })
-                    .map(|(_, _, occ)| {
-                        index.display_name(&SemanticSymbolID::new(&occ.symbol, path))
-                    })
-            })
+            .enclosing_definition(path, range)
+            .map(|id| index.display_name(&id))
             .unwrap_or_else(|| path.clone());
         rows.push(ReferenceCallerNode {
             color_slot: caller_pill_slot(&name, path),
@@ -393,9 +376,32 @@ mod tests {
     }
 
     #[test]
+    fn indexed_owner_labels_distinguish_multiple_declarations_on_one_line() {
+        let (_, index) = fixture();
+        let mut index = (*index).clone();
+        let occurrences = &mut index.documents.get_mut("a.rs").unwrap().occurrences;
+        occurrences[0].enclosing_range = ScipRange::from_packed(&[0, 0, 11]);
+        occurrences[1].enclosing_range = ScipRange::from_packed(&[0, 12, 30]);
+        let id = SemanticSymbolID::new("local 1", "a.rs");
+        let rows = direct_references(&index, &id, &AtomicBool::new(false));
+        let owner = SemanticSymbolID::new("local 2", "a.rs");
+        assert_eq!(rows[0].name, index.display_name(&owner));
+        assert_eq!(
+            index.enclosing_definition("a.rs", &rows[0].range),
+            Some(owner)
+        );
+    }
+
+    #[test]
     fn direct_reference_rows_are_sorted_deduplicated_and_never_fake_call_trees() {
         let (_, index) = fixture();
         let mut index = (*index).clone();
+        index.documents.get_mut("a.rs").unwrap().occurrences[0].enclosing_range = Some(ScipRange {
+            start_line: i32::MIN,
+            start_col: 0,
+            end_line: i32::MAX,
+            end_col: i32::MAX,
+        });
         let id = SemanticSymbolID::new("global", "");
         let range = ScipRange::from_packed(&[0, 9, 12]).unwrap();
         index.references.insert(
@@ -418,6 +424,10 @@ mod tests {
         assert_eq!(
             rows.iter().map(|row| row.path.as_str()).collect::<Vec<_>>(),
             ["a.rs", "b.rs"]
+        );
+        assert_eq!(
+            rows[0].name, "a.rs",
+            "invalid enclosing extents cannot label references"
         );
         assert!(rows
             .iter()
