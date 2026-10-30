@@ -269,6 +269,9 @@ impl SymbolExtractor {
             (SupportedGrammar::Rust, "impl_item") => (SymbolKind::Extension, "type"),
             (SupportedGrammar::Rust, "mod_item") => (SymbolKind::Module, "name"),
             (SupportedGrammar::Rust, "type_item") => (SymbolKind::TypeAlias, "name"),
+            (SupportedGrammar::Rust, "const_item") => (SymbolKind::Constant, "name"),
+            (SupportedGrammar::Rust, "static_item") => (SymbolKind::Variable, "name"),
+            (SupportedGrammar::Rust, "enum_variant") => (SymbolKind::EnumMember, "name"),
 
             (SupportedGrammar::Python, "function_definition") => (SymbolKind::Function, "name"),
             (SupportedGrammar::Python, "class_definition") => (SymbolKind::Class, "name"),
@@ -426,6 +429,31 @@ fn node_text(node: Node, buffer: &SourceBuffer) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rust_constants_statics_and_enum_variants_keep_exact_name_ranges() {
+        let text = "// café 😀\npub const LIMIT: usize = 4;\npub static READY: bool = true;\npub enum Choice { First, Second(i32) }\n";
+        let buffer = SourceBuffer::from_str("main.rs", text);
+        let symbols = SymbolExtractor::extract(&buffer);
+        for (symbol, name, kind) in symbols
+            .iter()
+            .zip([
+                ("LIMIT", SymbolKind::Constant),
+                ("READY", SymbolKind::Variable),
+                ("Choice", SymbolKind::Enum),
+            ])
+            .map(|(symbol, (name, kind))| (symbol, name, kind))
+        {
+            assert_eq!((&symbol.name, symbol.kind), (&name.to_string(), kind));
+            assert_eq!(&text[symbol.selection_range.clone()], name);
+        }
+        assert_eq!(symbols.len(), 3);
+        assert_eq!(symbols[2].children.len(), 2);
+        for (variant, name) in symbols[2].children.iter().zip(["First", "Second"]) {
+            assert_eq!(variant.kind, SymbolKind::EnumMember);
+            assert_eq!(&text[variant.selection_range.clone()], name);
+        }
+    }
 
     #[test]
     fn test_extract_rust_symbols() {
