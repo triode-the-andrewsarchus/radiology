@@ -120,9 +120,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Finish fine-grained SCIP/native interruption and semantic context/cache work;
   complete index lifecycle with all Swift project strategies, provisioning,
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
-  cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and source-loader Git
-  subprocess cancellation still need finer interruption/deadlines. Checkout refresh
-  now has bounded process-group cancellation and a worker deadline.
+  cache persistence and stale/partial/error/cancel UI are integrated. Native stages
+  still need finer interruption, and remaining context/graph/preview consumers
+  need job cancellation propagated to their bounded source reads. Source loading
+  and checkout refresh now use bounded process-group cancellation/deadlines;
+  see [source process acceptance](rust-source-process-cancellation.md).
 - Remaining source presentation: PR-refresh fold/pin mapping. Transient occurrence
   selection, syntax-aware pinned fallback, exact byte-based fold projection, enclosing-callable
   shading and destination feedback are integrated; broader wrapping/scroll anchoring,

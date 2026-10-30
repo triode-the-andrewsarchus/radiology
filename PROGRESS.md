@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Source Git live-child acceptance and index-deletion hunks (Codex)
+
+Bounded source operations committed/pushed as `dd62028`. Final review added the
+current index check for files removed with `git rm --cached` but left on disk;
+these now get added-file hunks rather than HEAD/index deletion markers. Shared
+fixtures cover ordinary tracked, index-deleted and new untracked source without
+duplicated test drivers. Full workspace checks pass 339 app tests (one external-
+Clang fixture ignored), eight reader-text tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc; the final index-deletion fixture passes separately too.
+Architecture is neutral with no new problem. Native Cancel is verified against
+a confirmed live Git PID and its subsequent absence, retaining the old source;
+forced failure retains it and reselecting the target succeeds. Earlier replacement
+acceptance also reaps a pending child. The corrected build repeats native Cancel/
+failure/retry; app and compositor exits are zero.
+[Contract and hashed evidence](plans/rust-source-process-cancellation.md).
+Full parity remains open: finer native/SCIP interruption, cancellation propagation
+through other source consumers and PR preparation/fetch, source/graph/context caches,
+broader indexing/provisioning/PR refresh mapping and final visual/accessibility/
+scaling acceptance and sibling palette/chrome reuse. Commit and push every increment.
+
 ## 2026-10-30 — Bounded cancellable source Git reads (Codex)
 
 Source loading now shares the repository process runner for checkout hunks and

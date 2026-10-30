@@ -61,7 +61,10 @@ impl GitRead<'_> {
         if !same_source(self.root, buffer) {
             return Ok(None);
         }
-        let base = if let Some(base) = base {
+        let tracked = self
+            .optional(&["ls-files", "--error-unmatch", "--", &buffer.path])?
+            .is_some();
+        let base = if let Some(base) = base.filter(|_| tracked) {
             let object = format!("{base}:{}", buffer.path);
             self.optional(&["cat-file", "-e", &object])?.map(|_| base)
         } else {
