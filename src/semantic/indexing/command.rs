@@ -4,22 +4,10 @@ use super::{Indexer, IndexingStrategy};
 use crate::source::location::SourceLocation;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// One executable invocation with a working directory and environment overrides.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexCommand {
-    /// Tool executable; the caller must probe its availability first.
-    pub executable: PathBuf,
-    /// Arguments passed directly to the process, without shell interpolation.
-    pub arguments: Vec<OsString>,
-    /// Project working directory in an indexing workspace.
-    pub directory: PathBuf,
-    /// Child-only environment overrides; the process inherits other variables.
-    pub environment: BTreeMap<OsString, OsString>,
-    /// Auxiliary files required by this invocation, under the run directory.
-    pub resources: Vec<(PathBuf, Vec<u8>)>,
-}
+/// Indexer invocation using the shared literal subprocess description.
+pub use crate::process::ProcessCommand as IndexCommand;
 
 /// Runtime inputs for a single isolated indexing run.
 pub struct CommandPaths<'a> {
