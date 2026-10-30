@@ -13,7 +13,9 @@ use crate::{
 };
 use egui::text::{LayoutJob, TextFormat};
 use egui::{pos2, vec2, Color32, FontId, Id, Key, Modifiers, Rect, Sense, Stroke, Ui};
-use reader_text::{source_fragments, ByteSelection, RowHeights, SourceFragment};
+use reader_text::{
+    projected_fragments, ByteSelection, ProjectedFragment as SourceFragment, RowHeights,
+};
 use std::{collections::HashSet, ops::Range, sync::Arc};
 
 const FRAGMENT_BYTES: usize = 4096;
@@ -171,42 +173,26 @@ impl SourceViewport {
             .visible
             .get(self.rows.row_at(self.scroll_y))
             .map_or(0, |&index| self.fragments[index].bytes.start);
-        let projected = changed || self.test_generation != content.test_code.generation();
+        let projected = changed
+            || self.test_generation != content.test_code.generation()
+            || self.folded != content.fold_store.folded_ranges;
         if projected {
-            let mut projected = Vec::new();
-            for fragment in source_fragments(&source.text, FRAGMENT_BYTES) {
-                content.test_code.project_into(&fragment, &mut projected);
-            }
-            let mut previous_line = None;
-            for fragment in &mut projected {
-                fragment.first_in_line = previous_line != Some(fragment.line);
-                previous_line = Some(fragment.line);
-            }
-            self.fragments = projected;
+            let hidden: Vec<_> = content
+                .folds
+                .iter()
+                .filter(|fold| content.fold_store.is_folded(&fold.byte_range))
+                .map(|fold| fold.hidden_range(source))
+                .chain(content.test_code.hidden_ranges().iter().cloned())
+                .collect();
+            self.fragments = projected_fragments(&source.text, &hidden, FRAGMENT_BYTES);
             self.max_bytes = self
                 .fragments
                 .iter()
-                .map(|part| part.bytes.len())
+                .map(SourceFragment::visible_len)
                 .max()
                 .unwrap_or(0);
             self.test_generation = content.test_code.generation();
-        }
-        if changed {
-            self.selection = None;
-            self.dragging = false;
-            self.scroll_y = 0.0;
-            self.scroll_x = 0.0;
-            self.document = Some(key);
-        }
-        if projected || self.folded != content.fold_store.folded_ranges {
-            self.visible = self
-                .fragments
-                .iter()
-                .enumerate()
-                .filter_map(|(index, part)| {
-                    (!content.fold_store.is_line_hidden(part.line, content.folds)).then_some(index)
-                })
-                .collect();
+            self.visible = (0..self.fragments.len()).collect();
             self.anchor_after_reset = Some(
                 self.visible
                     .partition_point(|&index| {
@@ -216,6 +202,13 @@ impl SourceViewport {
             );
             self.folded.clone_from(&content.fold_store.folded_ranges);
             self.rows = RowHeights::default();
+        }
+        if changed {
+            self.selection = None;
+            self.dragging = false;
+            self.scroll_y = 0.0;
+            self.scroll_x = 0.0;
+            self.document = Some(key);
         }
     }
 
@@ -243,6 +236,7 @@ impl SourceViewport {
             Self::focus_id(),
             Sense::focusable_noninteractive(),
         );
+        crate::ui::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         let output = egui::ScrollArea::new([!content.wrap, true])
             .id_source((
                 "source_scroll",
@@ -455,7 +449,6 @@ impl SourceViewport {
         let mut full_width = ui.available_width();
         while row < self.visible.len() && y <= viewport.bottom() {
             let fragment = self.fragments[self.visible[row]].clone();
-            let text = &content.buffer.text[fragment.bytes.clone()];
             let galley = layout(ui, content, &fragment, &geometry.font, geometry.width);
             let row_height = measured_height(&galley, geometry.minimum_height, &fragment, content);
             self.rows.set_height(row, row_height);
@@ -495,7 +488,12 @@ impl SourceViewport {
                     .y
                     .clamp(geometry.code_rect.top(), geometry.code_rect.bottom() - 0.1);
                 if target_y >= rect.top() && target_y < code_bottom {
-                    let byte = hit_byte(&galley, pointer - text_origin, text, fragment.bytes.start);
+                    let byte = hit_byte(
+                        &galley,
+                        pointer - text_origin,
+                        &fragment,
+                        &content.buffer.text,
+                    );
                     self.track_hover_geometry(
                         response.hovered().then_some((byte, pointer.x)),
                         &galley,
@@ -558,7 +556,7 @@ impl SourceViewport {
             .anchor_range()
             .is_some_and(|range| range.contains(&byte))
         {
-            let chars = buffer.text[part.bytes.start..byte].chars().count();
+            let chars = part.char_index(&buffer.text, byte);
             let cursor = galley.pos_from_ccursor(egui::text::CCursor::new(chars));
             self.hover_origin = pos2(x, origin.y + cursor.bottom());
         }
@@ -655,6 +653,7 @@ impl SourceViewport {
         let secondary = inside && response.secondary_clicked();
         if pressed || secondary {
             ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+            crate::ui::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
             let extending = ui.input(|input| input.modifiers.shift);
             let keep_selection = secondary
                 && self
@@ -717,10 +716,7 @@ impl SourceViewport {
             row,
             measured_height(&galley, minimum_height, &part, content),
         );
-        let local = byte.saturating_sub(part.bytes.start).min(part.bytes.len());
-        let chars = content.buffer.text[part.bytes.start..part.bytes.start + local]
-            .chars()
-            .count();
+        let chars = part.char_index(&content.buffer.text, byte);
         galley
             .pos_from_ccursor(egui::text::CCursor::new(chars))
             .translate(vec2(0.0, self.rows.offset(row) + 2.0))
@@ -754,9 +750,7 @@ impl SourceViewport {
                 break;
             }
             let part = &self.fragments[self.visible[row]];
-            let text = &content.buffer.text[part.bytes.clone()];
-            let galley = ui
-                .fonts(|fonts| fonts.layout(text.to_owned(), font.clone(), Color32::WHITE, width));
+            let galley = layout(ui, content, part, font, width);
             self.rows
                 .set_height(row, measured_height(&galley, height, part, content));
             self.rows.next_measurement += 1;
@@ -852,10 +846,10 @@ impl SourceViewport {
         let Some((row, part)) = self.row_for_byte(byte) else {
             return byte;
         };
-        let text = &content.buffer.text[part.bytes.clone()];
-        let local = byte.saturating_sub(part.bytes.start).min(text.len());
         let galley = layout(ui, content, part, font, width);
-        let cursor = galley.from_ccursor(egui::text::CCursor::new(text[..local].chars().count()));
+        let cursor = galley.from_ccursor(egui::text::CCursor::new(
+            part.char_index(&content.buffer.text, byte),
+        ));
         let next = if down {
             galley.cursor_down_one_row(&cursor)
         } else {
@@ -867,11 +861,7 @@ impl SourceViewport {
             cursor.rcursor.row > 0
         };
         if can_move {
-            return part.bytes.start
-                + text
-                    .char_indices()
-                    .nth(next.ccursor.index)
-                    .map_or(text.len(), |(byte, _)| byte);
+            return part.byte_at_char(&content.buffer.text, next.ccursor.index);
         }
         let adjacent = if down {
             row.saturating_add(1)
@@ -887,8 +877,8 @@ impl SourceViewport {
         hit_byte(
             &galley_next,
             vec2(x, if down { 0.0 } else { galley_next.size().y }),
-            &content.buffer.text[part.bytes.clone()],
-            part.bytes.start,
+            part,
+            &content.buffer.text,
         )
     }
 
@@ -899,21 +889,18 @@ impl SourceViewport {
         origin: egui::Pos2,
         rect: Rect,
         part: &SourceFragment,
-        accent: Color32,
+        content: &CanvasContent<'_>,
     ) {
         let Some(frame) = self.destination_frame else {
             return;
         };
         if !self
             .row_for_byte(frame.byte)
-            .is_some_and(|(_, owner)| owner == part)
+            .is_some_and(|(_, owner)| owner == part && part.contains_byte(frame.byte))
         {
             return;
         }
-        let text = &galley.job.text;
-        let chars = text[..frame.byte.saturating_sub(part.bytes.start).min(text.len())]
-            .chars()
-            .count();
+        let chars = part.char_index(&content.buffer.text, frame.byte);
         let cursor = galley
             .pos_from_ccursor(egui::text::CCursor::new(chars))
             .translate(origin.to_vec2());
@@ -925,7 +912,7 @@ impl SourceViewport {
         } else {
             rect
         };
-        painter.rect_filled(band, 0.0, accent.gamma_multiply(frame.alpha));
+        painter.rect_filled(band, 0.0, content.theme.accent.gamma_multiply(frame.alpha));
     }
 
     fn paint_row_backgrounds(
@@ -943,17 +930,16 @@ impl SourceViewport {
         } else {
             rect
         };
-        if let Some(band) = content
-            .function_shade
-            .and_then(|range| function_band(galley, origin, rect, part, range))
-        {
+        if let Some(band) = content.function_shade.and_then(|range| {
+            function_band(galley, origin, rect, part, range, &content.buffer.text)
+        }) {
             painter.rect_filled(band, 0.0, theme.function_shade_color());
         }
-        if content
-            .changes
-            .iter()
-            .any(|range| range.contains(&part.line))
-        {
+        if content.changes.iter().any(|range| {
+            part.spans()
+                .iter()
+                .any(|span| range.contains(&content.buffer.line_at_byte(span.start)))
+        }) {
             painter.rect_filled(
                 rect,
                 0.0,
@@ -964,19 +950,15 @@ impl SourceViewport {
                 },
             );
         }
-        self.paint_destination(painter, galley, origin, rect, part, theme.accent);
+        self.paint_destination(painter, galley, origin, rect, part, content);
         let caret_byte = content
             .buffer
             .byte_offset(*content.caret_line, *content.caret_col);
         if self
             .row_for_byte(caret_byte)
-            .is_some_and(|(_, owner)| owner == part)
+            .is_some_and(|(_, owner)| owner == part && part.contains_byte(caret_byte))
         {
-            let chars = galley.job.text[..caret_byte
-                .saturating_sub(part.bytes.start)
-                .min(galley.job.text.len())]
-                .chars()
-                .count();
+            let chars = part.char_index(&content.buffer.text, caret_byte);
             painter.rect_filled(
                 visual_line_band(galley, origin, rect, egui::text::CCursor::new(chars)),
                 0.0,
@@ -996,14 +978,19 @@ impl SourceViewport {
     ) {
         self.paint_row_backgrounds(painter, galley, origin, rect, part, content);
         let theme = content.theme;
-        let text = &content.buffer.text[part.bytes.clone()];
-        for (range, active) in content.find.matches(part.bytes.clone()) {
+        let mut matches: Vec<_> = part
+            .spans()
+            .iter()
+            .flat_map(|span| content.find.matches(span.clone()))
+            .collect();
+        matches.dedup_by(|a, b| a.0 == b.0);
+        for (range, active) in matches {
             paint_match(
                 painter,
                 galley,
                 origin,
-                text,
-                part.bytes.start,
+                part,
+                &content.buffer.text,
                 range,
                 if active {
                     theme.accent.gamma_multiply(0.45)
@@ -1022,8 +1009,8 @@ impl SourceViewport {
                     painter,
                     galley,
                     origin,
-                    text,
-                    part.bytes.start,
+                    part,
+                    &content.buffer.text,
                     range,
                     theme.accent.gamma_multiply(0.35),
                 );
@@ -1039,8 +1026,8 @@ impl SourceViewport {
                     painter,
                     galley,
                     origin,
-                    text,
-                    part.bytes.start,
+                    part,
+                    &content.buffer.text,
                     range.clone(),
                     theme.occurrence_tint(group.color).gamma_multiply(0.35),
                 );
@@ -1052,11 +1039,9 @@ impl SourceViewport {
             .byte_offset(*content.caret_line, *content.caret_col);
         if self
             .row_for_byte(byte)
-            .is_some_and(|(_, owner)| owner == part)
+            .is_some_and(|(_, owner)| owner == part && part.contains_byte(byte))
         {
-            let chars = text[..byte.saturating_sub(part.bytes.start).min(text.len())]
-                .chars()
-                .count();
+            let chars = part.char_index(&content.buffer.text, byte);
             let cursor = galley.from_ccursor(egui::text::CCursor::new(chars));
             let caret = galley.pos_from_cursor(&cursor).translate(origin.to_vec2());
             painter.line_segment(
@@ -1106,6 +1091,7 @@ fn function_band(
     rect: Rect,
     part: &SourceFragment,
     range: &Range<usize>,
+    source: &str,
 ) -> Option<Rect> {
     if part.bytes.is_empty() {
         return range
@@ -1117,9 +1103,12 @@ fn function_band(
     if start >= end {
         return None;
     }
-    let text = &galley.job.text;
-    let first = text[..start - part.bytes.start].chars().count();
-    let last = text[..end - part.bytes.start].chars().count() - 1;
+    let first = part.char_index(source, start);
+    let end = part.char_index(source, end);
+    if first >= end {
+        return None;
+    }
+    let last = end - 1;
     let band = |index| {
         visual_line_band(
             galley,
@@ -1134,13 +1123,13 @@ fn function_band(
     Some(Rect::from_min_max(band(first).min, band(last).max))
 }
 
-fn hit_byte(galley: &egui::Galley, position: egui::Vec2, text: &str, start: usize) -> usize {
-    let index = galley.cursor_from_pos(position).ccursor.index;
-    start
-        + text
-            .char_indices()
-            .nth(index)
-            .map_or(text.len(), |(byte, _)| byte)
+fn hit_byte(
+    galley: &egui::Galley,
+    position: egui::Vec2,
+    part: &SourceFragment,
+    source: &str,
+) -> usize {
+    part.byte_at_char(source, galley.cursor_from_pos(position).ccursor.index)
 }
 
 fn keyboard_target(
@@ -1151,41 +1140,46 @@ fn keyboard_target(
     visible: &[usize],
     page: isize,
 ) -> usize {
-    let line = buffer.line_at_byte(byte);
-    let column = buffer.column_at_byte(byte);
-    let visible_lines: Vec<usize> = visible
-        .iter()
-        .filter_map(|&index| parts[index].first_in_line.then_some(parts[index].line))
-        .collect();
-    let position = visible_lines.partition_point(|&candidate| candidate < line);
+    if visible.is_empty() {
+        return byte;
+    }
+    let position = visible
+        .partition_point(|&index| parts[index].bytes.start <= byte)
+        .saturating_sub(1);
+    let part = &parts[visible[position]];
+    let chars = part.char_index(&buffer.text, byte);
+    let total = part.char_index(&buffer.text, part.bytes.end);
     match key {
-        Key::ArrowLeft if byte <= buffer.line_byte_range(line).start => visible_lines
-            .get(position.saturating_sub(1))
-            .map_or(byte, |&previous| buffer.line_byte_range(previous).end),
-        Key::ArrowRight if byte >= buffer.line_byte_range(line).end => visible_lines
-            .get(position + 1)
-            .map_or(byte, |&next| buffer.line_byte_range(next).start),
-        Key::ArrowLeft => buffer.text[..byte]
-            .char_indices()
-            .next_back()
-            .map_or(0, |(index, _)| index),
-        Key::ArrowRight => byte + buffer.text[byte..].chars().next().map_or(0, char::len_utf8),
-        Key::Home => buffer.line_byte_range(line).start,
-        Key::End => buffer.line_byte_range(line).end,
+        Key::ArrowLeft if chars > 0 => part.byte_at_char(&buffer.text, chars - 1),
+        Key::ArrowRight if chars < total => part.byte_at_char(&buffer.text, chars + 1),
+        Key::ArrowLeft => parts[visible[position.saturating_sub(1)]].bytes.end,
+        Key::ArrowRight => {
+            parts[visible[(position + 1).min(visible.len() - 1)]]
+                .bytes
+                .start
+        }
+        Key::Home => {
+            let mut first = position;
+            while first > 0 && !parts[visible[first]].first_in_line {
+                first -= 1;
+            }
+            parts[visible[first]].bytes.start
+        }
+        Key::End => {
+            let mut last = position;
+            while last + 1 < visible.len() && !parts[visible[last + 1]].first_in_line {
+                last += 1;
+            }
+            parts[visible[last]].bytes.end
+        }
         _ => {
-            let step = match key {
-                Key::ArrowUp => -1,
-                Key::ArrowDown => 1,
-                Key::PageUp => -page,
-                _ => page,
+            let step = if matches!(key, Key::ArrowUp | Key::PageUp) {
+                -page
+            } else {
+                page
             };
-            visible_lines
-                .get(
-                    position
-                        .saturating_add_signed(step)
-                        .min(visible_lines.len().saturating_sub(1)),
-                )
-                .map_or(byte, |&line| buffer.byte_offset(line, column))
+            let next = position.saturating_add_signed(step).min(visible.len() - 1);
+            parts[visible[next]].byte_at_char(&buffer.text, chars)
         }
     }
 }
@@ -1202,39 +1196,42 @@ fn layout(
         ..Default::default()
     };
     job.wrap.max_width = width;
-    let line_start = content.buffer.byte_offset(part.line, 0);
-    if let Some(spans) = content.highlights.get(part.line - 1) {
-        let first = spans.partition_point(|span| line_start + span.bytes.end <= part.bytes.start);
-        for span in &spans[first..] {
-            let offset = line_start + span.bytes.start;
-            let end = line_start + span.bytes.end;
-            let start = offset.max(part.bytes.start);
-            let stop = end.min(part.bytes.end);
-            if start < stop {
-                let mut color = span.color;
-                if content.test_code.header(part.line).is_some_and(|region| {
-                    content.test_code.is_hidden(region.byte_range.start)
-                        && region.byte_range.start <= start
-                }) {
-                    color = color.gamma_multiply(0.55);
+    for range in part.spans() {
+        let line = content.buffer.line_at_byte(range.start);
+        let line_start = content.buffer.byte_offset(line, 0);
+        let before = job.text.len();
+        if let Some(spans) = content.highlights.get(line - 1) {
+            let first = spans.partition_point(|span| line_start + span.bytes.end <= range.start);
+            for span in &spans[first..] {
+                let start = (line_start + span.bytes.start).max(range.start);
+                let end = (line_start + span.bytes.end).min(range.end);
+                if start < end {
+                    let color = if content.test_code.header(line).is_some_and(|region| {
+                        content.test_code.is_hidden(region.byte_range.start)
+                            && region.byte_range.start <= start
+                    }) {
+                        span.color.gamma_multiply(0.55)
+                    } else {
+                        span.color
+                    };
+                    append_projected(&mut job, content, font, start..end, color);
                 }
-                append_projected(&mut job, content, font, start..stop, color);
-            }
-            if end >= part.bytes.end {
-                break;
+                if line_start + span.bytes.end >= range.end {
+                    break;
+                }
             }
         }
-    }
-    if job.text.is_empty() {
-        let color = if content.test_code.header(part.line).is_some_and(|region| {
-            content.test_code.is_hidden(region.byte_range.start)
-                && region.byte_range.start <= part.bytes.start
-        }) {
-            content.theme.text_muted
-        } else {
-            content.theme.text_primary
-        };
-        append_projected(&mut job, content, font, part.bytes.clone(), color);
+        if job.text.len() == before {
+            let color = if content.test_code.header(line).is_some_and(|region| {
+                content.test_code.is_hidden(region.byte_range.start)
+                    && region.byte_range.start <= range.start
+            }) {
+                content.theme.text_muted
+            } else {
+                content.theme.text_primary
+            };
+            append_projected(&mut job, content, font, range.clone(), color);
+        }
     }
     ui.fonts(|fonts| fonts.layout_job(job))
 }
@@ -1348,10 +1345,11 @@ fn paint_gutter(
             .clicked()
             .then_some(SourceViewAction::ToggleTestRegion(region.byte_range.start));
     }
-    let fold = content
-        .folds
-        .iter()
-        .find(|fold| fold.start_line == part.line)?;
+    let fold = content.folds.iter().find(|fold| {
+        fold.header_line(content.buffer) == part.line
+            && (fold.header_line(content.buffer) != fold.start_line
+                || part.contains_byte(fold.byte_range.start))
+    })?;
     let rect = Rect::from_min_size(
         pos2(surface.left() + 4.0, row.top() + 3.0),
         vec2(28.0, 16.0),
@@ -1367,7 +1365,9 @@ fn paint_gutter(
         Rect::from_min_size(rect.min, vec2(10.0, 12.0)),
         theme.text_muted,
     );
-    let hidden = fold.end_line.saturating_sub(fold.start_line);
+    let hidden = fold
+        .end_line
+        .saturating_sub(fold.header_line(content.buffer));
     let annotation = (content.mode == SourceMode::Critical)
         .then_some(content.annotations)
         .flatten()
@@ -1637,6 +1637,79 @@ mod tests {
             reader.frame(&ctx, Vec::new());
             assert_eq!(reader.viewport.scroll_y, 0.0);
         }
+    }
+
+    #[test]
+    fn folded_delimiters_and_unicode_tail_keep_exact_hit_arrow_and_copy_coordinates() {
+        let ctx = egui::Context::default();
+        let text = "fn café() {\r\n secret();\r\n} // 😀 tail\r\nnext();";
+        let mut reader = Reader::new(text);
+        reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+        reader.folds.collapse_all_functions(&reader.ranges);
+        let output = reader.frame(&ctx, Vec::new());
+        let (origin, galley) = text_shape(&output, "fn café() {} // 😀 tail");
+        assert!(galley.job.text.len() < reader.source.text.len());
+        let chars = galley.job.text.find("tail").unwrap();
+        let chars = galley.job.text[..chars].chars().count();
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(chars))
+                .center()
+                .to_vec2();
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        assert_eq!(
+            reader.source.byte_offset(reader.line, reader.column),
+            text.find("tail").unwrap()
+        );
+        reader.frame(&ctx, vec![key(Key::Home, Modifiers::NONE)]);
+        assert_eq!((reader.line, reader.column), (1, 0));
+        let opener = text.find('{').unwrap();
+        reader.column = text[..opener].chars().count();
+        reader.frame(&ctx, vec![key(Key::ArrowRight, Modifiers::NONE)]);
+        assert_eq!(
+            reader.source.byte_offset(reader.line, reader.column),
+            text.find('}').unwrap()
+        );
+        reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
+        assert_eq!(
+            reader.source.byte_offset(reader.line, reader.column),
+            opener
+        );
+        reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
+        assert_eq!(
+            reader.viewport.selection.map(ByteSelection::range),
+            Some(0..text.len())
+        );
+        let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+        assert_eq!(output.platform_output.copied_text, text);
+    }
+
+    #[test]
+    fn indentation_disclosure_uses_the_preceding_header_and_reveals_whole_body() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("");
+        reader.source = SourceBuffer::from_str("a.py", "def f():\n    one()\n    two()\nnext()\n");
+        reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+        let fold = reader
+            .ranges
+            .iter()
+            .find(|fold| fold.kind == crate::syntax::FoldKind::Callable)
+            .unwrap()
+            .clone();
+        assert_eq!(fold.header_line(&reader.source), 1);
+        assert_eq!(fold.hidden_range(&reader.source), fold.byte_range);
+        reader.frame(&ctx, Vec::new());
+        let point = pos2(20.0, 18.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        let output = reader.frame(&ctx, Vec::new());
+        assert!(reader.folds.is_folded(&fold.byte_range));
+        assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("one()") || text.galley.job.text.contains("two()"))));
+        reader
+            .folds
+            .reveal_byte(fold.byte_range.start, &reader.source, &reader.ranges);
+        assert!(!reader.folds.is_folded(&fold.byte_range));
     }
 
     #[test]
@@ -2135,6 +2208,7 @@ mod tests {
             start_line: 1,
             end_line: 3,
             header_preview: "one".into(),
+            byte_range: reader.source.line_byte_range(1).end..reader.source.line_byte_range(3).end,
             ..Default::default()
         });
         reader.folds.toggle_header(1, &reader.ranges);

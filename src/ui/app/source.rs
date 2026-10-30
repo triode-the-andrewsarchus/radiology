@@ -317,8 +317,7 @@ impl RadiologyApp {
         self.caret_line = buffer.line_at_byte(byte);
         self.caret_col = buffer.column_at_byte(byte);
         self.scroll_to_line = Some(self.caret_line);
-        self.fold_store
-            .reveal_line(self.caret_line, &self.fold_ranges);
+        self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
         if intent.record_history {
             self.history.visit(location);
         }

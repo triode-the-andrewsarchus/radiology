@@ -83,7 +83,7 @@ pub(super) fn show(
             let response = ui
                 .interact(rect, control_id(reference, None), Sense::click())
                 .union(response);
-            super::commands::retain_inspector_keys(ui.ctx(), control_id(reference, None));
+            super::commands::retain_navigation_keys(ui.ctx(), control_id(reference, None));
             ui.painter().text(
                 rect.left_center(),
                 Align2::LEFT_CENTER,
@@ -135,7 +135,7 @@ fn show_row(
         outer.max - egui::vec2(0.0, 1.0),
     );
     let response = ui.interact(rect, control_id(reference, Some(caller)), Sense::click());
-    super::commands::retain_inspector_keys(ui.ctx(), control_id(reference, Some(caller)));
+    super::commands::retain_navigation_keys(ui.ctx(), control_id(reference, Some(caller)));
     let color = caller_pill_color(&row.name, &row.location.path);
     ui.painter().rect_filled(
         rect,

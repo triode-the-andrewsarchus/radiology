@@ -361,15 +361,16 @@ fn paint_match(
     painter: &egui::Painter,
     galley: &egui::Galley,
     origin: egui::Pos2,
-    text: &str,
-    start_byte: usize,
+    part: &reader_text::ProjectedFragment,
+    source: &str,
     range: std::ops::Range<usize>,
     color: Color32,
 ) {
-    let start = range.start.saturating_sub(start_byte).min(text.len());
-    let end = range.end.saturating_sub(start_byte).min(text.len());
-    let first = text[..start].chars().count();
-    let last = text[..end].chars().count();
+    let first = part.char_index(source, range.start);
+    let last = part.char_index(source, range.end);
+    if first == last && (!range.is_empty() || !part.contains_byte(range.start)) {
+        return;
+    }
     let mut row_start = 0;
     for row in &galley.rows {
         let row_end = row_start + row.char_count_including_newline();

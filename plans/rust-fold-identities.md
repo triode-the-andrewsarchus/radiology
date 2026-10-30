@@ -6,6 +6,9 @@ folded IDs do not collapse separate declarations just because their headers shar
 a source line. Rust previously discarded all but one candidate on a line and
 stored collapsed state by that line, so a method could replace its type's fold.
 
+Follow-up: [canonical-byte projection](rust-fold-projection.md) now implements the
+partial-line and non-delimited header work left open at this checkpoint.
+
 ## Implementation
 
 Fold extraction still canonicalizes exact duplicate spans by semantic role, but

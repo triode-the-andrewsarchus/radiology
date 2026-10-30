@@ -250,9 +250,9 @@ impl ReferenceViewport {
         }
         if let Some(id) = self.pending_caller_focus.take() {
             ui.memory_mut(|memory| memory.request_focus(id));
-            super::commands::retain_inspector_keys(ui.ctx(), id);
+            super::commands::retain_navigation_keys(ui.ctx(), id);
         }
-        super::commands::retain_inspector_keys(ui.ctx(), Self::focus_id());
+        super::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         self.configure_rows(ui, results, previews);
         let nodes = &results.hits;
         let mut scroll = egui::ScrollArea::vertical()
@@ -622,7 +622,7 @@ mod tests {
                         let (rect, _) =
                             ui.allocate_exact_size(egui::vec2(200.0, 44.0), Sense::hover());
                         ui.interact(rect, id, Sense::click());
-                        super::super::commands::retain_inspector_keys(ui.ctx(), id);
+                        super::super::commands::retain_navigation_keys(ui.ctx(), id);
                     }
                 });
             });

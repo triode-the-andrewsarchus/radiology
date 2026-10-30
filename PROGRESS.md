@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Canonical-byte fold projection and reader focus (Codex)
+
+Added/pushed shared bounded visible-span fragments (`c431f4b`) and integrated
+manual/test hidden-range union into the viewport. Delimited folds retain `{}` and
+visible tails on one row; non-delimited bodies hide whole captures and use the
+preceding header control. Shaping, tokens, hit/caret/hover/movement/decorations and
+exact-byte reveal use the same canonical mapping. Find queries only surviving
+spans; original-byte selection/copy is unchanged. GDB caught egui arrow traversal
+stealing source focus; the existing navigation focus filter is now reused by the
+canvas. The pointer/arrows/Select All/exact CRLF-copy regression passes before/
+after debugger verification. Full gates pass 303 app tests (one external-Clang
+fixture ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and
+rustdoc. Native Rust partial lines/Unicode tails, Python header/body toggling and
+Kotlin complete-import collapse/reopen pass; private app/compositors exit zero.
+No new architecture hotspot/cycle/clone group; duplication drops 0.01 points,
+with only baseline test fragments flagged. [Contract/evidence](plans/rust-fold-projection.md).
+Full parity remains open: AST-aware occurrence fallback, PR-refresh mapping,
+caches/background/index/PR lifecycle, full visual/accessibility/scaling acceptance
+and sibling palette/chrome reuse. Keep committing and pushing each increment.
+
 ## 2026-10-30 — Exact fold identities and overlapping headers (Codex)
 
 Retained overlapping parsed folds in Swift's outer-first order and replaced
