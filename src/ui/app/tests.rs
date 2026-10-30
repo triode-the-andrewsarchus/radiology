@@ -1792,6 +1792,7 @@ fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure
         settle(&mut app);
         assert_eq!(app.history.current(), Some(&origin));
         assert_eq!((app.caret_line, app.caret_col), caret);
+        assert!(app.outline_list.key(egui::Key::Enter).is_none());
         app.open_file("b.rs");
         settle(&mut app);
         let destination = app.history.current().cloned();
