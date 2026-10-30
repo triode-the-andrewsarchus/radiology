@@ -34,7 +34,7 @@ pub struct RunOutput {
     pub stdout: CapturedOutput,
     /// Bounded stderr diagnostics.
     pub stderr: CapturedOutput,
-    /// Time spent running the process.
+    /// Wall-clock time including waiting for a temporarily busy executable.
     pub elapsed: Duration,
 }
 
@@ -183,6 +183,45 @@ impl Capture {
 }
 
 #[cfg(unix)]
+fn spawn_with_deadline(
+    command: &IndexCommand,
+    cancel: &AtomicBool,
+    started: Instant,
+    timeout: Duration,
+) -> Result<std::process::Child, RunFailureKind> {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    let mut process = Command::new(&command.executable);
+    process
+        .args(&command.arguments)
+        .current_dir(&command.directory)
+        .envs(&command.environment)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(RunFailureKind::Cancelled);
+        }
+        if started.elapsed() >= timeout {
+            return Err(RunFailureKind::TimedOut);
+        }
+        match process.spawn() {
+            Ok(child) => return Ok(child),
+            // Executables cannot start while a write handle remains open.
+            // Retry only this pre-launch failure, within the original deadline.
+            Err(error) if error.raw_os_error() == Some(libc::ETXTBSY) => {
+                std::thread::sleep(
+                    Duration::from_millis(10).min(timeout.saturating_sub(started.elapsed())),
+                );
+            }
+            Err(error) => return Err(io_failure(error)),
+        }
+    }
+}
+
+#[cfg(unix)]
 fn run_inner(
     command: &IndexCommand,
     cancel: &AtomicBool,
@@ -191,25 +230,8 @@ fn run_inner(
     err: &mut Capture,
     observer: &mut dyn FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<(Option<i32>, Option<i32>, Duration), RunFailureKind> {
-    use std::os::unix::process::CommandExt;
-    use std::process::{Command, Stdio};
-    if cancel.load(Ordering::Relaxed) {
-        return Err(RunFailureKind::Cancelled);
-    }
-    if timeout.is_zero() {
-        return Err(RunFailureKind::TimedOut);
-    }
     let started = Instant::now();
-    let child = Command::new(&command.executable)
-        .args(&command.arguments)
-        .current_dir(&command.directory)
-        .envs(&command.environment)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0)
-        .spawn()
-        .map_err(io_failure)?;
+    let child = spawn_with_deadline(command, cancel, started, timeout)?;
     let mut group = ProcessGroup(child);
     let mut stdout = group.0.stdout.take().expect("piped stdout");
     let mut stderr = group.0.stderr.take().expect("piped stderr");

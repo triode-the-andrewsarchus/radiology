@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Deadline-bound busy-executable startup repair (Codex)
+
+Reproduced Linux ETXTBSY with a real executable held open for writing: the old
+runner failed immediately. Startup now waits only for that pre-launch condition,
+using the existing cancellation token and original wall-clock deadline. Held-open
+persistent writers time out, cancellation interrupts the wait, and release permits
+exactly one successful launch. Other errors/exits are unchanged. The original
+parallel test's specific writer was not traced; this repairs the observed OS
+condition rather than asserting an unverified descriptor origin.
+
+Deterministic regression and full workspace verification pass: 157 application
+tests, 5 reader-text tests, 30 doctests, fmt, Clippy with warnings denied and binary
+build. Twenty additional parallel library-suite runs pass after the repair;
+the deterministic busy/release/timeout/cancel regression passes in each. The
+architecture comparison is neutral. [Runner evidence](plans/rust-indexing-parity.md).
+
+Critical Lens integration `f28af87` now has a passing full-suite run with the runner
+repair. Persisted marks/menus, call graphs/frontiers, fold annotations, indexing
+lifecycle gaps and final Swift/runtime acceptance remain open.
+
 ## 2026-10-30 — Background Critical Lens reader presentation (Codex)
 
 Integrated backend `e3ee241` through the existing read-worker protocol. Immutable

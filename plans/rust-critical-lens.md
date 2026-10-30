@@ -60,7 +60,12 @@ Critical-specific tests, 30 doctests, fmt, Clippy with warnings denied and binar
 build pass. A full run passed 156 application tests plus 5 reader-text tests, but
 repeated later full runs exposed the existing probe test's Linux `Text file busy`
 startup race (including its timeout stage). It remains a separate runner repair;
-these observations do not establish a reliably clean full-suite gate yet.
+these observations did not establish a reliably clean full-suite gate at the
+integration commit. The subsequent deadline-bound startup repair now passes
+157 application tests, 5 reader-text tests, 30 doctests, fmt/Clippy/build and
+20 additional parallel library-suite runs. The deterministic regression covers
+real ETXTBSY, release, timeout and cancellation; the specific original writer
+remains untraced.
 Architecture comparison has no new product clone or CCN threshold spike; it still
 reports two GUI test clones and structural flags for projection orchestration and
 the existing source show function. Maximum CCN remains 100. This is not a clean

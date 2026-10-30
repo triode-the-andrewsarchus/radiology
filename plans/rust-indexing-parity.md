@@ -332,6 +332,27 @@ external build directories, uncommon compiler path protocols and actual
 `scip-clang` acceptance remain open. Historical C/C++ gate statements above are
 superseded by this integration, without claiming complete project coverage.
 
+## Busy executable startup (2026-10-30)
+
+Full-suite tool-probe failures now include concrete Linux ETXTBSY (`Text file
+busy`) evidence. A deterministic regression holds an executable write handle open,
+verifies that the kernel rejects exec with ETXTBSY, then releases it. The original
+runner fails immediately; the repaired runner waits and launches successfully.
+Persistent-busy and cancellation variants verify the original timeout/cancel
+contract before any tool starts. The precise writer responsible for the earlier
+parallel-suite race was not traced; inherited descriptors during concurrent
+fork/exec are a plausible explanation, not a proven attribution.
+
+Only ETXTBSY is retried, before process launch, within the existing wall-clock
+deadline and cancellation token. Nonzero tool exits and other spawn errors retain
+their previous behavior. No command is re-executed after launch, no arbitrary
+probe timeout is enlarged, and process-group ownership/draining remain unchanged.
+The shared runner covers generation, tool probes and Git input enumeration.
+Architecture comparison against `before-busy-executable-start` is neutral.
+Final validation passes 157 application tests, 5 reader-text tests, 30 doctests,
+fmt, Clippy with warnings denied and binary build. Twenty additional parallel
+library-suite runs pass, including the deterministic busy-executable regression.
+
 ## Generation acceptance contract and remaining integration
 
 Generate/Reindex is connected for checkout work. Preserve these publication rules
