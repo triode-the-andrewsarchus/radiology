@@ -4,7 +4,7 @@ use crate::critical::{
     Criticality,
 };
 use crate::semantic::{ScipDocument, ScipIndex};
-use std::ops::Range;
+use std::{ops::Range, time::Duration};
 
 const ROOT: &str = "rust-analyzer cargo app 0 root().";
 const HELPER: &str = "rust-analyzer cargo app 0 helper().";
@@ -262,4 +262,26 @@ fn review_bodies_come_from_pinned_git_objects_and_before_does_not_reuse_after_ed
             .coverage,
         CallCoverage::NoBody(NoBodyReason::NotIndexed)
     );
+}
+
+#[test]
+fn retired_or_expired_file_reads_do_not_poison_a_later_frontier() {
+    let (_dir, inputs) = fixture();
+    let mut worker = CallGraphWorker::new(inputs);
+    for (cancel, deadline) in [
+        (
+            AtomicBool::new(true),
+            Instant::now() + Duration::from_secs(1),
+        ),
+        (AtomicBool::new(false), Instant::now()),
+    ] {
+        assert!(worker.load("b.rs", &cancel, deadline).is_err());
+        assert!(!worker.files.contains_key("b.rs"));
+        assert!(worker.summaries.is_empty());
+    }
+    let result = worker
+        .frontier_in_source(0, &AtomicBool::new(false))
+        .unwrap();
+    assert_eq!(result.annotation().label(), "1");
+    assert!(worker.files["b.rs"].is_ok());
 }

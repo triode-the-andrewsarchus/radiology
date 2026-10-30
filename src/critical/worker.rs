@@ -6,17 +6,21 @@
 
 use super::{
     frontier::{self, CriticalFrontier, FrontierLimits},
-    graph::{self, check_cancel, CallableSummary, NoBodyReason},
+    graph::{self, CallableSummary, NoBodyReason},
     CriticalityOverrides, CriticalityPolicy,
 };
 use crate::{
     semantic::{index::SemanticSymbolID, SemanticIndex},
-    source::{loader::SourceRead, SourceBuffer, SourceLocation},
+    source::{
+        loader::{check_source, SourceRead, SOURCE_READ_TIMEOUT},
+        SourceBuffer, SourceLocation,
+    },
     syntax::{calls::CallSites, DocumentSyntax},
 };
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
+    time::Instant,
 };
 
 const SOURCE_BUDGET: usize = 64 * 1024 * 1024;
@@ -84,30 +88,34 @@ impl CallGraphWorker {
     /// Computes the frontier of an exact callable scope in the displayed source.
     ///
     /// # Errors
-    /// Returns cancellation without publishing a partially evaluated frontier.
+    /// Returns cancellation or an expired source-read budget without publishing
+    /// a partially evaluated frontier.
     pub fn frontier_in_source(
         &mut self,
         scope: usize,
         cancel: &AtomicBool,
     ) -> Result<CriticalFrontier, String> {
+        let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
         let root = self.summary_in_source(scope, cancel)?;
         frontier::build(root, FrontierLimits::default(), cancel, |id| {
-            self.summary_of(id, cancel)
+            self.summary_of(id, cancel, deadline)
         })
     }
 
     /// Computes a callable frontier, loading its canonical definition when needed.
     ///
     /// # Errors
-    /// Returns cancellation without publishing a partially evaluated frontier.
+    /// Returns cancellation or an expired source-read budget without publishing
+    /// a partially evaluated frontier.
     pub fn frontier_of(
         &mut self,
         id: &SemanticSymbolID,
         cancel: &AtomicBool,
     ) -> Result<CriticalFrontier, String> {
-        let root = self.summary_of(id, cancel)?;
+        let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
+        let root = self.summary_of(id, cancel, deadline)?;
         frontier::build(root, FrontierLimits::default(), cancel, |id| {
-            self.summary_of(id, cancel)
+            self.summary_of(id, cancel, deadline)
         })
     }
 
@@ -132,13 +140,14 @@ impl CallGraphWorker {
         &mut self,
         id: &SemanticSymbolID,
         cancel: &AtomicBool,
+        deadline: Instant,
     ) -> Result<CallableSummary, String> {
-        check_cancel(cancel)?;
+        check_source(cancel, deadline)?;
         if let Some(summary) = self.summaries.get(id) {
             return Ok(summary.clone());
         }
-        let summary = self.build_summary(id, cancel)?;
-        check_cancel(cancel)?;
+        let summary = self.build_summary(id, cancel, deadline)?;
+        check_source(cancel, deadline)?;
         if self.summaries.len() < SUMMARY_CACHE_LIMIT {
             self.summaries.insert(id.clone(), summary.clone());
         }
@@ -149,14 +158,15 @@ impl CallGraphWorker {
         &mut self,
         id: &SemanticSymbolID,
         cancel: &AtomicBool,
+        deadline: Instant,
     ) -> Result<CallableSummary, String> {
         let no_body = |reason| Ok(CallableSummary::no_body(reason, Some(id.clone())));
         let Some((path, range)) = self.index.find_definition_for_id(id) else {
             return no_body(NoBodyReason::External);
         };
         let (path, range) = (path.to_owned(), range.clone());
-        let loaded = self.load(&path);
-        check_cancel(cancel)?;
+        let loaded = self.load(&path, cancel, deadline);
+        check_source(cancel, deadline)?;
         let file = match loaded {
             Ok(file) => file,
             Err(reason) => return no_body(reason),
@@ -197,7 +207,12 @@ impl CallGraphWorker {
         )
     }
 
-    fn load(&mut self, path: &str) -> Result<Arc<GraphFile>, NoBodyReason> {
+    fn load(
+        &mut self,
+        path: &str,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Arc<GraphFile>, NoBodyReason> {
         if path == self.primed.buffer.path {
             return Ok(self.primed.clone());
         }
@@ -207,19 +222,26 @@ impl CallGraphWorker {
         if self.files.len() >= FILE_CACHE_LIMIT {
             return Err(NoBodyReason::ResourceLimit);
         }
-        let loaded = self.read(path);
-        self.files.insert(path.to_owned(), loaded.clone());
+        let loaded = self.read(path, cancel, deadline);
+        if check_source(cancel, deadline).is_ok() {
+            self.files.insert(path.to_owned(), loaded.clone());
+        }
         loaded
     }
 
-    fn read(&mut self, path: &str) -> Result<Arc<GraphFile>, NoBodyReason> {
+    fn read(
+        &mut self,
+        path: &str,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Arc<GraphFile>, NoBodyReason> {
         if self.source_bytes >= self.source_budget {
             return Err(NoBodyReason::ResourceLimit);
         }
         let location = SourceLocation::with_revision(path, 0, self.primed.buffer.revision);
         let buffer = self
             .source
-            .read(&location)
+            .read_cancellable(&location, cancel, deadline)
             .map_err(|_| NoBodyReason::Unreadable)?;
         if buffer.byte_len() > self.source_budget.saturating_sub(self.source_bytes) {
             return Err(NoBodyReason::ResourceLimit);

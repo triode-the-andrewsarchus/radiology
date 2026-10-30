@@ -19,6 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(crate) const SOURCE_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Immutable source storage selected before a request leaves the reader thread.
 #[derive(Clone)]
 pub enum SourceRead {
@@ -40,7 +42,7 @@ impl SourceRead {
         self.read_cancellable(
             location,
             &AtomicBool::new(false),
-            Instant::now() + Duration::from_secs(30),
+            Instant::now() + SOURCE_READ_TIMEOUT,
         )
     }
 
@@ -222,7 +224,7 @@ impl SourceLoader {
     }
 }
 
-fn check_source(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
+pub(crate) fn check_source(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
     if cancel.load(Ordering::Relaxed) {
         Err("Source request cancelled".into())
     } else if Instant::now() >= deadline {
@@ -238,7 +240,7 @@ fn prepare(
     dark_mode: bool,
     cancel: &AtomicBool,
 ) -> Result<PreparedSource, String> {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
     let check = || check_source(cancel, deadline);
     let cancelled = || check().is_err();
     check()?;

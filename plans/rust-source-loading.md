@@ -93,6 +93,6 @@ that every analysis stage is immediately interruptible.
 
 Repository discovery, checkout branch/status/diff refresh and SCIP imports now run
 on workers. Source Git child processes now have bounded cancellation/deadlines;
-native parser calls still finish their current call. Propagating cancellation
-through other source consumers, finer parser/decode interruption, context/graph/
-cache work and broader index/PR lifecycle remain on the full parity queue.
+native parser calls still finish their current call. [Semantic source consumers](rust-analysis-source-cancellation.md)
+now pass their job flags into reads too. Finer parser/decode interruption, context/
+graph/cache work and broader index/PR lifecycle remain on the full parity queue.

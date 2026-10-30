@@ -2,6 +2,7 @@
 
 use super::{index::SemanticSymbolID, ScipRange};
 use crate::source::{
+    loader::{check_source, SOURCE_READ_TIMEOUT},
     preview::{preview_line, PreviewLine, SourceQueryInputs},
     ReviewRevision, SourceBuffer,
 };
@@ -9,6 +10,7 @@ use std::{
     collections::BTreeMap,
     ops::Range,
     sync::atomic::{AtomicBool, Ordering},
+    time::Instant,
 };
 
 /// One indexed site resolved against exact source bytes.
@@ -142,7 +144,8 @@ type Sites = BTreeMap<String, BTreeMap<Coordinates, bool>>;
 /// limits stop a sorted prefix and report every remaining site in `omitted`.
 ///
 /// # Errors
-/// Returns cancellation or an attempt to use After semantics in Before source.
+/// Returns cancellation, an expired source-read budget, or an attempt to use
+/// After semantics in Before source.
 /// Individual file/range failures remain visible in the returned coverage.
 pub fn query(
     inputs: &SourceQueryInputs,
@@ -150,6 +153,8 @@ pub fn query(
     limits: ReferenceLimits,
     cancel: &AtomicBool,
 ) -> Result<ReferenceResults, String> {
+    let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
+    check_source(cancel, deadline)?;
     if inputs.buffer.revision == Some(ReviewRevision::Before) {
         return Err("After reference data is unavailable in Before source.".into());
     }
@@ -161,6 +166,7 @@ pub fn query(
     let mut remaining = results.indexed_sites;
     let mut budget = QueryBudget {
         limits,
+        deadline,
         source_bytes: 0,
         result_bytes: 0,
         files: 0,
@@ -175,6 +181,7 @@ pub fn query(
         remaining -= sites.len();
         resolve_file(inputs, path, sites, &mut budget, &mut results, cancel)?;
     }
+    check_source(cancel, deadline)?;
     Ok(results)
 }
 
@@ -216,6 +223,7 @@ fn positions(
 
 struct QueryBudget {
     limits: ReferenceLimits,
+    deadline: Instant,
     source_bytes: usize,
     result_bytes: usize,
     files: usize,
@@ -255,7 +263,9 @@ fn resolve_file(
         return Ok(());
     }
     budget.files += 1;
-    let buffer = match inputs.read(&path) {
+    let loaded = inputs.read(&path, cancel, budget.deadline);
+    check_source(cancel, budget.deadline)?;
+    let buffer = match loaded {
         Ok(buffer) => buffer,
         Err(message) => {
             let message: String = message.chars().take(1024).collect();

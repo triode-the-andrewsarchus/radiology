@@ -6,12 +6,17 @@ use super::{
     reference_results::{check_cancel, ReferenceHit},
 };
 use crate::{
-    source::{preview::SourceQueryInputs, ReviewRevision, SourceBuffer, SourceLocation},
+    source::{
+        loader::{check_source, SOURCE_READ_TIMEOUT},
+        preview::SourceQueryInputs,
+        ReviewRevision, SourceBuffer, SourceLocation,
+    },
     syntax::{calls::CallSites, DocumentSyntax},
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     sync::{atomic::AtomicBool, Arc},
+    time::Instant,
 };
 
 /// One containing callable or an explicit boundary in an incoming call path.
@@ -105,6 +110,7 @@ struct Pending {
 struct Trace<'a> {
     inputs: &'a SourceQueryInputs,
     cancel: &'a AtomicBool,
+    deadline: Instant,
     limits: CallerLimits,
     files: HashMap<String, Result<Arc<File>, String>>,
     source_bytes: usize,
@@ -120,8 +126,8 @@ struct Trace<'a> {
 /// edge. Callback references and closures remain explicit terminal rows.
 ///
 /// # Errors
-/// Returns cancellation, Before-revision use, or a changed/unreadable initial
-/// site. Failures on later branches appear in the returned coverage notices.
+/// Returns cancellation, an expired source-read budget, Before-revision use,
+/// or a changed/unreadable initial site. Failures on later branches appear in the returned coverage notices.
 pub fn trace(
     inputs: &SourceQueryInputs,
     hit: &ReferenceHit,
@@ -136,6 +142,7 @@ pub fn trace(
     let mut trace = Trace {
         inputs,
         cancel,
+        deadline: Instant::now() + SOURCE_READ_TIMEOUT,
         limits,
         files: HashMap::new(),
         source_bytes: 0,
@@ -160,7 +167,7 @@ pub fn trace(
         let Some(next) = pending.pop() else { break };
         trace.visit(next, &mut pending, &mut tree.rows)?;
     }
-    check_cancel(cancel)?;
+    check_source(cancel, trace.deadline)?;
     tree.has_more = !pending.is_empty() || trace.limited;
     tree.notices = trace.notices.into_iter().collect();
     for (path, file) in trace.files {
@@ -174,7 +181,7 @@ pub fn trace(
 
 impl Trace<'_> {
     fn load(&mut self, path: &str) -> Result<Arc<File>, String> {
-        check_cancel(self.cancel)?;
+        check_source(self.cancel, self.deadline)?;
         if let Some(file) = self.files.get(path) {
             return file.clone();
         }
@@ -183,14 +190,14 @@ impl Trace<'_> {
             return Err("caller source budget reached".into());
         }
         let loaded = self.read(path);
-        check_cancel(self.cancel)?;
+        check_source(self.cancel, self.deadline)?;
         self.files.insert(path.to_owned(), loaded.clone());
         loaded
     }
 
     fn read(&mut self, path: &str) -> Result<Arc<File>, String> {
-        let buffer = self.inputs.read(path)?;
-        check_cancel(self.cancel)?;
+        let buffer = self.inputs.read(path, self.cancel, self.deadline)?;
+        check_source(self.cancel, self.deadline)?;
         if buffer.byte_len() > self.limits.source_bytes.saturating_sub(self.source_bytes) {
             self.limited = true;
             return Err("caller source budget reached".into());
@@ -293,12 +300,12 @@ impl Trace<'_> {
         let mut result = Vec::new();
         let mut partial = false;
         for (path, range) in positions {
-            check_cancel(self.cancel)?;
+            check_source(self.cancel, self.deadline)?;
             let file = match self.load(path) {
                 Ok(file) => file,
                 Err(error) => {
                     partial = true;
-                    check_cancel(self.cancel)?;
+                    check_source(self.cancel, self.deadline)?;
                     self.notices.insert(format!(
                         "{path}: {}",
                         error.chars().take(1024).collect::<String>()

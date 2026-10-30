@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Semantic job source cancellation and cache safety (Codex)
+
+Previews, reference queries, incoming callers and Critical Lens now pass their
+actual request flags/deadlines to source/blob reads. The source timeout policy is
+shared, and displayed bytes still win without I/O. Cancelled/expired reference
+reads cannot become successful unreadable coverage; graph failures from retirement
+do not enter the file/summary caches. A later live request can load the real body.
+An isolated real-Git fixture confirms live pinned-blob children for all four APIs,
+cancels each, requires a prompt error and verifies ESRCH after reaping. It also
+checks graph recovery. Additional guards cover deadlines and displayed Arc identity.
+Full checks pass 342 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Architecture adds no
+hotspot/cycle/clone group; the three touched-file fragments flagged by the tool
+are verified in the baseline. [Contract and runtime evidence](plans/rust-analysis-source-cancellation.md).
+Full parity remains open: native/SCIP interruption, PR preparation/fetch lifecycle,
+source/graph/context caches, broader index/provisioning/PR refresh mapping, final
+visual/accessibility/scaling acceptance and sibling palette/chrome reuse.
+Commit and push every increment; the app remains independently runnable.
+
 ## 2026-10-30 — Source Git live-child acceptance and index-deletion hunks (Codex)
 
 Bounded source operations committed/pushed as `dd62028`. Final review added the
