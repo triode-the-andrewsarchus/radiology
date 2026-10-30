@@ -1,37 +1,18 @@
 use super::*;
-use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
+use crate::source::ReviewRevision;
 use crate::syntax::DocumentSyntax;
 
 const RUNTIME: &str = "rust-analyzer cargo core 0 clone().";
 const SYSTEM: &str = "rust-analyzer cargo std 0 fs/open().";
 
 fn index_for(buffer: &SourceBuffer, entries: &[(&str, &str)]) -> SemanticIndex {
-    let occurrences = entries
-        .iter()
-        .map(|(spelling, symbol)| {
-            let byte = buffer.text.find(spelling).unwrap();
-            let column: usize = buffer.text[..byte].chars().map(char::len_utf16).sum();
-            ScipOccurrence {
-                symbol: (*symbol).into(),
-                range: Some(ScipRange {
-                    start_line: 0,
-                    end_line: 0,
-                    start_col: column as i32,
-                    end_col: (column + spelling.chars().map(char::len_utf16).sum::<usize>()) as i32,
-                }),
-                ..Default::default()
-            }
-        })
-        .collect();
-    SemanticIndex::from_scip(ScipIndex {
-        documents: vec![ScipDocument {
-            relative_path: buffer.path.clone(),
-            position_encoding: 2,
-            occurrences,
-            ..Default::default()
-        }],
-        ..Default::default()
-    })
+    super::super::test_support::index_ranges(
+        buffer,
+        entries.iter().map(|(spelling, symbol)| {
+            let start = buffer.text.find(spelling).unwrap();
+            (start..start + spelling.len(), (*symbol).to_owned())
+        }),
+    )
 }
 
 fn projection(

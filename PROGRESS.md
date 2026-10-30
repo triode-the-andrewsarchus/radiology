@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Parsed call summaries and bounded frontiers (Codex)
+
+Shared call parsing now retains lexical callable ownership, abstract/body facts
+and syntax-error coverage. A shared exact SCIP resolver serves projection and
+summary analysis. Summaries exclude nested execution; breadth-first frontiers
+retain shortest paths, deduplicate cycles/diamonds and report honest partial
+counts for unknowns, macros, conditional sites, missing bodies and bounds.
+Seven new tests and full checks pass: 177 application tests, 5 reader-text tests,
+30 doctests, fmt, Clippy, binary build and rustdoc. Architecture is IMPROVED, with
+no new hotspot/clone/cycle and less duplication. Reader worker, hover/fold-count
+integration and native acceptance remain open; full parity is not complete.
+[Contract and next steps](plans/rust-call-graph.md).
+
 ## 2026-10-30 — Critical Lens source marking integration (Codex)
 
 Normal/Critical source menus now edit exact symbol/package decisions and restore
