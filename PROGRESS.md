@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Parsed syntactic occurrence pins (Codex)
+
+Prepared/pushed independent source-bound occurrence facts (`487306a`) from the
+existing shared parse. Pins use the innermost function/closure and exclude parsed
+comments/strings/numbers/keywords. Swift's same-spelling grouping deliberately
+includes shadowed bindings; it is never semantic navigation. Partial SCIP falls
+back to the complete syntactic set; complete SCIP retains semantic identity.
+Whole-file regex fallback is removed. Exact source/revision/digest guards and
+fact/token limits reject stale/partial facts; errors have a recoverable footer.
+Shared interval union replaces a new duplicate, and query/token preparation are
+separate. Full gates pass 309 app tests (one external-Clang fixture ignored),
+eight shared tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Native
+partial-index pinning, rejected string/comment clicks, closure groups and unpinning
+from an unindexed occurrence pass; app/compositors exit zero. Architecture adds no
+hotspot/cycle/clone group. [Contract and hashed evidence](plans/rust-syntactic-pins.md).
+Single-click transient occurrence selection remains open, as do PR-refresh
+mapping, caches/background/index/PR lifecycle, full visual/accessibility/scaling
+acceptance and sibling UI reuse. Full parity stays open. Push every commit.
+
 ## 2026-10-30 — Canonical-byte fold projection and reader focus (Codex)
 
 Added/pushed shared bounded visible-span fragments (`c431f4b`) and integrated

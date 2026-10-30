@@ -268,6 +268,7 @@ impl RadiologyApp {
         self.selected_path = Some(prepared.buffer.path.clone());
         self.active_revision = prepared.buffer.revision;
         self.call_sites = Arc::new(syntax.calls);
+        self.syntactic_occurrences = syntax.occurrences;
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
         self.fold_error = syntax.fold_error;

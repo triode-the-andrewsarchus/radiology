@@ -120,6 +120,7 @@ impl RadiologyApp {
         let Some(buffer) = &self.open_buffer else {
             return;
         };
+        let syntactic = self.syntactic_occurrences.selection(buffer, byte);
         if let Some(index) = self
             .semantic_index
             .as_ref()
@@ -127,7 +128,7 @@ impl RadiologyApp {
         {
             if let Some(occurrence) = index.occurrence_at_byte(buffer, byte) {
                 if let Some(document) = index.documents.get(&buffer.path) {
-                    let ranges = document
+                    let ranges: Vec<_> = document
                         .occurrences
                         .iter()
                         .filter(|candidate| candidate.symbol == occurrence.symbol)
@@ -138,62 +139,31 @@ impl RadiologyApp {
                                 .and_then(|range| index.byte_range(buffer, range))
                         })
                         .collect();
-                    let label = occurrence
-                        .range
-                        .as_ref()
-                        .and_then(|range| index.byte_range(buffer, range))
-                        .and_then(|range| buffer.text.get(range))
-                        .unwrap_or(&occurrence.symbol);
-                    self.pin_store
-                        .toggle_labeled_pin(&occurrence.symbol, label, ranges, byte);
-                    return;
+                    if syntactic.as_ref().is_none_or(|selection| {
+                        selection.ranges.iter().all(|range| ranges.contains(range))
+                    }) {
+                        let label = occurrence
+                            .range
+                            .as_ref()
+                            .and_then(|range| index.byte_range(buffer, range))
+                            .and_then(|range| buffer.text.get(range))
+                            .unwrap_or(&occurrence.symbol);
+                        self.pin_store
+                            .toggle_labeled_pin(&occurrence.symbol, label, ranges, byte);
+                        return;
+                    }
                 }
             }
         }
-        let Some(character) = buffer.text.get(byte..).and_then(|text| text.chars().next()) else {
-            return;
-        };
-        let identifier = |character: char| character.is_alphanumeric() || character == '_';
-        if !identifier(character) {
-            return;
+        if let Some(selection) = syntactic {
+            let word = &buffer.text[selection.active];
+            let identity = format!(
+                "syntactic:{}:{}:{word}",
+                selection.scope.start, selection.scope.end
+            );
+            self.pin_store
+                .toggle_labeled_pin(&identity, word, selection.ranges, byte);
         }
-        let start = buffer.text[..byte]
-            .char_indices()
-            .rev()
-            .take_while(|(_, character)| identifier(*character))
-            .last()
-            .map_or(byte, |(index, _)| index);
-        let end = byte
-            + buffer.text[byte..]
-                .chars()
-                .take_while(|character| identifier(*character))
-                .map(char::len_utf8)
-                .sum::<usize>();
-        let word = &buffer.text[start..end];
-        let mut enclosing = Vec::new();
-        for symbol in &self.outline_symbols {
-            symbol.breadcrumbs(byte, &mut enclosing);
-        }
-        let scope = enclosing
-            .iter()
-            .rev()
-            .find(|symbol| {
-                matches!(
-                    symbol.kind,
-                    crate::syntax::outline::SymbolKind::Function
-                        | crate::syntax::outline::SymbolKind::Method
-                )
-            })
-            .map_or(0..buffer.byte_len(), |symbol| symbol.range.clone());
-        let Ok(pattern) = regex::Regex::new(&format!(r"\b{}\b", regex::escape(word))) else {
-            return;
-        };
-        let ranges = pattern
-            .find_iter(&buffer.text[scope.clone()])
-            .map(|matched| scope.start + matched.start()..scope.start + matched.end())
-            .collect();
-        self.pin_store
-            .toggle_labeled_pin(&format!("{word}@{}", scope.start), word, ranges, byte);
     }
 
     pub(super) fn filters_changed(&mut self) {
