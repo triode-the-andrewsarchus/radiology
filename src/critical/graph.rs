@@ -3,7 +3,8 @@
 //! Syntax establishes sites and ownership; spelling never establishes an edge.
 //! Summaries retain partial coverage instead of allowing missing facts to prove zero.
 
-use super::{callees::CalleeResolver, Criticality, CriticalityClassification, CriticalityPolicy};
+use super::{Criticality, CriticalityClassification, CriticalityPolicy};
+use crate::semantic::callees::CalleeResolver;
 use crate::semantic::{index::SemanticSymbolID, ScipRange, SemanticIndex};
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::calls::{CallSites, CallableScope};

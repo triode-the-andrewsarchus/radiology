@@ -5,7 +5,9 @@
 //! caller hierarchy tracing with cycle prevention and deterministic 12-color
 //! caller identity capsules ([`CallerTreeBuilder`]).
 
+pub(crate) mod callees;
 pub mod caller_tree;
+pub mod incoming_calls;
 pub mod index;
 pub mod indexing;
 pub mod loader;

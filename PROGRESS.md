@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Validated incoming-call backend (Codex)
+
+Added a toolkit-independent source-validated caller trace following Swift
+containing-callable semantics. It preserves sibling paths, cuts per-path cycles,
+explains callback/closure/unindexed boundaries, validates source identities and
+reports bounded coverage. Critical Lens and callers share the existing semantic
+callee resolver. Nine tests include scoped IDs at matching cross-file offsets
+and a 300-deep chain. Full checks pass 255 app tests (one external-Clang test
+ignored), 5 reader-text tests and 30 doctests, plus fmt, Clippy, build and rustdoc.
+Architecture has no new product hotspot/cycle; two short fixture/assertion clones
+are documented. Background controller/UI integration and native tree acceptance
+remain next. [Contract](plans/rust-incoming-callers.md).
+
 ## 2026-10-30 — Final grouped-reference native acceptance (Codex)
 
 Final-build acceptance verifies honest limited/expanded coverage (511 to 515

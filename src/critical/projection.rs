@@ -39,7 +39,7 @@ pub fn make(
     if !calls.matches(buffer) {
         return Ok(SourceProjection::new(buffer, Vec::new()));
     }
-    let resolver = super::callees::CalleeResolver::new(buffer, index);
+    let resolver = crate::semantic::callees::CalleeResolver::new(buffer, index);
     let mut memo = HashMap::new();
     let mut prominent = Vec::new();
     for site in &calls.sites {

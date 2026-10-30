@@ -359,7 +359,7 @@ fn hit(
     })
 }
 
-fn check_cancel(cancel: &AtomicBool) -> Result<(), String> {
+pub(crate) fn check_cancel(cancel: &AtomicBool) -> Result<(), String> {
     if cancel.load(Ordering::Relaxed) {
         Err("Reference query cancelled.".into())
     } else {
