@@ -125,6 +125,33 @@ impl SemanticSymbolID {
         }
     }
 
+    /// Returns whether SCIP's descriptor or indexed kind identifies a callable.
+    #[must_use]
+    pub fn is_callable(&self, index: &SemanticIndex) -> bool {
+        self.symbol.ends_with("().")
+            || index.symbol_info_for_id(self).is_some_and(|info| {
+                matches!(
+                    info.kind,
+                    17 | 26
+                        | 9
+                        | 18
+                        | 45
+                        | 66
+                        | 67
+                        | 68
+                        | 69
+                        | 70
+                        | 71
+                        | 72
+                        | 74
+                        | 76
+                        | 80
+                        | 25
+                        | 34
+                )
+            })
+    }
+
     /// Returns `true` if this symbol is document-local.
     #[must_use]
     pub fn is_local(&self) -> bool {

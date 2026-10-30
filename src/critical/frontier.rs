@@ -46,6 +46,31 @@ pub struct CriticalFrontier {
 }
 
 impl CriticalFrontier {
+    /// Returns a compact direct/reachable count with explicit completeness.
+    #[must_use]
+    pub fn status_line(&self) -> String {
+        if let CallCoverage::NoBody(reason) = self.coverage {
+            return format!("No body · {}", reason.description());
+        }
+        let direct = self
+            .summary
+            .calls
+            .iter()
+            .filter(|call| call.classification.criticality == Criticality::Critical)
+            .count();
+        let reachable = self.annotation().count;
+        let status = match self.coverage {
+            CallCoverage::Complete if reachable == 0 => "proven",
+            CallCoverage::Complete => "complete",
+            _ => "partial",
+        };
+        if direct == reachable {
+            format!("{direct} direct · {status}")
+        } else {
+            format!("{direct} direct · {reachable} reachable · {status}")
+        }
+    }
+
     /// Returns a coverage explanation for hover and source-gutter presentations.
     #[must_use]
     pub fn status_detail(&self) -> String {
