@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[PR process cancellation](plans/rust-pr-process-cancellation.md) records shared
+metadata/fetch/snapshot deadlines, tree ownership and native Cancel/recovery checks.
+
 [Normalized-cache JSON cancellation](plans/rust-cache-json-cancellation.md) records
 latched bounded decoding/writes, atomic retention and native cache recovery.
 
