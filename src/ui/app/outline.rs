@@ -47,7 +47,9 @@ impl RadiologyApp {
             return;
         }
         self.sync_outline();
-        let (OutlineAction::Preview(target) | OutlineAction::Commit(target)) = &action;
+        let (OutlineAction::Preview(target)
+        | OutlineAction::Commit(target)
+        | OutlineAction::Activate(target)) = &action;
         let Some(buffer) = &self.open_buffer else {
             return;
         };
@@ -60,7 +62,16 @@ impl RadiologyApp {
                     .reveal_line(buffer.line_at_byte(byte), &self.fold_ranges);
                 self.source_viewport.preview_byte(buffer, byte);
             }
-            OutlineAction::Commit(_) => self.navigate(buffer.location_at_byte(byte), true),
+            OutlineAction::Commit(_) | OutlineAction::Activate(_) => self.navigate_target(
+                buffer.location_at_byte(byte),
+                None,
+                source::NavigationIntent {
+                    record_history: true,
+                    reveal: true,
+                    flash_destination: matches!(action, OutlineAction::Activate(_)),
+                    ..Default::default()
+                },
+            ),
         }
     }
 }

@@ -404,22 +404,9 @@ impl RadiologyApp {
     /// Existing-document navigation is immediate; new documents publish atomically
     /// through [`Self::poll_source`] after their read and analysis finish.
     pub fn navigate(&mut self, location: SourceLocation, record_history: bool) {
-        self.navigate_target(location, None, record_history);
-    }
-
-    fn navigate_target(
-        &mut self,
-        location: SourceLocation,
-        line: Option<usize>,
-        record_history: bool,
-    ) {
-        let target = line.map_or(
-            crate::source::loader::SourceTarget::Byte(location.byte_offset),
-            |line| crate::source::loader::SourceTarget::LineColumn { line, column: 0 },
-        );
-        self.request_navigation(
+        self.navigate_target(
             location,
-            target,
+            None,
             source::NavigationIntent {
                 record_history,
                 reveal: true,
@@ -428,10 +415,31 @@ impl RadiologyApp {
         );
     }
 
+    fn navigate_target(
+        &mut self,
+        location: SourceLocation,
+        line: Option<usize>,
+        intent: source::NavigationIntent,
+    ) {
+        let target = line.map_or(
+            crate::source::loader::SourceTarget::Byte(location.byte_offset),
+            |line| crate::source::loader::SourceTarget::LineColumn { line, column: 0 },
+        );
+        self.request_navigation(location, target, intent);
+    }
+
     /// Navigates directly to a file, line number, and optional exact byte offset.
     pub fn jump_to_location(&mut self, rel_path: &str, line: usize, byte_offset: usize) {
         let location = SourceLocation::with_revision(rel_path, byte_offset, self.active_revision);
-        self.navigate_target(location, (byte_offset == 0).then_some(line), true);
+        self.navigate_target(
+            location,
+            (byte_offset == 0).then_some(line),
+            source::NavigationIntent {
+                record_history: true,
+                reveal: true,
+                ..Default::default()
+            },
+        );
     }
 
     fn refresh_current_diff(&mut self) {
@@ -937,7 +945,16 @@ impl eframe::App for RadiologyApp {
                             }
                             InspectorAction::JumpToSymbol(byte) => {
                                 if let Some(buffer) = &self.open_buffer {
-                                    self.navigate(buffer.location_at_byte(byte), true);
+                                    self.navigate_target(
+                                        buffer.location_at_byte(byte),
+                                        None,
+                                        source::NavigationIntent {
+                                            record_history: true,
+                                            reveal: true,
+                                            flash_destination: true,
+                                            ..Default::default()
+                                        },
+                                    );
                                 }
                             }
                             InspectorAction::Outline(action) => self.handle_outline_action(action),

@@ -254,7 +254,16 @@ impl RadiologyApp {
             changes.previous_change_line(self.caret_line, revision)
         };
         if let (Some(line), Some(buffer)) = (line, &self.open_buffer) {
-            self.navigate(buffer.location_at_byte(buffer.byte_offset(line, 0)), true);
+            self.navigate_target(
+                buffer.location_at_byte(buffer.byte_offset(line, 0)),
+                None,
+                source::NavigationIntent {
+                    record_history: true,
+                    reveal: true,
+                    flash_destination: true,
+                    ..Default::default()
+                },
+            );
         }
     }
 
@@ -333,6 +342,7 @@ impl RadiologyApp {
             },
             source::NavigationIntent {
                 record_history: true,
+                flash_destination: true,
                 reveal: true,
                 ..Default::default()
             },

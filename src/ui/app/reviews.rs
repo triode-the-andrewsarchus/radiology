@@ -104,6 +104,7 @@ impl RadiologyApp {
         self.sidebar_tab = SidebarTab::Changes;
         self.history.clear();
         self.pin_store.clear();
+        self.source_viewport.cancel_destination();
         self.open_buffer = None;
         self.selected_path = None;
         self.reference_context = Default::default();

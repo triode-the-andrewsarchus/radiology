@@ -8,6 +8,7 @@ pub(super) struct NavigationIntent {
     pub reveal: bool,
     pub history_step: Option<bool>,
     pub force_read: bool,
+    pub flash_destination: bool,
 }
 
 #[derive(Clone)]
@@ -308,6 +309,10 @@ impl RadiologyApp {
         let byte = location.byte_offset;
         if intent.reveal {
             self.test_code.reveal_byte(buffer, byte);
+        }
+        self.source_viewport.cancel_destination();
+        if intent.flash_destination {
+            self.source_viewport.flash_destination(buffer, byte);
         }
         self.caret_line = buffer.line_at_byte(byte);
         self.caret_col = buffer.column_at_byte(byte);
