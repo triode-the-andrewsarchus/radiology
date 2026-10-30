@@ -117,8 +117,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
 - Remaining source presentation: same-row fold controls/Kotlin import grouping and exact
-  PR-refresh fold/pin mapping, AST-aware fallback occurrence scope, enclosing-function body
-  shade. Destination feedback is integrated; broader wrapping/scroll anchoring,
+  PR-refresh fold/pin mapping and AST-aware fallback occurrence scope. Enclosing-callable
+  shading and destination feedback are integrated; broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
   fold restoration and initial body/PR defaults are integrated; see
   [acceptance](rust-fold-restoration.md). Typed structural folds and

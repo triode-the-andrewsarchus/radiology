@@ -49,6 +49,13 @@ pub struct AppTheme {
 }
 
 impl AppTheme {
+    /// Returns the neutral wash for the caret's enclosing callable.
+    #[must_use]
+    pub fn function_shade_color(&self) -> egui::Color32 {
+        self.text_primary
+            .gamma_multiply(if self.is_dark { 0.045 } else { 0.03 })
+    }
+
     /// Returns the default dark desktop theme.
     #[must_use]
     pub fn dark() -> Self {

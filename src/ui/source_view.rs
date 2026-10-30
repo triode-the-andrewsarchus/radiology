@@ -260,6 +260,11 @@ impl SourceView {
                     hover_inputs,
                     buffer,
                     highlights: highlighted_lines,
+                    function_shade: enclosing_symbols
+                        .iter()
+                        .rev()
+                        .find(|symbol| symbol.is_callable())
+                        .map(|symbol| &symbol.range),
                     caret_line,
                     caret_col,
                     folds: fold_ranges,

@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Enclosing callable shading](plans/rust-function-shading.md) records parsed scope reuse,
+shaped bands, background layer order, empty-line hit testing and native acceptance.
+
 [Transient destination feedback](plans/rust-destination-feedback.md) records the
 source-bound hold/fade, shaped-row rendering, explicit navigation policy and
 native success/failure/cancellation acceptance.
