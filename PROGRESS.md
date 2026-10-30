@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Repository-scoped Critical Lens decision storage (Codex)
+
+Added atomic ordered mark storage outside source repositories, canonical root/hash
+isolation, bounded/cancellable loading and explicit read/save errors. Store clones
+reserve revisions before queueing so delayed old saves cannot undo newer decisions
+or deletion. Typed symbol/package edits replay over delayed loads; locals and
+Unknown/empty decisions do not persist. Default override format is now correctly 1.
+Shared bounded file reads and destination resolution replace duplicated I/O/path
+logic; no new dependency or runtime is introduced.
+
+Seven storage/replay tests and full verification pass: 164 application tests,
+5 reader-text tests, 30 doctests, fmt, Clippy and binary build. Architecture reports
+one new seven-line test-fixture clone, with no product clone/hotspot/cycle. The
+reader still supplies empty overrides; background loading/saving, menu controls
+and projection refresh are the next integration commit, not completed here.
+[Decision contract and integration queue](plans/rust-critical-marks.md).
+
+Full parity remains open, including marking UI, call graphs/frontiers, annotations,
+index lifecycle gaps and final Swift/runtime acceptance.
+
 ## 2026-10-30 — Deadline-bound busy-executable startup repair (Codex)
 
 Reproduced Linux ETXTBSY with a real executable held open for writing: the old

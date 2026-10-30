@@ -29,20 +29,12 @@ type StoredEntry = Entry<InputInventory, ScipIndex, GenerationReport, HashMap<St
 
 fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
     let root = fs::canonicalize(&request.root).map_err(|e| e.to_string())?;
-    // Canonicalizing the existing ancestor also catches symlinked cache parents.
-    let mut parent = request.cache.as_path();
-    while !parent.exists() {
-        parent = parent.parent().ok_or("Invalid index cache parent")?;
-    }
-    if !request.cache.is_absolute()
-        || fs::canonicalize(parent)
-            .map_err(|e| e.to_string())?
-            .starts_with(&root)
-    {
+    let parent = super::workspace::destination_path(&request.cache)?;
+    if parent.starts_with(&root) {
         return Err("Index cache must be outside the viewed repository".into());
     }
     let key = format!("{:x}", Sha256::digest(root.as_os_str().as_encoded_bytes()));
-    Ok(request.cache.join(format!("{key}.index.json")))
+    Ok(parent.join(format!("{key}.index.json")))
 }
 
 pub(super) fn save(

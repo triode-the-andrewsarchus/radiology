@@ -178,28 +178,46 @@ pub(crate) fn read_index_bytes(
     path: &Path,
     cancel: &AtomicBool,
 ) -> Result<Option<Vec<u8>>, String> {
+    read_bytes_limited(
+        path,
+        cancel,
+        MAX_INDEX_BYTES,
+        "Index exceeds the 256 MiB limit",
+    )
+}
+
+/// Reads a bounded regular file with cancellation between chunks.
+pub(crate) fn read_bytes_limited(
+    path: &Path,
+    cancel: &AtomicBool,
+    limit: u64,
+    limit_error: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("File read was cancelled".into());
+    }
     let file = match open_regular_file(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     };
-    if file.metadata().map_err(|e| e.to_string())?.len() > MAX_INDEX_BYTES {
-        return Err("Index exceeds the 256 MiB limit".into());
+    if file.metadata().map_err(|e| e.to_string())?.len() > limit {
+        return Err(limit_error.to_owned());
     }
-    let mut reader = file.take(MAX_INDEX_BYTES + 1);
+    let mut reader = file.take(limit.saturating_add(1));
     let mut bytes = Vec::new();
     let mut chunk = [0; 64 * 1024];
     loop {
         if cancel.load(Ordering::Relaxed) {
-            return Err("Index read was cancelled".into());
+            return Err("File read was cancelled".into());
         }
         let count = reader.read(&mut chunk).map_err(|e| e.to_string())?;
         if count == 0 {
             return Ok(Some(bytes));
         }
         bytes.extend_from_slice(&chunk[..count]);
-        if bytes.len() as u64 > MAX_INDEX_BYTES {
-            return Err("Index exceeds the 256 MiB limit".into());
+        if bytes.len() as u64 > limit {
+            return Err(limit_error.to_owned());
         }
     }
 }
