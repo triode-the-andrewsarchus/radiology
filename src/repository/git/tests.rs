@@ -50,6 +50,7 @@ esac
             executable: &script,
             cancel: &cancel,
             deadline: Instant::now() + timeout,
+            lease: None,
         };
         let result = git.checkout_source_lines(&buffer);
         if let Some(expected) = error {

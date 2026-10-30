@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-10-30 — Serialized private PR stores and lock-safe recovery (Codex)
+
+Each preparation holds one stable private-store advisory writer lease, with
+cancellable/deadline-bounded acquisition. Its Git children explicitly inherit
+that descriptor while unrelated commands retain CLOEXEC, preventing a new writer
+from overtaking a surviving child after parent exit. Existing public process APIs
+are preserved. Private Git operations now live in a cohesive store module.
+Initialization stages before atomic publication; an existing valid bare store
+is read without reinitializing it. HEAD-less legacy initialization is preserved
+in quarantine. Fetches disable FETCH_HEAD writes, auto-maintenance and commit-graph
+writes; fallback uses a unique request ref, verifies the pinned commit, and removes
+that ref. Missing owned temporary worktrees can be force-removed even when Git
+left their registrations locked; present and foreign trees remain untouched.
+Six added tests cover lease cancellation/deadline/release, child-only descriptor
+inheritance, serialized cancellation/retry with locked missing-tree repair, real
+fetch with legacy locks preserved, legacy init quarantine and fallback movement.
+Existing runtime cancellation checks now include staged initialization.
+Full gates pass 371 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Architecture neutral:
+no new problems, clone/cycle growth; health improves 78.8→79.2. Native parent-crash/
+surviving-child lease verification is next. Full parity remains open, including
+complete tree reuse/retention, broader corrupt-store recovery, index lifecycle and
+PR refresh mapping, final UI/accessibility/scaling/sibling acceptance.
+Commit and push each increment.
+
 ## 2026-10-30 — Native recent PR chooser acceptance (Codex)
 
 Recent chooser `99c0ae4` and tooltip follow-ups `cb106b0`/`87e31b8` are pushed.

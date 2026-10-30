@@ -16,6 +16,7 @@ pub(crate) struct GitRead<'a> {
     pub executable: &'a Path,
     pub cancel: &'a AtomicBool,
     pub deadline: Instant,
+    pub lease: Option<&'a std::fs::File>,
 }
 
 impl GitRead<'_> {
@@ -128,11 +129,12 @@ impl GitRead<'_> {
             .into(),
             resources: Vec::new(),
         };
-        process::run_collect(
+        process::run_collect_with_lease(
             &command,
             self.cancel,
             self.deadline.saturating_duration_since(Instant::now()),
             16 * 1024 * 1024,
+            self.lease,
         )
     }
 

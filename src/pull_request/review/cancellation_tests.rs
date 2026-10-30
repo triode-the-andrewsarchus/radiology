@@ -43,12 +43,17 @@ fn fetch_materialization_and_patch_interruption_preserve_accepted_snapshots_and_
     let (owner, root, accepted) = super::tests::fixture();
     let attached_bytes = std::fs::read(root.join("a file.rs")).unwrap();
     let accepted_bytes = std::fs::read(accepted.head_root.join("a file.rs")).unwrap();
-    for phase in ["fetch:*", "worktree:add", "diff:--no-ext-diff"] {
+    for phase in [
+        "*\"init --bare\"*",
+        "*\"fetch --no-tags\"*",
+        "*\"worktree add\"*",
+        "*\"diff --no-ext-diff\"*",
+    ] {
         for timeout in [false, true] {
             let cache = tempfile::tempdir_in(owner.path()).unwrap();
             let script = format!(
                 r#"
-case "$5:$6" in
+case "$*" in
   {phase})
     printf '%s\n' "$5" >> phase-attempts
     if [ "$5" = worktree ]; then /usr/bin/git "$@" || exit; fi
@@ -65,22 +70,23 @@ exec /usr/bin/git "$@"
                 deadline: Instant::now() + Duration::from_secs(2),
                 git: &git,
                 gh: Path::new("gh"),
+                lease: None,
             };
-            interrupted(
-                &control,
-                &cache.path().join("review.git/paused.pid"),
-                timeout,
-                || {
-                    ReviewSnapshot::prepare_cancellable(
-                        &root,
-                        accepted.summary.clone(),
-                        cache.path(),
-                        &control,
-                    )
-                },
-            );
+            let phase_root = if phase.contains("init") {
+                cache.path().to_owned()
+            } else {
+                cache.path().join("review.git")
+            };
+            interrupted(&control, &phase_root.join("paused.pid"), timeout, || {
+                ReviewSnapshot::prepare_cancellable(
+                    &root,
+                    accepted.summary.clone(),
+                    cache.path(),
+                    &control,
+                )
+            });
             assert_eq!(
-                std::fs::read_to_string(cache.path().join("review.git/phase-attempts"))
+                std::fs::read_to_string(phase_root.join("phase-attempts"))
                     .unwrap()
                     .lines()
                     .count(),

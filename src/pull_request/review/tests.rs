@@ -131,6 +131,7 @@ fn pinned_blob_reads_are_bounded_cancellable_and_verify_size_metadata() {
         executable: &script,
         cancel: &cancel,
         deadline: Instant::now() + Duration::from_secs(5),
+        lease: None,
     };
     let buffer = review
         .read_from_git("a file.rs", ReviewRevision::After, &git)

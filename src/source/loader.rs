@@ -94,6 +94,7 @@ impl SourceRead {
                 executable: std::path::Path::new("git"),
                 cancel,
                 deadline,
+                lease: None,
             }
             .checkout_source_lines(buffer),
             Self::Buffer(_) => Ok(None),
