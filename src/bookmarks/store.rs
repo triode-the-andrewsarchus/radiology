@@ -73,21 +73,55 @@ impl BookmarkStore {
 
     /// Toggles a bookmark at `byte_offset` in `buffer`. Returns `true` if added, `false` if removed.
     pub fn toggle(&mut self, buffer: &SourceBuffer, byte_offset: usize) -> bool {
-        let line = buffer.line_at_byte(byte_offset);
-        if let Some(pos) = self.bookmarks.iter().position(|bookmark| {
-            bookmark
-                .resolve(buffer)
-                .ok()
-                .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
-        }) {
+        if let Some(pos) = self
+            .at_location(buffer, byte_offset)
+            .and_then(|b| self.index_of(b.id))
+        {
             self.bookmarks.remove(pos);
             false
         } else {
+            let line = buffer.line_at_byte(byte_offset);
             let label = format!("{}:{}", buffer.path, line);
             self.bookmarks
                 .push(SourceBookmark::new(buffer, byte_offset, label));
             true
         }
+    }
+
+    /// Finds a bookmark that resolves to the current document, revision, and line.
+    #[must_use]
+    pub fn at_location(
+        &self,
+        buffer: &SourceBuffer,
+        byte_offset: usize,
+    ) -> Option<&SourceBookmark> {
+        let line = buffer.line_at_byte(byte_offset);
+        self.bookmarks.iter().find(|bookmark| {
+            bookmark
+                .resolve(buffer)
+                .ok()
+                .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
+        })
+    }
+
+    /// Returns the current slot of an identity, including after reordering.
+    #[must_use]
+    pub fn index_of(&self, id: Uuid) -> Option<usize> {
+        self.bookmarks.iter().position(|bookmark| bookmark.id == id)
+    }
+
+    /// Moves an identity to a final slot while preserving the other entries' order.
+    /// Returns false without changing the store for a missing identity or invalid slot.
+    pub fn move_to(&mut self, id: Uuid, slot: usize) -> bool {
+        let Some(index) = self.index_of(id) else {
+            return false;
+        };
+        if slot >= self.bookmarks.len() || slot == index {
+            return false;
+        }
+        let bookmark = self.bookmarks.remove(index);
+        self.bookmarks.insert(slot, bookmark);
+        true
     }
 
     /// Removes the bookmark matching `id`.
@@ -198,6 +232,43 @@ mod tests {
 
         assert!(!store.toggle(&buf, byte2));
         assert_eq!(store.bookmarks.len(), 1);
+    }
+
+    #[test]
+    fn identities_survive_slot_assignment_and_invalid_moves_are_noops() {
+        let buffer = SourceBuffer::from_str("a.rs", "first\nsecond\nthird\n");
+        let mut store = BookmarkStore::new();
+        for line in 1..=3 {
+            store.toggle(&buffer, buffer.byte_offset(line, 0));
+        }
+        let original = store.bookmarks.clone();
+        let id = original[2].id;
+        assert!(store.move_to(id, 0));
+        assert_eq!(
+            store.bookmarks,
+            vec![
+                original[2].clone(),
+                original[0].clone(),
+                original[1].clone()
+            ]
+        );
+        assert_eq!(store.index_of(id), Some(0));
+        assert_eq!(
+            store
+                .at_location(&buffer, buffer.byte_offset(3, 2))
+                .unwrap()
+                .id,
+            id
+        );
+        assert!(store.move_to(id, 2));
+        assert_eq!(store.bookmarks, original);
+        assert!(!store.move_to(id, 3));
+        assert!(!store.move_to(Uuid::new_v4(), 0));
+        assert!(!store.move_to(id, 2));
+        assert_eq!(store.bookmarks, original);
+        let mut before = buffer.clone();
+        before.revision = Some(crate::source::location::ReviewRevision::Before);
+        assert!(store.at_location(&before, 0).is_none());
     }
 
     #[test]
