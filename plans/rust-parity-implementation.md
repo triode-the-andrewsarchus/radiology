@@ -95,6 +95,10 @@ and the remaining generation/cache requirements.
   declaration following, hidden/stale-target rejection, virtual rows and native
   clean-session acceptance. First commits seed an otherwise empty history.
   [Contract and remaining presentation work](rust-outline-pane.md).
+- Review outline callables show cached six-point markers from exact Before/After
+  changed bytes. Empty-side hunk anchors preserve unchanged caret lines across
+  revision toggles. Pinned Git/UI/native coverage is recorded in the
+  [marker contract](rust-review-outline-changes.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different

@@ -14,6 +14,10 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Changed callable markers in review outlines](plans/rust-review-outline-changes.md)
+records exact Before/After byte overlap, cached presentation, PR-only ownership,
+zero-length hunk anchor mapping and pinned Git/native acceptance.
+
 [Outline selection, preview and native acceptance](plans/rust-outline-pane.md)
 records source-bound keyboard navigation, hierarchical disclosure, exact preview/
 commit semantics, shared list mechanisms and remaining outline/inspector work.

@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — PR outline markers and revision anchor mapping (Codex)
+
+Committed/pushed full-line byte spans (`925e8c3`), PR callable dots (`3c84b2c`)
+and zero-length hunk anchor correction (`752a666`). Cached outline flags use the
+displayed pinned revision's changed bytes, retain selection on diff/caret updates,
+and clear outside review. Six-point accent dots and explanatory tooltip/widget
+metadata identify changed callables. Unicode/CRLF/EOF, half-open/nested spans,
+revision/diff replacement and binary/checkout cases are covered. A real Git
+review test matches painted dots to names and proves a different dirty checkout
+has no PR dots. Its line-1 round trip caught and now covers the anchor-line bug.
+Full gates pass 288 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Native Before/After, tooltip, light appearance and review-exit
+checks use real pinned Git objects; [contract and evidence](plans/rust-review-outline-changes.md).
+Architecture adds no hotspot/cycle/clone group. Full parity remains open,
+including destination feedback, source presentation, caches, indexing/PR lifecycle,
+broader native acceptance and sibling UI reuse. Keep pushing after every commit.
+
 ## 2026-10-30 — Outline selection, hierarchical disclosure and exact previews (Codex)
 
 Committed/pushed source-only reveal (`eda2850`), Rust const/static/enum-variant
