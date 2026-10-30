@@ -44,7 +44,7 @@ pub fn make(
     cancel: &AtomicBool,
 ) -> Result<SourceProjection, String> {
     check_cancel(cancel)?;
-    if !calls.supported || !calls.matches(buffer) {
+    if !calls.matches(buffer) {
         return Ok(SourceProjection::new(buffer, Vec::new()));
     }
     let index = index.filter(|index| {

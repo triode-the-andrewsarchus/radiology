@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-30 — Background Critical Lens reader presentation (Codex)
+
+Integrated backend `e3ee241` through the existing read-worker protocol. Immutable
+indexes use Arc snapshots; call facts are retained from source analysis. Mode,
+source, index and repository transitions retire old projections. Renderer span
+splitting uses exact canonical ranges instead of syntax-color guessing, retains
+original bytes/geometry, and ignores mismatched/pending projections. Footer status
+reports preparation or call syntax coverage. The obsolete name-only classifier
+was removed; source presentation uses semantic identity and unknown-call retention.
+
+Native UTF-16 fixture acceptance verifies runtime-call dimming, prominent system
+and unknown calls, Normal restoration, and clean app/compositor exits. Critical
+unit/integration tests, doctests, fmt, Clippy and build pass. Full suite passed once
+(156 application + 5 reader-text + 30 doctests), then repeated runs exposed Linux
+ETXTBSY in the existing tool-probe fixture, including its timeout assertion. That
+runner startup issue is the next separate repair, not claimed fixed here.
+Architecture retains test clones and projection/source orchestration flags with
+no new product clone or CCN threshold spike. [Evidence](plans/rust-critical-lens.md).
+
+Full parity remains open, including persistent marks/menus, call graph/frontiers,
+hover/count annotations, index lifecycle gaps and final Swift/runtime acceptance.
+
 ## 2026-10-30 — Critical Lens call facts and semantic projection backend (Codex)
 
 Native source analysis shares its parse with call queries, reusing Swift resources

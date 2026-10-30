@@ -40,6 +40,7 @@ pub(super) struct CanvasContent<'a> {
     pub theme: &'a AppTheme,
     pub test_code: &'a crate::source::test_code::TestCodePresentation,
     pub mode: SourceMode,
+    pub projection: Option<&'a crate::critical::SourceProjection>,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
     pub caret_line: &'a mut usize,
@@ -902,23 +903,13 @@ fn layout(
             let stop = end.min(part.bytes.end);
             if start < stop {
                 let mut color = span.color;
-                if content.mode == SourceMode::Critical
-                    && color != content.theme.accent
-                    && color != Color32::from_rgb(224, 108, 117)
-                {
-                    color = color.linear_multiply(if content.theme.is_dark { 0.38 } else { 0.30 });
-                }
                 if content.test_code.header(part.line).is_some_and(|region| {
                     content.test_code.is_hidden(region.byte_range.start)
                         && region.byte_range.start <= start
                 }) {
                     color = color.gamma_multiply(0.55);
                 }
-                job.append(
-                    &content.buffer.text[start..stop],
-                    0.0,
-                    TextFormat::simple(font.clone(), color),
-                );
+                append_projected(&mut job, content, font, start..stop, color);
             }
             if end >= part.bytes.end {
                 break;
@@ -926,23 +917,63 @@ fn layout(
         }
     }
     if job.text.is_empty() {
-        job.append(
-            &content.buffer.text[part.bytes.clone()],
-            0.0,
-            TextFormat::simple(
-                font.clone(),
-                if content.test_code.header(part.line).is_some_and(|region| {
-                    content.test_code.is_hidden(region.byte_range.start)
-                        && region.byte_range.start <= part.bytes.start
-                }) {
-                    content.theme.text_muted
-                } else {
-                    content.theme.text_primary
-                },
-            ),
-        );
+        let color = if content.test_code.header(part.line).is_some_and(|region| {
+            content.test_code.is_hidden(region.byte_range.start)
+                && region.byte_range.start <= part.bytes.start
+        }) {
+            content.theme.text_muted
+        } else {
+            content.theme.text_primary
+        };
+        append_projected(&mut job, content, font, part.bytes.clone(), color);
     }
     ui.fonts(|fonts| fonts.layout_job(job))
+}
+
+fn append_projected(
+    job: &mut LayoutJob,
+    content: &CanvasContent<'_>,
+    font: &FontId,
+    range: Range<usize>,
+    color: Color32,
+) {
+    let projection = content.projection.filter(|projection| {
+        content.mode == SourceMode::Critical && projection.matches(content.buffer)
+    });
+    let mut cursor = range.start;
+    if let Some(projection) = projection {
+        let first = projection
+            .receded_byte_ranges
+            .partition_point(|receded| receded.end <= range.start);
+        for receded in &projection.receded_byte_ranges[first..] {
+            if receded.start >= range.end {
+                break;
+            }
+            if cursor < receded.start {
+                job.append(
+                    &content.buffer.text[cursor..receded.start],
+                    0.0,
+                    TextFormat::simple(font.clone(), color),
+                );
+            }
+            let start = cursor.max(receded.start);
+            let end = range.end.min(receded.end);
+            let dimmed = color.gamma_multiply(if content.theme.is_dark { 0.38 } else { 0.30 });
+            job.append(
+                &content.buffer.text[start..end],
+                0.0,
+                TextFormat::simple(font.clone(), dimmed),
+            );
+            cursor = end;
+        }
+    }
+    if cursor < range.end {
+        job.append(
+            &content.buffer.text[cursor..range.end],
+            0.0,
+            TextFormat::simple(font.clone(), color),
+        );
+    }
 }
 
 fn paint_gutter(
@@ -1108,6 +1139,9 @@ mod tests {
         wrap: bool,
         font_size: f32,
         test_code: crate::source::test_code::TestCodePresentation,
+        mode: SourceMode,
+        projection: Option<crate::critical::SourceProjection>,
+        highlights: Vec<Vec<HighlightedSpan>>,
     }
 
     impl Reader {
@@ -1124,6 +1158,9 @@ mod tests {
                 wrap: true,
                 font_size: 14.0,
                 test_code: Default::default(),
+                mode: SourceMode::Normal,
+                projection: None,
+                highlights: Vec::new(),
             }
         }
 
@@ -1141,9 +1178,10 @@ mod tests {
                             CanvasContent {
                                 theme: &AppTheme::dark(),
                                 test_code: &self.test_code,
-                                mode: SourceMode::Normal,
+                                mode: self.mode,
+                                projection: self.projection.as_ref(),
                                 buffer: &self.source,
-                                highlights: &[],
+                                highlights: &self.highlights,
                                 caret_line: &mut self.line,
                                 caret_col: &mut self.column,
                                 folds: &self.ranges,
@@ -1199,6 +1237,54 @@ mod tests {
                 _ => None,
             })
             .expect("painted source text")
+    }
+
+    #[test]
+    fn critical_projection_splits_colored_spans_without_changing_source_geometry_or_bytes() {
+        let ctx = egui::Context::default();
+        let text = r#"fn f() { let s = "😀"; unknown(); }"#;
+        let mut reader = Reader::new(text);
+        let color = Color32::from_rgb(200, 130, 80);
+        reader.highlights = vec![vec![HighlightedSpan {
+            bytes: 0..text.len(),
+            text: text.into(),
+            color,
+            is_bold: false,
+            is_italic: false,
+        }]];
+        let normal = reader.frame(&ctx, Vec::new());
+        let (_, normal) = text_shape(&normal, text);
+        let name = text.find("unknown").unwrap();
+        reader.projection = Some(crate::critical::SourceProjection::new(
+            &reader.source,
+            vec![0..name, name + 7..text.len()],
+        ));
+        reader.mode = SourceMode::Critical;
+        let output = reader.frame(&ctx, Vec::new());
+        let (_, critical) = text_shape(&output, text);
+        assert_eq!(critical.job.text, text);
+        assert_eq!(critical.size(), normal.size());
+        let at = |galley: &egui::Galley, byte| {
+            galley
+                .job
+                .sections
+                .iter()
+                .find(|section| section.byte_range.contains(&byte))
+                .unwrap()
+                .format
+                .color
+        };
+        assert_eq!(at(&critical, name), color);
+        assert_ne!(at(&critical, 0), color);
+        assert_ne!(at(&critical, name + 7), color);
+        reader.mode = SourceMode::Normal;
+        let output = reader.frame(&ctx, Vec::new());
+        assert_eq!(at(&text_shape(&output, text).1, 0), color);
+        reader.mode = SourceMode::Critical;
+        reader.source = SourceBuffer::from_str("fixture.rs", &text.replace("unknown", "altered"));
+        let output = reader.frame(&ctx, Vec::new());
+        let (_, stale) = text_shape(&output, &text.replace("unknown", "altered"));
+        assert_eq!(at(&stale, 0), color); // Wrong-content projection is ignored.
     }
 
     #[test]

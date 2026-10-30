@@ -11,7 +11,7 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
-    while app.is_source_loading() || app.is_index_loading() {
+    while app.is_source_loading() || app.is_index_loading() || app.is_critical_loading() {
         app.poll_source(&ctx);
         app.poll_index(&ctx);
         assert!(
@@ -72,7 +72,7 @@ fn repository_transition_clears_prior_index_pins_review_history_and_search() {
     std::fs::create_dir(dir.path().join("empty")).unwrap();
     app.open_repository(&dir.path().join("first"));
     settle(&mut app);
-    app.semantic_index = Some(SemanticIndex::default());
+    app.semantic_index = Some(Arc::new(SemanticIndex::default()));
     app.pin_store
         .toggle_pin("alpha", std::iter::once(3..8).collect());
     app.active_revision = Some(ReviewRevision::Before);
@@ -150,10 +150,10 @@ fn local_utf16_definition_uses_document_identity_and_exact_column() {
             ..Default::default()
         });
     }
-    app.semantic_index = Some(SemanticIndex::from_scip(ScipIndex {
+    app.semantic_index = Some(Arc::new(SemanticIndex::from_scip(ScipIndex {
         documents: vec![document],
         ..Default::default()
-    }));
+    })));
     app.jump_to_location("a.rs", 1, 9);
     settle(&mut app);
     app.execute_command(&Context::default(), ToolbarAction::GoToDefinition);
@@ -771,7 +771,7 @@ fn indexed_symbol_and_reference_navigation_share_encoding_fresh_reads_and_proven
     app.open_repository(dir.path());
     settle(&mut app);
     let (index, id, range) = indexed_target(original);
-    app.semantic_index = Some(index);
+    app.semantic_index = Some(Arc::new(index));
     app.navigate_to_indexed_symbol(&id);
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("b.ts"));
@@ -787,7 +787,7 @@ fn indexed_symbol_and_reference_navigation_share_encoding_fresh_reads_and_proven
     let newer = "const note = \"😀 newer\"; function target() {}\n";
     std::fs::write(dir.path().join("b.ts"), newer).unwrap();
     let (index, _, range) = indexed_target(newer);
-    app.semantic_index = Some(index);
+    app.semantic_index = Some(Arc::new(index));
     app.navigate_to_indexed_symbol(&id);
     assert!(app.is_source_loading());
     settle(&mut app);
@@ -806,10 +806,10 @@ fn indexed_symbol_and_reference_navigation_share_encoding_fresh_reads_and_proven
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
     assert_eq!(format!("{:?}", app.history), history);
     assert!(app.error.as_ref().unwrap().contains("bytes changed"));
-    app.semantic_index.as_mut().unwrap().source_digests.clear();
-    app.semantic_index
-        .as_mut()
-        .unwrap()
+    Arc::make_mut(app.semantic_index.as_mut().unwrap())
+        .source_digests
+        .clear();
+    Arc::make_mut(app.semantic_index.as_mut().unwrap())
         .source_digests
         .insert("other.ts".into(), "missing target identity".into());
     app.navigate_to_indexed_range("b.ts", &range);
@@ -861,4 +861,74 @@ fn occurrence_pins_restore_on_return_and_invalidate_only_after_successful_change
     app.open_file("b.rs");
     settle(&mut app);
     assert!(app.pin_store.groups.is_empty());
+}
+
+#[test]
+fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text = "fn demo() { clone(); unknown(); }";
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::ToggleMode(SourceMode::Critical));
+    assert!(app.is_critical_loading());
+    assert_eq!(app.critical_status(), Some("Preparing Critical Lens…"));
+    settle(&mut app);
+    let projected = app.critical_projection().unwrap();
+    assert!(!projected.is_receded(text.find("clone").unwrap()));
+    assert!(projected.is_receded(text.find("demo").unwrap()));
+    assert_eq!(app.critical_status(), Some("Call-focused"));
+
+    // Import real SCIP wire data after the syntax-only presentation was published.
+    let symbol = b"rust-analyzer cargo core 0 clone().";
+    let start = text.find("clone").unwrap() as u8;
+    let mut occurrence = vec![0x0a, 3, 0, start, start + 5, 0x12, symbol.len() as u8];
+    occurrence.extend_from_slice(symbol);
+    let mut document = vec![
+        0x0a,
+        4,
+        b'a',
+        b'.',
+        b'r',
+        b's',
+        0x12,
+        occurrence.len() as u8,
+    ];
+    document.extend(occurrence);
+    let mut index = vec![0x12, document.len() as u8];
+    index.extend(document);
+    std::fs::write(root.join("index.scip"), index).unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+    settle(&mut app);
+    assert!(app
+        .critical_projection()
+        .unwrap()
+        .is_receded(start as usize));
+    assert!(!app
+        .critical_projection()
+        .unwrap()
+        .is_receded(text.find("unknown").unwrap()));
+    app.set_source_mode(SourceMode::Normal);
+    assert!(app.critical_projection().is_none());
+    app.set_source_mode(SourceMode::Critical);
+    app.set_source_mode(SourceMode::Normal);
+    settle(&mut app);
+    assert!(app.critical_projection().is_none());
+    assert!(app.critical_status().is_none());
+    app.set_source_mode(SourceMode::Critical);
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app
+        .critical_projection()
+        .unwrap()
+        .matches(app.open_buffer.as_ref().unwrap()));
+    let next = dir.path().join("empty");
+    std::fs::create_dir(&next).unwrap();
+    app.open_repository(&next);
+    settle(&mut app);
+    assert!(app.critical_projection().is_none());
+    assert!(!app.is_critical_loading());
 }

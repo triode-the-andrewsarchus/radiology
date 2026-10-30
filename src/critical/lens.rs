@@ -33,7 +33,7 @@ impl SourceMode {
         match self {
             Self::Normal => "Show the source as written.",
             Self::Critical => {
-                "Recede runtime plumbing so repository, system, and FFI operations stand out."
+                "Focus on call names; recede proven ordinary calls and surrounding source."
             }
         }
     }
@@ -337,7 +337,8 @@ impl CriticalityOverrides {
 /// ```rust
 /// use radiology::critical::lens::{Criticality, CriticalityPolicy, CriticalityReason};
 ///
-/// let classification = CriticalityPolicy::classify_symbol("clone", true);
+/// let classification = CriticalityPolicy::default()
+///     .classify("rust-analyzer cargo core 0 clone().", None, false);
 /// assert_eq!(classification.criticality, Criticality::Ordinary);
 /// assert_eq!(classification.reason, CriticalityReason::RuntimePlumbing);
 /// ```
@@ -464,53 +465,6 @@ impl CriticalityPolicy {
         }
 
         // 8. Fallback
-        CriticalityClassification {
-            criticality: Criticality::Unknown,
-            reason: CriticalityReason::External,
-        }
-    }
-
-    /// Classifies a symbol name based on repository ownership and runtime plumbing heuristics.
-    #[must_use]
-    pub fn classify_symbol(name: &str, is_repo_defined: bool) -> CriticalityClassification {
-        let plumbing = [
-            "clone",
-            "to_string",
-            "into",
-            "from",
-            "as_ref",
-            "borrow",
-            "deref",
-            "default",
-            "fmt",
-            "display",
-            "debug",
-            "drop",
-            "hash",
-            "eq",
-        ];
-
-        if plumbing.contains(&name.to_lowercase().as_str()) {
-            return CriticalityClassification {
-                criticality: Criticality::Ordinary,
-                reason: CriticalityReason::RuntimePlumbing,
-            };
-        }
-
-        if is_repo_defined {
-            return CriticalityClassification {
-                criticality: Criticality::Critical,
-                reason: CriticalityReason::RepositoryDefinition,
-            };
-        }
-
-        if name.starts_with("sys_") || name.starts_with("libc::") || name.starts_with("syscall") {
-            return CriticalityClassification {
-                criticality: Criticality::Critical,
-                reason: CriticalityReason::SystemApi,
-            };
-        }
-
         CriticalityClassification {
             criticality: Criticality::Unknown,
             reason: CriticalityReason::External,
@@ -680,16 +634,17 @@ mod tests {
 
     #[test]
     fn test_criticality_classification() {
-        let c1 = CriticalityPolicy::classify_symbol("clone", true);
+        let policy = CriticalityPolicy::default();
+        let c1 = policy.classify("rust-analyzer cargo core 0 clone().", None, false);
         assert_eq!(c1.criticality, Criticality::Ordinary);
         assert_eq!(c1.reason, CriticalityReason::RuntimePlumbing);
 
-        let c2 = CriticalityPolicy::classify_symbol("processPayment", true);
+        let c2 = policy.classify("rust-analyzer cargo payments 1 clone().", None, true);
         assert_eq!(c2.criticality, Criticality::Critical);
         assert_eq!(c2.reason, CriticalityReason::RepositoryDefinition);
 
-        let c3 = CriticalityPolicy::classify_symbol("sys_open", false);
-        assert_eq!(c3.criticality, Criticality::Critical);
-        assert_eq!(c3.reason, CriticalityReason::SystemApi);
+        let c3 = policy.classify("rust-analyzer cargo external 1 sys_open().", None, false);
+        assert_eq!(c3.criticality, Criticality::Unknown);
+        assert_eq!(c3.reason, CriticalityReason::External);
     }
 }

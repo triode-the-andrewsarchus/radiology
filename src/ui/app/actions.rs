@@ -84,7 +84,7 @@ impl RadiologyApp {
                 self.sidebar_tab = SidebarTab::Search;
                 self.show_sidebar = true;
             }
-            ToggleMode(mode) => self.mode = mode,
+            ToggleMode(mode) => self.set_source_mode(mode),
             ToggleRevision(revision) => self.change_revision(revision),
             ToggleCurrentRevision => {
                 if let Some(revision) = self.active_revision {

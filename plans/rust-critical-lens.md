@@ -33,11 +33,38 @@ pass (the existing external-Clang acceptance test remains ignored by default).
 
 ## Remaining integration and full parity requirements
 
-The backend is implemented; current viewport still uses the old color heuristic.
-The next integration must replace it with this exact projection, run projection
-work off the UI thread, retire stale file/index/mode/policy requests, and expose
-accurate loading/degradation. Source call facts must be retained from worker
-publication, without re-parsing on caret movement.
+Backend `e3ee241` is integrated. `CriticalLens` uses the existing replaceable
+read-worker job, retains only exact-source publications and retires work on mode,
+source, index and repository transitions. Semantic indexes are shared immutable
+`Arc` snapshots instead of cloned whole indexes. Source call facts are retained
+from the background parse; caret movement does not re-parse or request projection.
+
+The viewport splits syntax-colored spans at projection boundaries, including
+unhighlighted fallback text. It checks source identity and mode, preserving bytes,
+font metrics, selection/copy/navigation and wrapping. While pending, source remains
+undimmed; the source footer reports preparation, call-focused presentation or
+unsupported call syntax. The old color heuristic and unused callee-name heuristic
+API were removed. Actual criticality still uses semantic identity and metadata.
+
+Application tests cover syntax-only projection, asynchronous import arrival,
+retiring Normal-mode requests, source changes and empty-repository transitions.
+A renderer test checks one broad colored span across Unicode/projection boundaries,
+exact original text/geometry, Normal restoration and rejecting stale projections.
+Native private Weston/Niri acceptance uses an imported UTF-16 fixture: runtime
+clone recedes, indexed system_open and unresolved mystery remain prominent, and
+Normal restores syntax colors. Captures:
+`/tmp/radiology-critical-native-final/{initial,critical,normal-restored}.png`.
+The app and both compositors exited zero.
+
+Critical-specific tests, 30 doctests, fmt, Clippy with warnings denied and binary
+build pass. A full run passed 156 application tests plus 5 reader-text tests, but
+repeated later full runs exposed the existing probe test's Linux `Text file busy`
+startup race (including its timeout stage). It remains a separate runner repair;
+these observations do not establish a reliably clean full-suite gate yet.
+Architecture comparison has no new product clone or CCN threshold spike; it still
+reports two GUI test clones and structural flags for projection orchestration and
+the existing source show function. Maximum CCN remains 100. This is not a clean
+architecture or full parity verdict.
 
 Repository-scoped persisted symbol/package decisions and menus, call graph and
 frontier summaries, hover models, count/fold annotations, complete query coverage

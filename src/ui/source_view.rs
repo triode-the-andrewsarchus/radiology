@@ -60,6 +60,10 @@ pub enum SourceViewAction {
 pub struct SourceViewContent<'a> {
     /// Active source presentation.
     pub mode: SourceMode,
+    /// Exact-source call projection; absent while preparing or in Normal mode.
+    pub projection: Option<&'a crate::critical::SourceProjection>,
+    /// Active lens preparation/coverage, independent of semantic index status.
+    pub critical_status: Option<&'static str>,
     /// Immutable source snapshot.
     pub buffer: &'a SourceBuffer,
     /// Precomputed syntax colors.
@@ -110,6 +114,8 @@ impl SourceView {
     ) -> Option<SourceViewAction> {
         let SourceViewContent {
             mode,
+            projection,
+            critical_status,
             buffer,
             highlighted_lines,
             caret_line,
@@ -226,6 +232,7 @@ impl SourceView {
                 CanvasContent {
                     theme,
                     mode,
+                    projection,
                     buffer,
                     highlights: highlighted_lines,
                     caret_line,
@@ -258,7 +265,8 @@ impl SourceView {
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
-                if let Some(status) = test_code.status() {
+                let test_status = test_code.status();
+                for status in critical_status.into_iter().chain(test_status.as_deref()) {
                     ui.colored_label(theme.text_muted, "·");
                     ui.colored_label(theme.text_muted, status);
                 }
@@ -491,6 +499,8 @@ mod tests {
                         &AppTheme::dark(),
                         SourceViewContent {
                             mode: SourceMode::Normal,
+                            projection: None,
+                            critical_status: None,
                             buffer: &buffer,
                             highlighted_lines: &highlighted,
                             caret_line: &mut line,

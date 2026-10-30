@@ -17,6 +17,63 @@ pub(super) struct PendingNavigation {
 }
 
 impl RadiologyApp {
+    /// Changes source presentation and schedules call projection only when needed.
+    pub fn set_source_mode(&mut self, mode: SourceMode) {
+        if self.mode != mode {
+            self.mode = mode;
+            self.refresh_critical_projection();
+        }
+    }
+
+    pub(super) fn refresh_critical_projection(&mut self) {
+        if self.mode == SourceMode::Critical {
+            if let Some(buffer) = &self.open_buffer {
+                let index = (buffer.revision != Some(ReviewRevision::Before))
+                    .then(|| self.semantic_index.clone())
+                    .flatten();
+                self.critical_lens.start(
+                    buffer.clone(),
+                    self.call_sites.clone(),
+                    index,
+                    Default::default(),
+                );
+            }
+        } else {
+            self.critical_lens.stop();
+        }
+    }
+
+    /// Returns source-local preparation or syntax coverage for the active lens.
+    #[must_use]
+    pub fn critical_status(&self) -> Option<&'static str> {
+        if self.mode != SourceMode::Critical {
+            return None;
+        }
+        Some(if self.critical_lens.is_running() {
+            "Preparing Critical Lens…"
+        } else if self.critical_lens.error().is_some() {
+            "Critical Lens unavailable"
+        } else if !self.call_sites.supported {
+            "Call syntax unavailable"
+        } else {
+            "Call-focused"
+        })
+    }
+
+    /// Returns whether call-focused source preparation is awaiting publication.
+    #[must_use]
+    pub fn is_critical_loading(&self) -> bool {
+        self.critical_lens.is_running()
+    }
+
+    /// Returns the current exact-source Critical Lens presentation, when ready.
+    #[must_use]
+    pub fn critical_projection(&self) -> Option<&crate::critical::SourceProjection> {
+        self.open_buffer
+            .as_ref()
+            .and_then(|buffer| self.critical_lens.projection(buffer))
+    }
+
     pub(super) fn request_navigation(
         &mut self,
         location: SourceLocation,
@@ -87,6 +144,12 @@ impl RadiologyApp {
     ///
     /// Embedded hosts can call this without constructing an eframe window.
     pub fn poll_source(&mut self, ctx: &Context) {
+        if let Some(error) = self.critical_lens.poll() {
+            self.error = Some(error);
+        }
+        if self.critical_lens.is_running() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        }
         if let Some(result) = self.source_loader.poll() {
             match result {
                 Ok(prepared) if prepared.dark_mode != self.theme.is_dark => {
@@ -126,6 +189,7 @@ impl RadiologyApp {
         self.commit_departure(pending.intent);
         self.selected_path = Some(prepared.buffer.path.clone());
         self.active_revision = prepared.buffer.revision;
+        self.call_sites = Arc::new(syntax.calls);
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
         self.fold_store.unfold_all();
@@ -138,6 +202,7 @@ impl RadiologyApp {
         self.highlighted_lines = prepared.highlights;
         self.line_changes = prepared.changes;
         self.open_buffer = Some(prepared.buffer);
+        self.refresh_critical_projection();
         self.error = None;
         self.apply_destination(pending.intent, prepared.destination);
     }

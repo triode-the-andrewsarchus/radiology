@@ -54,10 +54,11 @@ impl CallSites {
             },
         }
     }
-    /// Returns whether these syntactic facts describe the exact source/revision.
+    /// Returns whether complete call-query facts describe the exact source/revision.
     #[must_use]
     pub fn matches(&self, buffer: &crate::source::SourceBuffer) -> bool {
-        self.path == buffer.path
+        self.supported
+            && self.path == buffer.path
             && self.revision == buffer.revision
             && self.content_digest == buffer.content_digest()
     }
