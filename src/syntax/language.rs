@@ -45,9 +45,29 @@ impl SupportedGrammar {
     /// Parses exact source bytes, preserving Tree-sitter's original coordinates.
     #[must_use]
     pub fn parse(self, bytes: &[u8]) -> Option<tree_sitter::Tree> {
+        self.parse_cancellable(bytes, &super::AnalysisControl::new(&|| false))
+            .ok()
+            .flatten()
+    }
+
+    pub(super) fn parse_cancellable(
+        self,
+        bytes: &[u8],
+        control: &super::AnalysisControl<'_>,
+    ) -> Result<Option<tree_sitter::Tree>, String> {
+        control.check()?;
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&self.language()).ok()?;
-        parser.parse(bytes, None)
+        if parser.set_language(&self.language()).is_err() {
+            return Ok(None);
+        }
+        let mut progress = |_: &tree_sitter::ParseState| control.is_cancelled();
+        let tree = parser.parse_with_options(
+            &mut |byte, _| bytes.get(byte..).unwrap_or_default(),
+            None,
+            Some(tree_sitter::ParseOptions::new().progress_callback(&mut progress)),
+        );
+        control.check()?;
+        Ok(tree)
     }
 }
 

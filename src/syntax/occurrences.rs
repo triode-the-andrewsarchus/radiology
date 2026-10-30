@@ -31,8 +31,9 @@ impl SyntacticOccurrences {
         buffer: &SourceBuffer,
         grammar: SupportedGrammar,
         root: Node<'_>,
+        control: &super::AnalysisControl<'_>,
     ) -> Self {
-        match extract(buffer, grammar, root, 200_000) {
+        match extract(buffer, grammar, root, 200_000, control) {
             Ok((scopes, words)) => Self {
                 scopes,
                 words,
@@ -87,6 +88,7 @@ fn extract(
     grammar: SupportedGrammar,
     root: Node<'_>,
     limit: usize,
+    control: &super::AnalysisControl<'_>,
 ) -> Result<(Vec<Range<usize>>, Words), String> {
     let mut scopes = Vec::new();
     let mut excluded = Vec::new();
@@ -96,6 +98,7 @@ fn extract(
         super::queries::QueryRole::Occurrences,
         root,
         limit,
+        control,
         |name, node, _| {
             if name.starts_with("scope.") {
                 scopes.push(node.byte_range());
@@ -114,6 +117,7 @@ fn extract(
         buffer,
         &excluded,
         limit.saturating_sub(scopes.len() + excluded.len()),
+        control,
     )?;
     Ok((scopes, words))
 }
@@ -122,17 +126,24 @@ fn collect_words(
     buffer: &SourceBuffer,
     excluded: &[Range<usize>],
     limit: usize,
+    control: &super::AnalysisControl<'_>,
 ) -> Result<Words, String> {
     let mut words = Words::new();
     let mut byte = 0;
     let mut count = 0;
     while byte < buffer.data.len() {
+        if byte.is_multiple_of(4096) {
+            control.check()?;
+        }
         let start = byte;
         if !identifier_byte(buffer.data[byte]) {
             byte += 1;
             continue;
         }
         while byte < buffer.data.len() && identifier_byte(buffer.data[byte]) {
+            if byte.is_multiple_of(4096) {
+                control.check()?;
+            }
             byte += 1;
         }
         let first = excluded.partition_point(|range| range.end <= start);

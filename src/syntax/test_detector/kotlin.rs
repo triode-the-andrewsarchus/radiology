@@ -30,7 +30,7 @@ const SPEC_BASES: &[&str] = &[
 
 impl Detector<'_> {
     pub(super) fn kotlin_regions(&self, root: Node<'_>, output: &mut Vec<TestRegion>) {
-        walk_regions(root, |siblings, index| {
+        walk_regions(root, self.control, |siblings, index| {
             let node = siblings[index];
             let test = match node.kind() {
                 "class_declaration" | "object_declaration" => self.kotlin_test_class(node),
@@ -62,10 +62,16 @@ impl Detector<'_> {
             return true;
         }
         for child in children(node) {
+            if self.control.is_cancelled() {
+                break;
+            }
             match child.kind() {
                 "delegation_specifiers" => {
                     let mut pending = vec![child];
                     while let Some(node) = pending.pop() {
+                        if self.control.is_cancelled() {
+                            break;
+                        }
                         if node.kind() == "user_type" {
                             let name = children(node)
                                 .into_iter()
@@ -80,6 +86,9 @@ impl Detector<'_> {
                 }
                 "class_body" => {
                     for member in children(child) {
+                        if self.control.is_cancelled() {
+                            break;
+                        }
                         let declaration = if member.kind() == "class_member_declaration" {
                             children(member).first().copied().unwrap_or(member)
                         } else {

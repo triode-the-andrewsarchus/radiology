@@ -34,6 +34,9 @@ impl Detector<'_> {
         let siblings = children(root);
         let pytest = siblings.iter().any(|node| self.imports_pytest(*node));
         for (index, node) in siblings.iter().copied().enumerate() {
+            if self.control.is_cancelled() {
+                break;
+            }
             if self.python_test(node, pytest) {
                 output.push(self.region(&siblings, index, index));
             }
@@ -101,9 +104,15 @@ impl Detector<'_> {
         let mut local = HashSet::new();
         let mut imported = HashSet::new();
         for node in &siblings {
+            if self.control.is_cancelled() {
+                break;
+            }
             self.script_bindings(*node, &mut local, &mut imported);
         }
         for (index, node) in siblings.iter().copied().enumerate() {
+            if self.control.is_cancelled() {
+                break;
+            }
             let test = match node.kind() {
                 "if_statement" => {
                     node.child_by_field_name("alternative").is_none()
@@ -201,6 +210,9 @@ impl Detector<'_> {
             }
             "lexical_declaration" | "variable_declaration" => {
                 for declaration in children(node) {
+                    if self.control.is_cancelled() {
+                        break;
+                    }
                     let known = declaration
                         .child_by_field_name("value")
                         .is_some_and(|value| self.test_require(value));
@@ -216,6 +228,9 @@ impl Detector<'_> {
             }
             "export_statement" => {
                 for child in children(node) {
+                    if self.control.is_cancelled() {
+                        break;
+                    }
                     self.script_bindings(child, local, imported);
                 }
             }
@@ -226,6 +241,9 @@ impl Detector<'_> {
     fn import_names(&self, root: Node<'_>, names: &mut HashSet<String>) {
         let mut pending = vec![root];
         while let Some(node) = pending.pop() {
+            if self.control.is_cancelled() {
+                break;
+            }
             match node.kind() {
                 "import_specifier" => {
                     if let Some(name) = node
@@ -246,6 +264,9 @@ impl Detector<'_> {
     fn pattern_names(&self, root: Node<'_>, names: &mut HashSet<String>) {
         let mut pending = vec![root];
         while let Some(node) = pending.pop() {
+            if self.control.is_cancelled() {
+                break;
+            }
             if matches!(
                 node.kind(),
                 "identifier" | "shorthand_property_identifier_pattern"
