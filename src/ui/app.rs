@@ -400,6 +400,26 @@ impl RadiologyApp {
         );
     }
 
+    fn start_repository_search(&mut self) {
+        if let Some(review) = &self.review {
+            self.repository_search
+                .start_review(review.clone(), self.search_options.clone());
+        } else if let Some(root) = &self.repository_root {
+            self.repository_search
+                .start(root, self.search_options.clone());
+        }
+    }
+
+    fn schedule_repository_search(&mut self) {
+        if let Some(review) = &self.review {
+            self.repository_search
+                .schedule_review(review.clone(), self.search_options.clone());
+        } else if let Some(root) = &self.repository_root {
+            self.repository_search
+                .schedule(root, self.search_options.clone());
+        }
+    }
+
     fn search_root(&self) -> Option<PathBuf> {
         self.review
             .as_ref()
@@ -724,10 +744,7 @@ impl eframe::App for RadiologyApp {
                                 );
                             }
                             SidebarAction::StartSearch => {
-                                if let Some(root) = self.search_root() {
-                                    self.repository_search
-                                        .start(&root, self.search_options.clone());
-                                }
+                                self.start_repository_search();
                             }
                             SidebarAction::StopSearch => self.repository_search.stop(),
                             SidebarAction::ClearSearch => {
@@ -742,11 +759,8 @@ impl eframe::App for RadiologyApp {
                     }
 
                     if previous_options != self.search_options {
-                        if let Some(root) = self.search_root() {
-                            self.repository_search
-                                .schedule(&root, self.search_options.clone());
-                            ctx.request_repaint_after(std::time::Duration::from_millis(150));
-                        }
+                        self.schedule_repository_search();
+                        ctx.request_repaint_after(std::time::Duration::from_millis(150));
                     }
 
                     if prev_tab != SidebarTab::Changes && self.sidebar_tab == SidebarTab::Changes {
