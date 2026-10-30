@@ -7,6 +7,7 @@
 
 mod critical_hover;
 mod critical_menu;
+mod reference_callers;
 mod source_preview;
 
 pub mod app;

@@ -112,7 +112,7 @@ pub fn take_shortcuts(ctx: &Context, modal_open: bool, reader_focused: bool) -> 
 /// Consumes recognized key presses in event order, preserving all other input.
 pub(crate) fn take_key_actions<T>(
     ctx: &Context,
-    resolve: impl Fn(Key, Modifiers) -> Option<T>,
+    mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
 ) -> Vec<T> {
     let mut commands = Vec::new();
     ctx.input_mut(|input| {

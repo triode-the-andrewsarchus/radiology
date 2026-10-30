@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Virtualized caller disclosure UI (Codex)
+
+Expanded references now render validated caller paths, stable identity colors,
+boundary notes, partial notices and Trace More. Deep levels cap visual indentation
+and preserve full depth in labels/tooltips. Visible-slice painting shares the
+reference scroll area. Right again focuses loaded callers; ordered Up/Down,
+Home/End, Return/Space, Left and Escape preserve inspector ownership. Trace
+expansion retains old rows; disappearing controls restore list focus. Three new
+pointer/virtualization/keyboard tests pass. Full gates pass 261 app tests (one
+external-Clang ignored), 5 reader-text tests, 30 doctests, fmt, Clippy, build and
+rustdoc. Native acceptance is underway. Architecture reports no new product
+hotspot/cycle and unchanged maximum complexity; short clone reports remain.
+
 ## 2026-10-30 — Caller disclosure ownership and guarded navigation (Codex)
 
 ReferenceDisclosure now owns independent excerpt and caller jobs together.

@@ -36,11 +36,14 @@ pub enum ReferenceAction {
 #[derive(Default)]
 pub struct ReferenceViewport {
     rows: RowHeights,
-    expanded: BTreeMap<usize, usize>,
+    expanded: BTreeMap<usize, (usize, usize)>,
     geometry: Option<(usize, f32, f32)>,
     groups: BTreeMap<usize, usize>,
     reveal: bool,
     focus_after_registration: bool,
+    caller_controls: Vec<(Id, ReferenceAction)>,
+    reveal_caller: Option<(usize, usize)>,
+    pending_caller_focus: Option<Id>,
 }
 
 impl ReferenceViewport {
@@ -88,9 +91,20 @@ impl ReferenceViewport {
         self.reveal = true;
     }
 
-    pub(crate) fn take_actions(ctx: &Context) -> Vec<ReferenceAction> {
+    pub(crate) fn focus_callers(&mut self, reference: usize) -> bool {
+        let id = super::reference_callers::control_id(reference, Some(0));
+        if self.caller_controls.iter().any(|control| control.0 == id) {
+            self.pending_caller_focus = Some(id);
+            self.reveal_caller = Some((reference, 0));
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn take_actions(&mut self, ctx: &Context) -> Vec<ReferenceAction> {
         if !ctx.memory(|memory| memory.has_focus(Self::focus_id())) {
-            return Vec::new();
+            return self.take_caller_actions(ctx);
         }
         super::commands::take_key_actions(ctx, |key, modifiers| {
             if modifiers != Modifiers::NONE {
@@ -108,6 +122,100 @@ impl ReferenceViewport {
         })
     }
 
+    fn configure_caller_controls(
+        &mut self,
+        ctx: &Context,
+        disclosures: &BTreeMap<usize, ReferenceDisclosure>,
+    ) {
+        let mut controls = Vec::new();
+        for (&reference, disclosure) in disclosures {
+            if let Some(tree) = disclosure.callers() {
+                controls.extend((0..tree.rows.len()).map(|caller| {
+                    (
+                        super::reference_callers::control_id(reference, Some(caller)),
+                        ReferenceAction::CommitCaller(reference, caller),
+                    )
+                }));
+                if tree.has_more {
+                    controls.push((
+                        super::reference_callers::control_id(reference, None),
+                        ReferenceAction::MoreCallers(reference),
+                    ));
+                }
+            }
+        }
+        let focused = ctx.memory(|memory| memory.focused());
+        if focused.is_some_and(|id| {
+            self.caller_controls.iter().any(|control| control.0 == id)
+                && !controls.iter().any(|control| control.0 == id)
+        }) {
+            self.focus_after_registration = true;
+        }
+        self.caller_controls = controls;
+    }
+
+    fn take_caller_actions(&mut self, ctx: &Context) -> Vec<ReferenceAction> {
+        let focused = ctx.memory(|memory| memory.focused());
+        let Some(mut index) = self
+            .caller_controls
+            .iter()
+            .position(|control| Some(control.0) == focused)
+        else {
+            return Vec::new();
+        };
+        let mut focus_list = false;
+        let mut reveal = false;
+        let actions = super::commands::take_key_actions(ctx, |key, modifiers| {
+            if modifiers != Modifiers::NONE {
+                return None;
+            }
+            let reference = match self.caller_controls[index].1 {
+                ReferenceAction::CommitCaller(reference, _)
+                | ReferenceAction::MoreCallers(reference) => reference,
+                _ => unreachable!(),
+            };
+            match key {
+                Key::Enter | Key::Space => Some(self.caller_controls[index].1.clone()),
+                Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
+                    index = if key == Key::Home {
+                        0
+                    } else if key == Key::End {
+                        self.caller_controls.len() - 1
+                    } else if key == Key::ArrowDown {
+                        (index + 1).min(self.caller_controls.len() - 1)
+                    } else {
+                        index.saturating_sub(1)
+                    };
+                    reveal = true;
+                    Some(ReferenceAction::Select(reference))
+                }
+                Key::ArrowLeft => {
+                    focus_list = true;
+                    Some(ReferenceAction::SetExpanded(reference, false))
+                }
+                Key::Escape => {
+                    focus_list = true;
+                    Some(ReferenceAction::Select(reference))
+                }
+                Key::ArrowRight => Some(ReferenceAction::Select(reference)),
+                _ => None,
+            }
+        });
+        if focus_list {
+            ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+        } else if reveal {
+            let (id, action) = &self.caller_controls[index];
+            let (reference, caller) = match *action {
+                ReferenceAction::CommitCaller(reference, caller) => (reference, caller),
+                ReferenceAction::MoreCallers(reference) => (reference, usize::MAX),
+                _ => unreachable!(),
+            };
+            self.reveal_caller = Some((reference, caller));
+            ctx.memory_mut(|memory| memory.request_focus(*id));
+        }
+        actions
+    }
+
     pub(crate) fn show(
         &mut self,
         ui: &mut Ui,
@@ -116,6 +224,7 @@ impl ReferenceViewport {
         selected: Option<usize>,
         previews: &BTreeMap<usize, ReferenceDisclosure>,
     ) -> Option<ReferenceAction> {
+        self.configure_caller_controls(ui.ctx(), previews);
         ui.interact(
             ui.available_rect_before_wrap(),
             Self::focus_id(),
@@ -125,6 +234,9 @@ impl ReferenceViewport {
         // otherwise surrender focus requested by the coverage button above it.
         if std::mem::take(&mut self.focus_after_registration) {
             ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+        }
+        if let Some(id) = self.pending_caller_focus.take() {
+            ui.memory_mut(|memory| memory.request_focus(id));
         }
         ui.memory_mut(|memory| {
             memory.set_focus_lock_filter(
@@ -147,6 +259,20 @@ impl ReferenceViewport {
                 scroll = scroll.vertical_scroll_offset(self.rows.offset(row));
             }
             self.reveal = false;
+        }
+        if let Some((reference, caller)) = self.reveal_caller.take() {
+            if let Some(disclosure) = previews.get(&reference) {
+                let offset = self.rows.offset(reference)
+                    + 24.0
+                    + 24.0 * f32::from(self.groups.contains_key(&reference))
+                    + super::source_preview::height(disclosure.phase())
+                    + super::reference_callers::HEADER_HEIGHT
+                    + caller.min(disclosure.callers().map_or(0, |tree| tree.rows.len())) as f32
+                        * super::reference_callers::ROW_HEIGHT;
+                scroll = scroll.vertical_scroll_offset(
+                    (offset - super::reference_callers::ROW_HEIGHT).max(0.0),
+                );
+            }
         }
         let mut action = None;
         scroll.show_viewport(ui, |ui, visible| {
@@ -172,6 +298,16 @@ impl ReferenceViewport {
                 }
                 if let Some(preview) = previews.get(&index) {
                     super::source_preview::show(ui, theme, preview.phase());
+                    if let Some(next) = super::reference_callers::show(
+                        ui,
+                        theme,
+                        index,
+                        preview.callers(),
+                        preview.callers_loading(),
+                        preview.caller_error(),
+                    ) {
+                        action = Some(next);
+                    }
                 }
                 self.rows
                     .set_height(index, (ui.cursor().top() - top).max(24.0));
@@ -230,11 +366,15 @@ impl ReferenceViewport {
                     3 + preview.lines.len() * 2 + usize::from(preview.truncated)
                 }
             };
+            let caller_height =
+                super::reference_callers::height(preview.callers(), preview.caller_error());
+            let signature = (signature, caller_height as usize);
             if row < geometry.0 && self.expanded.get(&row) != Some(&signature) {
                 self.rows.set_height(
                     row,
                     24.0 + 24.0 * f32::from(self.groups.contains_key(&row))
-                        + super::source_preview::height(preview.phase()),
+                        + super::source_preview::height(preview.phase())
+                        + caller_height,
                 );
             }
             self.expanded.insert(row, signature);
@@ -436,6 +576,70 @@ fn render_group(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn caller_keys_preserve_order_and_return_focus_to_the_parent_list() {
+        let ctx = Context::default();
+        let mut viewport = ReferenceViewport::default();
+        let ids = [
+            super::super::reference_callers::control_id(4, Some(0)),
+            super::super::reference_callers::control_id(4, Some(1)),
+        ];
+        viewport.caller_controls = ids
+            .iter()
+            .enumerate()
+            .map(|(row, id)| (*id, ReferenceAction::CommitCaller(4, row)))
+            .collect();
+        let mut frame = |keys: &[Key]| {
+            let mut actions = Vec::new();
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: keys
+                        .iter()
+                        .map(|&key| Event::Key {
+                            key,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: Modifiers::NONE,
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+                |ctx| {
+                    actions = viewport.take_actions(ctx);
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.interact(
+                            ui.available_rect_before_wrap(),
+                            ReferenceViewport::focus_id(),
+                            Sense::focusable_noninteractive(),
+                        );
+                        for id in ids {
+                            let (rect, _) =
+                                ui.allocate_exact_size(egui::vec2(200.0, 44.0), Sense::hover());
+                            ui.interact(rect, id, Sense::click());
+                        }
+                    });
+                },
+            );
+            actions
+        };
+        frame(&[]);
+        ctx.memory_mut(|memory| memory.request_focus(ids[0]));
+        assert_eq!(
+            frame(&[Key::ArrowDown, Key::Enter]),
+            [
+                ReferenceAction::Select(4),
+                ReferenceAction::CommitCaller(4, 1)
+            ]
+        );
+        assert!(ctx.memory(|memory| memory.has_focus(ids[1])));
+        assert_eq!(
+            frame(&[Key::ArrowLeft]),
+            [ReferenceAction::SetExpanded(4, false)]
+        );
+        assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
+    }
     use egui::Event;
     fn test_hit(index: usize) -> ReferenceHit {
         ReferenceHit {
@@ -575,7 +779,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    actions = ReferenceViewport::take_actions(ctx);
+                    actions = viewport.take_actions(ctx);
                     egui::CentralPanel::default().show(ctx, |ui| {
                         viewport.show(ui, &AppTheme::dark(), &results, Some(0), &BTreeMap::new());
                     });
