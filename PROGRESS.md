@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Native child-held PR-store lease acceptance (Codex)
+
+Implementation `2fe0b11` is pushed. A live native materializer retains the private
+writer descriptor after its app is deliberately killed. A new app waits while its
+checkout reader stays usable; an independent lock probe gets WouldBlock and no
+second materialization starts. Cancel retires only that waiting request. Retiring
+and reaping the owned orphan releases the lease; fresh preparation opens pinned
+PR #7. Checkout HEAD/status/bytes remain unchanged. Reopened app and compositors
+exit zero; the initial app's -9 status is intentional. [Contract and hashed evidence](plans/rust-pr-store-recovery.md).
+Full gates pass 371 app tests, eight shared tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc. Architecture neutral with no new problems or clone/cycle growth.
+Full parity remains open: proven tree reuse/active-snapshot leases/bounded retention
+(including the crash-left tree), broader corrupt-store recovery, complete index
+provenance/provisioning/pinned After indexing, refresh mapping and final
+UI/accessibility/scaling/font/sibling reuse acceptance. Commit and push each increment.
+
 ## 2026-10-30 — Serialized private PR stores and lock-safe recovery (Codex)
 
 Each preparation holds one stable private-store advisory writer lease, with

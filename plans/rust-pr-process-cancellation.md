@@ -105,8 +105,9 @@ Valknut's own CCN changes 13→14 with explicit cancellation checks. Shared coll
 removes duplicated runner-consumer logic. No new accidental structural regression
 is evidenced by the flagged findings.
 
-Cache retention/eviction, concurrent private-store preparation and recovery from
-Git-created stale lock files need broader acceptance. Worktree pruning is not a
+[Private-store writer ownership](rust-pr-store-recovery.md) now serializes preparation
+and surviving children, stages initialization and handles tested legacy/missing-tree
+recovery. Complete cache retention/eviction and broader corrupt-store recovery remain open. Worktree pruning is not a
 promise to recover every interrupted Git metadata/lock state. Successful repeated
 preparation currently retains independent trees, including unchanged-head refreshes;
 reusing proven complete trees belongs with cache provenance/retention work.
