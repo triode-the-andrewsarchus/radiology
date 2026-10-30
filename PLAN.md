@@ -53,8 +53,8 @@ source-line hits, definition/reference counts, coverage, expandable queries and
 native keyboard/navigation acceptance.
 
 [Inspector metadata and implementation context](plans/rust-inspector-metadata.md)
-records bounded under-caret facts, scoped local/package explanations and current
-background/UI integration status.
+records background under-caret facts, scoped local/package explanations, parsed
+implementation type links and native definition/navigation acceptance.
 
 [Inspector source previews and navigation](plans/rust-inspector-previews.md) records
 bounded source excerpts, independent reference selection/disclosure/commit,

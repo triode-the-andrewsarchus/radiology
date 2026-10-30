@@ -84,6 +84,10 @@ and the remaining generation/cache requirements.
   disclosures, visible-slice painting, branch/boundary notes, Trace More,
   digest-guarded navigation and pre-frame keyboard ownership. Native caller
   Return/Back, expansion and F12 acceptance pass. [Callers](rust-incoming-callers.md).
+- Background under-caret metadata shows bounded signatures/prose, kinds, indexed
+  counts, local scope/source context, Here/package/unavailable states and exact
+  alternative destinations. Parsed impl/extension type links feed references.
+  Native Return/Back and type F12 acceptance pass. [Inspector metadata](rust-inspector-metadata.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -107,8 +111,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
-- Richer under-caret metadata, extension/implementation links, external/local
-  explanations and broader inspector keyboard/corpus/scaling acceptance.
+- Broader inspector keyboard/outline/bookmark/accessibility parity, mixed-language
+  and long-name corpus, pinned-review and light/dark/scaling acceptance.
+  Background metadata, local/package explanations and impl/extension type links
+  are integrated; see [metadata acceptance](rust-inspector-metadata.md).
   Source excerpts, validated caller trees and reference selection/disclosure/commit
   are integrated; [preview contract and remaining scope](rust-inspector-previews.md).
 - Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.

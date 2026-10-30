@@ -127,5 +127,6 @@ registration idioms rather than a duplicate caller or navigation mechanism.
   and narrow-window native acceptance, plus side-by-side Swift visual checks.
 - Request/revisit cache reuse and finer native-read/parse interruption as part
   of the full reader lifecycle work.
-- Richer under-caret metadata, extension/implementation links, external/local
-  explanations and outline/bookmark keyboard parity.
+- Background metadata, impl/extension links and local/package explanations are
+  now integrated in [metadata acceptance](rust-inspector-metadata.md).
+  Outline/bookmark keyboard parity and broader inspector acceptance remain.
