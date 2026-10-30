@@ -189,6 +189,7 @@ impl RadiologyApp {
     ///
     /// Embedded hosts can call this without constructing an eframe window.
     pub fn poll_source(&mut self, ctx: &Context) {
+        self.poll_under_caret_context(ctx);
         if self.definition_preview.poll() {
             ctx.request_repaint();
         }
