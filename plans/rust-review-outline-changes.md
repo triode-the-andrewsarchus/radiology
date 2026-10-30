@@ -89,7 +89,8 @@ are not final mapping acceptance.
 
 ## Remaining scope
 
-Transient destination feedback, enclosing-function shading, finer fold/import
+Transient destination feedback is now integrated; see its
+[acceptance contract](rust-destination-feedback.md). Enclosing-function shading, finer fold/import
 presentation, broad language/long-name/scaling/accessibility/native restart and
 side-by-side Swift audits remain open. So do the larger request/revisit caches,
 background repository work, index/tool lifecycle, PR refresh/cancellation/cache
