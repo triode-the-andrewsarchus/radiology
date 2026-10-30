@@ -84,3 +84,12 @@ Normal/Critical mode, with exact semantic targeting, durable lifecycle and resta
 acceptance. See [mark contract and verification](rust-critical-marks.md). Earlier
 statements that reader overrides are empty or menus remain absent are superseded.
 Call graph/frontier and hover/fold annotations remain open.
+
+## Source fold counts (2026-10-30)
+
+Parsed lexical summaries and bounded graph frontiers now run in snapshot-bound
+background workers and annotate collapsed source functions. Coverage remains
+explicit (`n+`/no body), hidden-line detail is retained, and no inspector/outline
+count section is added. [Contract and native evidence](rust-call-graph.md). Hover
+and progressive sweep publication remain open. Earlier call-graph/fold-count
+absence statements are superseded by this implementation.

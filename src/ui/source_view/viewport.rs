@@ -42,6 +42,7 @@ pub(super) struct CanvasContent<'a> {
     pub mode: SourceMode,
     pub mark_context: Option<crate::critical::menu::MarkContext<'a>>,
     pub projection: Option<&'a crate::critical::SourceProjection>,
+    pub annotations: Option<&'a crate::critical::annotations::SourceAnnotations>,
     pub buffer: &'a SourceBuffer,
     pub highlights: &'a [Vec<HighlightedSpan>],
     pub caret_line: &'a mut usize,
@@ -1070,18 +1071,74 @@ fn paint_gutter(
         Rect::from_min_size(rect.min, vec2(10.0, 12.0)),
         theme.text_muted,
     );
+    let hidden = fold.end_line.saturating_sub(fold.start_line);
+    let annotation = (content.mode == SourceMode::Critical)
+        .then_some(content.annotations)
+        .flatten()
+        .and_then(|annotations| annotations.at_line(content.buffer, part.line));
     if collapsed {
-        painter.text(
-            rect.right_top(),
-            egui::Align2::RIGHT_TOP,
-            fold.end_line.saturating_sub(fold.start_line).to_string(),
-            FontId::proportional(10.0),
-            theme.text_secondary,
-        );
+        paint_fold_count(painter, surface, row, hidden, annotation, theme);
     }
-    ui.interact(rect, Id::new(("source_fold", part.line)), Sense::click())
+    let tooltip = if collapsed {
+        annotation.map_or_else(
+            || format!("Collapsed block — {hidden} lines hidden; click to expand"),
+            |annotation| {
+                format!(
+                    "Collapsed function — {hidden} lines hidden · {}",
+                    annotation.detail
+                )
+            },
+        )
+    } else {
+        "Click to collapse this block".into()
+    };
+    let hit = Rect::from_min_max(rect.min, pos2(surface.left() + 58.0, rect.bottom()));
+    let response = ui.interact(hit, Id::new(("source_fold", part.line)), Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, &tooltip));
+    response
+        .on_hover_text(tooltip)
         .clicked()
         .then_some(SourceViewAction::ToggleFold(part.line))
+}
+
+fn paint_fold_count(
+    painter: &egui::Painter,
+    surface: Rect,
+    row: Rect,
+    hidden: usize,
+    annotation: Option<&crate::critical::annotations::FoldAnnotation>,
+    theme: &AppTheme,
+) {
+    let rect = Rect::from_min_size(
+        pos2(surface.left() + 26.0, row.top() + 2.0),
+        vec2(30.0, 17.0),
+    );
+    let (label, color) = annotation.map_or_else(
+        || (hidden.to_string(), theme.text_secondary),
+        |annotation| {
+            let emphasized = annotation.count.completeness
+                == crate::critical::CountCompleteness::Partial
+                || annotation.count.count > 0;
+            (
+                annotation.count.label(),
+                if emphasized {
+                    theme.accent
+                } else {
+                    theme.text_muted
+                },
+            )
+        },
+    );
+    if annotation.is_some() {
+        painter.rect_stroke(rect, 3.0_f32, Stroke::new(1.0_f32, color));
+    }
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(10.0),
+        color,
+    );
 }
 
 fn measured_height(
@@ -1153,6 +1210,7 @@ mod tests {
         test_code: crate::source::test_code::TestCodePresentation,
         mode: SourceMode,
         projection: Option<crate::critical::SourceProjection>,
+        annotations: crate::critical::annotations::CriticalAnnotations,
         highlights: Vec<Vec<HighlightedSpan>>,
     }
 
@@ -1172,6 +1230,7 @@ mod tests {
                 test_code: Default::default(),
                 mode: SourceMode::Normal,
                 projection: None,
+                annotations: Default::default(),
                 highlights: Vec::new(),
             }
         }
@@ -1193,6 +1252,7 @@ mod tests {
                                 mode: self.mode,
                                 mark_context: None,
                                 projection: self.projection.as_ref(),
+                                annotations: self.annotations.current(&self.source),
                                 buffer: &self.source,
                                 highlights: &self.highlights,
                                 caret_line: &mut self.line,
@@ -1250,6 +1310,71 @@ mod tests {
                 _ => None,
             })
             .expect("painted source text")
+    }
+
+    #[test]
+    fn collapsed_critical_count_is_distinct_from_hidden_lines_and_preserves_fold_clicks() {
+        use crate::critical::{annotations::CriticalAnnotations, worker::GraphInputs};
+        use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("fn f() {\n open();\n}\n");
+        let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+        reader.ranges = syntax.folds;
+        reader.folds.toggle(1);
+        let mut annotations = CriticalAnnotations::default();
+        annotations.start(
+            GraphInputs {
+                source: crate::source::loader::SourceRead::Buffer(Arc::new(reader.source.clone())),
+                buffer: Arc::new(reader.source.clone()),
+                calls: Arc::new(syntax.calls),
+                index: Arc::new(SemanticIndex::from_scip(ScipIndex {
+                    documents: vec![ScipDocument {
+                        relative_path: reader.source.path.clone(),
+                        occurrences: vec![ScipOccurrence {
+                            symbol: "rust-analyzer cargo std 0 fs/open().".into(),
+                            range: ScipRange::from_packed(&[1, 1, 5]),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })),
+                overrides: Default::default(),
+            },
+            reader.ranges.clone(),
+        );
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while annotations.is_running() {
+            annotations.poll();
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        reader.annotations = annotations;
+        let normal = reader.frame(&ctx, Vec::new());
+        let (_, hidden) = text_shape(&normal, "2");
+        assert_eq!(hidden.job.text, "2");
+        reader.mode = SourceMode::Critical;
+        let critical = reader.frame(&ctx, Vec::new());
+        // The source line number is also 1; find the count in its proportional font.
+        let count = critical
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text)
+                    if text.galley.job.text == "1"
+                        && text.galley.job.sections[0].format.font_id.family
+                            == egui::FontFamily::Proportional =>
+                {
+                    Some(text.pos)
+                }
+                _ => None,
+            })
+            .expect("reachable critical count");
+        reader.frame(&ctx, pointer(count + vec2(2.0, 2.0), true));
+        reader.frame(&ctx, pointer(count + vec2(2.0, 2.0), false));
+        assert!(!reader.folds.is_folded(1));
+        assert_eq!(reader.source.text, "fn f() {\n open();\n}\n");
+        assert_eq!((reader.line, reader.column), (1, 0));
     }
 
     #[test]

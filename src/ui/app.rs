@@ -106,6 +106,7 @@ pub struct RadiologyApp {
     pub semantic_index: Option<Arc<SemanticIndex>>,
     call_sites: Arc<crate::syntax::calls::CallSites>,
     critical_lens: crate::critical::service::CriticalLens,
+    critical_annotations: crate::critical::annotations::CriticalAnnotations,
     critical_marks: crate::critical::marks::MarkSession,
     /// Configurable tool lookup context shared by probes and generation.
     pub index_tools: crate::semantic::indexing::tools::ToolDirectory,
@@ -223,6 +224,7 @@ impl RadiologyApp {
             semantic_index: None,
             call_sites: Default::default(),
             critical_lens: Default::default(),
+            critical_annotations: Default::default(),
             critical_marks,
             index_tools,
             index_importer: Default::default(),
@@ -453,6 +455,7 @@ impl RadiologyApp {
         self.pin_store.clear();
         self.call_sites = Default::default();
         self.critical_lens.stop();
+        self.critical_annotations.stop();
         self.fold_store.unfold_all();
         self.fold_ranges.clear();
         self.outline_symbols.clear();
@@ -626,6 +629,7 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.cancel_source_load();
+        self.critical_annotations.stop();
         self.index_generator.stop();
         self.index_importer.stop();
         if let Err(error) = self.flush_critical_marks(std::time::Duration::from_secs(10)) {
@@ -998,6 +1002,7 @@ impl eframe::App for RadiologyApp {
                             }),
                             mark_error: self.critical_marks.error(),
                             projection: self.critical_lens.projection(&buf),
+                            annotations: self.critical_annotations.current(&buf),
                             critical_status: self.critical_status(),
                             buffer: &buf,
                             highlighted_lines: &self.highlighted_lines,
