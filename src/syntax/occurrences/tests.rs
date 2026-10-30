@@ -1,4 +1,5 @@
 use super::*;
+use crate::source::ReviewRevision;
 
 #[test]
 fn occurrence_queries_compile_for_every_native_grammar() {

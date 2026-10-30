@@ -4,6 +4,30 @@ use crate::source::location::{ColumnEncoding, ReviewRevision, SourceLocation};
 use std::ops::Range;
 use thiserror::Error;
 
+/// Canonical ownership key for immutable derived source facts.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct SourceIdentity {
+    path: String,
+    revision: Option<ReviewRevision>,
+    digest: String,
+}
+
+impl SourceIdentity {
+    pub(crate) fn new(buffer: &SourceBuffer) -> Self {
+        Self {
+            path: buffer.path.clone(),
+            revision: buffer.revision,
+            digest: buffer.content_digest().to_owned(),
+        }
+    }
+
+    pub(crate) fn matches(&self, buffer: &SourceBuffer) -> bool {
+        self.path == buffer.path
+            && self.revision == buffer.revision
+            && self.digest == buffer.content_digest()
+    }
+}
+
 /// Describes errors that can occur when loading or validating a [`SourceBuffer`].
 #[derive(Error, Debug)]
 pub enum SourceBufferError {

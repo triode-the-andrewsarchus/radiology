@@ -1,0 +1,26 @@
+; Native kotlin-ng roles completing the shared exclusion captures.
+(class_declaration name: (identifier) @type)
+(object_declaration name: (identifier) @type)
+(user_type (identifier) @type)
+(package_header (qualified_identifier) @namespace)
+(parameter (identifier) @variable.parameter)
+(class_parameter (identifier) @property)
+(class_body (property_declaration (variable_declaration (identifier) @property)))
+(enum_entry (identifier) @constant)
+(navigation_expression (identifier) @property .)
+(function_declaration name: (identifier) @function)
+(call_expression . (identifier) @function.call)
+(call_expression (navigation_expression (identifier) @function.method .))
+(secondary_constructor "constructor" @constructor)
+(anonymous_initializer "init" @constructor)
+(getter "get" @function)
+(setter "set" @function)
+(escape_sequence) @string.escape
+((identifier) @constant.builtin (#any-of? @constant.builtin "true" "false" "null"))
+["this" "super"] @variable.builtin
+(label) @label
+(type_alias type: (identifier) @type)
+((identifier) @keyword.return (#any-of? @keyword.return "break" "continue"))
+(annotation "@" @attribute)
+(annotation (user_type (identifier) @attribute))
+(annotation (constructor_invocation (user_type (identifier) @attribute)))

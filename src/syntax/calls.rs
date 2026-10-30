@@ -97,9 +97,7 @@ pub struct CallSites {
     pub supported: bool,
     /// Query compilation/limit failure, distinct from an unsupported language.
     pub error: Option<String>,
-    path: String,
-    revision: Option<crate::source::ReviewRevision>,
-    content_digest: String,
+    identity: Option<crate::source::buffer::SourceIdentity>,
 }
 
 impl CallSites {
@@ -117,9 +115,7 @@ impl CallSites {
                 parse_errors: root.has_error(),
                 supported: true,
                 error: None,
-                path: buffer.path.clone(),
-                revision: buffer.revision,
-                content_digest: buffer.content_digest().to_owned(),
+                identity: Some(crate::source::buffer::SourceIdentity::new(buffer)),
             },
             Err(error) => Self {
                 error: Some(error),
@@ -131,9 +127,10 @@ impl CallSites {
     #[must_use]
     pub fn matches(&self, buffer: &crate::source::SourceBuffer) -> bool {
         self.supported
-            && self.path == buffer.path
-            && self.revision == buffer.revision
-            && self.content_digest == buffer.content_digest()
+            && self
+                .identity
+                .as_ref()
+                .is_some_and(|identity| identity.matches(buffer))
     }
 }
 
