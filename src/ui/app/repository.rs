@@ -40,6 +40,7 @@ impl RadiologyApp {
         // A newer root supersedes any unaccepted review intent, while retaining
         // the currently accepted checkout/review until discovery succeeds.
         self.cancel_review_preparation();
+        self.recent_pull_requests.cancel();
         let path = request.path.clone();
         let filters = self.session.source_filters.clone();
         self.pending_repository = Some(request);
@@ -107,6 +108,7 @@ impl RadiologyApp {
             .to_string();
 
         self.repository_root = Some(root.clone());
+        self.recent_pull_requests.open(root.clone());
         self.critical_marks.open(root.clone());
         self.repository_name = Some(name);
         self.session.active_pr = None;

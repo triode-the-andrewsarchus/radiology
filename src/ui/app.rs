@@ -163,6 +163,7 @@ pub struct RadiologyApp {
     pub review: Option<Arc<ReviewSnapshot>>,
     /// Review preparation currently running outside the UI thread.
     review_job: crate::background::LatestRead<Result<ReviewSnapshot, String>>,
+    recent_pull_requests: crate::pull_request::recent::RecentPullRequests,
     /// Pull request being prepared while the current reader remains usable.
     pub pending_pr: Option<usize>,
     /// Explicit launch file to select after asynchronous review preparation.
@@ -287,6 +288,7 @@ impl RadiologyApp {
             active_pr: None,
             review: None,
             review_job: Default::default(),
+            recent_pull_requests: Default::default(),
             pending_pr: None,
             pending_open_file: None,
             pr_changes: Vec::new(),
@@ -513,6 +515,8 @@ impl eframe::App for RadiologyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.cancel_repository_open();
         self.cancel_source_load();
+        self.cancel_review_preparation();
+        self.recent_pull_requests.cancel();
         self.reference_context = Default::default();
         self.reset_previews();
         self.critical_annotations.stop();
@@ -528,6 +532,7 @@ impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_repository(ctx);
         self.poll_review(ctx);
+        self.poll_recent_pull_requests(ctx);
         self.poll_source(ctx);
         self.poll_git_refresh(ctx);
         self.poll_index(ctx);
@@ -628,8 +633,13 @@ impl eframe::App for RadiologyApp {
                 self.repository_name.as_deref(),
                 self.branch_name.as_deref(),
                 &self.session.recent_repositories,
-                self.active_pr.as_ref(),
-                self.active_revision,
+                crate::ui::pull_request_menu::PullRequestMenu {
+                    active: self.active_pr.as_ref(),
+                    pending: self.pending_pr,
+                    recent: self.recent_pull_requests.items(),
+                    phase: self.recent_pull_requests.phase(),
+                    enabled: self.can_choose_review(),
+                },
                 self.mode,
                 &self.session.source_filters,
                 self.session.wrap_lines,

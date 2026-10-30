@@ -36,6 +36,28 @@ impl RadiologyApp {
         }
     }
 
+    pub(super) fn can_choose_review(&self) -> bool {
+        self.repository_root.is_some() && !self.is_repository_opening()
+    }
+
+    pub(super) fn show_pull_request_prompt(&mut self) {
+        if self.can_choose_review() {
+            let number = self
+                .active_pr
+                .as_ref()
+                .or_else(|| self.recent_pull_requests.items().first())
+                .map(|pr| pr.number);
+            self.modal = ActiveModal::PullRequest(PullRequestModal::new(number));
+        }
+    }
+
+    pub(super) fn poll_recent_pull_requests(&mut self, ctx: &Context) {
+        self.recent_pull_requests.poll();
+        if self.recent_pull_requests.is_loading() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        }
+    }
+
     /// Starts review preparation without blocking the source reader.
     ///
     /// Replacement, cancellation and repository switches retire publication and
@@ -93,14 +115,15 @@ impl RadiologyApp {
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
+        self.recent_pull_requests.remember(&snapshot.summary);
         self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
-        if self
-            .review
-            .as_ref()
-            .is_some_and(|old| old.head == snapshot.head && old.base == snapshot.base)
-        {
+        if self.review.as_ref().is_some_and(|old| {
+            old.summary.number == snapshot.summary.number
+                && old.head == snapshot.head
+                && old.base == snapshot.base
+        }) {
             self.active_pr = Some(snapshot.summary.clone());
             self.review = Some(Arc::new(snapshot));
             return;

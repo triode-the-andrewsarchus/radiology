@@ -20,6 +20,7 @@ pub mod context_inspector;
 pub mod icons;
 pub mod modals;
 pub mod outline_list;
+pub mod pull_request_menu;
 pub mod reference_list;
 pub mod sidebar;
 pub mod source_find;

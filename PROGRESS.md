@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-30 — Recent PR chooser and compact review controls (Codex)
+
+RecentPullRequests owns a cancellable repository-scoped 25-entry list independently
+of review preparation. Automatic load, separate Refresh List/Cancel, retained data
+on failure/cancel, honest empty/unavailable states and stale-root retirement use
+LatestRead and the bounded GitHub process path. Invalid/duplicate/overflow lists
+are rejected. The compact toolbar menu shows number/title/state, current-review
+fallback, Local Checkout, separate Refresh PR and a visible Exit PR. Rendering
+borrows data and returns shared commands for standalone/embedded reuse. Long titles
+wrap; keyboard focus reveals scrolled choices. The number prompt pre-fills active/
+recent numbers, rejects invalid/zero/overflow input and keeps Cancel keyboard focus.
+Selecting another PR with identical commits now changes bookmark/session scope.
+Full checks pass 364 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc; targeted model/UI checks
+pass after test-fixture reuse. Architecture adds no function complexity hotspot;
+clone groups decrease 91→90. Four compare flags are verified unchanged baseline
+modal/test fragments. Native chooser/list Cancel/failure/recovery acceptance is next.
+Full parity remains open: cache retention/concurrent Git-store lock recovery,
+index provenance/provisioning/pinned After indexing, PR refresh mapping and final
+UI/accessibility/scaling/sibling integration acceptance. Commit and push each increment.
+
 ## 2026-10-30 — Native PR process cancellation acceptance (Codex)
 
 Implementation `a651a8b` is pushed. The native PR prompt starts controlled metadata
