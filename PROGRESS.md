@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Critical Lens call facts and semantic projection backend (Codex)
+
+Native source analysis shares its parse with call queries, reusing Swift resources
+and adapting kotlin-ng/C nodes. Facts retain exact source/revision identity and
+query coverage/errors. A pure projection now matches Swift's call-focused rule:
+critical and unknown syntactic callees remain prominent; resolved ordinary calls
+and non-call bytes recede. Encoded ranges, source digests, Before isolation,
+scoped identities and existing override precedence are preserved. Shared SCIP
+header/descriptor mechanisms replace last-space descriptor guessing.
+
+Verification: 154 application tests, 5 reader-text tests, 30 doctests, fmt and
+Clippy pass. All linked call queries compile; fixtures cover macros/dynamic calls,
+Unicode, stale data, overrides and exact identity. Renderer/worker integration
+follows separately; the old viewport heuristic is still present at this commit.
+Full Critical Lens and full parity remain open. [Critical Lens state](plans/rust-critical-lens.md).
+
 ## 2026-10-28 — Reader pin restoration and group controls (Codex)
 
 Integrated store `8987675` at atomic source publication: leaving/returning restores
