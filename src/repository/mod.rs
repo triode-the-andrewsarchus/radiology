@@ -10,6 +10,7 @@ pub mod classifier;
 pub mod discovery;
 pub mod file_node;
 pub mod filters;
+pub(crate) mod git_refresh;
 pub mod quick_search;
 
 pub use classifier::{SourceFileClassifier, TestPathClassifier};

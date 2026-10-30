@@ -43,6 +43,8 @@ impl RadiologyApp {
         let Some((root, cache)) = self.cached_repository() else {
             return;
         };
+        self.git_refresh.stop();
+        self.git_error = None;
         let (sender, receiver) = std::sync::mpsc::channel();
         self.review_rx = Some(receiver);
         self.pending_pr = Some(number);
@@ -79,6 +81,8 @@ impl RadiologyApp {
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
+        self.git_refresh.stop();
+        self.git_error = None;
         if self
             .review
             .as_ref()

@@ -3,6 +3,7 @@
 mod actions;
 mod bookmarks;
 mod critical_marks;
+mod git;
 mod indexing;
 mod outline;
 mod references;
@@ -19,7 +20,7 @@ use std::sync::Arc;
 use crate::bookmarks::store::{BookmarkScope, BookmarkStore};
 use crate::critical::lens::SourceMode;
 use crate::pull_request::change::FileChange;
-use crate::pull_request::diff::{FileLineChanges, UnifiedDiffParser};
+use crate::pull_request::diff::FileLineChanges;
 use crate::pull_request::github::{GitHubClient, PullRequestSummary};
 use crate::pull_request::review::ReviewSnapshot;
 use crate::repository::discovery::RepositoryDiscovery;
@@ -71,6 +72,9 @@ pub struct RadiologyApp {
     pub repository_name: Option<String>,
     /// Current Git branch name if inside a repository.
     pub branch_name: Option<String>,
+    git_refresh:
+        crate::background::LatestRead<Result<crate::repository::git_refresh::GitSnapshot, String>>,
+    git_error: Option<String>,
     /// All discovered candidate files.
     pub all_files: Vec<RepositoryFile>,
     /// Hierarchical directory tree of filtered files.
@@ -223,6 +227,8 @@ impl RadiologyApp {
             repository_root: None,
             repository_name: None,
             branch_name: None,
+            git_refresh: Default::default(),
+            git_error: None,
             all_files: Vec::new(),
             file_tree: Vec::new(),
             expanded_dirs: HashSet::new(),
@@ -338,19 +344,6 @@ impl RadiologyApp {
         self.session.active_pr = None;
         self.session.record_repository(root.to_string_lossy());
 
-        if let Ok(output) = std::process::Command::new("git")
-            .args(["branch", "--show-current"])
-            .current_dir(&root)
-            .output()
-        {
-            if output.status.success() {
-                let b = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !b.is_empty() {
-                    self.branch_name = Some(b);
-                }
-            }
-        }
-
         self.all_files = files;
         self.refresh_file_tree();
         self.load_bookmarks();
@@ -446,32 +439,6 @@ impl RadiologyApp {
         );
     }
 
-    fn refresh_current_diff(&mut self) {
-        self.line_changes = None;
-        if let Some(review) = &self.review {
-            self.line_changes = self
-                .selected_path
-                .as_ref()
-                .and_then(|path| review.diffs.get(path))
-                .cloned();
-            return;
-        }
-        let (Some(root), Some(buffer)) = (&self.repository_root, &self.open_buffer) else {
-            return;
-        };
-        if let Ok(output) = std::process::Command::new("git")
-            .args(["diff", "-U0", "HEAD", "--", &buffer.path])
-            .current_dir(root)
-            .output()
-        {
-            if output.status.success() {
-                self.line_changes = Some(UnifiedDiffParser::parse(&String::from_utf8_lossy(
-                    &output.stdout,
-                )));
-            }
-        }
-    }
-
     fn search_root(&self) -> Option<PathBuf> {
         self.review
             .as_ref()
@@ -480,6 +447,8 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.git_refresh.stop();
+        self.git_error = None;
         self.critical_marks.close();
         self.cancel_source_load();
         self.reset_index_state();
@@ -527,63 +496,6 @@ impl RadiologyApp {
         self.modal = ActiveModal::None;
         self.sidebar_tab = SidebarTab::Files;
         self.error = None;
-    }
-
-    /// Refreshes working tree Git changes when no pull request is actively being reviewed.
-    pub fn refresh_git_changes(&mut self) {
-        if self.active_pr.is_some() {
-            return;
-        }
-        let Some(root) = &self.repository_root else {
-            return;
-        };
-
-        let mut changes = Vec::new();
-
-        if let Ok(output) = std::process::Command::new("git")
-            .args(["diff", "HEAD"])
-            .current_dir(root)
-            .output()
-        {
-            if output.status.success() {
-                let diff_text = String::from_utf8_lossy(&output.stdout);
-                changes = UnifiedDiffParser::parse_file_changes(&diff_text);
-            }
-        }
-
-        if let Ok(output) = std::process::Command::new("git")
-            .args(["status", "--porcelain"])
-            .current_dir(root)
-            .output()
-        {
-            if output.status.success() {
-                let status_text = String::from_utf8_lossy(&output.stdout);
-                for line in status_text.lines() {
-                    if let Some(rel) = line.strip_prefix("?? ") {
-                        let rel = rel.trim();
-                        let full = root.join(rel);
-                        if full.is_file() {
-                            let count = std::fs::read_to_string(&full)
-                                .map(|s| s.lines().count())
-                                .unwrap_or(0);
-                            changes.push(FileChange {
-                                path: rel.to_string(),
-                                old_path: None,
-                                status: crate::pull_request::change::FileChangeStatus::Added,
-                                before_blob: String::new(),
-                                after_blob: String::new(),
-                                additions: count,
-                                deletions: 0,
-                                is_binary: false,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        self.pr_changes = changes;
-        self.refresh_current_diff();
     }
 
     pub(super) fn repository_interaction_ready(&self) -> bool {
@@ -647,6 +559,7 @@ impl eframe::App for RadiologyApp {
         self.critical_annotations.stop();
         self.critical_graph_inputs = None;
         self.index_generator.stop();
+        self.git_refresh.stop();
         self.index_importer.stop();
         if let Err(error) = self.flush_critical_marks(std::time::Duration::from_secs(10)) {
             tracing::warn!(%error, "Critical Lens marks were not saved at shutdown");
@@ -656,6 +569,7 @@ impl eframe::App for RadiologyApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_review(ctx);
         self.poll_source(ctx);
+        self.poll_git_refresh(ctx);
         self.poll_index(ctx);
         if self.repository_search.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
@@ -779,6 +693,7 @@ impl eframe::App for RadiologyApp {
             });
         }
 
+        self.show_git_status(ctx);
         self.show_source_loading(ctx);
         self.show_index_status(ctx);
 

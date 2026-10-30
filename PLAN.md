@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Background checkout Git refresh](plans/rust-git-refresh.md) records snapshot
+ownership, shared process/record reuse, bounds, native acceptance and open discovery work.
+
 [Native Swift/Kotlin source colors](plans/rust-native-highlights.md) records shared
 capture rules, precedence, exact-source recoloring and retained theme facts.
 
