@@ -76,6 +76,10 @@ and the remaining generation/cache requirements.
   background queries independently of source navigation. Direct rows are virtualized;
   automatic references match parsed declaration-name bytes rather than lines.
   [Reference context and remaining inspector work](rust-reference-context.md).
+- Source-backed references group exact source rows by file, include definitions
+  separately, report coverage and support Load More with retained selection,
+  disclosure and keyboard focus. Native Return/Back acceptance passes.
+  [Reference results](rust-reference-results.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -99,8 +103,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
-- Parsed/validated call trees and reference snippets/coverage/disclosure,
-  richer under-caret metadata, external/local explanations and broader inspector
+- Parsed/validated call trees, richer under-caret metadata, external/local
+  explanations and broader inspector
   keyboard acceptance. Source excerpts and reference selection/disclosure/commit
   are integrated; [preview contract and remaining scope](rust-inspector-previews.md).
 - Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
