@@ -50,7 +50,27 @@ critical-test fragment because its file received a synthetic snapshot lease fiel
 The fragment itself is unchanged; clone groups remain 90, duplication falls from
 0.61 to 0.60 percent, and no new complexity hotspot or dependency cycle appears.
 
-Native multi-process reuse/retention acceptance is **pending**. Automated checks do
-not establish final UI parity. Remaining broader work includes indexing provenance
+## Native acceptance
+
+A private 1280×900 Wayland session opened six distinct local PR revisions. Opening
+#7 twice incremented its use record without another materialization. A separate
+process held #7's reader lease while the app moved through #8–#11: #8 and #9 were
+evicted, leaving #7, #10 and #11. Releasing that external lease and opening #12
+evicted #7 and retained #10–#12. Each observed settled cache held at most three trees.
+
+The active #12 tree was modified after setting Git assume-unchanged; diff-files
+reported clean. Reopening #12 rejected it and produced a separate verified tree
+with the committed bytes. Restarting and opening #12 reused that replacement:
+seven materializations total for six revisions plus the corruption replacement.
+Checkout HEAD, dirty status and source bytes remained unchanged. Both app runs and
+both compositors exited zero. Screenshots show the pinned After reader working.
+
+Hashed artifacts: `/tmp/radiology-pr-tree-cache-native-accepted/manifest.json`,
+stage JSON records, `materializations.jsonl`, `child-results.json`, and
+`pr-seven.png`, `eleven-held.png`, `twelve-repaired.png`, `reopened-twelve.png`.
+Driver and fixture scripts use sibling capture helpers for QA only; the app has no
+sibling runtime dependency. Cross-process protection is exercised by an independent
+lease holder, not a second graphical app. Active-reader overflow beyond three is
+covered by automated tests. This does not establish final UI parity. Remaining broader work includes indexing provenance
 and provisioning, pinned PR indexing, precise refresh restoration, corrupt-store
 recovery, and visual/accessibility/scaling/font and sibling reuse acceptance.

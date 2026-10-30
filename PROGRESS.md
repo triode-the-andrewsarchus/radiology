@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Native PR cache reuse and cross-process retention acceptance (Codex)
+
+Implementation `1c81ad3` is pushed. Native preparation reused #7 without another
+checkout, protected it with a separate-process lease during LRU pressure, then
+evicted it after release. Hidden private-tree corruption forced a verified
+replacement despite Git reporting clean; reopening after app restart reused that
+replacement. Six revisions plus corruption needed seven materializations. All
+settled observations retained at most three managed trees. Viewed checkout
+HEAD/status/bytes are unchanged; both app runs and compositors exit zero.
+[Contract, exact scope and hashed evidence](plans/rust-pr-tree-cache.md). No source
+changes or additional automated run in this documentation increment. Full parity
+remains open; next work includes ensuring every background tree consumer retains
+its snapshot lease, pinned PR indexing and complete index lifecycle, refresh
+restoration, corrupt-store recovery and final UI/sibling reuse acceptance.
+
 ## 2026-10-30 — Exact PR tree reuse, snapshot leases and retention (Codex)
 
 Private PR trees now undergo raw Git byte/mode/ownership verification before reuse
