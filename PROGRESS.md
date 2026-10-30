@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Interruptible normalized-cache JSON (Codex)
+
+Cache JSON decoding now uses a buffered cancellation-aware reader with 64-KiB
+checkpoints, including inside large strings. Stops latch because serde can read
+again after an I/O error. Validation checks each document/occurrence. Existing
+serialization checks now bound individual writes to 64 KiB and guard final flush;
+atomic temporary-file publication and the format remain unchanged. Cohesive
+restore and inventory-validation stages keep all cache functions below CCN 15.
+Three tests interrupt every guarded decode checkpoint, preserve Unicode/provenance,
+reject trailing/truncated JSON, interrupt a real temporary write, retain the prior
+cache, remove incomplete output and recover through fresh save/load.
+Full gates pass 353 app tests (one external-Clang fixture ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Architecture neutral;
+no new problems, clone groups or cycles. Native cache Cancel/recovery acceptance
+is next. Remaining full-parity work includes PR process lifecycle, broader caches,
+provisioning/provenance, refresh mapping and UI/accessibility/scaling/sibling reuse.
+Commit and push every increment.
+
 ## 2026-10-30 — Native SCIP Cancel/reload acceptance (Codex)
 
 Implementation `e2a7f6f` is pushed. Native acceptance starts from one accepted
