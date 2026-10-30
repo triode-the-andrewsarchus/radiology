@@ -24,6 +24,26 @@ pub enum FileChangeStatus {
 }
 
 impl FileChangeStatus {
+    fn from_git(status: &str) -> Result<Self, String> {
+        Ok(match status.as_bytes().first() {
+            Some(b'A') => Self::Added,
+            Some(b'D') => Self::Deleted,
+            Some(b'R') => {
+                let similarity = status[1..]
+                    .parse()
+                    .map_err(|_| "Invalid rename similarity")?;
+                if similarity > 100 {
+                    return Err("Invalid rename similarity".into());
+                }
+                Self::Renamed { similarity }
+            }
+            Some(b'C') => Self::Copied,
+            Some(b'M') => Self::Modified,
+            Some(_) => Self::Other(status.into()),
+            None => return Err("Missing change status".into()),
+        })
+    }
+
     /// Returns the human-readable description of this change status.
     #[must_use]
     pub fn title(&self) -> &'static str {
@@ -99,6 +119,41 @@ pub struct FileChange {
 }
 
 impl FileChange {
+    /// Parses Git's NUL-delimited name/status records without quoting paths.
+    ///
+    /// # Errors
+    /// Returns an error for invalid UTF-8, missing fields or invalid source paths.
+    pub fn parse_name_status(bytes: &[u8]) -> Result<Vec<Self>, String> {
+        let mut fields = nul_records(bytes)?;
+        let mut changes = Vec::new();
+        while let Some(status) = fields.next() {
+            let first = fields.next().ok_or("Missing changed path")?;
+            let (old_path, path) = if status.starts_with('R') || status.starts_with('C') {
+                (Some(first), fields.next().ok_or("Missing renamed path")?)
+            } else {
+                (None, first)
+            };
+            if !crate::source::SourceLocation::is_repository_path(path)
+                || old_path
+                    .is_some_and(|old| !crate::source::SourceLocation::is_repository_path(old))
+            {
+                return Err("Invalid changed source path".into());
+            }
+            let status = FileChangeStatus::from_git(status)?;
+            changes.push(Self {
+                path: path.into(),
+                old_path: old_path.map(str::to_owned),
+                status,
+                before_blob: String::new(),
+                after_blob: String::new(),
+                additions: 0,
+                deletions: 0,
+                is_binary: false,
+            });
+        }
+        Ok(changes)
+    }
+
     /// Returns the appropriate repository-relative path to read for the given [`ReviewRevision`].
     #[must_use]
     pub fn path_for_revision(&self, revision: ReviewRevision) -> Option<&str> {
@@ -119,6 +174,15 @@ impl FileChange {
             }
         }
     }
+}
+
+/// Validates complete Git `-z` output before exposing its literal UTF-8 records.
+pub(crate) fn nul_records(bytes: &[u8]) -> Result<std::str::SplitTerminator<'_, char>, String> {
+    if !bytes.is_empty() && !bytes.ends_with(&[0]) {
+        return Err("Incomplete NUL-delimited Git output".into());
+    }
+    let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
+    Ok(text.split_terminator('\0'))
 }
 
 /// Filtered presentation of pull request file changes honoring active source filters.

@@ -33,6 +33,7 @@
 mod background;
 pub mod bookmarks;
 pub mod critical;
+pub mod process;
 pub mod pull_request;
 pub mod repository;
 pub mod search;

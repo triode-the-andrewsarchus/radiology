@@ -2,8 +2,8 @@ use super::*;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-fn shell(root: &Path, script: &str) -> IndexCommand {
-    IndexCommand {
+fn shell(root: &Path, script: &str) -> ProcessCommand {
+    ProcessCommand {
         executable: "/bin/sh".into(),
         arguments: vec![
             "-c".into(),

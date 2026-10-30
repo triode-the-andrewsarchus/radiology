@@ -92,21 +92,15 @@ impl ReviewSnapshot {
             &self.base,
             &self.head,
         ])?;
-        let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
-        let mut fields = text.split('\0').filter(|field| !field.is_empty());
-        while let Some(status) = fields.next() {
-            let first = fields.next().ok_or("Missing changed path")?;
-            let (old, path) = if status.starts_with('R') || status.starts_with('C') {
-                (Some(first), fields.next().ok_or("Missing renamed path")?)
-            } else {
-                (None, first)
-            };
-            self.add_change(status, old, path)?;
+        for change in FileChange::parse_name_status(&bytes)? {
+            self.add_change(change)?;
         }
         Ok(())
     }
 
-    fn add_change(&mut self, status: &str, old: Option<&str>, path: &str) -> Result<(), String> {
+    fn add_change(&mut self, mut change: FileChange) -> Result<(), String> {
+        let path = change.path.as_str();
+        let old = change.old_path.as_deref();
         let store = GitStore(&self.object_dir);
         let patch = store.text(&[
             "diff",
@@ -121,26 +115,9 @@ impl ReviewSnapshot {
             path,
         ])?;
         let diff = UnifiedDiffParser::parse(&patch);
-        let status = match status.as_bytes().first() {
-            Some(b'A') => FileChangeStatus::Added,
-            Some(b'D') => FileChangeStatus::Deleted,
-            Some(b'R') => FileChangeStatus::Renamed {
-                similarity: status[1..].parse().unwrap_or(0),
-            },
-            Some(b'C') => FileChangeStatus::Copied,
-            Some(b'M') => FileChangeStatus::Modified,
-            _ => FileChangeStatus::Other(status.into()),
-        };
-        let change = FileChange {
-            path: path.into(),
-            old_path: old.map(str::to_string),
-            status,
-            before_blob: String::new(),
-            after_blob: String::new(),
-            additions: diff.total_additions(),
-            deletions: diff.total_deletions(),
-            is_binary: diff.is_binary,
-        };
+        change.additions = diff.total_additions();
+        change.deletions = diff.total_deletions();
+        change.is_binary = diff.is_binary;
         if let Some(old) = old {
             self.diffs.insert(old.into(), diff.clone());
         }

@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Shared cancellable process runner and Git records (Codex)
+
+Moved the existing indexing process-group runner and its tests into the shared
+`process` module. IndexCommand remains a compatible alias; index generation
+continues through the same bounded diagnostics, cancellation, deadlines and
+child-reaping behavior. Checkout refresh can reuse that implementation without
+a new runtime or subprocess mechanism. PR review now uses the shared FileChange
+NUL-record parser, preserving literal tabs/newlines/Unicode and rejecting incomplete
+records, invalid paths and malformed rename similarity. Full workspace tests,
+30 doctests and strict Clippy pass with the pending checkout-refresh integration.
+The checkout worker/UI and its native acceptance are the next increment; full
+parity remains open. Commit and push each increment.
+
 ## 2026-10-30 — Native Swift/Kotlin colors and retained theme captures (Codex)
 
 Prepared/pushed native capture rules and shared query/identity reuse (`29b6132`).
