@@ -22,8 +22,9 @@ SourceRead::read and ReviewSnapshot::read retain their synchronous public APIs,
 with a bounded default deadline; callers with a job flag use the internal
 cancellable path. [Semantic source consumers](rust-analysis-source-cancellation.md)
 now propagate the same request flag/deadline through previews, references, caller
-traces and Critical Lens, including cache-safety and live-child checks. Broader PR
-preparation/fetch cancellation remains a separate task.
+traces and Critical Lens, including cache-safety and live-child checks.
+[PR preparation/fetch](rust-pr-process-cancellation.md) now uses bounded child
+cancellation too; cache retention and broader lock recovery remain open.
 
 ## Shared checkout hunks
 

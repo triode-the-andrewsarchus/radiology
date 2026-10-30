@@ -79,6 +79,6 @@ hover/preview job setup and incoming/reference test fixtures. They were not adde
 by this change.
 
 [Nested SCIP decoding and map construction](rust-scip-cancellation.md) now support cancellation.
-Remaining work includes PR preparation/fetch
-cancellation and retention, index provisioning/provenance, source/graph/context
+[PR preparation/fetch](rust-pr-process-cancellation.md) now supports child cancellation.
+Remaining work includes snapshot cache retention, index provisioning/provenance, source/graph/context
 revisit caches, PR-refresh mapping and final visual/accessibility/scaling acceptance.

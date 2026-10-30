@@ -151,10 +151,13 @@ for simultaneous inspector regions and source keyboard exclusion.
   frontiers and snapshot workers now feed source fold counts; see
   [graph/count acceptance](rust-call-graph.md). Exact background projection and
   persisted symbol/package menus are integrated; see [marks](rust-critical-marks.md).
-- Complete PR workflow: recent-list chooser, cancellation/timeout of child
-  processes, exact refresh caret/viewport/rename mapping and notice behavior,
+- Complete PR workflow: recent-list chooser, exact refresh caret/viewport/rename
+  mapping and notice behavior,
   snapshot-cache retention, pinned After indexing and reuse provenance, disabled
   unavailable revision/change controls and late-data/refresh folding behavior.
+  [Preparation processes](rust-pr-process-cancellation.md) now share cancellation/
+  deadlines with native metadata/fetch Cancel and pinned-review recovery checks.
+  Concurrent private-store and stale-lock recovery need broader acceptance.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,

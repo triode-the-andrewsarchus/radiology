@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Native PR process cancellation acceptance (Codex)
+
+Implementation `a651a8b` is pushed. The native PR prompt starts controlled metadata
+and fetch children; Cancel reaps both while retaining the checkout reader and
+semantic data. Fresh preparation opens PR #7 After from pinned bytes. Cancelling
+a subsequent refresh reaps its metadata child and retains the accepted PR. Checkout
+HEAD, dirty status and exact bytes remain unchanged; app/compositors exit zero.
+[Contract, limits and hashed local evidence](plans/rust-pr-process-cancellation.md).
+Current gates pass 357 app tests, eight shared tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc. Architecture flags only verified baseline clone fragments and
+the renamed pre-existing preparation warning; clone groups/cycles do not grow.
+Full parity remains open: recent chooser, cache retention/concurrent Git-store and
+lock recovery, complete index provenance/provisioning/pinned After indexing,
+refresh mapping and final UI/accessibility/scaling/sibling reuse acceptance.
+Commit and push every increment.
+
 ## 2026-10-30 — Bounded PR preparation and child cancellation (Codex)
 
 PR preparation now uses LatestRead retirement and one two-minute metadata/fetch/
