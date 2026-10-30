@@ -28,6 +28,9 @@ records asynchronous SCIP imports, project strategies, tool probes, cancellable
 processes, real-input workspaces, Generate/Reindex controls, native fixture
 acceptance and remaining cache/provisioning/snapshot integration.
 
+[Rust Critical Lens implementation and acceptance](plans/rust-critical-lens.md)
+records shared call queries, exact semantic projection and remaining reader/graph work.
+
 [Occurrence pin storage and controls](plans/rust-occurrence-pins.md)
 records unlimited groups, stable colors and content/revision-bound restoration.
 

@@ -111,7 +111,9 @@ impl SCIPSymbolString {
         names.pop().unwrap_or_else(|| symbol.to_string())
     }
 
-    fn descriptor_text(symbol: &str) -> &str {
+    /// Returns descriptor text after the four escaped SCIP header fields.
+    #[must_use]
+    pub fn descriptor_text(symbol: &str) -> &str {
         let chars: Vec<(usize, char)> = symbol.char_indices().collect();
         let mut fields = 0;
         let mut i = 0;

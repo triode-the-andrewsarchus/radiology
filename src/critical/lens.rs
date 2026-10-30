@@ -401,7 +401,7 @@ impl CriticalityPolicy {
             .unwrap_or(false);
 
         // Descriptors are the trailing characters after header fields.
-        let descriptors = symbol.rsplit(' ').next().unwrap_or("");
+        let descriptors = crate::semantic::index::SCIPSymbolString::descriptor_text(symbol);
 
         // 3. Profiled FFI packages or descriptors
         if is_profiled {
@@ -523,11 +523,40 @@ impl CriticalityPolicy {
 pub struct SourceProjection {
     /// Document path.
     pub path: String,
+    revision: Option<crate::source::ReviewRevision>,
+    content_digest: String,
     /// Disjoint, sorted byte ranges that recede in opacity.
     pub receded_byte_ranges: Vec<Range<usize>>,
 }
 
 impl SourceProjection {
+    /// Creates a projection bound to exact bytes and revision, dropping invalid ranges.
+    #[must_use]
+    pub fn new(buffer: &crate::source::SourceBuffer, ranges: Vec<Range<usize>>) -> Self {
+        let ranges = ranges
+            .into_iter()
+            .filter(|range| {
+                range.end <= buffer.byte_len()
+                    && buffer.text.is_char_boundary(range.start)
+                    && buffer.text.is_char_boundary(range.end)
+            })
+            .collect();
+        Self {
+            path: buffer.path.clone(),
+            revision: buffer.revision,
+            content_digest: buffer.content_digest().to_owned(),
+            receded_byte_ranges: Self::normalized(ranges),
+        }
+    }
+
+    /// Returns whether this projection describes the exact displayed document.
+    #[must_use]
+    pub fn matches(&self, buffer: &crate::source::SourceBuffer) -> bool {
+        self.path == buffer.path
+            && self.revision == buffer.revision
+            && self.content_digest == buffer.content_digest()
+    }
+
     /// Normalizes, sorts, and merges overlapping or adjacent byte ranges.
     #[must_use]
     pub fn normalized(mut ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
@@ -549,9 +578,12 @@ impl SourceProjection {
     /// Checks if a byte offset falls within any receded range.
     #[must_use]
     pub fn is_receded(&self, byte_offset: usize) -> bool {
+        let position = self
+            .receded_byte_ranges
+            .partition_point(|range| range.end <= byte_offset);
         self.receded_byte_ranges
-            .iter()
-            .any(|r| r.contains(&byte_offset))
+            .get(position)
+            .is_some_and(|range| range.contains(&byte_offset))
     }
 }
 

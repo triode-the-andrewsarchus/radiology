@@ -4,6 +4,7 @@
 //! language identification ([`LanguageRegistry`]), Tree-sitter AST queries for hierarchical
 //! document symbols ([`SymbolExtractor`]), and foldable block detection ([`FoldDetector`]).
 
+pub mod calls;
 pub mod folds;
 pub mod highlighter;
 pub mod language;
@@ -24,6 +25,8 @@ pub struct DocumentSyntax {
     pub folds: Vec<FoldRange>,
     /// Conservative test-only regions and file-level gating.
     pub tests: TestDetection,
+    /// Parsed calls with explicit query coverage; shared by lens and graph analysis.
+    pub calls: calls::CallSites,
 }
 
 impl DocumentSyntax {
@@ -33,19 +36,25 @@ impl DocumentSyntax {
         let parsed = LanguageRegistry::for_path(&buffer.path)
             .grammar
             .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
-        let (symbols, tests) = if let Some((grammar, tree)) = parsed {
+        let (symbols, tests, calls) = if let Some((grammar, tree)) = parsed {
             (
                 SymbolExtractor::from_tree(buffer, grammar, tree.root_node()),
                 TestRegionDetector::from_tree(buffer, grammar, tree.root_node()),
+                calls::CallSites::from_tree(grammar, tree.root_node(), buffer),
             )
         } else {
-            (SymbolExtractor::extract(buffer), TestDetection::default())
+            (
+                SymbolExtractor::extract(buffer),
+                TestDetection::default(),
+                calls::CallSites::default(),
+            )
         };
         let folds = FoldDetector::from_symbols(buffer, &symbols);
         Self {
             symbols,
             folds,
             tests,
+            calls,
         }
     }
 }
