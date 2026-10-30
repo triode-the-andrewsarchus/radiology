@@ -186,6 +186,27 @@ fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_im
         app.generation_report().unwrap().revision.as_deref(),
         Some(review.head.as_str())
     );
+    for (path, revision) in [
+        ("a file.rs", ReviewRevision::Before),
+        ("Cargo.toml", ReviewRevision::After),
+    ] {
+        app.navigate(
+            SourceLocation::with_revision(path, 0, Some(revision)),
+            false,
+        );
+        settle(&mut app);
+        let text = crate::ui::test_support::painted_text(&ctx, egui::vec2(1200.0, 100.0), |ui| {
+            app.show_index_status(ui.ctx())
+        });
+        assert!(
+            !text
+                .iter()
+                .any(|text| text == "Open source differs from index"),
+            "{path}: {text:?}"
+        );
+        assert!(!text.iter().any(|text| text == "Reload Source"));
+        assert!(text.iter().any(|text| text == "After index"));
+    }
     assert_eq!(
         std::fs::read_to_string(root.join("a file.rs")).unwrap(),
         "checkout only\n"

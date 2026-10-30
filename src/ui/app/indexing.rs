@@ -297,19 +297,27 @@ impl RadiologyApp {
                     "Source coverage and tool diagnostics are available in Index Projects",
                 ),
             );
-            if self
-                .open_buffer
-                .as_ref()
-                .zip(self.semantic_index.as_ref())
-                .is_some_and(|(buffer, index)| !index.matches_buffer(buffer))
-            {
-                ui.label("Open source differs from index");
-                if ui.small_button("Reload Source").clicked() {
-                    self.execute_command(ui.ctx(), ToolbarAction::ReloadSource);
-                }
-            }
+            self.show_index_source_status(ui);
         } else {
             self.show_import_status(ui);
+        }
+    }
+
+    fn show_index_source_status(&mut self, ui: &mut egui::Ui) {
+        if self
+            .open_buffer
+            .as_ref()
+            .zip(self.semantic_index.as_ref())
+            .is_some_and(|(buffer, index)| {
+                buffer.revision != Some(ReviewRevision::Before)
+                    && index.source_digests.contains_key(&buffer.path)
+                    && !index.matches_buffer(buffer)
+            })
+        {
+            ui.label("Open source differs from index");
+            if ui.small_button("Reload Source").clicked() {
+                self.execute_command(ui.ctx(), ToolbarAction::ReloadSource);
+            }
         }
     }
 
