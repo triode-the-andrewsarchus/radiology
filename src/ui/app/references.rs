@@ -5,6 +5,7 @@ use super::*;
 impl RadiologyApp {
     /// Updates enclosing-declaration references without rebuilding on each caret move.
     pub fn refresh_symbol_context(&mut self) {
+        self.sync_outline();
         self.refresh_under_caret_context();
         let automatic = self.semantic_inputs.as_ref().and_then(|inputs| {
             let byte = inputs.buffer.byte_offset(self.caret_line, self.caret_col);
