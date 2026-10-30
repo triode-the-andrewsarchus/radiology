@@ -1,7 +1,7 @@
 //! Multi-occurrence token highlighting and pin group management.
 
+use super::document_memory::DocumentMemory;
 use super::SourceBuffer;
-use std::collections::HashMap;
 use std::ops::Range;
 
 /// The four distinct occurrence pin colors supported in Radiology.
@@ -65,15 +65,8 @@ pub struct OccurrencePinStore {
     pub groups: Vec<OccurrencePinGroup>,
     /// Ephemeral highlight for the currently hovered or single-clicked symbol.
     pub ephemeral: Option<(String, Vec<Range<usize>>)>,
-    documents: HashMap<String, DocumentPins>,
-    active_document: Option<(String, String)>,
+    documents: DocumentMemory<Vec<OccurrencePinGroup>>,
     next_color_slot: usize,
-}
-
-#[derive(Debug, Clone)]
-struct DocumentPins {
-    digest: String,
-    groups: Vec<OccurrencePinGroup>,
 }
 
 impl OccurrencePinStore {
@@ -88,25 +81,9 @@ impl OccurrencePinStore {
     /// Call this only when a source read successfully publishes. Ephemeral highlights
     /// do not cross documents. A changed digest discards the older document's pins.
     pub fn activate(&mut self, buffer: &SourceBuffer) {
-        let identity = (buffer.position_key(), buffer.content_digest().to_owned());
-        if self.active_document.as_ref() == Some(&identity) {
-            return;
+        if self.documents.activate(buffer, &mut self.groups) {
+            self.ephemeral = None;
         }
-        if let Some((key, digest)) = self.active_document.take() {
-            let groups = std::mem::take(&mut self.groups);
-            if !groups.is_empty() {
-                self.documents.insert(key, DocumentPins { digest, groups });
-            }
-        } else {
-            self.groups.clear();
-        }
-        self.groups = self
-            .documents
-            .remove(&identity.0)
-            .filter(|document| document.digest == identity.1)
-            .map_or_else(Vec::new, |document| document.groups);
-        self.ephemeral = None;
-        self.active_document = Some(identity);
     }
 
     /// Returns `true` if no symbols are pinned and no ephemeral highlight is active.

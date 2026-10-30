@@ -1089,3 +1089,51 @@ fn critical_fold_counts_refresh_with_policy_and_clear_on_mode_source_index_and_r
     assert!(app.critical_annotations().is_none());
     assert!(!app.is_critical_loading());
 }
+
+#[test]
+fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_changed_bytes() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text = "fn first() {\n one();\n}\nfn second() {\n two();\n}\n";
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    app.fold_store.toggle(1);
+    app.fold_store.toggle(4);
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert!(app.fold_store.folded_lines.is_empty());
+    app.fold_store.toggle(1);
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    let source = app.open_buffer.clone().unwrap();
+    app.open_file("missing.rs");
+    settle(&mut app);
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 4]));
+    app.jump_to_location("a.rs", 2, text.find("one()").unwrap());
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    app.open_file("b.rs");
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1]));
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([4]));
+    std::fs::write(root.join("a.rs"), text.replace("second", "newest")).unwrap();
+    app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
+    settle(&mut app);
+    assert!(app.fold_store.folded_lines.is_empty());
+    app.fold_store.toggle(4);
+    let other = dir.path().join("other");
+    repository(&other);
+    std::fs::write(other.join("a.rs"), text).unwrap();
+    app.open_repository(&other);
+    settle(&mut app);
+    assert!(app.fold_store.folded_lines.is_empty());
+}

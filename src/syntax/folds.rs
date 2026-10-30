@@ -35,6 +35,7 @@ pub struct FoldRange {
 pub struct FoldStore {
     /// 1-based line numbers where folds are currently active.
     pub folded_lines: HashSet<usize>,
+    documents: crate::source::document_memory::DocumentMemory<HashSet<usize>>,
 }
 
 impl FoldStore {
@@ -42,6 +43,17 @@ impl FoldStore {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Restores choices only for identical successfully published source/revision.
+    ///
+    /// The host must reset this store at repository/review-snapshot boundaries.
+    /// Only current fold headers survive; explicit navigation may then reveal its
+    /// destination without expanding unrelated restored regions.
+    pub fn activate(&mut self, buffer: &SourceBuffer, ranges: &[FoldRange]) {
+        self.documents.activate(buffer, &mut self.folded_lines);
+        let headers: HashSet<_> = ranges.iter().map(|range| range.start_line).collect();
+        self.folded_lines.retain(|line| headers.contains(line));
     }
 
     /// Toggles the folded state for the given start line number.
@@ -204,5 +216,52 @@ fn single_line() {}
         assert!(store.is_line_hidden(6, &folds));
         assert!(!store.is_line_hidden(2, &folds));
         assert!(!store.is_line_hidden(8, &folds));
+    }
+
+    #[test]
+    fn choices_restore_only_for_exact_document_revision_and_valid_fold_headers() {
+        use crate::source::ReviewRevision;
+        let a = SourceBuffer::from_str(
+            "a.rs",
+            "fn alpha() {\n one();\n}\nfn beta() {\n two();\n}\n",
+        );
+        let b = SourceBuffer::from_str("b.rs", "fn gamma() {\n three();\n}\n");
+        let ranges = FoldDetector::detect_folds(&a);
+        let other_ranges = FoldDetector::detect_folds(&b);
+        let mut store = FoldStore::new();
+        store.activate(&a, &ranges);
+        store.toggle(4);
+        store.toggle(999);
+        store.activate(&a, &ranges);
+        assert_eq!(store.folded_lines, HashSet::from([4]));
+        store.activate(&b, &other_ranges);
+        assert!(store.folded_lines.is_empty());
+        store.toggle(1);
+        for revision in [ReviewRevision::After, ReviewRevision::Before] {
+            let snapshot =
+                SourceBuffer::from_bytes("a.rs", a.data.clone(), Some(revision)).unwrap();
+            store.activate(&snapshot, &ranges);
+            assert!(store.folded_lines.is_empty());
+            store.toggle(1);
+        }
+        store.activate(&a, &ranges);
+        assert_eq!(store.folded_lines, HashSet::from([4]));
+        store.unfold_all();
+        store.activate(&b, &other_ranges);
+        assert_eq!(store.folded_lines, HashSet::from([1]));
+        store.activate(&a, &ranges);
+        assert!(
+            store.folded_lines.is_empty(),
+            "expanded choices must not resurrect old folds"
+        );
+        store.toggle(4);
+        let changed = SourceBuffer::from_str("a.rs", &a.text.replace("beta", "zeta"));
+        store.activate(&changed, &ranges);
+        assert!(store.folded_lines.is_empty());
+        store.activate(&a, &ranges);
+        assert!(
+            store.folded_lines.is_empty(),
+            "old-byte choices were invalidated"
+        );
     }
 }

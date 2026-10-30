@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Exact-document fold choices and shared presentation memory (Codex)
+
+File return and unchanged reload now restore collapsed regions by path/revision/
+SHA-256. Source failures retain visible choices; navigation reveals only containing
+folds, and changed bytes invalidate old choices. Repository/snapshot boundaries
+reset memory. Shared DocumentMemory moves pin/fold payloads and replaces duplicated
+activation logic; existing pin behavior remains covered. Unit/app tests plus native
+independent a.rs/b.rs collapse-and-return checks pass; app/compositors exit zero.
+Full gates: 195 application tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Architecture retains a short test clone, with no new product
+hotspot/cycle. Fresh/PR fold defaults and refresh mapping remain open, alongside
+full parity. [Contract and evidence](plans/rust-fold-restoration.md).
+
 ## 2026-10-30 — Progressive source function counts (Codex)
 
 Fold counts now publish six completed functions at a time and flush the remainder,

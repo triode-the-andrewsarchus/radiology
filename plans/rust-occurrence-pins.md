@@ -48,3 +48,10 @@ AST-aware fallback occurrence scope (comments/strings/shadowed bindings), full
 occurrence decoration parity, content-bound fold restoration and exact PR-refresh
 restoration remain open. The unlimited/session restoration work does not close
 the full source presentation or Swift parity requirement.
+
+## Shared document activation (2026-10-30)
+
+Pins now share exact-document activation memory with fold choices. Identity,
+revision/digest invalidation, unlimited groups, stable colors and ephemeral reset
+behavior are preserved by the existing tests.
+[Shared contract and verification](rust-fold-restoration.md).
