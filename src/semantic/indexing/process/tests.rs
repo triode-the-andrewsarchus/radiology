@@ -188,3 +188,52 @@ fn observed_stream_is_complete_even_when_diagnostics_truncate() {
         matches!(failure.kind, RunFailureKind::Io(message) if message.contains("consumer refused"))
     );
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn executable_write_handles_delay_start_within_the_same_deadline_and_allow_cancellation() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("busy-tool");
+    std::fs::write(&path, "#!/bin/sh\nprintf ready\n").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut command = shell(root.path(), "");
+    command.executable = path.clone();
+    command.arguments.clear();
+    let writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    // Verify the real OS condition, rather than simulating a spawn error.
+    assert_eq!(
+        std::process::Command::new(&path)
+            .spawn()
+            .unwrap_err()
+            .raw_os_error(),
+        Some(libc::ETXTBSY)
+    );
+    std::thread::scope(|scope| {
+        scope.spawn(move || {
+            std::thread::sleep(Duration::from_millis(80));
+            drop(writer);
+        });
+        let output = run(&command, &AtomicBool::new(false), Duration::from_secs(5)).unwrap();
+        assert!(output.succeeded());
+        assert_eq!(output.stdout.text, "ready");
+    });
+    let writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    let timeout = run(&command, &AtomicBool::new(false), Duration::from_millis(40)).unwrap_err();
+    assert_eq!(timeout.kind, RunFailureKind::TimedOut);
+    let cancelled = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let signal = &cancelled;
+        scope.spawn(move || {
+            std::thread::sleep(Duration::from_millis(40));
+            signal.store(true, Ordering::Relaxed);
+        });
+        assert_eq!(
+            run(&command, &cancelled, Duration::from_secs(5))
+                .unwrap_err()
+                .kind,
+            RunFailureKind::Cancelled
+        );
+    });
+    drop(writer);
+}

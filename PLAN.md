@@ -4,12 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-**Parity implementation underway (2026-10-28):** initial correctness, private PR
+**Parity implementation underway (2026-10-30):** initial correctness, private PR
 snapshots, cancellable repository/local source search, inspector integration, and
 a measured selectable source viewport with zoom are implemented with regression
 tests. [Implementation status and remaining acceptance queue](plans/rust-parity-implementation.md).
 Async source loading, inline Hide Tests and isolated checkout index generation
-are also integrated. The full parity objective remains open; the review below describes the pre-fix
+are also integrated, including persistent index reload, supported C/C++ command
+rebasing, unlimited content-bound pins and background call-focused Critical Lens.
+The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits as work progresses.
 
 [Shared source viewport primitives and integration contract](plans/shared-text-viewport.md)
