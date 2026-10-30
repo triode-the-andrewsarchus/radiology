@@ -78,6 +78,7 @@ all three are present verbatim in the saved baseline: frontier/worker tests,
 hover/preview job setup and incoming/reference test fixtures. They were not added
 by this change.
 
-Remaining work includes finer SCIP interruption, PR preparation/fetch
+[Nested SCIP decoding and map construction](rust-scip-cancellation.md) now support cancellation.
+Remaining work includes normalized-cache JSON interruption, PR preparation/fetch
 cancellation and retention, index provisioning/provenance, source/graph/context
 revisit caches, PR-refresh mapping and final visual/accessibility/scaling acceptance.

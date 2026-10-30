@@ -89,6 +89,7 @@ Driver: `/tmp/radiology-native-analysis-cancel-driver.py`. Tested app SHA-256:
 `ad2fe4dea3b7fa51ea8a74498bf539a07c364d91cc028d6dedd1ca80f3558386`.
 The manifest includes hashes for the driver, both executables, log and screenshots.
 
-Full parity remains open: finer SCIP decoding, PR preparation/fetch cancellation,
+[Nested SCIP decoding and map construction](rust-scip-cancellation.md) now support cancellation.
+Full parity remains open: normalized-cache JSON interruption, PR preparation/fetch cancellation,
 source/graph/context caches, complete indexing/provisioning/provenance, PR-refresh
 mapping and final visual/accessibility/scaling and sibling chrome/palette acceptance.

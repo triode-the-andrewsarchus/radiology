@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Native SCIP Cancel/reload acceptance (Codex)
+
+Implementation `e2a7f6f` is pushed. Native acceptance starts from one accepted
+document, cancels a 58.5-MB/1.5-million-reference reload with prior semantic data
+retained, then accepts a fresh two-document index. App and compositors exit zero.
+[Contract, limits and hashed local evidence](plans/rust-scip-cancellation.md).
+Full checks remain 350 app tests, eight shared tests and 30 doctests plus fmt,
+strict Clippy, build and rustdoc. Full parity remains open: normalized-cache JSON
+interruption, PR process lifecycle, broader caching/provisioning/provenance,
+refresh mapping and final visual/accessibility/scaling/sibling reuse acceptance.
+Commit and push every increment.
+
 ## 2026-10-30 — Cancellable SCIP decoding and semantic-map construction (Codex)
 
 Nested protobuf readers now inherit the import/generation cancellation predicate,
