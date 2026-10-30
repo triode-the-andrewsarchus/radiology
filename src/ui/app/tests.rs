@@ -1879,13 +1879,16 @@ fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
     assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
     assert_eq!(marked(&mut app), ["added_only", "edited"]);
     let ctx = Context::default();
+    assert_eq!(app.caret_line, 1);
     app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
+    assert_eq!(app.caret_line, 1);
     assert_eq!(marked(&mut app), ["edited", "removed_only"]);
     app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::After));
     settle(&mut app);
     assert_eq!(marked(&mut app), ["added_only", "edited"]);
+    assert_eq!(app.caret_line, 1);
     // A real dirty checkout callable must not inherit the pinned review markers.
     let checkout = "fn checkout_only() {\n dirty();\n}\n";
     std::fs::write(root.join("a file.rs"), checkout).unwrap();
