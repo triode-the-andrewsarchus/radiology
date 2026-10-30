@@ -1660,6 +1660,7 @@ mod tests {
             start_line: 1,
             end_line: 3,
             header_preview: "one".into(),
+            ..Default::default()
         });
         reader.folds.toggle(1);
         let output = reader.frame(&ctx, vec![egui::Event::Copy]);

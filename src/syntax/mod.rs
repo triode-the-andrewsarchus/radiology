@@ -5,14 +5,16 @@
 //! document symbols ([`SymbolExtractor`]), and foldable block detection ([`FoldDetector`]).
 
 pub mod calls;
+pub(crate) mod fold_queries;
 pub mod folds;
 pub mod highlighter;
 pub mod language;
 pub mod outline;
+mod queries;
 mod review_folds;
 pub mod test_detector;
 
-pub use folds::{FoldDetector, FoldRange, FoldStore};
+pub use folds::{FoldDetector, FoldKind, FoldRange, FoldStore};
 pub use highlighter::{HighlightedSpan, SyntaxHighlighter};
 pub use language::{LanguageInfo, LanguageRegistry, SupportedGrammar};
 pub use outline::{DocumentSymbol, SymbolExtractor, SymbolKind};
@@ -24,6 +26,10 @@ pub struct DocumentSyntax {
     pub symbols: Vec<DocumentSymbol>,
     /// Manual fold candidates from declarations and comments.
     pub folds: Vec<FoldRange>,
+    /// True when structural query facts are complete for this exact parse.
+    pub folds_supported: bool,
+    /// Independent folding query error; other source facts remain usable.
+    pub fold_error: Option<String>,
     /// Conservative test-only regions and file-level gating.
     pub tests: TestDetection,
     /// Parsed calls with explicit query coverage; shared by lens and graph analysis.
@@ -37,23 +43,37 @@ impl DocumentSyntax {
         let parsed = LanguageRegistry::for_path(&buffer.path)
             .grammar
             .and_then(|grammar| grammar.parse(&buffer.data).map(|tree| (grammar, tree)));
-        let (symbols, tests, calls) = if let Some((grammar, tree)) = parsed {
-            (
-                SymbolExtractor::from_tree(buffer, grammar, tree.root_node()),
-                TestRegionDetector::from_tree(buffer, grammar, tree.root_node()),
-                calls::CallSites::from_tree(grammar, tree.root_node(), buffer),
-            )
-        } else {
-            (
-                SymbolExtractor::extract(buffer),
-                TestDetection::default(),
-                calls::CallSites::default(),
-            )
-        };
-        let folds = FoldDetector::from_symbols(buffer, &symbols, &calls);
+        let (symbols, tests, calls, folds, fold_error, folds_supported) =
+            if let Some((grammar, tree)) = parsed {
+                let (folds, error) =
+                    match FoldDetector::from_tree(buffer, grammar, tree.root_node()) {
+                        Ok(folds) => (folds, None),
+                        Err(error) => (Vec::new(), Some(error)),
+                    };
+                let supported = error.is_none();
+                (
+                    SymbolExtractor::from_tree(buffer, grammar, tree.root_node()),
+                    TestRegionDetector::from_tree(buffer, grammar, tree.root_node()),
+                    calls::CallSites::from_tree(grammar, tree.root_node(), buffer),
+                    folds,
+                    error,
+                    supported,
+                )
+            } else {
+                (
+                    SymbolExtractor::extract(buffer),
+                    TestDetection::default(),
+                    calls::CallSites::default(),
+                    Vec::new(),
+                    None,
+                    false,
+                )
+            };
         Self {
             symbols,
             folds,
+            folds_supported,
+            fold_error,
             tests,
             calls,
         }

@@ -1177,3 +1177,30 @@ fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manu
         .as_ref()
         .is_some_and(|changes| changes.total_deletions() == 1));
 }
+
+#[test]
+fn fold_to_definitions_command_exposes_method_and_variant_headers_and_preserves_reader_state() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    let text = crate::syntax::fold_queries::tests::DEFINITIONS;
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    let source = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    let caret = (app.caret_line, app.caret_col);
+    app.fold_store.toggle(5);
+    app.fold_store.toggle(14);
+    app.execute_command(&Context::default(), ToolbarAction::FoldToDefinitions);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 6, 15]));
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_eq!(format!("{:?}", app.history), history);
+    assert_eq!((app.caret_line, app.caret_col), caret);
+    app.open_file("b.rs");
+    settle(&mut app);
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 6, 15]));
+    assert!(app.fold_error.is_none());
+}

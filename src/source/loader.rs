@@ -232,10 +232,10 @@ fn prepare(
     check()?;
     let initial_folds = syntax
         .as_ref()
-        .filter(|syntax| syntax.calls.matches(&buffer))
+        .filter(|syntax| syntax.folds_supported)
         .map(|syntax| {
             let mut folds = crate::syntax::FoldStore::new();
-            folds.apply_initial_defaults(&buffer, &syntax.folds, &syntax.calls, changes.as_ref());
+            folds.apply_initial_defaults(&buffer, &syntax.folds, changes.as_ref());
             folds.folded_lines
         });
     check()?;

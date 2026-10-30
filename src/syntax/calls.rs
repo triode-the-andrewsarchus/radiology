@@ -1,10 +1,9 @@
 //! Syntactic call sites shared by Critical Lens and future call graph queries.
 
 use super::SupportedGrammar;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
-use std::sync::OnceLock;
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Node, QueryCursor, StreamingIterator};
 
 /// A parsed call expression; syntax alone does not establish a semantic edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +60,7 @@ impl CallableScope {
     }
 }
 
-fn annotated_range(node: Node<'_>) -> Range<usize> {
+pub(super) fn annotated_range(node: Node<'_>) -> Range<usize> {
     let mut range = node.byte_range();
     if node.kind() == "function_definition" {
         if let Some(parent) = node
@@ -138,45 +137,12 @@ impl CallSites {
     }
 }
 
-fn query(grammar: SupportedGrammar) -> Result<&'static Query, String> {
-    static QUERIES: OnceLock<HashMap<SupportedGrammar, Result<Query, String>>> = OnceLock::new();
-    QUERIES.get_or_init(|| {
-        use SupportedGrammar::*;
-        [
-            (Rust, include_str!("../../Sources/Radiology/Queries/rust/calls.scm")),
-            (Python, include_str!("../../Sources/Radiology/Queries/python/calls.scm")),
-            (Go, include_str!("../../Sources/Radiology/Queries/go/calls.scm")),
-            (JavaScript, include_str!("../../Sources/Radiology/Queries/ecmascript/calls.scm")),
-            (TypeScript, include_str!("../../Sources/Radiology/Queries/ecmascript/calls.scm")),
-            (Tsx, include_str!("../../Sources/Radiology/Queries/ecmascript/calls.scm")),
-            (Swift, include_str!("../../Sources/Radiology/Queries/swift/calls.scm")),
-            (Kotlin, // The Rust port links kotlin-ng, whose node names differ from Swift's grammar.
-                    "(call_expression . (identifier) @call.name) @call\n(call_expression (navigation_expression (identifier) @call.name .)) @call\n(call_expression) @call.any"),
-            (C, "(call_expression function: (identifier) @call.name) @call\n(call_expression function: (field_expression field: (field_identifier) @call.name)) @call\n(call_expression) @call.any"),
-        ].into_iter().map(|(grammar, source)| {
-            let scopes = match grammar {
-                Rust => include_str!("../../Sources/Radiology/Queries/rust/scopes.scm"),
-                Python => include_str!("../../Sources/Radiology/Queries/python/scopes.scm"),
-                Go => include_str!("../../Sources/Radiology/Queries/go/scopes.scm"),
-                JavaScript | TypeScript | Tsx => include_str!("../../Sources/Radiology/Queries/ecmascript/scopes.scm"),
-                Swift => include_str!("../../Sources/Radiology/Queries/swift/scopes.scm"),
-                Kotlin => include_str!("../../Sources/Radiology/Queries/kotlin/scopes.scm"),
-                C => "(function_definition) @scope.function",
-            };
-            let scopes = scopes.lines().filter(|line| line.contains("@scope.function") || line.contains("@scope.closure")).collect::<Vec<_>>().join("\n");
-            let protocol_scope = if grammar == Swift { "(protocol_function_declaration) @scope.function" } else { "" };
-            let source = format!("{source}\n{scopes}\n{protocol_scope}");
-            (grammar, Query::new(&grammar.language(), &source).map_err(|error| error.to_string()))
-        }).collect()
-    }).get(&grammar).expect("registered call grammar").as_ref().map_err(Clone::clone)
-}
-
 fn extract(
     grammar: SupportedGrammar,
     root: Node<'_>,
     bytes: &[u8],
 ) -> Result<(Vec<CallSite>, Vec<CallableScope>), String> {
-    let query = query(grammar)?;
+    let query = super::queries::query(grammar, super::queries::QueryRole::Calls)?;
     let names = query.capture_names();
     let mut cursor = QueryCursor::new();
     cursor.set_match_limit(65_536);

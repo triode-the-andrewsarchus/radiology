@@ -17,13 +17,6 @@ pub(super) struct PendingNavigation {
 }
 
 impl RadiologyApp {
-    pub(super) fn collapse_current_functions(&mut self) {
-        if let Some(buffer) = &self.open_buffer {
-            self.fold_store
-                .collapse_all_functions(buffer, &self.fold_ranges, &self.call_sites);
-        }
-    }
-
     /// Changes source presentation and schedules call projection only when needed.
     pub fn set_source_mode(&mut self, mode: SourceMode) {
         if self.mode != mode {
@@ -251,6 +244,7 @@ impl RadiologyApp {
         self.call_sites = Arc::new(syntax.calls);
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
+        self.fold_error = syntax.fold_error;
         self.fold_store
             .activate(&prepared.buffer, &self.fold_ranges);
         self.fold_store

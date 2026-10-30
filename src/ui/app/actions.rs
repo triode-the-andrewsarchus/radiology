@@ -62,12 +62,8 @@ impl RadiologyApp {
                     self.save_bookmarks();
                 }
             }
-            CollapseFunctions => self.collapse_current_functions(),
-            FoldToDefinitions => {
-                self.fold_store
-                    .folded_lines
-                    .extend(self.fold_ranges.iter().map(|fold| fold.start_line));
-            }
+            CollapseFunctions => self.fold_store.collapse_all_functions(&self.fold_ranges),
+            FoldToDefinitions => self.fold_store.fold_to_definitions(&self.fold_ranges),
             OpenQuickFilePicker => {
                 self.modal = ActiveModal::QuickFilePicker(QuickFilePickerModal::default())
             }

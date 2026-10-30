@@ -16,7 +16,7 @@ fn defaults(
     assert!(syntax.calls.supported, "{:?}", syntax.calls.error);
     let mut store = FoldStore::new();
     store.activate(&buffer, &syntax.folds);
-    store.apply_initial_defaults(&buffer, &syntax.folds, &syntax.calls, changes);
+    store.apply_initial_defaults(&buffer, &syntax.folds, changes);
     (buffer, syntax, store)
 }
 
@@ -28,21 +28,21 @@ fn fresh_callable_defaults_leave_containers_open_and_remember_expanded_choices()
     assert!(!store.is_folded(1));
     assert!(!store.is_folded(4));
     store.unfold_all();
-    store.apply_initial_defaults(&buffer, &syntax.folds, &syntax.calls, None);
+    store.apply_initial_defaults(&buffer, &syntax.folds, None);
     assert!(store.folded_lines.is_empty());
     let other = SourceBuffer::from_str("b.rs", "fn other() {\n four();\n}\n");
     let other_syntax = DocumentSyntax::analyze(&other);
     store.activate(&other, &other_syntax.folds);
-    store.apply_initial_defaults(&other, &other_syntax.folds, &other_syntax.calls, None);
+    store.apply_initial_defaults(&other, &other_syntax.folds, None);
     assert!(store.is_folded(1));
     store.activate(&buffer, &syntax.folds);
-    store.apply_initial_defaults(&buffer, &syntax.folds, &syntax.calls, None);
+    store.apply_initial_defaults(&buffer, &syntax.folds, None);
     assert!(
         store.folded_lines.is_empty(),
         "an expanded saved document is initialized, not fresh"
     );
     store.toggle(1);
-    store.collapse_all_functions(&buffer, &syntax.folds, &syntax.calls);
+    store.collapse_all_functions(&syntax.folds);
     assert_eq!(store.folded_lines, HashSet::from([1, 5, 8, 12]));
 }
 
@@ -73,7 +73,6 @@ fn pr_annotations_and_body_changes_expand_only_their_owners_and_ancestors_once()
     let selected = super::review_folds::expanded_headers(
         &after,
         &syntax.folds,
-        &syntax.calls,
         &changes,
         ReviewRevision::After,
     );
@@ -83,7 +82,7 @@ fn pr_annotations_and_body_changes_expand_only_their_owners_and_ancestors_once()
         "Rust attribute owns its following function body"
     );
     store.toggle(3);
-    store.apply_initial_defaults(&after, &syntax.folds, &syntax.calls, Some(&changes));
+    store.apply_initial_defaults(&after, &syntax.folds, Some(&changes));
     assert!(
         store.is_folded(3),
         "initial changes cannot override a later manual fold"
@@ -200,5 +199,12 @@ fn multiline_signatures_stay_visible_and_same_line_containers_are_not_function_d
         None,
         None,
     );
-    assert_eq!(container.folded_lines, HashSet::from([4]));
+    assert_eq!(container.folded_lines, HashSet::from([1, 4]));
+    assert!(!container.is_line_hidden(
+        4,
+        &FoldDetector::detect_folds(&SourceBuffer::from_str(
+            "a.rs",
+            "impl Demo { fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\n"
+        ))
+    ));
 }

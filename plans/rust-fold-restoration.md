@@ -106,3 +106,10 @@ cycle, unchanged maximum CCN, and roughly 0.7% duplication. Broader query-based
 fold shapes, Fold to Definitions parity, late-data viewport handling, PR refresh/
 rename mapping and wider language/runtime acceptance remain open. Earlier claims
 that initial body/PR defaults remain absent are superseded by this implementation.
+
+## Typed fold policy update (2026-10-30)
+
+Structural folds and Fold to Definitions now use shared parsed fold/symbol roles
+with exact spans and containment. Source/PR defaults use those facts independently
+of call-query coverage. [Query/command evidence and remaining limits](rust-structural-folds.md).
+Earlier Fold to Definitions absence statements are superseded.
