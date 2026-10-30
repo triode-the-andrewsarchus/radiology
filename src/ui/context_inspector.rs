@@ -324,7 +324,7 @@ impl ContextInspector {
             }
         });
         if content.references_available && content.reference_target.is_some() {
-            if let Some(next) = crate::ui::reference_list::show_coverage(
+            if let Some(next) = references.show_coverage(
                 ui,
                 theme,
                 content.reference_results,

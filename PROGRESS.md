@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-10-30 — Coalesced Load More focus correction (Codex)
+
+Native debugging found that a same-frame pointer press/release lets list
+registration surrender focus requested by Load More. Focus restoration now occurs
+after registration. The regression test reproduces the native event sequence
+and checks retained focus after the coverage button disappears. Full gates pass
+246 app tests (one external-Clang test ignored), 5 reader-text tests, 30 doctests,
+fmt, Clippy, build and rustdoc. Architecture has unchanged maximum complexity,
+clone count and dependency cycles; average complexity and duplication decrease.
+Native final-build navigation verification follows.
+
 ## 2026-10-30 — Cropped reference text and load-more focus (Codex)
 
 Narrow source-line rows now mark measured prefix/suffix cropping with ellipses;
