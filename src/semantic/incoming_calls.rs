@@ -25,6 +25,8 @@ pub struct CallerRow {
     pub location: SourceLocation,
     /// One-based source line of this site.
     pub line: usize,
+    /// Zero-based Unicode scalar column, validated with the tree source digest.
+    pub column: usize,
     /// Scoped semantic identity, when the parsed declaration is indexed.
     pub symbol: Option<SemanticSymbolID>,
     /// Why traversal stopped or why a recursive continuation was suppressed.
@@ -348,6 +350,7 @@ fn owner(file: &File, byte: usize, inputs: &SourceQueryInputs) -> Owner {
         name: "Top level".into(),
         location: SourceLocation::with_revision(&buffer.path, byte, buffer.revision),
         line: buffer.line_at_byte(byte),
+        column: buffer.column_at_byte(byte),
         symbol: None,
         note: None,
     };

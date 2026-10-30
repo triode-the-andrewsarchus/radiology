@@ -1,11 +1,10 @@
 //! Replaceable reference context, independent of caret and navigation ownership.
 
+use super::disclosure::ReferenceDisclosure;
 use super::index::{SemanticIndex, SemanticSymbolID};
 use super::reference_results::{ReferenceLimits, ReferenceResults};
 use crate::background::LatestRead;
-use crate::source::preview::{
-    PreviewKind, PreviewPhase, PreviewTarget, SourcePreviewLoader, SourceQueryInputs,
-};
+use crate::source::preview::{PreviewPhase, SourceQueryInputs};
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
 use std::collections::{BTreeMap, HashMap};
@@ -75,7 +74,7 @@ pub(crate) struct ReferenceContext {
     pub results: ReferenceResults,
     pub error: Option<String>,
     pub selected: Option<usize>,
-    pub previews: BTreeMap<usize, SourcePreviewLoader>,
+    pub disclosures: BTreeMap<usize, ReferenceDisclosure>,
 }
 
 impl ReferenceContext {
@@ -86,7 +85,11 @@ impl ReferenceContext {
         self.target.as_ref()
     }
     pub fn is_running(&self) -> bool {
-        self.job.is_running() || self.previews.values().any(SourcePreviewLoader::is_running)
+        self.job.is_running()
+            || self
+                .disclosures
+                .values()
+                .any(ReferenceDisclosure::is_running)
     }
     pub fn is_query_running(&self) -> bool {
         self.job.is_running()
@@ -159,7 +162,7 @@ impl ReferenceContext {
         self.job.stop();
         self.results = Default::default();
         self.selected = None;
-        self.previews.clear();
+        self.disclosures.clear();
         self.error = None;
         self.target = target;
         self.limits = Default::default();
@@ -180,18 +183,9 @@ impl ReferenceContext {
         if self.job.is_running() {
             self.start_query();
         }
-        for (&row, preview) in &mut self.previews {
-            if preview.is_running() {
-                if let Some(hit) = self.results.hits.get(row) {
-                    preview.request(
-                        self.inputs.clone(),
-                        Some(PreviewTarget {
-                            path: hit.path.clone(),
-                            range: hit.range.clone(),
-                            kind: PreviewKind::Reference,
-                        }),
-                    );
-                }
+        if let Some(inputs) = &self.inputs {
+            for disclosure in self.disclosures.values_mut() {
+                disclosure.rebind_pending(inputs.clone());
             }
         }
     }
@@ -226,17 +220,21 @@ impl ReferenceContext {
         };
         self.selected = Some(row);
         if !expanded {
-            self.previews.remove(&row);
+            self.disclosures.remove(&row);
             return;
         }
-        self.previews.entry(row).or_default().request(
-            self.inputs.clone(),
-            Some(PreviewTarget {
-                path: hit.path.clone(),
-                range: hit.range.clone(),
-                kind: PreviewKind::Reference,
-            }),
-        );
+        if let (Some(inputs), Some(digest)) = (&self.inputs, self.results.source_digest(&hit.path))
+        {
+            self.disclosures.entry(row).or_insert_with(|| {
+                ReferenceDisclosure::new(inputs.clone(), hit.clone(), digest.to_owned())
+            });
+        }
+    }
+
+    pub fn more_callers(&mut self, row: usize) {
+        if let (Some(inputs), Some(disclosure)) = (&self.inputs, self.disclosures.get_mut(&row)) {
+            disclosure.more_callers(inputs.clone());
+        }
     }
 
     pub fn poll(&mut self) -> bool {
@@ -256,12 +254,26 @@ impl ReferenceContext {
             }
         };
         let mut source_changed = false;
-        for preview in self.previews.values_mut() {
+        for preview in self.disclosures.values_mut() {
             let published = preview.poll();
             if published {
                 if let PreviewPhase::Loaded(source) = preview.phase() {
                     source_changed |= self.results.source_digest(&source.path)
                         != Some(source.content_digest.as_str());
+                }
+            }
+            if published {
+                if let Some(tree) = preview.callers() {
+                    let revision = self
+                        .inputs
+                        .as_ref()
+                        .and_then(|inputs| inputs.buffer.revision);
+                    for (path, digest) in &tree.source_identities {
+                        self.source_digests.insert(
+                            crate::source::SourceLocation::format_position_key(path, revision),
+                            digest.clone(),
+                        );
+                    }
                 }
             }
             changed |= published;
@@ -280,7 +292,7 @@ impl ReferenceContext {
                 .flatten()
         };
         self.selected = self.selected.and_then(retained);
-        self.previews = std::mem::take(&mut self.previews)
+        self.disclosures = std::mem::take(&mut self.disclosures)
             .into_iter()
             .filter_map(|(old, preview)| retained(old).map(|new| (new, preview)))
             .collect();
@@ -469,13 +481,107 @@ mod tests {
         assert_eq!(context.results.omitted, 1);
         context.expand(0, true);
         settle(&mut context);
-        let preview = context.previews[&0].phase().clone();
+        let preview = context.disclosures[&0].phase().clone();
+        let tree = context.disclosures[&0].callers().unwrap().clone();
         context.more();
         settle(&mut context);
         assert_eq!(context.results.omitted, 0);
         assert_eq!(context.results.hits.len(), 2);
         assert_eq!(context.selected, Some(0));
-        assert_eq!(context.previews[&0].phase(), &preview);
+        assert_eq!(context.disclosures[&0].phase(), &preview);
+        assert_eq!(context.disclosures[&0].callers(), Some(&tree));
+    }
+
+    #[test]
+    fn independent_disclosures_cancel_together_and_retire_on_index_replacement() {
+        let (_root, inputs) = fixture();
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs.clone()), Some(target(&inputs, 4)));
+        settle(&mut context);
+        context.expand(0, true);
+        context.expand(1, true);
+        settle(&mut context);
+        assert_eq!(context.disclosures.len(), 2);
+        assert_eq!(context.disclosures[&0].callers().unwrap().rows.len(), 2);
+        let retained = context.disclosures[&1].callers().cloned();
+        context.expand(0, false);
+        assert_eq!(context.disclosures[&1].callers(), retained.as_ref());
+        context.expand(0, true);
+        let replacement = Arc::new(SourceQueryInputs {
+            source: inputs.source.clone(),
+            buffer: inputs.buffer.clone(),
+            index: Arc::new((*inputs.index).clone()),
+        });
+        context.update(Some(replacement), Some(target(&inputs, 4)));
+        assert!(context.disclosures.is_empty());
+        settle(&mut context);
+        assert!(
+            context.disclosures.is_empty(),
+            "a retired caller job published after replacement"
+        );
+    }
+
+    #[test]
+    fn caller_only_source_reads_join_first_visit_invalidation() {
+        let (root, inputs) = fixture();
+        let mut documents = inputs.index.documents.values().cloned().collect::<Vec<_>>();
+        documents
+            .iter_mut()
+            .find(|doc| doc.relative_path == "a.rs")
+            .unwrap()
+            .occurrences[1]
+            .symbol = "two".into();
+        let text = "fn three() { two(); }";
+        std::fs::write(root.path().join("c.rs"), text).unwrap();
+        documents.push(ScipDocument {
+            relative_path: "c.rs".into(),
+            occurrences: vec![
+                ScipOccurrence {
+                    symbol: "three".into(),
+                    symbol_roles: 1,
+                    range: ScipRange::from_packed(&[0, 3, 8]),
+                    ..Default::default()
+                },
+                ScipOccurrence {
+                    symbol: "two".into(),
+                    range: ScipRange::from_packed(&[0, 13, 16]),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        let inputs = Arc::new(SourceQueryInputs {
+            source: inputs.source.clone(),
+            buffer: inputs.buffer.clone(),
+            index: Arc::new(SemanticIndex::from_scip(ScipIndex {
+                documents,
+                ..Default::default()
+            })),
+        });
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs.clone()), Some(target(&inputs, 4)));
+        settle(&mut context);
+        context.expand(0, true);
+        settle(&mut context);
+        assert!(!context.results.source_identities.contains_key("c.rs"));
+        assert!(context.disclosures[&0]
+            .callers()
+            .unwrap()
+            .source_identities
+            .contains_key("c.rs"));
+        let displayed = Arc::new(SourceBuffer::from_str("c.rs", "fn three() { new(); }"));
+        context.update(
+            Some(Arc::new(SourceQueryInputs {
+                source: inputs.source.clone(),
+                buffer: displayed,
+                index: inputs.index.clone(),
+            })),
+            None,
+        );
+        assert!(
+            context.disclosures.is_empty(),
+            "changed caller-only source retained an old tree"
+        );
     }
 
     #[test]

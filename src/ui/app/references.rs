@@ -149,6 +149,10 @@ impl RadiologyApp {
         use crate::ui::reference_list::ReferenceAction;
         match action {
             ReferenceAction::More => self.reference_context.more(),
+            ReferenceAction::MoreCallers(row) => self.reference_context.more_callers(row),
+            ReferenceAction::CommitCaller(reference, caller) => {
+                self.commit_reference_caller(reference, caller)
+            }
             ReferenceAction::Select(row) => self.reference_context.select(row),
             ReferenceAction::SetExpanded(row, expanded) => {
                 self.reference_context.expand(row, expanded)
@@ -176,5 +180,40 @@ impl RadiologyApp {
                 }
             }
         }
+    }
+}
+
+impl RadiologyApp {
+    fn commit_reference_caller(&mut self, reference: usize, caller: usize) {
+        let Some(tree) = self
+            .reference_context
+            .disclosures
+            .get(&reference)
+            .and_then(|disclosure| disclosure.callers())
+        else {
+            return;
+        };
+        let Some(row) = tree.rows.get(caller) else {
+            return;
+        };
+        let Some(digest) = tree.source_identities.get(&row.location.path) else {
+            return;
+        };
+        let (location, line, column, digest) =
+            (row.location.clone(), row.line, row.column, digest.clone());
+        self.request_navigation(
+            location,
+            crate::source::loader::SourceTarget::Encoded {
+                line,
+                column,
+                encoding: crate::source::ColumnEncoding::Utf32,
+                content_digest: Some(digest),
+            },
+            source::NavigationIntent {
+                record_history: true,
+                reveal: true,
+                ..Default::default()
+            },
+        );
     }
 }

@@ -921,7 +921,7 @@ impl eframe::App for RadiologyApp {
                             buffer: self.open_buffer.as_deref(),
                             reference_results: &self.reference_context.results,
                             selected_reference: self.reference_context.selected,
-                            reference_previews: &self.reference_context.previews,
+                            reference_disclosures: &self.reference_context.disclosures,
                             reference_target: self
                                 .reference_context
                                 .explicit()

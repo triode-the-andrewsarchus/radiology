@@ -1,8 +1,8 @@
 //! Independent reference selection, disclosure, focus and variable-height geometry.
 
 use crate::{
+    semantic::disclosure::ReferenceDisclosure,
     semantic::reference_results::{ReferenceHit, ReferenceResults},
-    source::preview::SourcePreviewLoader,
     theme::AppTheme,
 };
 use egui::{Context, Id, Key, Modifiers, RichText, Sense, Ui};
@@ -26,6 +26,10 @@ pub enum ReferenceAction {
     ClearSelection,
     /// Expands resource limits and queries more indexed sites.
     More,
+    /// Expands the caller trace budget for one disclosed reference.
+    MoreCallers(usize),
+    /// Opens one validated caller site in a disclosed reference tree.
+    CommitCaller(usize, usize),
 }
 
 /// Measured reference-list geometry, reusable without application navigation state.
@@ -110,7 +114,7 @@ impl ReferenceViewport {
         theme: &AppTheme,
         results: &ReferenceResults,
         selected: Option<usize>,
-        previews: &BTreeMap<usize, SourcePreviewLoader>,
+        previews: &BTreeMap<usize, ReferenceDisclosure>,
     ) -> Option<ReferenceAction> {
         ui.interact(
             ui.available_rect_before_wrap(),
@@ -179,7 +183,7 @@ impl ReferenceViewport {
         &mut self,
         ui: &Ui,
         results: &ReferenceResults,
-        previews: &BTreeMap<usize, SourcePreviewLoader>,
+        previews: &BTreeMap<usize, ReferenceDisclosure>,
     ) {
         let geometry = (
             results.hits.len(),
