@@ -1,6 +1,5 @@
 use super::*;
 use crate::semantic::scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
-use crate::syntax::outline::SymbolExtractor;
 
 fn reader() -> (tempfile::TempDir, RadiologyApp) {
     let dir = tempfile::tempdir().unwrap();
@@ -300,7 +299,9 @@ fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
     let (_dir, mut app) = reader();
     let text = "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }";
     let buffer = SourceBuffer::from_str("pins.rs", text);
-    app.outline_symbols = SymbolExtractor::extract(&buffer);
+    let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+    app.outline_symbols = syntax.symbols;
+    app.syntactic_occurrences = syntax.occurrences;
     app.open_buffer = Some(Arc::new(buffer));
     app.pin_at_byte(text.find("value").unwrap());
     let ranges = &app.pin_store.groups[0].ranges;
@@ -1908,4 +1909,49 @@ fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, checkout);
     assert!(marked(&mut app).is_empty());
+}
+
+#[test]
+fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() {
+    let (dir, mut app) = reader();
+    let text = "fn demo() { clone(); #[cfg(other)] clone(); let s = \"clone\"; /* clone */ }";
+    std::fs::write(dir.path().join("a.rs"), text).unwrap();
+    write_critical_index(dir.path(), text);
+    app.open_repository(dir.path());
+    settle(&mut app);
+    app.pin_at_byte(text.find("clone").unwrap());
+    assert_eq!(app.pin_store.groups.len(), 1);
+    let group = &app.pin_store.groups[0];
+    assert_eq!(group.label, "clone");
+    assert!(group.symbol_name.starts_with("syntactic:"));
+    assert_eq!(group.ranges.len(), 2);
+    app.pin_at_byte(text.find("\"clone\"").unwrap() + 1);
+    assert_eq!(
+        app.pin_store.groups.len(),
+        1,
+        "string clicks must not create pins"
+    );
+    app.pin_at_byte(text.find("#[cfg(other)] clone").unwrap() + "#[cfg(other)] ".len());
+    assert!(
+        app.pin_store.groups.is_empty(),
+        "clicking another occurrence unpins the same group"
+    );
+    let mut index = (*app.semantic_index.as_ref().unwrap().as_ref()).clone();
+    let second = text.find("#[cfg(other)] clone").unwrap() + "#[cfg(other)] ".len();
+    let column = text[..second].chars().count() as i32;
+    let mut occurrence = index.documents["a.rs"].occurrences[0].clone();
+    occurrence.range = crate::semantic::ScipRange::from_packed(&[0, column, column + 5]);
+    index
+        .documents
+        .get_mut("a.rs")
+        .unwrap()
+        .occurrences
+        .push(occurrence);
+    app.semantic_index = Some(Arc::new(index));
+    app.pin_at_byte(text.find("clone").unwrap());
+    assert_eq!(
+        app.pin_store.groups[0].symbol_name,
+        "rust-analyzer cargo core 0 clone()."
+    );
+    assert_eq!(app.pin_store.groups[0].ranges.len(), 2);
 }
