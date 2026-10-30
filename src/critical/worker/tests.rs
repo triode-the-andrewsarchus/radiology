@@ -219,6 +219,7 @@ fn review_bodies_come_from_pinned_git_objects_and_before_does_not_reuse_after_ed
         head,
         object_dir: dir.path().join(".git"),
         head_root: dir.path().into(),
+        _tree_lease: None,
         files: vec![],
         changes: vec![],
         diffs: HashMap::new(),

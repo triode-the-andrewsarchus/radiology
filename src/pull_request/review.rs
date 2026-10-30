@@ -5,6 +5,8 @@
 
 mod lease;
 mod store;
+mod tree_cache;
+mod verify_tree;
 use lease::StoreLease;
 use store::GitStore;
 
@@ -34,7 +36,11 @@ pub struct ReviewSnapshot {
     /// Private bare object database.
     pub object_dir: PathBuf,
     /// Head worktree available for syntax and batch index generation.
+    ///
+    /// Keep this snapshot (or a clone) alive while using the path; its lease
+    /// protects the tree from cache eviction.
     pub head_root: PathBuf,
+    pub(crate) _tree_lease: Option<std::sync::Arc<tree_cache::TreeLease>>,
     /// Files at the head revision, before presentation filtering.
     pub files: Vec<RepositoryFile>,
     /// Changed files, including removed files absent from the head tree.
@@ -84,27 +90,39 @@ impl ReviewSnapshot {
             lease: Some(lease.file()),
             ..*control
         };
-        let object_dir = GitStore::initialize(lease.cache(), &control)?;
+        let object_dir = GitStore::initialize(lease.cache(), &control, &head)?;
         let store = GitStore(control.git(&object_dir));
         store.fetch(origin.trim(), &base_head, None)?;
         store.fetch(origin.trim(), &head, Some(summary.number))?;
         let base = store.text(&["merge-base", &base_head, &head])?;
-        let tree = store.materialize(&head)?;
-        let head_root = tree.path().to_owned();
-        let files = store.files(&head)?;
+        let tree = tree_cache::PreparedTree::prepare(&store, &head, &control)?;
+        Self::assemble(summary, head, base, object_dir, tree, &control)
+    }
+
+    fn assemble(
+        summary: PullRequestSummary,
+        head: String,
+        base: String,
+        object_dir: PathBuf,
+        mut tree: tree_cache::PreparedTree,
+        control: &ReviewControl<'_>,
+    ) -> Result<Self, String> {
+        let head_root = tree.path.clone();
+        let files = GitStore(control.git(&object_dir)).files(&head)?;
         let mut snapshot = Self {
             summary,
             head,
             base,
             object_dir,
             head_root,
+            _tree_lease: Some(tree.lease.clone()),
             files,
             changes: Vec::new(),
             diffs: HashMap::new(),
         };
-        snapshot.load_changes(&control)?;
+        snapshot.load_changes(control)?;
         control.check()?;
-        let _ = tree.keep();
+        tree.commit(control)?;
         Ok(snapshot)
     }
 
