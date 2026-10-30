@@ -99,6 +99,9 @@ and the remaining generation/cache requirements.
   changed bytes. Empty-side hunk anchors preserve unchanged caret lines across
   revision toggles. Pinned Git/UI/native coverage is recorded in the
   [marker contract](rust-review-outline-changes.md).
+- Source-bound destination feedback follows successful explicit jumps, with
+  shaped visual-row geometry, bounded hold/fade, preview/history cancellation and
+  first-paint timing. [Contract and native scope](rust-destination-feedback.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -115,7 +118,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   subprocess cancellation still need finer interruption/deadlines.
 - Remaining source presentation: same-row fold controls/Kotlin import grouping and exact
   PR-refresh fold/pin mapping, AST-aware fallback occurrence scope, enclosing-function body
-  shade and transient destination feedback. Broader wrapping/scroll anchoring,
+  shade. Destination feedback is integrated; broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
   fold restoration and initial body/PR defaults are integrated; see
   [acceptance](rust-fold-restoration.md). Typed structural folds and

@@ -121,8 +121,8 @@ broader native restart/input acceptance in the final lifecycle audit.
 ## Remaining outline and broader parity work
 
 PR changed-callable markers are now integrated; see the
-[review marker contract](rust-review-outline-changes.md). Keep transient destination
-feedback in the source/outline presentation queue. Broader mixed-language/long-name, pinned-revision,
+[review marker contract](rust-review-outline-changes.md). Transient destination
+feedback is also integrated; see its [contract](rust-destination-feedback.md). Broader mixed-language/long-name, pinned-revision,
 scaling, keyboard/accessibility and side-by-side Swift visual acceptance remains.
 The initial empty-state explanations are present; complete language/parser-error
 explanations should still be compared with Swift. Revisit/document caches,

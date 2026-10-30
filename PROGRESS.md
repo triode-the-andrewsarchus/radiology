@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Source-bound destination feedback (Codex)
+
+Committed/pushed shaped destination feedback (`6d86935`) and explicit navigation
+binding (`00d8eb5`), followed by path/revision identity hardening (`078070a`).
+Successful semantic/reference/caller/bookmark/change-block
+and pointer outline activation can flash the exact shaped visual row: 18% accent,
+900 ms hold and 210 ms fade. First-paint timing, identity rejection, replacement,
+preview/navigation cancellation and disabled-animation clearing are bounded in a
+small controller. Wrapped Unicode fragments paint one band; selection/caret stay
+independent. NavigationIntent carries policy through validated source publication.
+Full gates pass 292 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Native pointer/keyboard distinctions, expiry, dark/light
+bookmark rereads, missing-file preservation, UTF-16 F12 and interrupted Back pass;
+[contract and hashed evidence](plans/rust-destination-feedback.md). No new product
+hotspot/cycle/clone group. Overall parity remains open: function shading,
+fold/import presentation, caches, background/index/PR lifecycle, broader native
+and accessibility acceptance, and sibling palette/chrome reuse. Keep pushing
+after every commit.
+
 ## 2026-10-30 — PR outline markers and revision anchor mapping (Codex)
 
 Committed/pushed full-line byte spans (`925e8c3`), PR callable dots (`3c84b2c`)
