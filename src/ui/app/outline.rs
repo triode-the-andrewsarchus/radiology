@@ -58,8 +58,7 @@ impl RadiologyApp {
         };
         match action {
             OutlineAction::Preview(_) => {
-                self.fold_store
-                    .reveal_line(buffer.line_at_byte(byte), &self.fold_ranges);
+                self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
                 self.source_viewport.preview_byte(buffer, byte);
             }
             OutlineAction::Commit(_) | OutlineAction::Activate(_) => self.navigate_target(

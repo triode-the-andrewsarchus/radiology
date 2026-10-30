@@ -253,8 +253,8 @@ pub(crate) fn reveal_list_row(
     scroll.vertical_scroll_offset(next.max(0.0))
 }
 
-/// Keeps inspector navigation under ordered dispatch while leaving Tab available.
-pub(crate) fn retain_inspector_keys(ctx: &egui::Context, id: egui::Id) {
+/// Keeps arrows and Escape under explicit dispatch while leaving Tab available.
+pub(crate) fn retain_navigation_keys(ctx: &egui::Context, id: egui::Id) {
     ctx.memory_mut(|memory| {
         memory.set_focus_lock_filter(
             id,

@@ -127,7 +127,7 @@ impl BookmarkList {
                 "Bookmarks. Up and Down select; Return opens; Delete removes. Drag to reorder.",
             )
         });
-        super::commands::retain_inspector_keys(ui.ctx(), Self::focus_id());
+        super::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         let row_height = ui.text_style_height(&egui::TextStyle::Body)
             + ui.text_style_height(&egui::TextStyle::Small) * 2.0
             + 10.0;

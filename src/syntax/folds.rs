@@ -39,6 +39,38 @@ pub struct FoldRange {
     pub owner_range: Option<Range<usize>>,
 }
 
+impl FoldRange {
+    /// Returns whether the capture retains visible opening and closing delimiters.
+    #[must_use]
+    pub fn is_delimited(&self, buffer: &SourceBuffer) -> bool {
+        let range = &self.byte_range;
+        range.len() >= 2
+            && range.end <= buffer.data.len()
+            && b"{[(\"'`".contains(&buffer.data[range.start])
+            && b"}])\"'`".contains(&buffer.data[range.end - 1])
+    }
+
+    /// Returns the canonical bytes hidden by this fold, preserving delimiters.
+    #[must_use]
+    pub fn hidden_range(&self, buffer: &SourceBuffer) -> Range<usize> {
+        if self.is_delimited(buffer) {
+            self.byte_range.start + 1..self.byte_range.end - 1
+        } else {
+            self.byte_range.clone()
+        }
+    }
+
+    /// Returns the original physical line owning the disclosure.
+    #[must_use]
+    pub fn header_line(&self, buffer: &SourceBuffer) -> usize {
+        if self.is_delimited(buffer) {
+            self.start_line
+        } else {
+            self.start_line.saturating_sub(1).max(1)
+        }
+    }
+}
+
 /// Stores the set of active collapsed source-byte ranges.
 ///
 /// # Examples
@@ -176,6 +208,15 @@ impl FoldStore {
     pub fn unfold_all(&mut self) {
         self.initialized = true;
         self.folded_ranges.clear();
+    }
+
+    /// Reveals exact bytes, including a hidden suffix on an otherwise visible row.
+    pub fn reveal_byte(&mut self, byte: usize, buffer: &SourceBuffer, ranges: &[FoldRange]) {
+        for fold in ranges {
+            if fold.hidden_range(buffer).contains(&byte) {
+                self.folded_ranges.remove(&fold.byte_range);
+            }
+        }
     }
 
     /// Reveals a canonical source line without expanding unrelated folds.

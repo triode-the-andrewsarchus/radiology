@@ -1,8 +1,9 @@
 # Typed structural folds and Fold to Definitions
 
 Current follow-up: [exact fold identities](rust-fold-identities.md) supersedes the
-single-candidate/line-keyed limitations below. Partial-line and non-delimited header
-projection remain open; the following sections retain their implementation checkpoints.
+single-candidate/line-keyed limitations below. [Byte projection](rust-fold-projection.md)
+also implements partial-line/non-delimited header rendering. The following sections
+retain their implementation checkpoints.
 
 ## Implemented behavior (2026-10-30)
 

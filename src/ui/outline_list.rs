@@ -282,7 +282,7 @@ impl OutlineList {
                 "Outline. Arrows preview; Left and Right disclose declarations; Return navigates.",
             )
         });
-        super::commands::retain_inspector_keys(ui.ctx(), Self::focus_id());
+        super::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         if self.visible.is_empty() {
             ui.colored_label(theme.text_muted, "No Outline");
             ui.label(if self.entries.is_empty() {

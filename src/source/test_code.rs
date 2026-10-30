@@ -136,6 +136,12 @@ impl TestCodePresentation {
         })
     }
 
+    /// Returns disjoint canonical intervals hidden by test presentation.
+    #[must_use]
+    pub fn hidden_ranges(&self) -> &[Range<usize>] {
+        &self.hidden
+    }
+
     /// Removes only hidden byte intervals, preserving visible tails on shared lines.
     pub fn project_into(&self, fragment: &SourceFragment, output: &mut Vec<SourceFragment>) {
         if fragment.bytes.is_empty() {

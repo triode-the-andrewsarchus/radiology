@@ -11,6 +11,11 @@ files have been modified; migrating that host onto the same package remains an
 integration step. This is not a claim that two applications already share the
 runtime implementation.
 
+The reader now also uses [bounded visible-span projection](rust-fold-projection.md)
+for manual folds and hidden tests. `ProjectedFragment` joins visible canonical
+spans across hidden newlines and maps glyph character positions back to source
+bytes without copying hidden bodies into layout.
+
 ## Contracts
 
 - Fragment boundaries always land on UTF-8 scalar boundaries. Canonical source

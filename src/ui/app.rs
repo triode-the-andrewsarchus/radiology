@@ -983,8 +983,11 @@ impl eframe::App for RadiologyApp {
                     if let Some(range) = found {
                         self.test_code.reveal_range(&buf, &range);
                         self.navigate(buf.location_at_byte(range.start), true);
-                        self.fold_store
-                            .reveal_line(buf.line_at_byte(range.end), &self.fold_ranges);
+                        self.fold_store.reveal_byte(
+                            range.end.saturating_sub(1).max(range.start),
+                            &buf,
+                            &self.fold_ranges,
+                        );
                     }
                     let mut enclosing = Vec::new();
                     let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
