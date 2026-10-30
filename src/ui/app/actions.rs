@@ -54,6 +54,7 @@ impl RadiologyApp {
             NextChangeBlock => self.navigate_change(true),
             PrevChangeBlock => self.navigate_change(false),
             GoToDefinition => self.go_to_definition(),
+            FindReferences => self.find_references_at_caret(),
             OpenBookmark(index) => self.open_bookmark(index),
             ToggleBookmark => {
                 if let Some(buffer) = &self.open_buffer {

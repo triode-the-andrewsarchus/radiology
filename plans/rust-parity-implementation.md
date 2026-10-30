@@ -72,6 +72,10 @@ and the remaining generation/cache requirements.
   queries and semantic classification. Ordinary resolved callees recede; unknown
   and critical call names remain prominent. Renderer span splitting preserves
   original text/geometry and replaces color/name guessing. [Lens limits](rust-critical-lens.md).
+- Explicit Find References/Follow Caret use exact scoped identities and replaceable
+  background queries independently of source navigation. Direct rows are virtualized;
+  automatic references match parsed declaration-name bytes rather than lines.
+  [Reference context and remaining inspector work](rust-reference-context.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
@@ -96,7 +100,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Swift/Kotlin highlighting and broader declaration/scope/grammar acceptance;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,
-  explicit Find References and Follow Caret, full source definition previews,
+  full source definition previews,
   independent inspector keyboard preview/commit behavior.
 - Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
   Fold counts now publish progressively with retired-request isolation. Pointer-dwell hover summaries/navigation

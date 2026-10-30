@@ -303,6 +303,10 @@ fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
                 ("Go to File… (Ctrl+K)", ToolbarAction::OpenQuickFilePicker),
                 ("Go to Symbol… (Ctrl+T)", ToolbarAction::OpenGoToSymbol),
                 ("Go to Line… (Ctrl+L)", ToolbarAction::OpenGoToLine),
+                (
+                    "Find References (Ctrl+Alt+R)",
+                    ToolbarAction::FindReferences,
+                ),
             ][..],
             &[(
                 "Search Repository (Ctrl+Shift+F)",

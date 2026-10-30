@@ -15,6 +15,7 @@ fn settle(app: &mut RadiologyApp) {
         || app.is_index_loading()
         || app.is_critical_loading()
         || app.is_marks_loading()
+        || app.is_reference_loading()
     {
         app.poll_source(&ctx);
         app.poll_index(&ctx);
@@ -1203,4 +1204,111 @@ fn fold_to_definitions_command_exposes_method_and_variant_headers_and_preserves_
     settle(&mut app);
     assert_eq!(app.fold_store.folded_lines, HashSet::from([1, 6, 15]));
     assert!(app.fold_error.is_none());
+}
+
+fn reference_index() -> Arc<SemanticIndex> {
+    let occurrence = |symbol: &str, role, coordinates: &[i32]| ScipOccurrence {
+        symbol: format!("scip test fixture 1 {symbol}()."),
+        symbol_roles: role,
+        range: ScipRange::from_packed(coordinates),
+        ..Default::default()
+    };
+    Arc::new(SemanticIndex::from_scip(ScipIndex {
+        documents: vec![
+            ScipDocument {
+                relative_path: "a.rs".into(),
+                occurrences: vec![occurrence("alpha", 1, &[0, 3, 8])],
+                ..Default::default()
+            },
+            ScipDocument {
+                relative_path: "b.rs".into(),
+                occurrences: vec![
+                    occurrence("beta", 1, &[0, 3, 7]),
+                    occurrence("alpha", 0, &[1, 4, 9]),
+                ],
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    }))
+}
+
+#[test]
+fn explicit_references_remain_independent_of_navigation_and_follow_latest_declaration() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.semantic_index = Some(reference_index());
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    assert_eq!(app.reference_context.target().unwrap().name, "beta");
+    let buffer = app.open_buffer.clone().unwrap();
+    let location = app.history.current().cloned();
+    let can_back = app.history.can_go_back();
+    app.show_inspector = false;
+    app.execute_command(&Context::default(), ToolbarAction::FindReferences);
+    settle(&mut app);
+    assert!(app.show_inspector);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!((app.caret_line, app.caret_col), (2, 5));
+    assert_eq!(app.history.current(), location.as_ref());
+    assert_eq!(app.history.can_go_back(), can_back);
+    assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
+    assert_eq!(app.reference_context.rows.len(), 1);
+    assert_eq!(app.reference_context.rows[0].path, "b.rs");
+    // The enclosing declaration changes independently of explicit focus.
+    app.jump_to_location("a.rs", 2, "fn alpha() {\n    ".len());
+    settle(&mut app);
+    assert_eq!(app.reference_context.target().unwrap().name, "alpha");
+    app.jump_to_location("b.rs", 1, 4);
+    settle(&mut app);
+    assert_eq!(app.reference_context.target().unwrap().name, "alpha");
+    let location = app.history.current().cloned();
+    app.follow_reference_caret();
+    settle(&mut app);
+    assert!(app.reference_context.explicit().is_none());
+    assert_eq!(app.reference_context.target().unwrap().name, "beta");
+    assert!(app.reference_context.rows.is_empty());
+    assert_eq!(app.history.current(), location.as_ref());
+    app.find_references_at_byte(buffer.text.find("alpha").unwrap());
+    settle(&mut app);
+    assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app.reference_context.explicit().is_none());
+    assert!(app.reference_context.rows.is_empty());
+}
+
+#[test]
+fn reference_commands_reject_stale_and_before_sources_without_replacing_pinned_focus() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
+    settle(&mut app);
+    app.semantic_index = Some(reference_index());
+    app.jump_to_location("a.rs", 1, 4);
+    settle(&mut app);
+    app.find_references_at_caret();
+    settle(&mut app);
+    let target = app.reference_context.explicit().cloned();
+    Arc::make_mut(app.semantic_index.as_mut().unwrap())
+        .source_digests
+        .insert("a.rs".into(), "different bytes".into());
+    app.find_references_at_caret();
+    assert!(app
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("No exact indexed symbol"));
+    assert_eq!(app.reference_context.explicit(), target.as_ref());
+    Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = Some(ReviewRevision::Before);
+    app.refresh_symbol_context();
+    app.find_references_at_caret();
+    assert!(!app.is_reference_loading());
+    assert!(app.reference_context.rows.is_empty());
+    assert!(!app.reference_context.available());
+    assert_eq!(app.reference_context.explicit(), target.as_ref());
 }
