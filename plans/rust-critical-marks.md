@@ -40,6 +40,22 @@ acceptance test remains ignored by default. Architecture comparison retains a
 seven-line fixture clone; no new product clone/CCN hotspot/cycle is reported.
 Maximum CCN remains 100, with about 0.7% duplication.
 
+## Session lifecycle (2026-10-30)
+
+`MarkSession` uses replaceable background loads and a single coalescing durable
+writer on the existing worker pool. Pre-load edits replay over stored decisions;
+repository switches and Drop retain accepted edits. Controlled shutdown can drain
+with a deadline. Errors remain repository-scoped and failed saves retain session
+decisions. Exact-source menu targets reject locals, Before and mismatched bytes.
+SCIP package headers and cached repository ownership are shared with the index,
+avoiding a whole-index scan during menu rendering.
+
+Four lifecycle tests cover delayed loads/switches, rapid decisions, shutdown,
+failure isolation and Drop; a semantic menu test covers identity guards and
+cached ownership. The complete working tree passes 169 application tests,
+5 reader-text tests, 30 doctests and Clippy. UI integration remains under
+verification and is deliberately separate from this backend commit.
+
 ## Remaining reader integration
 
 This backend is implemented; current reader projection requests still use empty
