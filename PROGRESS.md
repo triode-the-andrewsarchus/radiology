@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Native analysis cancellation acceptance (Codex)
+
+Native parser/query/walk retirement committed/pushed as `895f5c6`. Native acceptance
+rapidly replaces four 4.44-MB Rust candidates while retaining the accepted a.rs,
+then displays the fresh small f.rs in the capture requested 0.5 seconds after its
+click. Explicit Cancel retains f.rs. App and compositor exits are zero. The final
+callback tests prove actual parser and no-match query interruption, latched stop
+pulses, stage/walk cancellation and fresh recovery. Full gates pass 346 app tests
+(one external-Clang fixture ignored), eight shared tests, 30 doctests, fmt, strict
+Clippy, build and rustdoc. Architecture adds no hotspot/cycle/clone group after
+shared match traversal and cohesive color/declaration-end preparation; remaining
+flags are verified baseline fragments. [Contract and hashed evidence](plans/rust-native-analysis-cancellation.md).
+Full parity remains open: SCIP decoding interruption, PR process lifecycle, caches,
+broader index/provisioning/provenance and refresh mapping, final visual/accessibility/
+scaling acceptance and sibling palette/chrome reuse. Commit and push each increment.
+
 ## 2026-10-30 — Shared native analysis cancellation (Codex)
 
 Tree-sitter parsing and query matching now use native progress callbacks with one

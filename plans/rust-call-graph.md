@@ -82,8 +82,8 @@ checkout bytes, Before isolation, fold scope, exact annotation identity and reti
 publication. Full checks pass 183 application tests, 5 reader-text tests,
 30 doctests, fmt, Clippy and rustdoc. Architecture retains one ten-line test
 assertion clone shared with frontier tests; no new product clone/hotspot/cycle,
-maximum CCN unchanged and average CCN down 0.02. Filesystem/Tree-sitter cancellation
-is still checked around each operation. Pinned Git reads now receive the graph
+maximum CCN unchanged and average CCN down 0.02. Filesystem operations are still checked around each syscall; [native parse/query
+progress](rust-native-analysis-cancellation.md) now interrupts analysis. Pinned Git reads receive the graph
 request flag and deadline; see [runtime verification](rust-analysis-source-cancellation.md).
 
 ## Source fold-count integration and acceptance (2026-10-30)

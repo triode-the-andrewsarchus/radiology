@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Native analysis cancellation](plans/rust-native-analysis-cancellation.md) records
+latched parser/query interruption, fact-stage retirement and large-file native acceptance.
+
 [Semantic source cancellation](plans/rust-analysis-source-cancellation.md) records
 preview/reference/caller/graph propagation, cache safety and live-child verification.
 
