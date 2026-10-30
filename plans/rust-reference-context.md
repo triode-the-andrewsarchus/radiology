@@ -51,11 +51,27 @@ hotspot or cycle is reported. The comparison flags two additional short test clo
 groups; reports touching the inspector are existing shape/pointer test sequences.
 No shared product algorithm is duplicated; test setup/assertions stay local.
 
-Native menu/Follow Caret acceptance is in progress in the private Wayland harness
-at `/tmp/radiology-reference-native/`; fixture indexes are explicitly unverified
-imports. No sibling runtime dependency has been introduced. Required Swift/macOS/
-typography skills remain unavailable in the configured skill locations; Swift
-source and the established reader typography are the UI reference.
+Native private-Wayland acceptance passes at `/tmp/radiology-reference-native/`:
+
+- `source-menu-final.png`: enabled Find References after the emoji/UTF-16 prefix;
+  definition/reference command labels and separate shortcut hints stay on one row.
+- `explicit-save.png` and `explicit-save-final.png`: the action pins save and
+  displays both indexed references, including after the final menu cleanup.
+- `explicit-across-files.png` and `caret-other-explicit-save.png`: opening b.rs
+  and clicking other preserve save references while the independent lower pane
+  changes to other's definition.
+- `reference-row-navigation.png`: clicking the first reference navigates back to
+  a.rs's exact save occurrence after the emoji. (The original capture was named
+  follow-caret-other.png before its actual clicked row was recognized.)
+- `follow-caret-demo.png`: Follow Caret removes explicit focus, restores demo's
+  references and keeps the source caret/under-caret save definition unchanged.
+
+The fixture indexes are explicitly unverified imports. No sibling runtime
+dependency has been introduced. Required Swift/macOS/typography skills remain
+unavailable in the configured skill locations; Swift source and the established
+reader typography are the UI reference. All three app runs and both compositors
+exit zero; persistent virtual-pointer clients are intentionally terminated when
+replaced or cleaned up.
 
 ## Remaining inspector parity
 
