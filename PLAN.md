@@ -45,8 +45,8 @@ counts and remaining graph/cache acceptance.
 records shared call queries, exact semantic projection and remaining reader/graph work.
 
 [Source-validated incoming call paths](plans/rust-incoming-callers.md) records the
-new query backend, shared callee resolver, branch/boundary contract and pending
-controller/UI integration.
+shared callee resolver, retained background disclosures, virtualized caller rows,
+Trace More, guarded navigation and native acceptance.
 
 [Source-backed reference results](plans/rust-reference-results.md) records validated
 source-line hits, definition/reference counts, coverage, expandable queries and

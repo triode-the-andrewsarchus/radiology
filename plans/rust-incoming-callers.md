@@ -4,9 +4,10 @@
 
 The Swift reference disclosure traces callers from the containing callable of a
 selected source hit, not just from the referenced symbol. The new public Rust
-`semantic::incoming_calls::trace` implements this backend contract. Controller,
-reader disclosure and native acceptance remain required before this feature is
-considered integrated. The legacy index-only CallerTreeBuilder remains a public
+`semantic::incoming_calls::trace` implements this backend contract. Reference
+disclosures now integrate the query with background ownership, virtualized
+presentation, Trace More and guarded navigation. Native acceptance is recorded
+below. The legacy index-only CallerTreeBuilder remains a public
 compatibility API; it is not used by the new query.
 
 The query captures the same `SourceQueryInputs` as references/previews and checks
@@ -62,13 +63,69 @@ The unavailable swiftui-pro, macos-design and typography-designer skills remain
 absent from configured skill/plugin locations. Swift source and its caller tests
 provide the behavior contract. This commit adds no typography or UI changes.
 
-## Required integration
+## Disclosure integration and native acceptance — 2026-10-30
 
-- Bind a replaceable background trace to each expanded reference, with retiring
-  publication on source/index/configuration changes and exact retained state.
-- Render names, source locations, caller identity colors, depth and boundary notes
-  in the existing virtualized reference disclosure; keep navigation explicit.
-- Expose partial notices and Trace More without losing selection or focus.
-- Verify pinned review reads, source invalidation, independent disclosures and
-  native keyboard/pointer navigation of tree rows.
-- Add request/revisit cache reuse within the full reader lifecycle work.
+ReferenceDisclosure owns one source excerpt and one independently replaceable
+caller job. Collapse drops both channels. Changed source/index inputs retire
+publications; larger reference queries remap valid disclosures by exact site and
+digest. Pending caller jobs rebind to newly displayed source. Caller-only reads
+join the existing first-visit source-identity ledger. Tree expansion retains its
+previous rows while loading. Exact digest-guarded scalar-column navigation shares
+the existing source transaction, so changed bytes cannot mutate source/history.
+
+Caller presentation reuses the reference list scroll area and variable row
+geometry. It paints only the visible tree slice, uses stable identity colors,
+shows filename/line and boundary notes, caps visual indentation at four levels,
+and preserves complete depth/path in accessible labels and tooltips. The header
+reports rows shown, distinct from the inspector's reference count. Partial
+coverage and Trace More remain explicit. Right opens a reference disclosure;
+Right again focuses its callers. Up/Down and Home/End move through caller controls;
+Return/Space opens a site; Left collapses its parent and Escape returns list focus.
+Disappearing Trace More controls also restore list focus. Tab remains available.
+
+Caller-owned key presses use eframe's raw_input_hook and the existing shared
+ordered dispatcher before egui computes automatic focus direction. A debugger
+trace and consecutive-frame four-control regression demonstrate why consuming
+keys only during update or applying a focus filter was insufficient in egui 0.27:
+newly focused controls cannot accept a filter until a later frame. Shared filters
+still express control ownership; the pre-frame hook prevents duplicate moves.
+No framework fork, unsafe access or timing delay is required. Non-text caller
+controls remain eligible for global reader shortcuts such as F12.
+
+Native core acceptance at bc3a929 (PID 3766902) shows 256, 512 and 516 caller rows
+with retained source state, partial notices and explicit top-level boundaries.
+Consecutive Down events plus Return open other at b.rs:5, and Back restores the
+original a.rs caret after the emoji. After the final expansion removes Trace More,
+Down/Return operates on reference selection and opens b.rs:5. Left collapses the
+tree while leaving source unchanged. Radiology and both private compositors exit
+zero. The final global-focus change at deb1462 (PID 3773379) separately verifies
+F12 from caller focus opening the exact b.rs:1 save declaration; all exits are zero.
+
+Evidence lives in /tmp/radiology-caller-disclosure-native/build-evidence.json,
+with accepted screenshot names and hashes, core/final commit checkpoints and the
+final shortcut binary SHA-256. Core screenshots are in that directory; final
+shortcut screenshots are in /tmp/radiology-caller-shortcuts-native. Rejected
+filter-only screenshots are excluded from acceptance. caller-focus-gdb.log
+records the observed frame-end focus reassignment. Test harness imports from the
+sibling project remain test-only; the standalone product has no sibling dependency.
+
+Full gates pass 262 app tests (one external-Clang test ignored), 5 reader-text
+tests, 30 doctests, fmt, Clippy with warnings denied, build and rustdoc. Added
+controller/application cases cover independent retirement, expanded-query tree
+retention, caller-only first-visit invalidation, changed-source navigation refusal
+and global shortcuts. UI cases cover coalesced clicks, a 1,000-row visible slice,
+consecutive-frame focus and ordered commit. Architecture comparison against
+before-caller-disclosure has no new product hotspot/cycle, unchanged max CCN 100,
+average CCN down 0.01 and approximately unchanged duplication. It flags one added
+short clone group; remaining reports concern compact fixture/assertion and UI
+registration idioms rather than a duplicate caller or navigation mechanism.
+
+## Remaining acceptance and broader parity
+
+- Native pinned-review caller reads and a broader mixed-language/error corpus.
+- More independent-disclosure and pointer/Tab flows across light/dark, scaling
+  and narrow-window native acceptance, plus side-by-side Swift visual checks.
+- Request/revisit cache reuse and finer native-read/parse interruption as part
+  of the full reader lifecycle work.
+- Richer under-caret metadata, extension/implementation links, external/local
+  explanations and outline/bookmark keyboard parity.

@@ -89,9 +89,10 @@ source primitives guide the implementation.
 
 ## Still required for full inspector parity
 
-Reference rows still need always-visible source-line text, grouping, definitions
-and coverage accounting; currently their existing identity/path capsules remain.
-Parsed/validated incoming call-tree disclosure, richer under-caret metadata and
+Source-backed rows, grouping, definitions and coverage are now integrated;
+see [reference results](rust-reference-results.md). Parsed/validated caller trees
+are integrated with retained disclosures and native keyboard/navigation acceptance;
+see [incoming callers](rust-incoming-callers.md). Richer under-caret metadata,
 external/local explanations, outline/bookmark keyboard parity, bounded revisit
 caches, broader corpus/runtime checks and final Swift comparison remain open.
 This package does not complete the full Rust/Swift objective.
