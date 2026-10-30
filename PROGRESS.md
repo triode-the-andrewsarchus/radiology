@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Native inspector metadata acceptance (Codex)
+
+Native checks verify Unicode local scope/count/source context, recorded function
+facts/prose and real preview, exact Return/Back after an emoji, Here state,
+package-only state without navigation, and Implementation type context with
+F12/Back restoration. All private app/compositor exits are zero. Evidence hashes,
+build checkpoints and precise scope are in the [metadata contract](plans/rust-inspector-metadata.md).
+Full gates pass 273 app tests, 5 reader-text tests, 30 doctests, fmt, Clippy,
+build and rustdoc. Remaining work includes outline/bookmark and broader inspector
+acceptance, caches, indexing/PR lifecycle, source presentation/reuse and the final
+Swift audit; full parity stays open.
+
 ## 2026-10-30 — Readable package labels (Codex)
 
 Package facts omit placeholder versions and source-URL fields, matching Swift,

@@ -92,7 +92,8 @@ source primitives guide the implementation.
 Source-backed rows, grouping, definitions and coverage are now integrated;
 see [reference results](rust-reference-results.md). Parsed/validated caller trees
 are integrated with retained disclosures and native keyboard/navigation acceptance;
-see [incoming callers](rust-incoming-callers.md). Richer under-caret metadata,
-external/local explanations, outline/bookmark keyboard parity, bounded revisit
+see [incoming callers](rust-incoming-callers.md). Background under-caret metadata,
+local/package explanations and implementation links are integrated in
+[metadata acceptance](rust-inspector-metadata.md). Outline/bookmark keyboard parity, bounded revisit
 caches, broader corpus/runtime checks and final Swift comparison remain open.
 This package does not complete the full Rust/Swift objective.

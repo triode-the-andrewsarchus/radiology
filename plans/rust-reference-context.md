@@ -82,6 +82,6 @@ Selection/disclosure/commit keyboard behavior and bounded real-source definition
 reference excerpts are now integrated; see [preview acceptance](rust-inspector-previews.md).
 Source-line rows, grouping and definitions/coverage are integrated in
 [reference results](rust-reference-results.md), and parsed/validated caller trees
-in [incoming callers](rust-incoming-callers.md). Extension/implementation links,
-richer metadata, revisit caches and broader repository/runtime acceptance remain
-required. The full Rust/Swift parity objective stays open.
+in [incoming callers](rust-incoming-callers.md). Exact implementation links and
+background under-caret facts are integrated in [metadata](rust-inspector-metadata.md).
+Revisit caches and broader keyboard/repository/runtime acceptance remain required. The full Rust/Swift parity objective stays open.
