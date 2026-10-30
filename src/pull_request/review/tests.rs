@@ -1,7 +1,15 @@
 use super::*;
 
 fn git(root: &Path, args: &[&str]) -> String {
-    git_at(root, args).unwrap()
+    String::from_utf8(
+        ReviewControl::new(&AtomicBool::new(false))
+            .git(root)
+            .required(args)
+            .unwrap(),
+    )
+    .unwrap()
+    .trim()
+    .to_owned()
 }
 
 pub(crate) fn fixture() -> (tempfile::TempDir, PathBuf, ReviewSnapshot) {

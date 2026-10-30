@@ -38,10 +38,14 @@ fn replacing_discovery_retires_the_previous_root_and_its_launch_intent() {
     let next = old.join("next");
     repository(&next);
     let (old_review, receiver) = std::sync::mpsc::channel();
-    app.review_rx = Some(receiver);
+    app.review_job.spawn(move |_| {
+        let _ = receiver.recv_timeout(std::time::Duration::from_secs(5));
+        Err("retired review".into())
+    });
     app.pending_pr = Some(99);
     app.launch(Some(&old), Some(123), Some("stale.rs"));
-    assert!(old_review.send(Err("retired review".into())).is_err());
+    let _ = old_review.send(());
+    assert!(!app.review_job.is_running());
     assert!(app.pending_pr.is_none(), "PR work must wait for its root");
     assert!(matches!(
         app.pending_repository.as_ref().unwrap().destination,

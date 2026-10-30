@@ -240,3 +240,32 @@ fn executable_write_handles_delay_start_within_the_same_deadline_and_allow_cance
     });
     drop(writer);
 }
+
+#[test]
+fn collected_stdout_remains_complete_and_rejects_excess_without_partial_success() {
+    let root = tempfile::tempdir().unwrap();
+    let command = shell(
+        root.path(),
+        "head -c 200000 /dev/zero; printf end; printf diagnostic >&2",
+    );
+    let (output, bytes) = run_collect(
+        &command,
+        &AtomicBool::new(false),
+        Duration::from_secs(5),
+        200003,
+    )
+    .unwrap();
+    assert!(output.succeeded());
+    assert!(output.stdout.truncated);
+    assert_eq!(bytes.len(), 200003);
+    assert!(bytes.ends_with(b"end"));
+    assert_eq!(output.stderr.text, "diagnostic");
+    let failure = run_collect(
+        &command,
+        &AtomicBool::new(false),
+        Duration::from_secs(5),
+        200002,
+    )
+    .unwrap_err();
+    assert!(matches!(failure.kind, RunFailureKind::Io(message) if message.contains("exceeds")));
+}

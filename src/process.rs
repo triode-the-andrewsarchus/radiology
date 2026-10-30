@@ -164,6 +164,37 @@ pub fn run_observed(
     }
 }
 
+/// Runs a command and collects complete stdout up to `maximum_bytes`.
+///
+/// Diagnostic output remains independently bounded. An oversized stdout aborts
+/// the child group instead of returning a truncated successful result.
+///
+/// # Errors
+///
+/// Returns [`RunFailure`] for cancellation, timeout, subprocess I/O or a stdout
+/// exceeding `maximum_bytes`. Nonzero exits remain available in [`RunOutput`].
+pub fn run_collect(
+    command: &ProcessCommand,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    maximum_bytes: usize,
+) -> Result<(RunOutput, Vec<u8>), RunFailure> {
+    let mut bytes = Vec::new();
+    let result = run_observed(command, cancel, timeout, |stream, chunk| {
+        if stream == OutputStream::Stdout {
+            if bytes.len().saturating_add(chunk.len()) > maximum_bytes {
+                return Err(io::Error::other(format!(
+                    "Output exceeds {} MiB ({maximum_bytes} bytes)",
+                    maximum_bytes as f64 / (1024.0 * 1024.0)
+                )));
+            }
+            bytes.extend_from_slice(chunk);
+        }
+        Ok(())
+    })?;
+    Ok((result, bytes))
+}
+
 #[derive(Default)]
 struct Capture {
     first: Vec<u8>,

@@ -162,7 +162,7 @@ pub struct RadiologyApp {
     /// Immutable review objects and revision-specific source routing.
     pub review: Option<Arc<ReviewSnapshot>>,
     /// Review preparation currently running outside the UI thread.
-    review_rx: Option<std::sync::mpsc::Receiver<Result<ReviewSnapshot, String>>>,
+    review_job: crate::background::LatestRead<Result<ReviewSnapshot, String>>,
     /// Pull request being prepared while the current reader remains usable.
     pub pending_pr: Option<usize>,
     /// Explicit launch file to select after asynchronous review preparation.
@@ -286,7 +286,7 @@ impl RadiologyApp {
             outline_list: Default::default(),
             active_pr: None,
             review: None,
-            review_rx: None,
+            review_job: Default::default(),
             pending_pr: None,
             pending_open_file: None,
             pr_changes: Vec::new(),
@@ -442,9 +442,7 @@ impl RadiologyApp {
         self.reset_previews();
         self.active_pr = None;
         self.review = None;
-        self.review_rx = None;
-        self.pending_pr = None;
-        self.pending_open_file = None;
+        self.cancel_review_preparation();
         self.active_revision = None;
         self.pr_changes.clear();
         self.line_changes = None;
@@ -459,7 +457,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn repository_interaction_ready(&self) -> bool {
-        self.repository_root.is_some() && self.pending_pr.is_none() && self.review_rx.is_none()
+        self.repository_root.is_some() && self.pending_pr.is_none() && !self.review_job.is_running()
     }
 
     pub(super) fn source_location_ready(&self) -> bool {
@@ -647,9 +645,7 @@ impl eframe::App for RadiologyApp {
                     ui.spinner();
                     ui.label(format!("Preparing pull request #{number}…"));
                     if ui.button("Cancel").clicked() {
-                        self.review_rx = None;
-                        self.pending_pr = None;
-                        self.pending_open_file = None;
+                        self.cancel_review_preparation();
                     }
                 });
             });

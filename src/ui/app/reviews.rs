@@ -38,8 +38,8 @@ impl RadiologyApp {
 
     /// Starts review preparation without blocking the source reader.
     ///
-    /// Replacing this request or switching repositories drops its receiver, so a
-    /// superseded completion cannot publish into a different reader session.
+    /// Replacement, cancellation and repository switches retire publication and
+    /// interrupt child processes. Preparation shares one two-minute deadline.
     pub fn open_pull_request(&mut self, number: usize) {
         if number == 0 {
             self.error = Some("Enter a positive pull request number".into());
@@ -51,36 +51,42 @@ impl RadiologyApp {
         self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.review_rx = Some(receiver);
+
         self.pending_pr = Some(number);
         self.error = None;
-        crate::background::READ_WORKERS.spawn_blocking(move || {
-            let result = GitHubClient::view_pull_request(&root, number)
-                .and_then(|summary| ReviewSnapshot::prepare(&root, summary, &cache));
-            let _ = sender.send(result);
+        self.review_job.spawn(move |cancel| {
+            let control = crate::pull_request::control::ReviewControl::new(cancel);
+            GitHubClient::view_cancellable(&root, number, &control).and_then(|summary| {
+                ReviewSnapshot::prepare_cancellable(&root, summary, &cache, &control)
+            })
         });
     }
 
+    /// Cancels pending review preparation while retaining the accepted reader.
+    pub fn cancel_review_preparation(&mut self) {
+        self.review_job.stop();
+        self.pending_pr = None;
+        self.pending_open_file = None;
+    }
+
     pub(super) fn poll_review(&mut self, ctx: &Context) {
-        let Some(receiver) = &self.review_rx else {
-            return;
-        };
-        match receiver.try_recv() {
-            Ok(result) => {
-                self.review_rx = None;
+        match self.review_job.poll() {
+            Ok(Some(result)) => {
                 self.pending_pr = None;
                 match result {
                     Ok(snapshot) => self.accept_review(snapshot),
-                    Err(error) => self.error = Some(format!("Unable to open review: {error}")),
+                    Err(error) => {
+                        self.pending_open_file = None;
+                        self.error = Some(format!("Unable to open review: {error}"));
+                    }
                 }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                ctx.request_repaint_after(std::time::Duration::from_millis(50))
+            Ok(None) if self.review_job.is_running() => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(50));
             }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                self.review_rx = None;
-                self.pending_pr = None;
+            Ok(None) => {}
+            Err(_) => {
+                self.cancel_review_preparation();
                 self.error = Some("Review preparation stopped unexpectedly".into());
             }
         }
