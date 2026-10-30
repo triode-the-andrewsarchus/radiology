@@ -103,6 +103,9 @@ and the remaining generation/cache requirements.
   shaped visual-row geometry, bounded hold/fade, preview/history cancellation and
   first-paint timing. [Contract and native scope](rust-destination-feedback.md).
 - Recoverable errors and review preparation/cancel feedback are visible.
+- Checkout branch/change refresh uses a cancellable bounded worker snapshot, literal
+  NUL paths, exact-source hunk publication and Cancel/Retry/Dismiss controls.
+  [Contract and native acceptance](rust-git-refresh.md).
 
 Tests include actual isolated Git repositories with dirty checkout bytes different
 from the PR, renamed/spaced/added/deleted/binary files, application navigation and
@@ -111,11 +114,12 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
-- Background repository discovery/Git refresh/SCIP decode and semantic context;
+- Background repository discovery/SCIP decode and semantic context;
   complete index lifecycle with all Swift project strategies, provisioning,
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
-  cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
-  subprocess cancellation still need finer interruption/deadlines.
+  cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and source-loader Git
+  subprocess cancellation still need finer interruption/deadlines. Checkout refresh
+  now has bounded process-group cancellation and a worker deadline.
 - Remaining source presentation: PR-refresh fold/pin mapping. Transient occurrence
   selection, syntax-aware pinned fallback, exact byte-based fold projection, enclosing-callable
   shading and destination feedback are integrated; broader wrapping/scroll anchoring,

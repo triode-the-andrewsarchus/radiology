@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Cancellable checkout branch/change refresh (Codex)
+
+Shared runner and Git record parsing committed/pushed as `6865449`. Checkout
+refresh now prepares branch, literal-path changes/counts and exact-source hunks
+on the existing worker pool, retaining accepted state during work/failure/cancel.
+It uses bounded complete stdout, a total deadline and process-group cleanup;
+repository/review transitions retire it. Added/unborn/binary/renamed paths and
+moving HEAD are covered. The UI exposes progress/Cancel and error/Retry/Dismiss
+without changing navigation. Workspace tests, doctests, strict Clippy, fmt, build
+and rustdoc pass. Native delayed/failing/retried refresh checks retain the source
+and caret, with all app/compositor exits zero. Architecture introduces no hotspot,
+cycle or clone group; only existing touched test fragments remain flagged.
+[Contract, bounds and hashed evidence](plans/rust-git-refresh.md).
+Full parity remains open: synchronous repository discovery, source/graph/context
+caches, broader index/PR lifecycle and PR-refresh state mapping, final visual/
+accessibility/scaling acceptance and sibling palette/chrome reuse. Keep committing
+and pushing every increment; the standalone app has no sibling runtime dependency.
+
 ## 2026-10-30 — Shared cancellable process runner and Git records (Codex)
 
 Moved the existing indexing process-group runner and its tests into the shared
