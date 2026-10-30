@@ -389,9 +389,13 @@ impl RadiologyApp {
 
     fn record_departure(&mut self) {
         if let Some(buffer) = &self.open_buffer {
-            self.history.update_current(
-                buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col)),
-            );
+            let location =
+                buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col));
+            if self.history.current().is_some() {
+                self.history.update_current(location);
+            } else {
+                self.history.visit(location);
+            }
         }
     }
 
