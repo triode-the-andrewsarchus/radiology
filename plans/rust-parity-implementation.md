@@ -86,10 +86,11 @@ for simultaneous inspector regions and source keyboard exclusion.
   per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Source/native stage and Git
   subprocess cancellation still need finer interruption/deadlines.
-- Remaining source presentation: content-keyed fold and exact PR-refresh pin
-  restoration, AST-aware fallback occurrence scope, enclosing-function body
+- Remaining source presentation: initial fold defaults and exact PR-refresh fold/pin
+  mapping, AST-aware fallback occurrence scope, enclosing-function body
   shade and transient destination feedback. Broader wrapping/scroll anchoring,
-  scaling, and interaction acceptance remain part of the final audit.
+  scaling, and interaction acceptance remain part of the final audit. File-return
+  fold restoration is integrated; see [acceptance](rust-fold-restoration.md).
 - Swift/Kotlin highlighting and broader declaration/query-based folds/scopes;
   broader grammar/fixture acceptance beyond the implemented inline-test rules.
 - Parsed/validated call trees and reference snippets/coverage/disclosure,

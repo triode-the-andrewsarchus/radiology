@@ -459,7 +459,7 @@ impl RadiologyApp {
         self.critical_lens.stop();
         self.critical_annotations.stop();
         self.critical_graph_inputs = None;
-        self.fold_store.unfold_all();
+        self.fold_store = FoldStore::default();
         self.fold_ranges.clear();
         self.outline_symbols.clear();
         self.highlighted_lines.clear();

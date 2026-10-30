@@ -244,7 +244,8 @@ impl RadiologyApp {
         self.call_sites = Arc::new(syntax.calls);
         self.outline_symbols = syntax.symbols;
         self.fold_ranges = syntax.folds;
-        self.fold_store.unfold_all();
+        self.fold_store
+            .activate(&prepared.buffer, &self.fold_ranges);
         self.pin_store.activate(&prepared.buffer);
         self.test_code.load(
             &prepared.buffer,
