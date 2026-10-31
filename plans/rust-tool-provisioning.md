@@ -148,3 +148,10 @@ of the final coordinate fix still require acceptance.
 Full parity remains open: complete project/version-aware cache reuse, real-tool/corpus acceptance,
 broader corrupt-store recovery and final visual/accessibility/scaling/font/sibling
 reuse audit.
+
+## Additional real-tool evidence — 2026-10-30
+
+[Shared acceptance](rust-real-indexer-acceptance.md) now also passes actual pinned
+Go/Python installation, cross-file navigation, Unicode coordinates, Update reuse
+and cache-only reload alongside Rust and TypeScript. Viewed inputs remain intact.
+Kotlin/Clang and broader real projects remain unverified.

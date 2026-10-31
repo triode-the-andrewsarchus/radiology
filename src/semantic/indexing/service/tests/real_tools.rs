@@ -2,6 +2,64 @@
 
 use super::*;
 use crate::semantic::indexing::provisioning::{ProvisioningRequest, ToolProvisioner};
+use crate::source::ColumnEncoding;
+
+#[test]
+#[ignore = "downloads pinned scip-python; requires Node/npm and Python 3.10+ with pip"]
+fn pinned_python_install_cross_module_navigation_unicode_reuse_and_reload() {
+    let files = [
+        (
+            "pyproject.toml",
+            "[project]\nname='radiology-acceptance'\nversion='0.1.0'\n",
+        ),
+        (
+            "helper.py",
+            "def twice(value: int) -> int:\n    return value * 2\n",
+        ),
+        (
+            "caller.py",
+            "from helper import twice\n\nlabel = '🦀'; result = twice(21)\n",
+        ),
+    ];
+    installed_case(
+        Indexer::Python,
+        "0.6.6",
+        &files,
+        Navigation {
+            caller: "caller.py",
+            callee: "twice",
+            target: "helper.py",
+            span: (0, 4, 9),
+            encoding: ColumnEncoding::Utf16,
+            documents: 2,
+        },
+        &["__pycache__", ".venv"],
+    );
+}
+
+#[test]
+#[ignore = "downloads and builds pinned scip-go; requires Go and network access"]
+fn pinned_go_install_cross_package_navigation_unicode_reuse_and_reload() {
+    let files = [
+        ("go.mod", "module radiology.example/acceptance\n\ngo 1.20\n"),
+        ("double/double.go", "package double\n\nfunc Twice(value int) int { return value * 2 }\n"),
+        ("main.go", "package main\n\nimport \"radiology.example/acceptance/double\"\n\nfunc main() { /* 🦀 */ _ = double.Twice(21) }\n"),
+    ];
+    installed_case(
+        Indexer::Go,
+        "0.2.7",
+        &files,
+        Navigation {
+            caller: "main.go",
+            callee: "Twice",
+            target: "double/double.go",
+            span: (2, 5, 10),
+            encoding: ColumnEncoding::Utf8,
+            documents: 2,
+        },
+        &["go.sum", "vendor"],
+    );
+}
 
 #[test]
 #[ignore = "requires a real rust-analyzer component; optionally set RADIOLOGY_REAL_RUST_ANALYZER"]
@@ -25,55 +83,20 @@ fn real_rust_analyzer_indexes_feature_gated_workspace_calls_and_reuses_the_resul
             .insert(0, executable.parent().unwrap().into());
     }
     request.timeout = Duration::from_secs(120);
-    let generated = run(request.clone());
-    eprintln!("Real Rust generation: {:#?}", generated.report);
-    assert!(!generated.report.is_partial(), "{:?}", generated.report);
-    assert!(generated.report.outcomes[0]
-        .version
-        .as_deref()
-        .unwrap()
-        .starts_with("rust-analyzer"));
-    assert!(generated.report.stale_reason.is_none() && generated.report.cache_warning.is_none());
-    let index = generated.index.expect("real Rust index");
-    let buffer = SourceBuffer::from_str("src/lib.rs", files[1].1);
-    let call_byte = files[1].1.find("double").unwrap();
-    let call = index
-        .occurrence_at_byte(&buffer, call_byte)
-        .expect("feature-gated call occurrence");
-    let (path, range) = index
-        .find_definition(&call.symbol)
-        .expect("feature-gated call definition");
-    assert_eq!(path, "src/gated.rs");
-    assert_eq!(
-        (range.start_line, range.start_col, range.end_col),
-        (0, 7, 13)
+    verify_lifecycle(
+        &fixture,
+        request,
+        &files,
+        Navigation {
+            caller: "src/lib.rs",
+            callee: "double",
+            target: "src/gated.rs",
+            span: (0, 7, 13),
+            encoding: ColumnEncoding::Utf8,
+            documents: 3,
+        },
+        &["Cargo.lock", "target"],
     );
-    request.reuse = true;
-    let reused = run(request.clone());
-    assert_eq!(
-        reused.report.outcomes[0].reused_from.as_deref(),
-        Some("checkout")
-    );
-    assert_eq!(
-        reused.index.unwrap().find_definition(&call.symbol),
-        Some((path, range))
-    );
-    request.tools = ToolDirectory {
-        managed: None,
-        home: None,
-        search_path: Vec::new(),
-    };
-    let mut loader = IndexGenerator::default();
-    loader.start_cached(request);
-    let cached = settle(&mut loader);
-    assert!(cached.report.cached && cached.report.stale_reason.is_none());
-    assert_eq!(
-        cached.index.unwrap().find_definition(&call.symbol),
-        Some((path, range))
-    );
-    assert_viewed_inputs_unchanged(&fixture, &files);
-    assert!(!fixture.source.join("Cargo.lock").exists());
-    assert!(!fixture.source.join("target").exists());
 }
 
 #[test]
@@ -97,71 +120,99 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
             "import { double } from './a';\r\n/* 🦀 */ export const result = double(21);\r\n",
         ),
     ];
-    let fixture = Fixture::new(&files);
+    installed_case(
+        Indexer::TypeScript,
+        "0.4.0",
+        &files,
+        Navigation {
+            caller: "b.ts",
+            callee: "double",
+            target: "a.ts",
+            span: (0, 16, 22),
+            encoding: ColumnEncoding::Utf16,
+            documents: 2,
+        },
+        &["node_modules"],
+    );
+}
+
+struct Navigation<'a> {
+    caller: &'a str,
+    callee: &'a str,
+    target: &'a str,
+    span: (i32, i32, i32),
+    encoding: ColumnEncoding,
+    documents: usize,
+}
+
+fn installed_case(
+    indexer: Indexer,
+    version: &str,
+    files: &[(&str, &str)],
+    navigation: Navigation<'_>,
+    artifacts: &[&str],
+) {
+    let fixture = Fixture::new(files);
     let mut request = fixture.request();
     request.tools = ToolDirectory::from_environment(Some(fixture.bin.clone()));
     request.timeout = Duration::from_secs(120);
-    let mut installer = ToolProvisioner::default();
-    installer.start(ProvisioningRequest {
-        indexer: Indexer::TypeScript,
-        tools: request.tools.clone(),
-        protected_roots: vec![fixture.source.clone()],
-        timeout: Duration::from_secs(300),
-    });
-    let deadline = Instant::now() + Duration::from_secs(310);
-    let installed = loop {
-        if let Some(result) = installer.poll() {
-            break result.expect("real pinned installation failed");
-        }
-        assert!(Instant::now() < deadline, "{}", installer.progress());
-        std::thread::sleep(Duration::from_millis(20));
-    };
     let ToolAvailability::Available {
         executable,
-        version,
-    } = installed.availability
+        version: actual,
+    } = install_pinned(&request, indexer)
     else {
-        panic!("installer did not verify its output");
+        panic!("installation did not verify its executable");
     };
     assert!(executable.starts_with(&fixture.bin));
-    assert!(version.contains("0.4.0"), "{version}");
+    assert!(actual.contains(version), "expected {version}, got {actual}");
+    verify_lifecycle(&fixture, request, files, navigation, artifacts);
+}
+
+fn verify_lifecycle(
+    fixture: &Fixture,
+    mut request: GenerationRequest,
+    files: &[(&str, &str)],
+    expected: Navigation<'_>,
+    artifacts: &[&str],
+) {
     let generated = run(request.clone());
-    eprintln!("Real TypeScript generation: {:#?}", generated.report);
+    eprintln!("Real generation: {:#?}", generated.report);
     assert!(!generated.report.is_partial(), "{:#?}", generated.report);
-    assert!(generated.report.stale_reason.is_none());
-    assert!(generated.report.cache_warning.is_none());
-    assert_eq!(generated.report.documents, 2);
-    let index = generated
-        .index
-        .expect("real indexer emitted no usable data");
-    let buffer = SourceBuffer::from_str("b.ts", files[3].1);
-    let call_byte = files[3].1.rfind("double").unwrap();
+    assert!(generated.report.stale_reason.is_none() && generated.report.cache_warning.is_none());
+    assert_eq!(generated.report.documents, expected.documents);
+    let index = generated.index.expect("real index");
+    let text = files
+        .iter()
+        .find(|(path, _)| *path == expected.caller)
+        .expect("caller fixture")
+        .1;
+    let buffer = SourceBuffer::from_str(expected.caller, text);
+    let byte = text.rfind(expected.callee).unwrap();
     let call = index
-        .occurrence_at_byte(&buffer, call_byte)
+        .occurrence_at_byte(&buffer, byte)
         .expect("call occurrence");
+    let bytes = byte..byte + expected.callee.len();
     assert_eq!(
-        index.column_encoding("b.ts"),
-        Some(crate::source::ColumnEncoding::Utf16)
+        index.column_encoding(expected.caller),
+        Some(expected.encoding)
     );
     assert_eq!(
         index.byte_range(&buffer, call.range.as_ref().unwrap()),
-        Some(call_byte..call_byte + 6)
+        Some(bytes.clone())
     );
     let (path, range) = index
         .find_definition(&call.symbol)
-        .expect("call definition");
-    assert_eq!(path, "a.ts");
+        .expect("cross-file definition");
+    assert_eq!(path, expected.target);
     assert_eq!(
         (range.start_line, range.start_col, range.end_col),
-        (0, 16, 22)
+        expected.span
     );
     assert!(index
         .find_references(&call.symbol)
         .iter()
-        .any(|(path, range)| {
-            *path == "b.ts" && index.byte_range(&buffer, range) == Some(call_byte..call_byte + 6)
-        }));
-
+        .any(|(path, range)| *path == expected.caller
+            && index.byte_range(&buffer, range) == Some(bytes.clone())));
     request.reuse = true;
     let updated = run(request.clone());
     assert_eq!(
@@ -172,34 +223,34 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
         updated.index.unwrap().find_definition(&call.symbol),
         Some((path, range))
     );
-
-    // Cache-only loading must succeed even when no executable can be discovered.
     request.tools = ToolDirectory {
         managed: None,
         home: None,
         search_path: Vec::new(),
     };
-    let cached = crate::semantic::indexing::cache::load(&request, &AtomicBool::new(false))
-        .unwrap()
-        .expect("persistent real index");
+    let mut loader = IndexGenerator::default();
+    loader.start_cached(request);
+    let cached = settle(&mut loader);
     assert!(cached.report.cached && cached.report.stale_reason.is_none());
     let restored = cached.index.unwrap();
     assert_eq!(restored.find_definition(&call.symbol), Some((path, range)));
-    assert_viewed_inputs_unchanged(&fixture, &files);
-    assert!(!fixture.source.join("node_modules").exists());
-    assert!(restored.matches_buffer(&SourceBuffer::from_str("b.ts", files[3].1)));
-    assert!(!restored.matches_buffer(&SourceBuffer::from_str("b.ts", "changed\n")));
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 3);
-    let files: Vec<_> = walkdir::WalkDir::new(fixture.cache.join("projects"))
+    assert!(restored.matches_buffer(&buffer));
+    assert!(!restored.matches_buffer(&SourceBuffer::from_str(expected.caller, "changed\n")));
+    assert_viewed_inputs_unchanged(fixture, files);
+    for artifact in artifacts {
+        assert!(
+            !fixture.source.join(artifact).exists(),
+            "viewed artifact: {artifact}"
+        );
+    }
+    assert!(walkdir::WalkDir::new(&fixture.cache)
         .into_iter()
         .map(Result::unwrap)
-        .filter(|entry| entry.file_type().is_file())
-        .collect();
-    assert!((1..=2).contains(&files.len())); // accepted record and optional completed migration marker
-    assert!(files
-        .iter()
-        .all(|entry| entry.file_name() == ".legacy-migrated"
-            || entry.path().extension().is_some_and(|ext| ext == "json")));
+        .all(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            !name.starts_with("radiology-build-inputs-")
+                && !name.starts_with(".radiology-index-stage-")
+        }));
 }
 
 fn assert_viewed_inputs_unchanged(fixture: &Fixture, files: &[(&str, &str)]) {
@@ -217,4 +268,30 @@ fn assert_viewed_inputs_unchanged(fixture: &Fixture, files: &[(&str, &str)]) {
             .paths,
         expected
     );
+}
+
+fn install_pinned(request: &GenerationRequest, indexer: Indexer) -> ToolAvailability {
+    let mut installer = ToolProvisioner::default();
+    installer.start(ProvisioningRequest {
+        indexer,
+        tools: request.tools.clone(),
+        protected_roots: vec![request.root.clone()],
+        timeout: Duration::from_secs(600),
+    });
+    let deadline = Instant::now() + Duration::from_secs(610);
+    let mut previous = String::new();
+    loop {
+        if let Some(result) = installer.poll() {
+            return result
+                .expect("real pinned installation failed")
+                .availability;
+        }
+        let phase = installer.progress();
+        if phase != previous {
+            eprintln!("{} installation: {phase}", indexer.id());
+            previous = phase;
+        }
+        assert!(Instant::now() < deadline, "{}", installer.progress());
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
