@@ -74,10 +74,9 @@ fallback, failure during source preparation and Cancel remain covered by automat
 tests rather than this native sequence. Controlled local gh responses and Git
 fixtures make no remote PR writes. Sibling capture helpers are QA only.
 
-The metadata-failure capture also records a remaining UI issue: multiline process
-diagnostics occupy an oversized error banner. Bounding that notice while keeping
-full details available belongs to the remaining UI cleanup. Unavailable revision
-controls also still need the enabled-state audit.
+The metadata-failure capture exposed oversized multiline error notices and
+unavailable revision controls. Both are now addressed, including native acceptance:
+see [reader notices and control availability](rust-reader-notices-controls.md).
 
 Full parity remains open:
 complete index provisioning/project/version reuse, broader corrupt-store recovery,

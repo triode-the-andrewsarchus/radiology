@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Native bounded notices, complete Copy and PR control acceptance (Codex)
+
+Implementation `d602a49` is pushed. Native added/deleted files disable unavailable
+revisions and keep the reader intact after pointer/keyboard attempts; global/source
+arrows show correct boundaries while navigating two hunks. A 1,200-row error stays
+in one notice row. Details scrolls; Copy exactly matches all 45,793 bytes and the
+final marker. Dismiss retains the Before reader; retry recovers. A native-discovered
+alignment fix keeps summary text left aligned. Final app/compositors exit zero and
+checkout HEAD/status/bytes remain unchanged. [Hashed evidence and scope](plans/rust-reader-notices-controls.md).
+Two focused notice tests and strict Clippy pass after the alignment/context follow-up;
+build passes after the production fix. Full 396 app tests/eight shared/30 doctests,
+fmt and rustdoc passed before that small follow-up. Architecture has no new hotspot,
+cycle or clone growth; flagged baseline source-view fragments were verified exact.
+Full parity remains open: complete provisioning/project/version cache lifecycle,
+broader recovery and final visual/accessibility/scaling/font/sibling reuse audit.
+Commit and push each increment.
+
 ## 2026-10-30 — Compact diagnostics and available PR revision/change controls (Codex)
 
 Reader errors now use one bounded row with Details/Copy/Dismiss while retaining
