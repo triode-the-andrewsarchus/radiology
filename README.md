@@ -25,6 +25,10 @@ appear in Index Projects; [cache contract](plans/rust-project-index-reuse.md). F
 feature/UI parity is still in progress. The following sections describe the Swift
 reference; consult PLAN.md and PROGRESS.md for current Rust acceptance.
 
+Linux definition navigation uses **Ctrl+Alt+J**, F12, or Return in source;
+**Ctrl+Shift+I** forces Reindex, while **Ctrl+Alt+I** toggles the inspector.
+See [Linux keyboard mappings and audit](plans/rust-keyboard-audit.md).
+
 ## Swift/macOS requirements and quick start
 
 - macOS 14 or newer

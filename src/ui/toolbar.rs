@@ -285,6 +285,10 @@ fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
                 ("Go to Symbol… (Ctrl+T)", ToolbarAction::OpenGoToSymbol),
                 ("Go to Line… (Ctrl+L)", ToolbarAction::OpenGoToLine),
                 (
+                    "Go to Definition (Ctrl+Alt+J / F12)",
+                    ToolbarAction::GoToDefinition,
+                ),
+                (
                     "Find References (Ctrl+Alt+R)",
                     ToolbarAction::FindReferences,
                 ),
@@ -305,4 +309,40 @@ fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
         }
     });
     action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::test_support::{click, painted_frame, text_center};
+
+    #[test]
+    fn search_menu_exposes_definition_and_dispatches_the_shared_command() {
+        let ctx = egui::Context::default();
+        let mut action = None;
+        let output = painted_frame(&ctx, egui::vec2(600.0, 600.0), vec![], |ui| {
+            action = search_menu(ui);
+        });
+        painted_frame(
+            &ctx,
+            egui::vec2(600.0, 600.0),
+            click(text_center(&output, "Search")),
+            |ui| {
+                action = search_menu(ui);
+            },
+        );
+        let output = painted_frame(&ctx, egui::vec2(600.0, 600.0), vec![], |ui| {
+            action = search_menu(ui);
+        });
+        assert!(action.is_none());
+        painted_frame(
+            &ctx,
+            egui::vec2(600.0, 600.0),
+            click(text_center(&output, "Go to Definition (Ctrl+Alt+J / F12)")),
+            |ui| {
+                action = search_menu(ui);
+            },
+        );
+        assert_eq!(action, Some(ToolbarAction::GoToDefinition));
+    }
 }
