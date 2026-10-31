@@ -130,25 +130,8 @@ impl SemanticSymbolID {
     pub fn is_callable(&self, index: &SemanticIndex) -> bool {
         self.symbol.ends_with("().")
             || index.symbol_info_for_id(self).is_some_and(|info| {
-                matches!(
-                    info.kind,
-                    17 | 26
-                        | 9
-                        | 18
-                        | 45
-                        | 66
-                        | 67
-                        | 68
-                        | 69
-                        | 70
-                        | 71
-                        | 72
-                        | 74
-                        | 76
-                        | 80
-                        | 25
-                        | 34
-                )
+                super::symbol_kind::SymbolCategory::from_kind(info.kind)
+                    == super::symbol_kind::SymbolCategory::Function
             })
     }
 

@@ -775,6 +775,16 @@ impl RadiologyApp {
                                 .explicit()
                                 .or(self.reference_context.target())
                                 .map(|target| target.name.as_str()),
+                            reference_kind: self
+                                .reference_context
+                                .explicit()
+                                .or(self.reference_context.target())
+                                .and_then(|target| {
+                                    self.semantic_index
+                                        .as_ref()
+                                        .and_then(|index| index.symbol_info_for_id(&target.id))
+                                })
+                                .map_or(0, |info| info.kind),
                             explicit_references: self.reference_context.explicit().is_some(),
                             references_loading: self.reference_context.is_query_running(),
                             reference_error: self.reference_context.error.as_deref(),

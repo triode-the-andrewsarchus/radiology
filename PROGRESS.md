@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-10-31 — Restore pinned symbol kind/category metadata (Codex)
+
+Pinned summaries show a fitted name, category marker and kind label. Metadata uses
+the pinned scoped identity and current index, independent of displayed source;
+missing metadata shows Symbol, and unknown kinds retain their number. Follow Caret
+returns the parsed declaration/glyph. `InspectorContent.reference_kind` documents
+host obligations. One internal category classifier is shared with existing
+callability checks, replacing their separate function-kind table; no extra metadata
+snapshot, dependency or icon asset. [Contract/evidence](plans/rust-inspector-labels.md#pinned-reference-kind-and-category--2026-10-31).
+Three new tests cover categories/unknowns, long-name geometry in both themes/scales,
+and real-app local-ID separation, metadata refresh and Follow Caret. The old pinned
+branch fails the rendering regression. Workspace passes 500 app tests (seven
+ignored), two binary, four font, eleven text and 34 doctests; final focused tests,
+strict Clippy/check/build/fmt/diff and warning-denied rustdoc pass. Rendered field
+documentation was inspected. Architecture is NEUTRAL: 89 clones, no new hotspot/
+cycle/max-CCN increase. Final native 1×/2× indexed runs show the Function marker/
+label, narrow themes and Follow Caret, preserving caller navigation, exact 473-byte
+Unicode copy, Back, fixture hashes and zero exits. Archive:
+~/.local/state/radiology-qa/pinned-metadata-20261031-5a5c7cc.
+Broader modal/global ordering, pinned-review/mixed-language/error/lifecycle visuals,
+reader/large-file/grammar/index/PR/cache and final Swift/reuse acceptance remain
+open. Full accessibility and actual sibling adoption stay deferred. Commit and push
+this metadata increment before continuing the broader acceptance queue.
+
 ## 2026-10-31 — Dispatch reference/caller keys in event order (Codex)
 
 The shared ordered parser now applies each reference action before resolving the
