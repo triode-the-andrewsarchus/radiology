@@ -655,14 +655,12 @@ fn normalize(
     inventory: &InputInventory,
     baseline: &IndexingWorkspace,
 ) -> Result<ScipIndex, String> {
-    let fallback = if scip.text_document_encoding != 0 {
-        scip.text_document_encoding
-    } else {
-        match strategy.indexer.default_encoding() {
-            crate::source::ColumnEncoding::Utf8 => 1,
-            crate::source::ColumnEncoding::Utf16 => 2,
-            crate::source::ColumnEncoding::Utf32 => 3,
-        }
+    // Metadata describes file bytes, not occurrence columns. In particular,
+    // TypeScript emits UTF-16 columns in UTF-8 files without position_encoding.
+    let fallback = match strategy.indexer.default_encoding() {
+        crate::source::ColumnEncoding::Utf8 => 1,
+        crate::source::ColumnEncoding::Utf16 => 2,
+        crate::source::ColumnEncoding::Utf32 => 3,
     };
     let paths: HashSet<_> = inventory.paths.iter().map(String::as_str).collect();
     for document in &mut scip.documents {

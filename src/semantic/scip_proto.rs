@@ -256,7 +256,7 @@ impl<'a> ProtobufReader<'a> {
 /// Decoded top-level SCIP index representation.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipIndex {
-    /// Default column encoding from index metadata (1 UTF-8, 2 UTF-16).
+    /// Source-file byte encoding from metadata, independent of occurrence columns.
     pub text_document_encoding: i32,
     /// Documents contained in the index.
     pub documents: Vec<ScipDocument>,
@@ -267,7 +267,7 @@ pub struct ScipIndex {
 /// Decoded SCIP document with occurrences and symbols.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipDocument {
-    /// Column encoding (1 UTF-8, 2 UTF-16, 3 UTF-32; zero inherits metadata).
+    /// Column encoding (1 UTF-8, 2 UTF-16, 3 UTF-32; zero is unspecified).
     pub position_encoding: i32,
     /// Repository-relative path of the indexed file.
     pub relative_path: String,
