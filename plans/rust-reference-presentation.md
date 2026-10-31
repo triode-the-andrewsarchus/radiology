@@ -79,8 +79,8 @@ helpers only; the app remains independently buildable with no product dependency
 ## Remaining scope
 
 The follow-up below covers reference-to-caller handoff with Right/Down/Return in
-one raw-input batch. Pinned summary kind/icon metadata still differs from Swift's
-`InspectorSymbolSummary`.
+one raw-input batch. [Pinned kind/category metadata](rust-inspector-labels.md#pinned-reference-kind-and-category--2026-10-31)
+now restores Swift's summary information hierarchy.
 Broader pinned-review/mixed-language/error/Trace More visual and lifecycle cases,
 reader/large-file/performance/grammar/index/PR/cache acceptance and the final Swift
 requirement/reuse audit remain open. Full assistive accessibility and actual
@@ -125,6 +125,6 @@ frame grouping. Narrow dark/light captures retain the repaired region layout.
 Fixtures are unchanged and all final exits zero. Archive:
 `~/.local/state/radiology-qa/reference-handoff-20261031-ba469aa`.
 
-Pinned-reference kind/category metadata and broader modal/global-command ordering,
-review/mixed-language/lifecycle/large-file/grammar/index/PR/cache/final Swift/reuse
-acceptance remain open. Full accessibility and actual sibling adoption are deferred.
+Pinned-reference kind/category metadata is covered by the inspector follow-up.
+Broader modal/global-command ordering, review/mixed-language/lifecycle/large-file/
+grammar/index/PR/cache/final Swift/reuse acceptance remain open. Full accessibility and actual sibling adoption are deferred.

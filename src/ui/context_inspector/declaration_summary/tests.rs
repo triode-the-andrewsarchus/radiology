@@ -40,14 +40,18 @@ impl Summary {
         &mut self,
         width: f32,
         index: Option<usize>,
-        pinned: Option<&str>,
+        pinned: Option<(&str, i32)>,
         events: Vec<Event>,
     ) -> FullOutput {
         menu_frame(&self.ctx, egui::vec2(width, 450.0), events, |ui| {
             ui.style_mut().interaction.selectable_labels = false;
             self.action = self.state.show(
                 ui,
-                &AppTheme::dark(),
+                &if ui.visuals().dark_mode {
+                    AppTheme::dark()
+                } else {
+                    AppTheme::light()
+                },
                 index.map(|i| &self.symbols[i]),
                 Some(&self.buffer),
                 pinned,
@@ -171,11 +175,45 @@ fn disclosure_follows_exact_declaration_and_retires_on_source_or_scope_change() 
     fixture.buffer.path = "another.rs".into();
     fixture.frame(230.0, Some(0), None, vec![]);
     assert!(!fixture.state.expanded, "equal bytes at another path");
-    for (index, pinned) in [(Some(0), Some("Pinned symbol")), (None, None)] {
+    for (index, pinned) in [(Some(0), Some(("Pinned symbol", 0))), (None, None)] {
         fixture.state.expanded = true;
         fixture.frame(230.0, index, pinned, vec![]);
         assert!(!fixture.state.expanded && fixture.state.owner.is_none());
         fixture.frame(230.0, Some(0), None, vec![]);
         assert!(!fixture.state.expanded);
+    }
+}
+
+#[test]
+fn pinned_kind_and_category_keep_long_names_bounded_and_signatures_closed() {
+    for dark in [true, false] {
+        for scale in [1.0, 2.0] {
+            let mut fixture = Summary::new();
+            let name = fixture.symbols[0].name.clone();
+            fixture.ctx = crate::ui::test_support::themed_context(dark, scale).0;
+            fixture.frame(400.0, None, None, vec![]);
+            for width in [216.0, 300.0, 420.0] {
+                for (kind, label, glyph) in [
+                    (7, "Class", "T"),
+                    (17, "Function", "ƒ"),
+                    (61, "Variable", "v"),
+                    (35, "Package", "M"),
+                    (9001, "Kind 9001", "·"),
+                    (0, "Symbol", "·"),
+                ] {
+                    let output = fixture.frame(width, Some(0), Some((&name, kind)), vec![]);
+                    let labels: Vec<_> = crate::ui::test_support::text_shapes(&output).collect();
+                    assert!(labels.iter().any(|text| text.galley.job.text == label));
+                    assert!(labels.iter().any(|text| text.galley.job.text == glyph));
+                    assert!(labels
+                        .iter()
+                        .any(|text| text.galley.job.text.ends_with("_TAIL")));
+                    assert!(labels
+                        .iter()
+                        .all(|text| text.pos.x + text.galley.size().x <= width - 8.0 + 0.1));
+                    assert!(!fixture.state.expanded && fixture.state.owner.is_none());
+                }
+            }
+        }
     }
 }

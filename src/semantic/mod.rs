@@ -16,6 +16,7 @@ pub mod loader;
 pub mod reference_results;
 pub(crate) mod references;
 pub mod scip_proto;
+pub(crate) mod symbol_kind;
 
 pub use caller_tree::{
     caller_pill_color, caller_pill_slot, CallerTreeBuilder, ReferenceCallerNode, CALLER_PALETTE,

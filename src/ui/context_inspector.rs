@@ -62,6 +62,11 @@ pub struct InspectorContent<'a> {
         &'a std::collections::BTreeMap<usize, crate::semantic::disclosure::ReferenceDisclosure>,
     /// Effective automatic or explicitly pinned reference name.
     pub reference_target: Option<&'a str>,
+    /// SCIP kind of [`Self::reference_target`]; `0` when metadata is absent.
+    ///
+    /// Resolve document-local symbols using their captured document, independently
+    /// of the currently displayed source. Unknown values remain visible by number.
+    pub reference_kind: i32,
     /// Whether Follow Caret should release a sticky reference target.
     pub explicit_references: bool,
     /// Reference rows are being prepared off the UI thread.
@@ -250,9 +255,10 @@ impl ContextInspector {
             theme,
             content.declaration,
             content.buffer,
-            content
-                .explicit_references
-                .then_some(content.reference_target.unwrap_or("Pinned symbol")),
+            content.explicit_references.then_some((
+                content.reference_target.unwrap_or("Pinned symbol"),
+                content.reference_kind,
+            )),
         );
         if let Some(next) = Self::render_reference_context(ui, theme, content, references) {
             action = Some(next);
@@ -408,6 +414,7 @@ mod tests {
                                                 selected_reference: None,
                                                 reference_disclosures: &Default::default(),
                                                 reference_target: None,
+                                                reference_kind: 0,
                                                 explicit_references: false,
                                                 references_loading: false,
                                                 reference_error: None,

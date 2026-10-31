@@ -78,3 +78,54 @@ keyboard/enabled-state checks, reader/large-file/performance, grammar/index/PR/c
 cases and final requirement-by-requirement Swift/reuse audit remain open. Full
 assistive accessibility and actual sibling integration stay deferred. The app is
 standalone; QA-only sibling compositor helpers introduce no product dependency.
+
+## Pinned reference kind and category — 2026-10-31
+
+Pinned summaries now show the SCIP kind name and a category marker beside the
+fitted symbol name, matching Swift's `InspectorSymbolSummary` information hierarchy.
+The five categories follow `SemanticSymbolKind`: type, function, value, module
+and other. Their compact glyphs use the existing outline convention and body type
+role; kind metadata uses Small/secondary. Automatic declaration headers also show
+their existing parsed-kind glyph. No icon package, asset dependency or new type
+scale was introduced.
+
+The app resolves metadata through `symbol_info_for_id` using the effective pinned
+identity, including its captured document for `local` symbols, independently of
+the current source. Metadata reflects the current accepted index. Missing metadata
+shows Symbol; unknown codes retain their numeric kind name and neutral marker.
+The public `InspectorContent.reference_kind` field documents these host obligations
+and accepts `0` for unavailable metadata. The renderer takes no index ownership
+and stores no second metadata snapshot. Pinned signature disclosure remains closed.
+
+One shared internal SCIP category classifier serves presentation and the existing
+callability check, replacing the latter's separate function-kind table. Descriptor
+fallback callability remains intact. Existing `kind_name`, scoped symbol lookup,
+measured fitting and source-bound declaration state are reused.
+
+Three new tests cover representative wire kinds/unknowns, all categories and
+missing metadata with long names at 216/300/420-point widths in both themes/scales,
+and a real app pin to a local variable while another document has the same local
+ID with parameter metadata. The app case retains Variable after navigation,
+reflects an index refresh to Kind 9001, and releases the pin with Follow Caret.
+The fixture explicitly reloads its rewritten source before pinning, preserving
+the production contract that ordinary same-file navigation reuses displayed bytes.
+The previous pinned-summary branch fails the new metadata rendering test.
+
+Workspace passes 500 app tests (seven ignored), two binary, four font, eleven text
+and 34 doctests. Final focused cases, strict Clippy/check/build/fmt/diff and warning-
+denied rustdoc pass; rendered `reference_kind` documentation and its link were
+inspected. Architecture is NEUTRAL, retaining 89 clones, 24 high-complexity functions
+and max CCN 100, with no new hotspot/cycle or package dependency. A repeated app assertion
+was replaced by a navigation matrix, preserving both source-document checks.
+
+Native 1×/2× fixtures now include real SCIP SymbolInformation kind 17. Captures
+show the Function label/marker, narrow dark/light pinned summaries, caller entry
+navigation and Follow Caret returning to the enclosing declaration header. Both
+runs retain exact 473-byte Unicode source copy, Back restoration, unchanged fixture
+hashes and zero app/compositor exits. Archive:
+`~/.local/state/radiology-qa/pinned-metadata-20261031-5a5c7cc`.
+
+Broader modal/global keyboard ordering, pinned-review/mixed-language/error and
+lifecycle visuals, reader/large-file/performance/grammar/index/PR/cache acceptance
+and final Swift/reuse audit remain open. Full accessibility and actual sibling
+adoption remain deferred; standalone builds and keyboard behavior stay required.

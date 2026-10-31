@@ -25,7 +25,7 @@ impl DeclarationSummary {
         theme: &AppTheme,
         declaration: Option<&DocumentSymbol>,
         buffer: Option<&SourceBuffer>,
-        pinned: Option<&str>,
+        pinned: Option<(&str, i32)>,
     ) -> Option<InspectorAction> {
         let current = declaration.zip(buffer).filter(|_| pinned.is_none());
         let owner = current
@@ -34,16 +34,24 @@ impl DeclarationSummary {
             self.owner = owner;
             self.expanded = false;
         }
-        if let Some(name) = pinned {
-            let text = crate::ui::text_fit::middle(
-                ui,
-                name,
-                egui::TextStyle::Body.resolve(ui.style()),
-                theme.text_primary,
-                ui.available_width(),
+        if let Some((name, kind)) = pinned {
+            ui.horizontal(|ui| {
+                ui.colored_label(theme.text_muted, kind_glyph(kind));
+                let text = crate::ui::text_fit::middle(
+                    ui,
+                    name,
+                    egui::TextStyle::Body.resolve(ui.style()),
+                    theme.text_primary,
+                    ui.available_width(),
+                );
+                ui.add(egui::Label::new(text))
+                    .on_hover_text(crate::ui::text_fit::bounded(name).as_ref());
+            });
+            ui.label(
+                egui::RichText::new(crate::semantic::context::kind_name(kind))
+                    .small()
+                    .color(theme.text_secondary),
             );
-            ui.add(egui::Label::new(text))
-                .on_hover_text(crate::ui::text_fit::bounded(name).as_ref());
             return None;
         }
         let Some((symbol, buffer)) = current else {
@@ -69,6 +77,7 @@ impl DeclarationSummary {
             {
                 self.expanded = !self.expanded;
             }
+            ui.colored_label(theme.text_muted, symbol.kind.icon());
             let name = crate::ui::text_fit::middle(
                 ui,
                 &symbol.name,
@@ -141,6 +150,17 @@ impl DeclarationSummary {
             }
         }
         action
+    }
+}
+
+fn kind_glyph(kind: i32) -> &'static str {
+    use crate::semantic::symbol_kind::SymbolCategory;
+    match SymbolCategory::from_kind(kind) {
+        SymbolCategory::Type => "T",
+        SymbolCategory::Function => "ƒ",
+        SymbolCategory::Value => "v",
+        SymbolCategory::Module => "M",
+        SymbolCategory::Other => "·",
     }
 }
 

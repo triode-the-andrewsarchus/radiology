@@ -20,7 +20,8 @@ Active titles now follow their popup, and focused menus preserve global reader s
 pane widths, Swift-style preview limits and exact navigation/interaction targets.
 [Inspector labels and signature disclosure](plans/rust-inspector-labels.md) now
 bound long names and restore Swift's source-bound declaration disclosure, with
-keyboard/copy tests and native 1×/2× evidence.
+keyboard/copy tests and native 1×/2× evidence. Pinned summaries now include scoped
+kind/category metadata, with current-index refresh and Follow Caret coverage.
 [Reference/caller presentation and region bounds](plans/rust-reference-presentation.md)
 now preserve fitted caller metadata, source-bound row activation and all three
 regions after resizing. Ordered reference/caller keys now cross focus boundaries
