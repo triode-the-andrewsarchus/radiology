@@ -354,7 +354,7 @@ impl OutlineList {
         let selected = self.selected.as_ref() == Some(&entry.selection);
         let response = ui.interact(
             rect,
-            ui.id().with(("outline_row", entry.selection.start)),
+            ui.make_persistent_id(("outline_row", &self.document, &entry.selection)),
             Sense {
                 click: true,
                 drag: false,
@@ -455,7 +455,7 @@ impl OutlineList {
                 ),
             )
         });
-        let clicked = response.clicked();
+        let clicked = super::commands::row_activated(&response);
         let disclose = clicked
             && entry.has_children
             && response
@@ -487,6 +487,61 @@ mod tests {
             .filter(|entry| entry.changed)
             .map(|entry| entry.name.as_str())
             .collect()
+    }
+
+    #[test]
+    fn outline_press_does_not_commit_a_replacement_document_at_the_same_name_offset() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        for replacement_kind in 0..3 {
+            let ctx = Context::default();
+            let source = SourceBuffer::from_str("a.rs", "fn first() {}\n");
+            let replacement = if replacement_kind == 2 {
+                SourceBuffer::from_bytes(
+                    "a.rs",
+                    source.data.clone(),
+                    Some(crate::source::ReviewRevision::Before),
+                )
+                .unwrap()
+            } else {
+                SourceBuffer::from_str(
+                    if replacement_kind == 1 {
+                        "b.rs"
+                    } else {
+                        "a.rs"
+                    },
+                    "fn other() {}\n",
+                )
+            };
+            let mut list = OutlineList::default();
+            let mut render = |source: &SourceBuffer, events| {
+                list.sync(
+                    source,
+                    &SymbolExtractor::extract(source),
+                    &Default::default(),
+                    0,
+                    None,
+                );
+                let mut action = None;
+                let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
+                    action = list.show(ui, &AppTheme::dark());
+                });
+                (output, action)
+            };
+            render(&source, vec![]);
+            let point = text_center(&render(&source, vec![]).0, "first");
+            let mut press = click(point);
+            let release = press.pop().unwrap();
+            render(&source, press);
+            assert_eq!(
+                render(&replacement, vec![release]).1,
+                None,
+                "replacement={replacement_kind}"
+            );
+            let Some(OutlineAction::Activate(target)) = render(&replacement, click(point)).1 else {
+                panic!("fresh pointer activation must work");
+            };
+            assert_eq!(list.destination(&replacement, &target), Some(3));
+        }
     }
 
     #[test]

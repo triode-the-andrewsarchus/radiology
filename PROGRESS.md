@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-31 — Bind outline/bookmark pointer gestures to row identities (Codex)
+
+Outline IDs now include the exact document identity and declaration range;
+bookmark IDs use persisted UUIDs. Both reuse live-rectangle activation validation,
+preventing a release from opening replacement content or a moved row. Keyboard
+behavior, scoped persistence and layout are retained. Three new tests cover stale
+presses, fresh activation and identity-preserving drag reorder. The old renderers
+fail the stale-target checks. [Contract/evidence](plans/rust-inspector-row-identity.md).
+Workspace passes 507 app tests (seven ignored), two binary, four font, eleven text
+and 34 doctests. Final bookmark/outline suites and strict Clippy/check/build/fmt/
+diff pass. Architecture has one added standard seven-line egui allocation/
+explicit-ID interaction clone (90 → 91), no new hotspot/cycle or max-CCN increase;
+the repeated test fixture was shared. Native 1×/2× row clicks copy the exact
+473-byte/13-byte source lines; dragging persists order [2, 5], fixtures remain
+unchanged and final exits are zero. Evidence archive:
+~/.local/state/radiology-qa/inspector-rows-20261031-c91800b.
+Broader mixed-owner/menu/source ordering, mixed-language/pinned-review visuals and
+parser explanations, reader/large-file/grammar/index/PR/cache and final Swift/reuse
+acceptance remain open. Full accessibility and actual sibling adoption stay deferred.
+
 ## 2026-10-31 — Preserve inspector/global keyboard ownership order (Codex)
 
 Global shortcuts and inspector actions now share per-event dispatch, so modal
