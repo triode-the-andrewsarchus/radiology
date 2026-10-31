@@ -46,6 +46,8 @@ pub enum SourceBufferError {
 ///
 /// Byte offsets are canonical across all Radiology subsystems. [`SourceBuffer`]
 /// translates between byte offsets, 1-based line numbers, and 0-based character columns.
+/// Text, bytes and line starts form an immutable snapshot with cached coordinates
+/// and content identities; construct a new buffer when source content changes.
 ///
 /// # Examples
 ///
@@ -69,6 +71,7 @@ pub struct SourceBuffer {
     pub line_starts: Vec<usize>,
     /// Pull request review revision, or `None` for standard checkout files.
     pub revision: Option<ReviewRevision>,
+    coordinates: reader_text::CoordinateIndex,
     content_identity: u64,
     content_digest: String,
 }
@@ -149,9 +152,11 @@ impl SourceBuffer {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         data.hash(&mut hash);
         let content_digest = format!("{:x}", Sha256::digest(&data));
+        let coordinates = reader_text::CoordinateIndex::new(&text);
         Self {
             path,
             text,
+            coordinates,
             data,
             line_starts,
             revision,
@@ -243,11 +248,13 @@ impl SourceBuffer {
         let line = self.line_at_byte(byte_offset);
         let start = self.line_starts[line - 1];
         let clamped = self.clamp_to_char_boundary(byte_offset.min(self.data.len()));
-        if clamped <= start {
-            return 0;
-        }
-        let line_prefix = &self.text[start..clamped];
-        line_prefix.chars().count()
+        self.coordinates
+            .units_at_byte(&self.text, clamped, ColumnEncoding::Utf32)
+            .unwrap()
+            - self
+                .coordinates
+                .units_at_byte(&self.text, start, ColumnEncoding::Utf32)
+                .unwrap()
     }
 
     /// Converts a 1-based line number and 0-based character column into a canonical byte offset.
@@ -270,24 +277,17 @@ impl SourceBuffer {
         column: usize,
         encoding: ColumnEncoding,
     ) -> Option<usize> {
-        let start = *self.line_starts.get(line.checked_sub(1)?)?;
-        let text = self.line_text(line);
-        if encoding == ColumnEncoding::Utf8 {
-            return (column <= text.len() && text.is_char_boundary(column))
-                .then_some(start + column);
-        }
-        let mut units = 0;
-        for (byte, ch) in text.char_indices() {
-            if units == column {
-                return Some(start + byte);
-            }
-            units += if encoding == ColumnEncoding::Utf16 {
-                ch.len_utf16()
-            } else {
-                1
-            };
-        }
-        (units == column).then_some(start + text.len())
+        self.line_starts.get(line.checked_sub(1)?)?;
+        let range = self.line_byte_range(line);
+        let start_units = self
+            .coordinates
+            .units_at_byte(&self.text, range.start, encoding)?;
+        let byte = self.coordinates.byte_at_units(
+            &self.text,
+            start_units.checked_add(column)?,
+            encoding,
+        )?;
+        (byte <= range.end).then_some(byte)
     }
 
     /// Returns the byte range of a 1-based line, excluding trailing `\n` or `\r\n`.
@@ -376,6 +376,63 @@ mod tests {
         assert!(SourceBuffer::from_str("empty", "")
             .line_span_byte_range(1..2)
             .is_none());
+    }
+
+    #[test]
+    fn indexed_line_coordinates_preserve_terminators_clamping_and_invalid_inputs() {
+        let text = format!("é🦀\r\n{}\r\nend\r\n", "abc漢e\u{301}🦀".repeat(700));
+        let buffer = SourceBuffer::from_str("long.rs", &text);
+        for byte in (0..text.len())
+            .step_by(37)
+            .chain([0, text.len(), usize::MAX])
+        {
+            let clamped = buffer.clamp_to_char_boundary(byte);
+            let start = buffer.line_starts[buffer.line_at_byte(byte) - 1];
+            assert_eq!(
+                buffer.column_at_byte(byte),
+                text[start..clamped].chars().count()
+            );
+        }
+        // Columns on the CR and LF still count the original prefix, whereas
+        // line-relative requests cannot navigate into either terminator.
+        let cr = text.find('\r').unwrap();
+        assert_eq!(buffer.column_at_byte(cr), 2);
+        assert_eq!(buffer.column_at_byte(cr + 1), 3);
+        for line in 1..=buffer.line_count() {
+            let range = buffer.line_byte_range(line);
+            let source_line = &text[range.clone()];
+            for encoding in [
+                ColumnEncoding::Utf8,
+                ColumnEncoding::Utf16,
+                ColumnEncoding::Utf32,
+            ] {
+                let mut expected = vec![None; source_line.len() + 3];
+                for (byte, _) in source_line
+                    .char_indices()
+                    .chain([(source_line.len(), '\0')])
+                {
+                    let prefix = &source_line[..byte];
+                    let column = match encoding {
+                        ColumnEncoding::Utf8 => prefix.len(),
+                        ColumnEncoding::Utf16 => prefix.encode_utf16().count(),
+                        ColumnEncoding::Utf32 => prefix.chars().count(),
+                    };
+                    expected[column] = Some(range.start + byte);
+                }
+                for (column, byte) in expected.into_iter().enumerate() {
+                    assert_eq!(buffer.byte_offset_encoded(line, column, encoding), byte);
+                }
+                assert_eq!(buffer.byte_offset_encoded(line, usize::MAX, encoding), None);
+                assert_eq!(buffer.byte_offset_encoded(0, 0, encoding), None);
+                assert_eq!(
+                    buffer.byte_offset_encoded(buffer.line_count() + 1, 0, encoding),
+                    None
+                );
+            }
+            assert_eq!(buffer.byte_offset(line, usize::MAX), range.end);
+        }
+        assert_eq!(buffer.byte_offset(0, 1), "é".len());
+        assert_eq!(buffer.byte_offset(usize::MAX, 0), text.len());
     }
 
     #[test]

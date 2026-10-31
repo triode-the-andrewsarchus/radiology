@@ -2,16 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Units used by a source-coordinate producer for its zero-based columns.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnEncoding {
-    /// UTF-8 bytes.
-    Utf8,
-    /// UTF-16 code units.
-    Utf16,
-    /// Unicode scalar values (UTF-32 code units).
-    Utf32,
-}
+pub use reader_text::ColumnEncoding;
 
 /// Identifies whether a file location belongs to the merge base (`Before`)
 /// or the pull request head (`After`) during review.
