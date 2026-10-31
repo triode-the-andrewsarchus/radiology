@@ -4,6 +4,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+mod maintenance;
 mod real_tools;
 mod reuse;
 mod rust_features;
@@ -12,7 +13,7 @@ mod rust_features;
 fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
     let fixture = Fixture::new(&[("a.ts", "/* 🦀 */ const value = 1;\r\n")]);
     let request = fixture.request();
-    let (inventory, baseline) = request.prepare(&AtomicBool::new(false)).unwrap();
+    let (inventory, baseline, _lease) = request.prepare(&AtomicBool::new(false)).unwrap();
     let strategy = IndexingStrategy {
         indexer: Indexer::TypeScript,
         directory: String::new(),
@@ -183,7 +184,7 @@ fn generates_isolated_projects_with_encoded_scoped_documents_and_partial_failure
     assert!(!fixture.source.join("rust/artifact.bin").exists());
     assert!(!fixture.source.join("web/artifact.bin").exists());
     let persisted: Vec<_> = fs::read_dir(&fixture.cache).unwrap().collect();
-    assert_eq!(persisted.len(), 2); // merged cache and latest per-project records
+    assert_eq!(persisted.len(), 3); // merged cache, project namespace and stable lease
     assert!(fixture.cache.join("projects").is_dir());
     assert!(cache_file(&fixture).is_file());
     assert!(generated.report.cache_warning.is_none());
@@ -304,7 +305,7 @@ fn an_indexer_deadline_is_a_project_failure_with_bounded_diagnostics() {
         .unwrap()
         .contains("timed out"));
     assert!(generated.report.outcomes[0].diagnostics.contains("waiting"));
-    assert_eq!(fs::read_dir(fixture.cache).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(fixture.cache).unwrap().count(), 1); // stable lease only
 }
 
 #[test]
@@ -368,7 +369,7 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     );
     assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
     assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 2);
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 3);
 
     // A different root sharing the same cache never borrows another repository's data.
     let other = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);

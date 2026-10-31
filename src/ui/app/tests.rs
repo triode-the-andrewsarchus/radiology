@@ -754,7 +754,10 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     let entry = std::fs::read_dir(cache)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .find(|path| path.is_file())
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().ends_with(".index.json"))
+        })
         .unwrap();
     std::fs::write(entry, b"{truncated").unwrap();
     std::fs::write(

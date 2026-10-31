@@ -17,7 +17,8 @@ compiler-environment changes remain reasons to force Reindex. An unavailable too
 cannot qualify version-aware reuse; existing cache-only navigation remains usable.
 
 The latest record for each repository/strategy lives under the private index cache's
-projects directory. A changed version or input context replaces that record; it
+projects directory, in its canonical repository namespace. Flat legacy records are
+read and migrated; [ownership and maintenance](rust-project-cache-maintenance.md). A changed version or input context replaces that record; it
 never creates a new project file for each commit/version. Records are scoped by
 canonical attached identity even if a host shares a cache directory. Checkout and
 pinned After can reuse each other's exact inputs; Before remains source-only.
@@ -105,9 +106,9 @@ pinned-origin visual acceptance remain open. A follow-up shares RunOutput status
 indexer failures now show plain status/signal text. The reader failure test asserts
 the exact status message.
 
-This latest-record design avoids revision/version file growth, but does not yet
-sweep records for removed/renamed project identities or qualify external build
-environments beyond the indexer version. Reindex is the recovery for external
+This latest-record design avoids revision/version file growth. Scoped maintenance
+now sweeps owned removed/renamed project records; external build environments are
+still not qualified beyond the indexer version. Reindex is the recovery for external
 compiler/dependency changes. No full parity completion is claimed.
 Broader real-tool/corpus, recovery, UI/accessibility/scaling/font and sibling reuse
 acceptance remain part of the full parity goal.

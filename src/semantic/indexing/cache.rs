@@ -86,7 +86,10 @@ fn stage<T: Serialize>(
     check_cancel(cancel)?;
     let parent = destination.parent().ok_or("Index cache has no parent")?;
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".radiology-index-stage-")
+        .tempfile_in(parent)
+        .map_err(|e| e.to_string())?;
     // Stream to a bounded file; large indexes do not require another encoded Vec.
     {
         let mut writer = LimitedWriter {
