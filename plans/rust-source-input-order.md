@@ -1,5 +1,8 @@
 # Ordered source keyboard input
 
+Pointer gestures and deferred measurement now extend this same queue; see
+[ordered source gestures](rust-source-gesture-order.md) for the current contract.
+
 ## Failure and implementation
 
 Native 2× font acceptance exposed a source-reader batching bug: a rapid

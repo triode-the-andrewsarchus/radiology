@@ -6,8 +6,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
 the integrated horizontal placement and deferred keyboard/reveal geometry for
-bounded source fragments, with native 1×/2× copy/layout evidence. Retaining clicks
-while a distant prefix measures and toolbar focus restoration remain required.
+bounded source fragments, with native 1×/2× copy/layout evidence.
+[Ordered source gestures](plans/rust-source-gesture-order.md) now retain clicks,
+drags, Ctrl-click and menu keys while prefixes measure. Automatic toolbar/modal
+focus return, long-filename pane constraints and broader acceptance remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.

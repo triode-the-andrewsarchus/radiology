@@ -106,13 +106,12 @@ Fixtures remain unchanged and app/compositors exit zero.
 
 Required follow-up, before calling the whole source interaction audit complete:
 
-1. Retain pointer gestures while a distant horizontal prefix is unmeasured.
-   Current hit testing guards against guessed bytes, but can lose that click.
-   The external distant_unmeasured_pointer_click regression fails with “click
-   must not disappear while its prefix is measuring”; its source and log are
-   preserved in the current archive. It is not committed as failing/ignored.
-   Cover primary selection/drag, Ctrl-click and context-menu ownership through
-   the same measured geometry, preserving input order and cancellation boundaries.
+1. Retained pointer gestures are now implemented and verified in
+   [ordered source gestures](rust-source-gesture-order.md). The original external
+   regression is restored as a passing viewport test. Primary/Shift selection,
+   drag/Copy, Ctrl-click and delayed menu keys use exact shaped geometry and
+   ownership retirement. See that document for current native evidence and the
+   remaining long-name/focus findings.
 2. Repair toolbar menu traversal/focus restoration. In the 2× trial, bare source
    keys stop responding after toolbar use, even after a pointer caret change.
    Go To Line restores keyboard ownership; light-end-via-modal.png confirms End
