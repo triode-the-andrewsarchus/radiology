@@ -341,38 +341,46 @@ mod tests {
 
     #[test]
     fn native_theme_recolor_reuses_exact_captures_and_rejects_foreign_snapshots() {
-        let buffer = Arc::new(SourceBuffer::from_str(
-            "missing.kt",
-            "fun run() { val text = \"café 😀\" }\r\n",
-        ));
-        let facts = DocumentSyntax::analyze(&buffer).native_highlights;
-        assert!(facts.matches(&buffer));
-        let highlighter = Arc::new(SyntaxHighlighter::new());
-        let request = |native_highlights| SourceLoadRequest {
-            source: SourceRead::Buffer(buffer.clone()),
-            location: buffer.location_at_byte(0),
-            target: SourceTarget::Byte(0),
-            native_highlights,
-        };
-        let mut loader = SourceLoader::default();
-        loader.start(request(Some(facts.clone())), highlighter.clone(), true);
-        let dark = finish(&mut loader).unwrap();
-        assert!(dark.syntax.is_none());
-        assert!(Arc::ptr_eq(&dark.buffer, &buffer));
-        loader.start(request(Some(facts.clone())), highlighter.clone(), false);
-        let light = finish(&mut loader).unwrap();
-        assert!(light.syntax.is_none());
-        assert_ne!(light.highlights, dark.highlights);
-        assert!(facts.matches(&buffer));
-        let foreign = DocumentSyntax::analyze(&SourceBuffer::from_str("other.kt", &buffer.text))
-            .native_highlights;
-        loader.start(request(Some(foreign)), highlighter, true);
-        let fallback = finish(&mut loader).unwrap();
-        assert!(fallback.syntax.is_none());
-        assert_ne!(
-            fallback.highlights, dark.highlights,
-            "foreign captures must not recolor this buffer"
-        );
+        for (path, text) in [
+            ("missing.kt", "fun run() { val text = \"café 😀\" }\r\n"),
+            ("missing.ts", "interface User { name: string; }\r\n"),
+            (
+                "missing.tsx",
+                "function View() { return <section title=\"café 😀\" />; }\r\n",
+            ),
+            ("missing.js", "function run() { return \"café 😀\"; }\r\n"),
+        ] {
+            let buffer = Arc::new(SourceBuffer::from_str(path, text));
+            let facts = DocumentSyntax::analyze(&buffer).native_highlights;
+            assert!(facts.matches(&buffer));
+            let highlighter = Arc::new(SyntaxHighlighter::new());
+            let request = |native_highlights| SourceLoadRequest {
+                source: SourceRead::Buffer(buffer.clone()),
+                location: buffer.location_at_byte(0),
+                target: SourceTarget::Byte(0),
+                native_highlights,
+            };
+            let mut loader = SourceLoader::default();
+            loader.start(request(Some(facts.clone())), highlighter.clone(), true);
+            let dark = finish(&mut loader).unwrap();
+            assert!(dark.syntax.is_none());
+            assert!(Arc::ptr_eq(&dark.buffer, &buffer));
+            loader.start(request(Some(facts.clone())), highlighter.clone(), false);
+            let light = finish(&mut loader).unwrap();
+            assert!(light.syntax.is_none());
+            assert_ne!(light.highlights, dark.highlights);
+            assert!(facts.matches(&buffer));
+            let foreign =
+                DocumentSyntax::analyze(&SourceBuffer::from_str("other.kt", &buffer.text))
+                    .native_highlights;
+            loader.start(request(Some(foreign)), highlighter, true);
+            let fallback = finish(&mut loader).unwrap();
+            assert!(fallback.syntax.is_none());
+            assert_ne!(
+                fallback.highlights, dark.highlights,
+                "foreign captures must not recolor this buffer"
+            );
+        }
     }
 
     #[test]

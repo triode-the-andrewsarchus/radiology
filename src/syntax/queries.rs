@@ -150,12 +150,17 @@ fn highlight_source(grammar: SupportedGrammar) -> String {
         highlights.to_owned()
     };
     let overlay = match grammar {
+        JavaScript => include_str!("../../Sources/Radiology/Queries/javascript/highlights.scm"),
         TypeScript | Tsx => {
             include_str!("../../Sources/Radiology/Queries/typescript/highlights.scm")
         }
         _ => "",
     };
-    format!("{highlights}\n{kotlin_roles}\n{overlay}")
+    let jsx = match grammar {
+        JavaScript | Tsx => include_str!("../../Sources/Radiology/Queries/jsx/highlights.scm"),
+        _ => "",
+    };
+    format!("{highlights}\n{kotlin_roles}\n{overlay}\n{jsx}")
 }
 
 /// Runs bounded native captures, including Tree-sitter's text predicates.

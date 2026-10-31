@@ -59,8 +59,9 @@ root/inventory/tree publication, launch intent, filter freshness and native acce
 [Background checkout Git refresh](plans/rust-git-refresh.md) records snapshot
 ownership, shared process/record reuse, bounds and native acceptance.
 
-[Native Swift/Kotlin source colors](plans/rust-native-highlights.md) records shared
-capture rules, precedence, exact-source recoloring and retained theme facts.
+[Native Swift/Kotlin/ECMAScript source colors](plans/rust-native-highlights.md) records shared
+capture rules, dialect overlays, precedence, exact-source recoloring, retained theme
+facts and native TypeScript/TSX acceptance.
 
 [Transient occurrence selection and pin styling](plans/rust-occurrence-selection.md) records
 click-owned groups, shared resolution, shaped outlines and selection independence.

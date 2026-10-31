@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Use native TypeScript/TSX and JavaScript source colors (Codex)
+
+Audit found TS/TSX still using JavaScript fallback colors. The existing native
+capture pipeline now enables ECMAScript grammars and assembles Swift
+JavaScript/TypeScript/JSX overlays. No new parser, renderer, assets or dependency.
+[Contract and evidence](plans/rust-native-highlights.md). A failing-before
+regression is covered by the shared language/role/byte matrix; retained-buffer
+loader recoloring covers Kotlin/TS/TSX/JS without new syntax analysis. Native TSX
+dark/light roles and exact CRLF Copy All pass; fixtures stay unchanged and all
+processes exit zero. Durable evidence is under
+~/.local/state/radiology-qa/typescript-highlights-20261030-9a5f99a. Workspace passes
+443 app tests (seven ignored), four font tests, eight text tests and 33 doctests,
+strict Clippy/build/fmt and warning-denied/render-inspected rustdoc. Tests were
+consolidated after removing genuine duplication; architecture comparison is
+neutral with no new clone group/cycle/max-CCN increase. Resource verification still
+only checks Syntect fallback presence and must be repaired during R17 acceptance.
+Broader corpora/reader/PR/cache/final Swift audit remain open; full accessibility
+and sibling adoption remain deferred. Commit and push this increment.
+
 ## 2026-10-30 — Native shortcut acceptance and modal-batch ownership (Codex)
 
 Pushed backend `cd4c119` passes native Ctrl+Alt+J and Search-menu definition

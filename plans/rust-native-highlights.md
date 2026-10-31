@@ -1,6 +1,7 @@
-# Native Swift/Kotlin source colors
+# Native source colors
 
-Swift and Kotlin now use native Tree-sitter highlight captures for source colors.
+Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native Tree-sitter highlight
+captures for source colors.
 The existing shared parse produces the immutable capture snapshot; no parser runs
 in painting or theme recoloring. Other languages retain their Syntect appearance.
 Missing/failed native facts fall back to basic Syntect/plain colors, with a
@@ -74,3 +75,44 @@ plus the capture preparation and source-loader integration. Native app PID 11558
 and private Weston/Niri exited zero; persistent pointer helpers were intentionally
 terminated. The external driver uses the sibling compositor helper only for
 acceptance. Product builds require no sibling checkout.
+
+## ECMAScript family parity — 2026-10-30
+
+The audit found TypeScript/TSX still routed through Syntect's JavaScript fallback,
+even though the shared query registry already included TypeScript type captures.
+NativeHighlights now accepts JavaScript, TypeScript and TSX grammars as well as
+Swift/Kotlin. The existing source loader automatically selects these exact-source
+captures and retains them for recoloring. No new parse, renderer or syntax asset
+package is introduced. Syntect/plain fallback remains available on query failure.
+
+Query assembly now includes the existing Swift JavaScript-only field overlay and
+JSX tag/attribute overlay for JavaScript/TSX, matching Swift's dialect composition.
+TypeScript retains its type/modifier overlay. The same source serves occurrence
+exclusions and coloring; compile tests cover the enabled grammars. Native colors
+remain syntactic decoration, never substitute SCIP identity or navigation.
+
+A failing-before regression exposed a.ts lacking native captures. The final shared
+language matrix covers Swift/Kotlin/JS/TS/MTS/CTS/TSX/JSX, both themes, type/modifier/
+function/property/tag/attribute/string/comment roles, exact contiguous original
+Unicode/CRLF span bytes, regular source typography, cancellation and path/content/
+revision rejection. The existing asynchronous loader test now covers Kotlin,
+TypeScript, TSX and JavaScript with retained capture/source Arcs, no new syntax
+parse and foreign-capture fallback. Earlier language tests were consolidated;
+the test total is not inflated by the added matrix cases.
+
+A native private 1280×900 Wayland run verifies a TSX document containing an
+interface, readonly property, typed function/string and JSX element. Dark and light
+captures retain their native roles, outline and caret line. Copy All reproduces
+the original CRLF bytes exactly; fixture hashes stay unchanged and app/Weston/Niri
+exit zero. Durable captures, driver, binary/fixture hashes and copied bytes:
+`~/.local/state/radiology-qa/typescript-highlights-20261030-9a5f99a` with SHA256SUMS.
+This is representative 1× TSX evidence, not every dialect/corpus/scale acceptance.
+The external QA driver uses sibling compositor helpers; product builds remain
+standalone and have no sibling checkout dependency.
+
+Workspace passes 443 app tests (seven ignored), four font tests, eight text tests
+and 33 doctests, strict Clippy/build/fmt and warning-denied, inspected rustdoc.
+Architecture against before-native-typescript-highlights is neutral: no new clone
+group, cycle or maximum complexity increase. A real duplicated assertion block
+was removed by sharing byte checks and the language matrix. Broader corpora and
+resource-verifier coverage remain open; full accessibility is deferred.
