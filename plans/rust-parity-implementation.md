@@ -8,6 +8,20 @@ remains the requirement ledger; completing an initial package does not close it.
 See also [indexing lifecycle](rust-indexing-parity.md) for background imports
 and the remaining generation/cache requirements.
 
+## Current scope clarification (2026-10-30)
+
+The user explicitly excludes full accessibility for disabled users from the current
+parity goal. Screen-reader support, native accessibility bridges, accessible source
+text and exhaustive assistive-technology acceptance are deferred. Keyboard
+shortcuts, command ownership, focus behavior and menu dismissal remain required.
+Do not count deferred accessibility work as a blocker or as unfinished required
+parity. Existing behavior need not be removed. The uncommitted AccessKit bridge
+experiment was set aside without adding its platform dependencies.
+
+Radiology must remain independently buildable. Shared assets, reusable reader
+contracts and compatible broad UI conventions prepare for little-screen-clip;
+actual sibling adoption/integration is deferred until the user requests it.
+
 ## Implemented and covered by current tests
 
 - One command type and consumed shortcut path for buttons, menus, and keys;
@@ -150,7 +164,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Broader Swift/Kotlin declaration/scope/grammar acceptance and grammar/fixture
   coverage beyond the implemented rules. Native syntax colors are integrated;
   see [capture/recolor contract](rust-native-highlights.md).
-- Remaining outline presentation and broader bookmark/accessibility parity,
+- Remaining outline presentation and broader bookmark interaction parity,
   mixed-language and long-name corpus, pinned-review and light/dark/scaling acceptance.
   Background metadata, local/package explanations and impl/extension type links
   are integrated; see [metadata acceptance](rust-inspector-metadata.md).

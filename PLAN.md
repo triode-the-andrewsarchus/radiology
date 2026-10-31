@@ -13,6 +13,10 @@ are also integrated, including persistent index reload, supported C/C++ command
 rebasing, unlimited content-bound pins and background call-focused Critical Lens.
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
+Full accessibility is explicitly deferred by the user (2026-10-30); keyboard
+shortcuts, focus behavior and menu dismissal remain required. Actual sibling
+integration is also deferred; standalone operation and reuse preparation remain
+in scope. See the [current scope](plans/rust-parity-implementation.md#current-scope-clarification-2026-10-30).
 
 [Reader appearance](plans/rust-reader-appearance.md) records host-aligned neutral roles,
 unified widget visuals, contrast checks, native 1×/2× evidence and the original Escape menu gap.

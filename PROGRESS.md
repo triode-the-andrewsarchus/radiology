@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Apply user accessibility scope clarification (Codex)
+
+Full accessibility for disabled users is explicitly a non-goal for this phase.
+Native bridges, screen-reader/source-text semantics and exhaustive assistive
+acceptance are deferred; keyboard shortcuts, command ownership, focus behavior
+and menu dismissal remain required. Updated PLAN, the implementation scope and
+the historical review annotation so future agents do not reopen this work as a
+parity blocker. Actual little-screen-clip adoption remains deferred as originally
+requested; standalone operation and useful reuse boundaries remain required.
+The uncommitted AccessKit experiment and its added platform dependencies were
+removed from the worktree. Its patch/test are retained outside the repository at
+~/.local/state/radiology-qa/deferred-accessibility-20261030 for optional future use.
+Production sources and Cargo manifests/lock now match pushed HEAD; this increment
+changes documentation only. Remaining required work is broader indexing/grammar
+coverage, reader layout/navigation acceptance, PR/cache recovery/provenance and
+the final requirement-by-requirement Swift audit. Commit and push this scope update.
+
 ## 2026-10-30 — Dismiss reader context menus with Escape (Codex)
 
 Appearance backend `254336c` is pushed. Its native pass exposed missing context-menu

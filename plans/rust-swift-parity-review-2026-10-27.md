@@ -12,6 +12,11 @@ The comparison uses the current Swift implementation and its tests as the behavi
 
 Status vocabulary: **Present** means a connected implementation exists, without asserting exhaustive equivalence; **Partial** means a meaningful implementation has gaps; **Missing** means the user-facing contract is absent; **Broken** means a reachable path can produce incorrect behavior.
 
+**Scope update (2026-10-30):** the user has deferred full accessibility support.
+The historical findings below do not make screen-reader/assistive-technology parity
+a current acceptance requirement. Keyboard shortcuts and ordinary focus/menu
+behavior remain in scope. See [current implementation scope](rust-parity-implementation.md#current-scope-clarification-2026-10-30).
+
 ## Feature and interaction matrix
 
 | Capability | Rust status | Evidence / remaining gap |
