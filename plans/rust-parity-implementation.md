@@ -129,7 +129,11 @@ for simultaneous inspector regions and source keyboard exclusion.
   propagate their owning flags and budgets; [runtime checks](rust-analysis-source-cancellation.md).
   Source loading and checkout refresh use bounded process-group cancellation/deadlines;
   see [source process acceptance](rust-source-process-cancellation.md).
-- Remaining source presentation: PR-refresh fold/pin mapping. Transient occurrence
+- Remaining source presentation: broader wrapping/scroll/scaling acceptance.
+  [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
+  publication, maps Git renames/lines and latest caret/viewport state, retains only
+  exact current-file pins and applies new fold defaults, with native acceptance.
+  Transient occurrence
   selection, syntax-aware pinned fallback, exact byte-based fold projection, enclosing-callable
   shading and destination feedback are integrated; broader wrapping/scroll anchoring,
   scaling, and interaction acceptance remain part of the final audit. File-return
@@ -151,9 +155,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   frontiers and snapshot workers now feed source fold counts; see
   [graph/count acceptance](rust-call-graph.md). Exact background projection and
   persisted symbol/package menus are integrated; see [marks](rust-critical-marks.md).
-- Complete PR workflow: exact refresh caret/viewport/rename mapping and notice
-  behavior,
-  broader reuse provenance and disabled
+- Complete remaining PR workflow: broader reuse provenance and disabled
   unavailable revision/change controls and late-data/refresh folding behavior.
   [Preparation processes](rust-pr-process-cancellation.md) now share cancellation/
   deadlines with native metadata/fetch Cancel and pinned-review recovery checks.
