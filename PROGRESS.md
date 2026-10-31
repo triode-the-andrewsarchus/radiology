@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Native PR semantic retention and regeneration acceptance (Codex)
+
+Backend `84d320c` is pushed. Four real same-tree QA heads publish through native
+PR refresh/Generate using one controlled SCIP run and exact project reuse. A live
+external shared lease protects all four records and an active-stage stand-in.
+Idle Update retains current plus two recent records, removes the oldest/stage,
+and preserves unknown notes. Reload and restart/reopen add no tool invocations.
+The evicted head shows no index until explicit Generate reuses project data;
+three normalized records remain. [Hashed native evidence and limits](plans/rust-normalized-revision-retention.md).
+Checkout HEAD/status/all regular-file bytes stay unchanged; pinned bytes are
+correct and workspaces disappear. Both app instances/compositors and the holder
+exit zero. This evidence increment changes documentation only; no fresh automated
+rerun. Broader corpus/recovery and final UI/accessibility/scaling/font/sibling
+acceptance remain open. Commit and push each increment.
+
 ## 2026-10-30 — Bounded normalized PR revision records (Codex)
 
 Normalized cache publication now shares the existing project writer lease. After
