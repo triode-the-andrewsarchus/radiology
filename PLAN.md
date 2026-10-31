@@ -28,6 +28,8 @@ regions after resizing. Ordered reference/caller keys now cross focus boundaries
 within one batch, with real-app entry/exit/history and native navigation evidence.
 [Inspector/global keyboard ownership](plans/rust-keyboard-owner-order.md) now
 preserves modal/query handoff order and opening text through window registration.
+[Inspector row identities](plans/rust-inspector-row-identity.md) now reject stale
+bookmark/outline pointer releases after target replacement or movement.
 Broader mixed-owner, mixed-language/pinned-review visual and final parity acceptance
 remain open.
 

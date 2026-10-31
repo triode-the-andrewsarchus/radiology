@@ -174,8 +174,13 @@ impl BookmarkList {
         height: f32,
     ) -> Option<BookmarkAction> {
         let bookmark = &store.bookmarks[index];
-        let (rect, response) = ui.allocate_exact_size(
+        let (rect, _) = ui.allocate_exact_size(
             egui::vec2(ui.available_width(), height),
+            egui::Sense::hover(),
+        );
+        let response = ui.interact(
+            rect,
+            ui.make_persistent_id(("bookmark_row", bookmark.id)),
             egui::Sense {
                 click: true,
                 drag: true,
@@ -211,10 +216,11 @@ impl BookmarkList {
         });
         self.paint_row(ui, theme, rect, bookmark, index);
         let mut action = None;
-        if response.clicked() || response.drag_started() || response.secondary_clicked() {
+        let clicked = super::commands::row_activated(&response);
+        if clicked || response.drag_started() || response.secondary_clicked() {
             self.selected = Some(bookmark.id);
         }
-        if response.clicked() {
+        if clicked {
             ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
             action = Some(BookmarkAction::Open(bookmark.id));
         }
@@ -360,6 +366,84 @@ mod tests {
     use super::*;
     use crate::{bookmarks::bookmark::SourceBookmark, source::SourceBuffer};
     use egui::Modifiers;
+
+    fn paired_bookmarks() -> BookmarkStore {
+        let buffer = SourceBuffer::from_str("a.rs", "first\nsecond\n");
+        BookmarkStore {
+            bookmarks: vec![
+                SourceBookmark::new(&buffer, 0, "first"),
+                SourceBookmark::new(&buffer, 6, "second"),
+            ],
+        }
+    }
+
+    #[test]
+    fn bookmark_drag_reorders_the_pressed_identity_without_opening_a_row() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        let ctx = Context::default();
+        let store = paired_bookmarks();
+        let mut list = BookmarkList::default();
+        let mut frame = |events| {
+            let mut action = None;
+            let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
+                action = list.show(ui, &AppTheme::dark(), &store, "Checkout", Some(false));
+            });
+            (output, action)
+        };
+        frame(vec![]);
+        let output = frame(vec![]).0;
+        let from = text_center(&output, "first");
+        let to = text_center(&output, "second") + egui::vec2(0.0, 20.0);
+        let mut press = click(from);
+        press.pop();
+        assert_eq!(frame(press).1, None);
+        assert_eq!(frame(vec![egui::Event::PointerMoved(to)]).1, None);
+        let mut release = click(to);
+        let release = release.pop().unwrap();
+        assert_eq!(
+            frame(vec![release]).1,
+            Some(BookmarkAction::Move {
+                id: store.bookmarks[0].id,
+                slot: 1
+            })
+        );
+    }
+
+    #[test]
+    fn bookmark_press_does_not_open_a_reordered_or_replaced_row() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        for replace in [false, true] {
+            let ctx = Context::default();
+            let buffer = SourceBuffer::from_str("a.rs", "first\nsecond\n");
+            let mut store = paired_bookmarks();
+            let mut list = BookmarkList::default();
+            let mut render = |store: &BookmarkStore, events| {
+                let mut action = None;
+                let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
+                    ui.style_mut().interaction.selectable_labels = false;
+                    action = list.show(ui, &AppTheme::dark(), store, "Checkout", Some(false));
+                });
+                (output, action)
+            };
+            render(&store, vec![]);
+            let point = text_center(&render(&store, vec![]).0, "first");
+            let mut press = click(point);
+            let release = press.pop().unwrap();
+            render(&store, press);
+            if replace {
+                store.bookmarks[0] = SourceBookmark::new(&buffer, 6, "replacement");
+            } else {
+                store.bookmarks.swap(0, 1);
+            }
+            assert_eq!(render(&store, vec![release]).1, None, "replace={replace}");
+            let expected = BookmarkAction::Open(store.bookmarks[0].id);
+            let mut fresh = click(point);
+            let release = fresh.pop().unwrap();
+            render(&store, fresh);
+            assert_eq!(render(&store, vec![release]).1, Some(expected));
+        }
+    }
 
     #[test]
     fn list_keys_require_focus_and_leave_modified_global_keys_and_releases_available() {
