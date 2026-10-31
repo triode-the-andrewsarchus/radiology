@@ -1,8 +1,28 @@
 # Radiology
 
-Radiology is a native, read-only macOS code browser for understanding unfamiliar repositories. It combines Git-aware file discovery, a TextKit source reader, ripgrep search, Tree-sitter structure, and optional SCIP semantic navigation. It is intentionally not an editor and does not run language servers.
+Radiology is a read-only code browser for understanding unfamiliar repositories, with a standalone Rust/egui Linux app and the original Swift/macOS implementation. It combines Git-aware discovery, source reading, ripgrep search, Tree-sitter structure and optional SCIP navigation. It does not run language servers.
 
-## Requirements and quick start
+## Rust/Linux quick start
+
+Use a Wayland session and a working Rust/Cargo toolchain. Git supplies revision
+features, ripgrep supplies repository search, and gh supplies GitHub PR metadata.
+
+```sh
+cargo build --workspace
+cargo run -- --repository /path/to/repository
+cargo test --workspace
+```
+
+The Rust app builds independently of little-screen-clip. Open Index Projects and
+Check Tools to inspect missing indexers; Install and Index explicitly installs a
+supported tool and then generates semantic data. Go/npm/Kotlin use private tool
+storage; Rust adds rust-analyzer to the active rustup toolchain. The panel explains
+prerequisites, and installation can be cancelled. See [tool provisioning](plans/rust-tool-provisioning.md)
+and [the current parity queue](plans/rust-parity-implementation.md). Full Swift
+feature/UI parity is still in progress. The following sections describe the Swift
+reference; consult PLAN.md and PROGRESS.md for current Rust acceptance.
+
+## Swift/macOS requirements and quick start
 
 - macOS 14 or newer
 - Swift 6.2 or newer (Xcode or a standalone Swift toolchain)
@@ -18,7 +38,7 @@ make release   # release build into build/Radiology.app
 make help      # all build/install/distribution targets
 ```
 
-The active project is this root Swift package, tracked at [tqbf/radiology](https://github.com/tqbf/radiology). An inherited local `repo/` starter copy is ignored by Git and must not be edited. Release targets require the matching Git tag and any configured signing/notarization credentials described in [the build guide](plans/build-system.md).
+The Swift reference is this root Swift package, originally tracked at [tqbf/radiology](https://github.com/tqbf/radiology). An inherited local `repo/` starter copy is ignored by Git and must not be edited. Release targets require the matching Git tag and any configured signing/notarization credentials described in [the build guide](plans/build-system.md).
 
 ## Open and navigate
 

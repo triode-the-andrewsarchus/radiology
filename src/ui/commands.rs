@@ -59,6 +59,10 @@ pub enum ReaderCommand {
     CheckIndexTools,
     /// Stops pending executable version probes.
     CancelIndexToolCheck,
+    /// Installs one missing tool explicitly, then regenerates the current index.
+    InstallIndexer(crate::semantic::indexing::Indexer),
+    /// Cancels installation while retaining published semantic data.
+    CancelToolInstallation,
     /// Reloads a repository-provided SCIP index in the background.
     ReloadIndexImport,
     /// Cancels an import while retaining any published semantic data.

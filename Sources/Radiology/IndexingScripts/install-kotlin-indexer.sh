@@ -16,7 +16,11 @@ if [ -z "$gradle_cli" ] || [ ! -x "$gradle_cli" ]; then
     /usr/bin/curl --fail --location --retry 2 --silent --show-error \
         "https://services.gradle.org/distributions/gradle-$gradle_version-bin.zip.sha256" -o "$archive.sha256"
     expected=$(cat "$archive.sha256")
-    actual=$(/usr/bin/shasum -a 256 "$archive")
+    if [ -x /usr/bin/sha256sum ]; then
+        actual=$(/usr/bin/sha256sum "$archive")
+    else
+        actual=$(/usr/bin/shasum -a 256 "$archive")
+    fi
     [ "${actual%% *}" = "$expected" ] || { echo 'Gradle download checksum mismatch.' >&2; exit 1; }
     /usr/bin/unzip -qo "$archive" -d "$tool_root"
     rm "$archive" "$archive.sha256"
@@ -39,7 +43,12 @@ echo 'Building the pinned Kotlin SCIP indexer with JDK 17 or newer…'
 distribution="$source_dir/scip-java/build/install/scip-java"
 staging="$tool_root/distribution-next"
 rm -rf "$staging"
-/usr/bin/ditto "$distribution" "$staging"
+mkdir -p "$staging"
+if [ -x /usr/bin/ditto ]; then
+    /usr/bin/ditto "$distribution" "$staging"
+else
+    /bin/cp -R "$distribution/." "$staging"
+fi
 /usr/bin/unzip -p "$staging/lib/scip-java-$tool_version.jar" scip-kotlinc.jar > "$staging/scip-kotlinc.jar"
 /usr/bin/unzip -p "$staging/lib/scip-java-$tool_version.jar" scip-plugin.jar > "$staging/scip-plugin.jar"
 "$staging/bin/scip-java" --version

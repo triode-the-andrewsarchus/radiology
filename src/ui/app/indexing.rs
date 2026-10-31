@@ -13,6 +13,7 @@ impl RadiologyApp {
         self.critical_graph_inputs = None;
         self.index_importer = Default::default();
         self.index_generator = Default::default();
+        self.tool_provisioner = Default::default();
         self.generation_report = None;
         self.index_plan_job.stop();
         self.tool_probe_job.stop();
@@ -23,11 +24,48 @@ impl RadiologyApp {
     }
 
     pub(super) fn generate_index(&mut self) {
+        if self.tool_provisioner.is_running() {
+            return;
+        }
         let Some(request) = self.index_request() else {
             self.error = Some("No private index cache is available for this repository".into());
             return;
         };
         self.start_index_generation(request);
+    }
+
+    pub(super) fn install_indexer(&mut self, indexer: Indexer) {
+        let Some(root) = self.repository_root.clone() else {
+            return;
+        };
+        self.error = None;
+        self.index_generator.stop();
+        self.index_importer.stop();
+        self.tool_probe_job.stop();
+        let mut protected_roots = vec![root];
+        if let Some(review) = &self.review {
+            protected_roots.push(review.head_root.clone());
+        }
+        self.tool_provisioner.start(
+            crate::semantic::indexing::provisioning::ProvisioningRequest {
+                indexer,
+                tools: self.index_tools.clone(),
+                protected_roots,
+                timeout: std::time::Duration::from_secs(1800),
+            },
+        );
+    }
+
+    fn poll_tool_installation(&mut self) {
+        match self.tool_provisioner.poll() {
+            Some(Ok(installed)) => {
+                self.tool_availability
+                    .insert(installed.indexer, installed.availability);
+                self.generate_index();
+            }
+            Some(Err(error)) => self.error = Some(format!("Tool installation failed: {error}")),
+            None => {}
+        }
     }
 
     fn index_request(&self) -> Option<GenerationRequest> {
@@ -47,6 +85,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn load_repository_index(&mut self) {
+        self.tool_provisioner = Default::default();
         self.index_importer.stop();
         self.index_generator.stop();
         self.generation_report = None;
@@ -66,6 +105,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn start_index_generation(&mut self, request: GenerationRequest) {
+        self.tool_provisioner = Default::default();
         self.index_importer.stop();
         self.index_plan_job.stop();
         self.tool_probe_job.stop();
@@ -151,6 +191,7 @@ impl RadiologyApp {
             Ok(None) => {}
             Err(_) => self.error = Some("Indexer tool checks stopped unexpectedly".into()),
         }
+        self.poll_tool_installation();
         self.poll_generated_index();
         if self.is_index_loading() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
@@ -184,7 +225,8 @@ impl RadiologyApp {
     /// Returns whether import, project inspection or tool probing is running.
     #[must_use]
     pub fn is_index_loading(&self) -> bool {
-        self.index_importer.is_running()
+        self.tool_provisioner.is_running()
+            || self.index_importer.is_running()
             || self.index_plan_job.is_running()
             || self.tool_probe_job.is_running()
             || self.index_generator.is_running()
@@ -207,7 +249,11 @@ impl RadiologyApp {
                 if ui.small_button("Index Projects").clicked() {
                     self.index_projects_open = true;
                 }
-                if self.index_importer.is_running()
+                if self.tool_provisioner.is_running() {
+                    if ui.small_button("Cancel Installation").clicked() {
+                        command = Some(ToolbarAction::CancelToolInstallation);
+                    }
+                } else if self.index_importer.is_running()
                     || self.index_cache_status() == &CacheLoadStatus::Loading
                 {
                     if ui.small_button("Cancel").clicked() {
@@ -252,6 +298,9 @@ impl RadiologyApp {
     }
 
     fn show_generation_status(&mut self, ui: &mut egui::Ui) {
+        if self.show_installation_status(ui) {
+            return;
+        }
         if self.index_generator.is_running() {
             let progress = self.index_generator.progress();
             ui.spinner();
@@ -300,6 +349,24 @@ impl RadiologyApp {
             self.show_index_source_status(ui);
         } else {
             self.show_import_status(ui);
+        }
+    }
+
+    fn show_installation_status(&self, ui: &mut egui::Ui) -> bool {
+        if self.tool_provisioner.is_running() {
+            ui.spinner();
+            ui.label("Installing indexer…")
+                .on_hover_text(self.tool_provisioner.progress());
+            true
+        } else if self.tool_provisioner.was_cancelled() {
+            ui.label(if self.semantic_index.is_some() {
+                "Tool installation cancelled · previous semantic data retained"
+            } else {
+                "Tool installation cancelled"
+            });
+            true
+        } else {
+            false
         }
     }
 
@@ -361,11 +428,12 @@ impl RadiologyApp {
         if self.index_plan.selected.is_empty() {
             ui.label("Generate Index to check for supported build projects.");
         }
+        let mut install = None;
         egui::ScrollArea::vertical()
             .max_height(300.0)
             .show(ui, |ui| {
                 for strategy in &self.index_plan.selected {
-                    self.show_index_project(ui, strategy);
+                    install = self.show_index_project(ui, strategy).or(install.take());
                 }
                 if !self.index_plan.skipped.is_empty() {
                     ui.label(format!(
@@ -374,6 +442,16 @@ impl RadiologyApp {
                     ));
                 }
             });
+        if self.tool_provisioner.is_running() {
+            ui.label(self.tool_provisioner.progress());
+            return ui
+                .button("Cancel Installation")
+                .clicked()
+                .then_some(ToolbarAction::CancelToolInstallation);
+        }
+        if install.is_some() {
+            return install;
+        }
         if let Some(warning) = self
             .generation_report
             .as_ref()
@@ -406,6 +484,13 @@ impl RadiologyApp {
         {
             return Some(ToolbarAction::GenerateIndex);
         }
+        let command = self.show_tool_check_controls(ui);
+        if self.review.is_some() {
+            ui.label("Indexing uses the pinned After revision. Before remains source-only.");
+        }
+        command
+    }
+    fn show_tool_check_controls(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
         if self.tool_probe_job.is_running() {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -417,16 +502,44 @@ impl RadiologyApp {
         } else if ui.button("Check Tools").clicked() {
             return Some(ToolbarAction::CheckIndexTools);
         }
-        if self.review.is_some() {
-            ui.label("Indexing uses the pinned After revision. Before remains source-only.");
-        }
         None
     }
+
+    fn show_indexer_install(
+        &self,
+        ui: &mut egui::Ui,
+        indexer: Indexer,
+        outcome: Option<&crate::semantic::indexing::service::StrategyOutcome>,
+    ) -> Option<ToolbarAction> {
+        let mut action = None;
+        let missing = matches!(
+            self.tool_availability.get(&indexer),
+            Some(ToolAvailability::Unavailable { .. })
+        ) || outcome
+            .is_some_and(|outcome| outcome.version.is_none() && outcome.failure.is_some());
+        if missing {
+            ui.label(indexer.installation_hint());
+            if indexer != Indexer::Clang
+                && ui
+                    .add_enabled(
+                        !self.tool_provisioner.is_running()
+                            && !self.index_generator.is_running()
+                            && self.index_tools.managed.is_some(),
+                        egui::Button::new("Install and Index"),
+                    )
+                    .clicked()
+            {
+                action = Some(ToolbarAction::InstallIndexer(indexer));
+            }
+        }
+        action
+    }
+
     fn show_index_project(
         &self,
         ui: &mut egui::Ui,
         strategy: &crate::semantic::indexing::IndexingStrategy,
-    ) {
+    ) -> Option<ToolbarAction> {
         ui.push_id(strategy.id(), |ui| {
             let project = if strategy.directory.is_empty() {
                 "."
@@ -469,6 +582,7 @@ impl RadiologyApp {
                 }
                 None => {}
             }
+            let action = self.show_indexer_install(ui, strategy.indexer, outcome);
             if let Some(outcome) = outcome {
                 ui.label(format!(
                     "Last run: {} document{} · {} source file{} missing",
@@ -500,6 +614,8 @@ impl RadiologyApp {
                 }
             }
             ui.separator();
-        });
+            action
+        })
+        .inner
     }
 }
