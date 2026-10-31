@@ -3,7 +3,7 @@ name = "reader-fonts"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Portable licensed CJK and monochrome emoji fallbacks for independent readers"
+description = "Portable licensed interface and fallback fonts for independent readers"
 
 [features]
 default = []
