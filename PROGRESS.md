@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-10-31 — Reuse native Rust highlights and remove profiled regex load cost (Codex)
+
+A fresh 6 MB Rust load profile catches the source worker in Syntect/fancy-regex
+after a three-second mapped wait, with native structure already parsed. Rust now
+uses the existing NativeHighlights path and the exact shipped Swift Rust query,
+shared with occurrence exclusions. No extra parse, asset, renderer, dependency or
+public API. Rust adopts the existing desktop role palette/regular monospace;
+source identity, limits, cancellation and fallback behavior remain intact.
+The shared matrix covers Rust roles in both themes; a >6 MB Unicode/CRLF comment
+checks complete bytes and native recoloring. Cold/retained loader tests and app
+appearance/fold/history tests require native colors and retained source/capture
+Arcs after disk removal. The resource verifier now requires native Rust colors.
+Workspace passes 517 app tests (seven ignored), two binary, four font, 13 text
+and 36 doctests; strict Clippy/check/build/fmt/diff and warning-denied rustdoc pass,
+rendered docs inspected. Copied-executable verification passes without a desktop
+or runtime source checkout. Architecture adds 51 NLOC including tests, no new
+hotspot/cycle/max-CCN increase; all 91 clone groups are identical. Raw touched-file
+warnings refer to unchanged test fragments, verified by a full multiset audit.
+Native 1×/2× exact source, pointer/End/Back/wrap/zoom and settling checks pass;
+dark/light role fixtures show native RGB values and exact original 132-byte copy.
+At 1× observed copy readiness changes from 8.7 s to 89 ms and Back from 9.4 s to
+587 ms; 2× observes 198/821 ms. Single debug software-rendered probe waits are not
+startup/release/statistical guarantees. Final binary/fixture hashes and zero exits
+are verified. Faster loading requires an explicit initial caret reset in QA;
+contrast-adaptive OCR handles brighter native comments. Broader source/language/
+index/PR/cache/final Swift/reuse acceptance and font-reset reflow latency remain
+open. Full accessibility and actual sibling adoption remain deferred.
+[Contract/evidence](plans/rust-native-highlights.md#rust-query-reuse-and-long-line-loading--2026-10-31).
+Archive: ~/.local/state/radiology-qa/rust-native-colors-20261031-5a4d2e7.
+
 ## 2026-10-31 — Retain wrapped reveal through painting and final scroll clamping (Codex)
 
 A short-tail Unicode test reproduces the missing wrapped destination. GDB shows

@@ -10,7 +10,9 @@ and shared sparse Unicode coordinates. Unwrapped destinations now reveal before
 complete prefix measurement and stay anchored while it refines, with exact
 provisional pointer hits and native 1×/2× evidence. Wrapped reveal now survives
 painting and final scroll clamping, with zoom/toggle/selection acceptance at both
-scales. Slow loading and large-source reflow latency remain open.
+scales. Rust now reuses Swift's existing native highlight query and shared parse,
+removing the profiled long-line regex load cost, with 1×/2× dark/light evidence.
+Broader loading/corpus performance and large-source reflow latency remain open.
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
 the integrated horizontal placement and deferred keyboard/reveal geometry for
 bounded source fragments, with native 1×/2× copy/layout evidence.

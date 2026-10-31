@@ -191,7 +191,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   [acceptance](rust-fold-restoration.md). Typed structural folds and
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Broader Swift/Kotlin declaration/scope/grammar acceptance and grammar/fixture
-  coverage beyond the implemented rules. Native Swift/Kotlin/JavaScript/TypeScript/TSX colors are integrated with shared dialect overlays and representative native TSX dark/light/copy acceptance;
+  coverage beyond the implemented rules. Native Rust/Swift/Kotlin/JavaScript/TypeScript/TSX colors are integrated with shared dialect overlays and representative native TSX dark/light/copy acceptance;
   see [capture/recolor contract](rust-native-highlights.md).
 - [Outline status explanations](rust-outline-status.md) now distinguish preparation,
   parser failure, unsupported files, empty languages and hidden tests. Unsupported

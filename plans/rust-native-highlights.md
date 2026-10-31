@@ -1,6 +1,6 @@
 # Native source colors
 
-Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native Tree-sitter highlight
+Rust, Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native Tree-sitter highlight
 captures for source colors.
 The existing shared parse produces the immutable capture snapshot; no parser runs
 in painting or theme recoloring. Other languages retain their Syntect appearance.
@@ -55,9 +55,10 @@ clones were removed by sharing the query visitor and typed source identity.
 REGRESSION classification refers only to the two unchanged source-view/context-
 inspector test fragments present in the baseline.
 
-Broader language corpus, accessibility, scaling and visual acceptance remain open,
-as do PR refresh mapping, source/graph/context caches, background/index/PR lifecycle
-and sibling palette/chrome integration. Full Rust/Swift parity is not complete.
+Broader language corpus, keyboard, scaling and visual acceptance remain open.
+Current lifecycle/reuse requirements are tracked in the [master implementation
+queue](rust-parity-implementation.md). Full assistive accessibility remains deferred
+by the user; full Rust/Swift parity is not complete.
 
 
 Native evidence lives in `/tmp/radiology-native-colors/`: `swift-dark.png`,
@@ -116,3 +117,58 @@ Architecture against before-native-typescript-highlights is neutral: no new clon
 group, cycle or maximum complexity increase. A real duplicated assertion block
 was removed by sharing byte checks and the language matrix. Broader corpora and
 resource-verifier coverage remain open; full accessibility is deferred.
+
+
+## Rust query reuse and long-line loading — 2026-10-31
+
+A fresh 5a4d2e7 native profile samples the source worker after a three-second
+mapped wait while opening a 6,291,502-byte Rust fixture. It is still in Syntect/fancy-regex search on the
+6,291,470-byte first line, reached from SourceLoader after DocumentSyntax analysis.
+The Swift implementation already ships a Rust highlight query, shared by the
+port's occurrence exclusions. Rust now joins the existing NativeHighlights path,
+using that exact query and the already parsed tree. Existing priority, predicates,
+limits, error fallback, source identity and recoloring controls are unchanged.
+Rust colors now follow the same desktop role palette and regular monospace style
+as the other native languages, replacing its previous Syntect appearance.
+
+The shared language matrix adds Rust keywords, functions/macros, attributes,
+types/properties, lifetimes, constants/numbers, raw strings and escapes in both
+themes. A >6 MB comment test checks exact Unicode/CRLF coverage, role colors,
+retained recoloring and retirement. It fails before Rust capture enablement. Cold
+loader assertions require native colors; retained-buffer recoloring now covers
+Rust and rejects foreign captures. The app appearance test verifies a fresh native
+color result and the same source/capture Arcs after deleting the on-disk file,
+preserving history and explicit folds. The standalone resource verifier now
+requires native Rust colors rather than accepting a fallback for probe.rs.
+
+Workspace passes 517 app tests (seven ignored), two binary, four font, 13 text
+and 36 doctests; strict Clippy/check/build/fmt/diff and warning-denied rustdoc pass.
+Rendered native-highlight/module docs are inspected. The copied executable passes
+--verify-resources in an otherwise empty working directory with desktop variables
+unset. Architecture grows by 51 NLOC including tests, with no new hotspot/cycle
+or max-CCN increase. Raw comparison flags four unchanged test fragments because
+their file was touched; the complete 91-group clone multiset is identical to
+`before-source-load-performance` at 5a4d2e7, with zero added/removed instances.
+
+Fresh native role fixtures at 1×/2× retain exact 132-byte Unicode/CRLF source across
+a theme toggle. Inspected dark/light captures contain the expected keyword, type,
+string, attribute and number RGB pixels inside the source pane. The 6 MB probe
+also preserves full copy, exact pointer/End/Back/wrap/zoom selections, marker
+positions, a thirty-second 2× settling view, unchanged fixtures, matching final
+binary hashes and zero exits. At 1× the fresh pre-change copy-readiness wait is
+8.7 s and Back wait 9.4 s; the final native Rust run observes 89 ms and 587 ms.
+At 2× it observes 198 ms and 821 ms. These are single debug software-rendered
+probe waits, with some startup before the first probe, not release startup times
+or statistical speedup guarantees. The final script explicitly resets the initial
+caret because faster loading lets its initial click land on already-visible text;
+this reset happens after the unchanged full-copy readiness assertion.
+
+The brighter native comment palette required contrast-adaptive OCR normalization;
+failed validation trials are retained. Exact bytes use independent fresh clipboard
+sentinels/hashes. Font-reset reflow latency is not diagnosed by the sampled idle
+frames and remains open, along with broader source/language/grammar/index/PR/cache
+and final Swift/reuse acceptance. Other languages retain their existing fallback
+until their color/query/corpus audit. Full accessibility and actual sibling
+adoption remain deferred.
+
+Evidence: `~/.local/state/radiology-qa/rust-native-colors-20261031-5a4d2e7`.

@@ -19,7 +19,7 @@ Python, Go, JavaScript, TypeScript, TSX, Swift, Kotlin and C. Each requires:
 - Supported fold extraction with a multiline fold.
 - Supported call extraction with the exact target callee token.
 - A usable function-local occurrence selection over the value parameter.
-- Expected native colors for Swift/Kotlin/ECMAScript, rather than silently
+- Expected native colors for Rust/Swift/Kotlin/ECMAScript, rather than silently
   accepting a fallback for those fixtures.
 - Complete source-byte reconstruction and at least two syntax colors in both
   appearances. Rust additionally requires its inline test region to be detected.
@@ -59,3 +59,13 @@ parity. The language/role matrix and native TSX captures are documented in
 [native colors](rust-native-highlights.md); broader workflow acceptance and the
 requirement-by-requirement final Swift audit remain separate. Full accessibility
 is deferred by the user.
+
+
+## Rust native-color requirement — 2026-10-31
+
+The Rust probe now requires source-bound native colors, matching its shared Swift
+query activation. The full binary suite and copied-executable verification pass
+without DISPLAY/WAYLAND_DISPLAY or a runtime source checkout. [Rust color and
+performance evidence](rust-native-highlights.md#rust-query-reuse-and-long-line-loading--2026-10-31)
+records the language matrix, exact-byte large comment, retained-source recoloring
+and final native 1×/2× dark/light checks.
