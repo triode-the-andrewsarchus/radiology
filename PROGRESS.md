@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Real pinned Kotlin/Java compiler and navigation acceptance (Codex)
+
+The final mixed fixture passes actual pinned scip-java installation through the
+shared production provisioner and real Kotlin/Java generation: three documents,
+zero missing sources, no partial/stale/cache warning. Exact Unicode Kotlin calls
+and Kotlin-to-Java definitions survive Update reuse and cache-only reload. Viewed
+inputs/inventory remain unchanged and compiler artifacts stay private. A private
+checksum-verified Temurin JDK 17 works; the system JDK 27 installs the tool but
+fails Gradle script analysis during generation. [Evidence and environment limits](plans/rust-real-indexer-acceptance.md).
+All four other real-tool cases pass after sharing the restored-index assertion
+path. Workspace gates pass 425 app tests (six ignored), eight shared tests, 30
+doctests, formatting, strict Clippy and workspace build. Architecture is neutral
+with no new hotspot/cycle/clone growth. Actual Clang, Android/AGP, broader corpora,
+retention/recovery and final UI/accessibility/scaling/font/sibling audit remain
+open. Commit and push each increment.
+
 ## 2026-10-30 — Early full-JDK check for Kotlin tool installation (Codex)
 
 Real Kotlin installation with a runtime-only JAVA_HOME reached Gradle before
