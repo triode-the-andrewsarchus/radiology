@@ -71,6 +71,16 @@ pub(super) struct CanvasContent<'a> {
     pub find: &'a mut SourceFindPanel,
 }
 
+impl CanvasContent<'_> {
+    fn definition_at_byte(&self, byte: usize) -> Option<crate::semantic::index::SemanticSymbolID> {
+        let index = self.mark_context?.index;
+        let target =
+            crate::semantic::references::ReferenceTarget::at_byte(index, self.buffer, byte)?;
+        index.find_definition_for_id(&target.id)?;
+        Some(target.id)
+    }
+}
+
 struct CanvasGeometry {
     font: FontId,
     minimum_height: f32,
@@ -544,13 +554,18 @@ impl SourceViewport {
                         &fragment,
                         content.buffer,
                     );
-                    if let Some(event) = self.pointer_input(
-                        ui,
-                        &response,
-                        byte,
-                        geometry.code_rect.contains(pointer),
-                        content,
-                    ) {
+                    if let Some(event) = self
+                        .definition_pointer(ui, &response, byte, content)
+                        .or_else(|| {
+                            self.pointer_input(
+                                ui,
+                                &response,
+                                byte,
+                                geometry.code_rect.contains(pointer),
+                                content,
+                            )
+                        })
+                    {
                         action = Some(event);
                     }
                     action = self.occurrence_click(ui, &response, byte).or(action);
@@ -625,7 +640,14 @@ impl SourceViewport {
     ) -> Option<SourceViewAction> {
         let mut action = None;
         crate::ui::commands::context_menu(response, |ui| {
-            if ui.button("Copy Selection").clicked() {
+            if ui
+                .add_enabled(
+                    self.selection
+                        .is_some_and(|selection| !selection.range().is_empty()),
+                    egui::Button::new("Copy Selection"),
+                )
+                .clicked()
+            {
                 self.copy(ui.ctx(), content.buffer);
                 ui.close_menu();
             }
@@ -635,20 +657,22 @@ impl SourceViewport {
                 });
                 ui.close_menu();
             }
+            let byte = content
+                .buffer
+                .byte_offset(*content.caret_line, *content.caret_col);
+            let definition = content.definition_at_byte(byte);
             if ui
-                .add(
+                .add_enabled(
+                    definition.is_some(),
                     egui::Button::new("Go to Definition")
-                        .shortcut_text("F12 / Return")
+                        .shortcut_text("Ctrl+Alt+J / F12")
                         .wrap(false),
                 )
                 .clicked()
             {
-                action = Some(SourceViewAction::JumpToDefinition);
+                action = definition.map(SourceViewAction::NavigateToDefinition);
                 ui.close_menu();
             }
-            let byte = content
-                .buffer
-                .byte_offset(*content.caret_line, *content.caret_col);
             let reference_target = content.mark_context.and_then(|context| {
                 crate::semantic::references::ReferenceTarget::at_byte(
                     context.index,
@@ -678,6 +702,35 @@ impl SourceViewport {
             }
         });
         action
+    }
+
+    fn definition_pointer(
+        &mut self,
+        ui: &Ui,
+        response: &egui::Response,
+        byte: usize,
+        content: &CanvasContent<'_>,
+    ) -> Option<SourceViewAction> {
+        let modifiers = ui.input(|input| input.modifiers);
+        if !content.keyboard_enabled
+            || !response.hovered()
+            || !(modifiers.ctrl || modifiers.command)
+            || modifiers.alt
+            || modifiers.shift
+        {
+            return None;
+        }
+        let target = content.definition_at_byte(byte)?;
+        response
+            .clone()
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        if !ui.input(|input| input.pointer.primary_pressed()) {
+            return None;
+        }
+        self.dragging = false;
+        self.occurrence_clicks = None;
+        self.hover.dismiss();
+        Some(SourceViewAction::NavigateToDefinition(target))
     }
 
     fn pointer_input(
@@ -1704,6 +1757,17 @@ mod tests {
             }
         }
 
+        fn set_index(&mut self, index: crate::semantic::SemanticIndex) {
+            let buffer = Arc::new(self.source.clone());
+            self.hover_inputs = Some(Arc::new(crate::critical::worker::GraphInputs {
+                source: crate::source::loader::SourceRead::Buffer(buffer.clone()),
+                calls: Arc::new(crate::syntax::DocumentSyntax::analyze(&buffer).calls),
+                buffer,
+                index: Arc::new(index),
+                overrides: Default::default(),
+            }));
+        }
+
         fn hover_ready_frame(&mut self, ctx: &egui::Context, now: f64) -> egui::FullOutput {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
             while matches!(
@@ -1722,6 +1786,15 @@ mod tests {
             ctx.run(
                 egui::RawInput {
                     screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(400.0, 360.0))),
+                    modifiers: events
+                        .iter()
+                        .rev()
+                        .find_map(|event| match event {
+                            egui::Event::PointerButton { modifiers, .. }
+                            | egui::Event::Key { modifiers, .. } => Some(*modifiers),
+                            _ => None,
+                        })
+                        .unwrap_or_default(),
                     events,
                     time: self.now,
                     ..Default::default()
@@ -1734,7 +1807,12 @@ mod tests {
                                 theme: &self.theme,
                                 test_code: &self.test_code,
                                 mode: self.mode,
-                                mark_context: None,
+                                mark_context: self.hover_inputs.as_deref().map(|inputs| {
+                                    crate::critical::menu::MarkContext {
+                                        index: &inputs.index,
+                                        overrides: &inputs.overrides,
+                                    }
+                                }),
                                 projection: self.projection.as_ref(),
                                 annotations: self.annotations.current(&self.source),
                                 hover_inputs: self.hover_inputs.clone(),
@@ -2257,8 +2335,160 @@ mod tests {
     }
 
     #[test]
+    fn unavailable_source_menu_actions_stay_disabled_and_keep_the_popup_open() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("fn absent() {}\n");
+        let output = reader.frame(&ctx, vec![]);
+        let (origin, galley) = text_shape(&output, "fn absent() {}");
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(5))
+                .center()
+                .to_vec2();
+        let events = crate::ui::test_support::click(point)
+            .into_iter()
+            .map(|event| match event {
+                egui::Event::PointerButton {
+                    pos,
+                    pressed,
+                    modifiers,
+                    ..
+                } => egui::Event::PointerButton {
+                    pos,
+                    pressed,
+                    modifiers,
+                    button: egui::PointerButton::Secondary,
+                },
+                other => other,
+            })
+            .collect();
+        reader.frame(&ctx, events);
+        for label in ["Copy Selection", "Go to Definition"] {
+            let output = reader.frame(&ctx, vec![]);
+            let (origin, galley) = text_shape(&output, label);
+            let output = reader.frame(
+                &ctx,
+                crate::ui::test_support::click(origin + galley.size() / 2.0),
+            );
+            assert!(reader.last_action.is_none(), "{label}");
+            assert!(output.platform_output.copied_text.is_empty());
+            assert!(
+                ctx.read_response(Id::new(("source_row", 0_usize)))
+                    .unwrap()
+                    .context_menu_opened(),
+                "{label} must remain disabled"
+            );
+        }
+    }
+
+    #[test]
+    fn control_click_resolves_exact_source_and_preserves_departure_selection_and_caret() {
+        use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
+        const HELPER: &str = "rust-analyzer cargo app 0 helper().";
+        let text = "fn f() {\n let _ = \"😀\"; helper();\n}\nfn helper() {}\n";
+        let call_line = text.lines().nth(1).unwrap();
+        let start = call_line[..call_line.find("helper").unwrap()]
+            .encode_utf16()
+            .count() as i32;
+        for (case, modifiers, expected) in [
+            ("valid", Modifiers::CTRL, true),
+            ("local", Modifiers::CTRL, true),
+            ("before", Modifiers::CTRL, false),
+            ("stale", Modifiers::CTRL, false),
+            ("unresolved", Modifiers::CTRL, false),
+            ("valid", Modifiers::CTRL | Modifiers::SHIFT, false),
+            ("valid", Modifiers::CTRL | Modifiers::ALT, false),
+        ] {
+            let ctx = egui::Context::default();
+            let mut reader = Reader::new(text);
+            let symbol = if case == "local" { "local 0" } else { HELPER };
+            let mut index = SemanticIndex::from_scip(ScipIndex {
+                documents: vec![ScipDocument {
+                    relative_path: reader.source.path.clone(),
+                    position_encoding: 2,
+                    occurrences: vec![
+                        ScipOccurrence {
+                            symbol: symbol.into(),
+                            range: ScipRange::from_packed(&[1, start, start + 6]),
+                            ..Default::default()
+                        },
+                        ScipOccurrence {
+                            symbol: symbol.into(),
+                            range: ScipRange::from_packed(&[3, 3, 9]),
+                            symbol_roles: 1,
+                            ..Default::default()
+                        },
+                    ],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            if case == "unresolved" {
+                index.definitions.clear();
+            }
+            if case == "stale" {
+                index
+                    .source_digests
+                    .insert(reader.source.path.clone(), "wrong source".into());
+            }
+            if case == "before" {
+                reader.source.revision = Some(ReviewRevision::Before);
+            }
+            reader.set_index(index);
+            let output = reader.frame(&ctx, vec![]);
+            reader.viewport.select(0..2);
+            reader.column = 1;
+            let selected = reader.viewport.selection;
+            let (origin, galley) = text_shape(&output, call_line);
+            let chars = call_line[..call_line.find("helper").unwrap()]
+                .chars()
+                .count()
+                + 2;
+            let point = origin
+                + galley
+                    .pos_from_ccursor(egui::text::CCursor::new(chars))
+                    .center()
+                    .to_vec2();
+            let mut events = pointer(point, true);
+            if let egui::Event::PointerButton {
+                modifiers: actual, ..
+            } = &mut events[1]
+            {
+                *actual = modifiers;
+            }
+            reader.frame(&ctx, events);
+            if expected {
+                assert_eq!(
+                    reader.last_action,
+                    Some(SourceViewAction::NavigateToDefinition(
+                        crate::semantic::index::SemanticSymbolID::new(symbol, &reader.source.path)
+                    )),
+                    "{case}"
+                );
+                assert_eq!((reader.line, reader.column), (1, 1));
+                assert_eq!(reader.viewport.selection, selected);
+                assert!(!reader.viewport.dragging);
+            } else {
+                assert!(
+                    !matches!(
+                        reader.last_action,
+                        Some(SourceViewAction::NavigateToDefinition(_))
+                    ),
+                    "{case}"
+                );
+                assert!(
+                    matches!(
+                        reader.last_action,
+                        Some(SourceViewAction::CaretMoved { .. })
+                    ),
+                    "{case}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn hover_dwell_and_popup_navigation_use_real_hit_regions_without_moving_the_reader() {
-        use crate::critical::worker::GraphInputs;
         use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
         const HELPER: &str = "rust-analyzer cargo app 0 helper().";
         let ctx = egui::Context::default();
@@ -2291,14 +2521,7 @@ mod tests {
             }],
             ..Default::default()
         });
-        let buffer = Arc::new(reader.source.clone());
-        reader.hover_inputs = Some(Arc::new(GraphInputs {
-            source: crate::source::loader::SourceRead::Buffer(buffer.clone()),
-            calls: Arc::new(crate::syntax::DocumentSyntax::analyze(&buffer).calls),
-            buffer,
-            index: Arc::new(index),
-            overrides: Default::default(),
-        }));
+        reader.set_index(index);
         let initial = reader.frame(&ctx, Vec::new());
         let (origin, galley) = text_shape(&initial, " helper();");
         let point = origin

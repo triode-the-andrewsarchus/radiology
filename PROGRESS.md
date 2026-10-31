@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Add source Ctrl-click definition navigation (Codex)
+
+Swift Command-click was missing from Rust. Ctrl-click now uses exact local/global
+SCIP targets and the existing navigation action, retaining the original caret and
+selection. Context-menu Go to Definition uses the same target and is disabled
+without a destination; empty Copy Selection is disabled. [Contract and evidence](plans/rust-source-pointer-navigation.md).
+The pointer regression fails before and passes after, including UTF-16 after an
+emoji, stale/Before/unresolved guards and extra modifiers. Disabled menu clicks
+leave the popup open. Native Ctrl-click/Back restores the exact departure column
+(`eta() {` copied suffix); menu navigation and disabled-action PNG identity pass.
+Fixtures stay unchanged; app/compositors exit zero. Evidence is retained under
+~/.local/state/radiology-qa/control-click-20261030-9449b3e. Workspace passes 445 app
+tests (seven ignored), two binary checker tests, four font tests, eight text tests
+and 33 doctests; strict Clippy/build/fmt/rustdoc/diff pass. Shared test setup removes
+a new clone; remaining tool flags concern unchanged baseline source-view tests.
+Native acceptance exposes the next concrete keyboard defect: Down moves the
+source caret behind an open context menu. Repair menu ownership/traversal next;
+broader reader/corpus/PR/cache/final Swift acceptance remain open. Accessibility
+and sibling adoption remain deferred. Commit and push this increment.
+
 ## 2026-10-30 — Verify native syntax resources through reader analysis (Codex)
 
 Replaced the fallback-presence-only CLI verifier identified in R17. Its private

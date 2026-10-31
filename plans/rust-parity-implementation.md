@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Source Ctrl-click navigation](rust-source-pointer-navigation.md) preserves
+  departure caret/selection through exact indexed pointer targets and shared
+  navigation. Source definition/copy menu controls reflect availability. Native
+  Back restoration and disabled-action checks pass.
+
 - [Headless syntax-resource checks](rust-resource-verification.md) exercise all nine
   native grammars through reader facts, native/fallback colors and Rust test
   detection. Broken TS/TSX queries fail the CLI; an isolated copied executable
@@ -206,7 +211,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - [Files-row Reveal in File Manager](rust-file-manager-reveal.md) now provides the missing file/folder action with scoped background handoff and visible errors; native file/folder/Unicode paths, private PR routing, rejection/timeout and pending-scope retirement now pass through real gdbus and a private controlled receiver.
-- [Keyboard command audit](rust-keyboard-audit.md) adds dedicated definition/Reindex shortcuts, the definition menu entry and repeated-generation guards, with native acceptance. Same-frame modal ownership now stops later reader commands when a dialog opens. Complete menu/shortcut enabled/focus states and traversal. [Shared context-menu Escape dismissal](rust-context-menu-dismissal.md) now repairs the native-proven gap through pre-frame ownership, with component/native acceptance. Continue runtime light/dark/scaling checks,
+- [Keyboard command audit](rust-keyboard-audit.md) adds dedicated definition/Reindex shortcuts, the definition menu entry and repeated-generation guards, with native acceptance. Same-frame modal ownership now stops later reader commands when a dialog opens. Complete menu/shortcut enabled/focus states and traversal. Native source-menu Down currently moves the caret behind the popup; repair its input ownership next. [Shared context-menu Escape dismissal](rust-context-menu-dismissal.md) now repairs the native-proven gap through pre-frame ownership, with component/native acceptance. Continue runtime light/dark/scaling checks,
   actual desktop visual acceptance, and requirement-by-requirement final audit.
 
 ## Commit discipline
