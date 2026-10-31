@@ -44,17 +44,6 @@ fn paths(cache: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-fn wait_until(mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !condition() {
-        assert!(
-            Instant::now() < deadline,
-            "cache maintenance did not converge"
-        );
-        std::thread::sleep(Duration::from_millis(10));
-    }
-}
-
 #[test]
 fn exact_reuse_rejects_changes_hidden_from_the_git_index_and_preserves_leased_old_bytes() {
     let (owner, root, first) = super::super::tests::fixture();
@@ -116,18 +105,19 @@ fn active_snapshots_and_clones_survive_pressure_then_release_converges_to_three_
     let last = snapshots.pop().unwrap();
     let clone = snapshots[0].clone();
     drop(snapshots);
-    wait_until(|| paths(&cache).len() <= 3);
+    // Drop-time maintenance may defer when another maintenance writer is busy.
+    // The next preparation guarantees a serialized sweep of all released leases.
+    let reuse = ReviewSnapshot::prepare(&root, last.summary.clone(), &cache).unwrap();
+    assert!(paths(&cache).len() <= 3);
     assert!(
         retained[0].exists(),
         "a snapshot clone still protects the oldest tree"
     );
     assert!(last.head_root.exists());
-    let reuse = ReviewSnapshot::prepare(&root, last.summary.clone(), &cache).unwrap();
     assert_eq!(reuse.head_root, last.head_root);
     drop(clone);
     // Releasing a protected old tree requests maintenance; the next accepted
     // preparation also guarantees a bounded sweep under the writer lease.
-    wait_until(|| paths(&cache).len() <= 3);
     let _ = ReviewSnapshot::prepare(&root, last.summary.clone(), &cache).unwrap();
     assert!(paths(&cache).len() <= 3);
     assert!(
