@@ -207,11 +207,7 @@ impl RadiologyApp {
         };
         self.session.dark_mode = dark;
         self.session.save();
-        ctx.set_visuals(if dark {
-            egui::Visuals::dark()
-        } else {
-            egui::Visuals::light()
-        });
+        ctx.set_visuals(self.theme.visuals());
         self.queue_rehighlight();
     }
 

@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-30 — Unify reader palette and widget visuals (Codex)
+
+AppTheme now owns the egui visual mapping used at startup and theme switches.
+Neutral canvas/panel/control/text colors match the sibling's fixed roles; selected
+and hovered controls use an opaque restrained tint with readable labels and accent
+focus borders. Existing public theme colors remain host-customizable; fonts,
+spacing, source geometry/bytes and standalone window policy remain independently
+owned. [Contract, checks and durable native evidence](plans/rust-reader-appearance.md).
+Two theme tests and one app integration cover contrast, host ownership, toggle
+publication and persistence. Workspace gates pass 436 app tests (seven ignored),
+four font tests, eight text tests and 33 doctests, strict Clippy, build/fmt and
+warning-denied/render-inspected rustdoc. Architecture adds no clone/hotspot/cycle;
+the four flagged clone fragments exactly match the baseline app tests.
+Native 1× and narrow 2× verify both appearances, selection/copy/find, file menus and
+focused dialogs; fixtures stay unchanged and app/compositors exit zero. Evidence
+is retained outside /tmp under ~/.local/state/radiology-qa/appearance-20261030-cd82b05.
+The pass exposes a remaining keyboard defect: Escape leaves file context menus
+open after a separate 400 ms wait; outside click closes them. Repair it during the
+keyboard/context-menu audit. Broader corpus/recovery, accessibility, sibling
+adoption, type-role/spacing and final Swift parity audit remain open. Commit and
+push this increment before proceeding.
+
 ## 2026-10-30 — Align interface font with the future host (Codex)
 
 Radiology now opts into the sibling's exact Fira Sans UI face via reader-fonts,

@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Reader appearance](plans/rust-reader-appearance.md) records host-aligned neutral roles,
+unified widget visuals, contrast checks, native 1×/2× evidence and the remaining Escape menu gap.
+
 [Ordered source input](plans/rust-source-input-order.md) records coalesced navigation,
 selection and copy ordering, all-scale regression coverage and native 2× acceptance.
 
