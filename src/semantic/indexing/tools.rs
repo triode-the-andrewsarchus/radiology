@@ -110,6 +110,35 @@ impl ToolDirectory {
             })
     }
 
+    pub(crate) fn locate_program(&self, name: &str) -> Option<PathBuf> {
+        self.search_path
+            .iter()
+            .map(|root| root.join(name))
+            .chain(
+                self.home
+                    .iter()
+                    .map(|home| home.join(".cargo/bin").join(name)),
+            )
+            .find(|path| executable(path))
+            .and_then(|path| {
+                if path.is_absolute() {
+                    Some(path)
+                } else {
+                    std::env::current_dir().ok().map(|root| root.join(path))
+                }
+            })
+    }
+
+    /// Finds an installed Gradle fallback for projects without an executable wrapper.
+    #[must_use]
+    pub fn gradle(&self) -> Option<PathBuf> {
+        self.managed
+            .as_ref()
+            .map(|root| root.join("kotlin-scip/gradle-9.7.1/bin/gradle"))
+            .filter(|path| executable(path))
+            .or_else(|| self.locate_program("gradle"))
+    }
+
     /// Returns child-only PATH overrides matching this lookup context.
     #[must_use]
     pub fn child_environment(&self) -> BTreeMap<std::ffi::OsString, std::ffi::OsString> {
@@ -139,6 +168,17 @@ impl ToolDirectory {
                 diagnostics: String::new(),
             };
         };
+        self.probe_executable(indexer, executable, directory, cancel, timeout)
+    }
+
+    pub(crate) fn probe_executable(
+        &self,
+        indexer: Indexer,
+        executable: PathBuf,
+        directory: &Path,
+        cancel: &AtomicBool,
+        timeout: Duration,
+    ) -> ToolAvailability {
         let command = IndexCommand {
             executable: executable.clone(),
             arguments: vec!["--version".into()],

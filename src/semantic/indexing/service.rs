@@ -515,13 +515,14 @@ fn prepare_and_run(
         run.path(),
         cancel,
     )?;
+    let gradle = request.tools.gradle();
     let mut command = strategy.command(CommandPaths {
         workspace: workspace.root(),
         source_root: &request.root,
         executable: &executable,
         output: &output,
         run: run.path(),
-        gradle: None,
+        gradle: gradle.as_deref(),
         compilation_database: compilation_database.as_deref(),
     })?;
     command

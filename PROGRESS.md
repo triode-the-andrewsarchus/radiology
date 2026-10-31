@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Explicit pinned tool installation and automatic indexing (Codex)
+
+Missing Rust/Go/TypeScript/Python/Kotlin tools now expose Install and Index with
+scope/prerequisite guidance; Clang remains manual. Literal pinned plans match
+Swift. Shared bounded/leased processes execute installs, with progress/Cancel,
+protected viewed roots and staged verification/publication rollback for managed
+packages. Rustup updates its active user toolchain explicitly. The Kotlin resource
+has Linux checksum/copy fallbacks, and generation discovers managed/PATH Gradle.
+Success verifies the permanent executable then regenerates the current checkout or
+pinned After; failure/Cancel retain accepted semantics and root replacement retires
+late publication. [Contract and evidence](plans/rust-tool-provisioning.md). Full
+gates pass 406 app tests (one ignored), eight shared tests, 30 doctests, fmt, strict
+Clippy, build, rustdoc and installer shell syntax. Eight backend and two reader
+provisioning tests use controlled local tools; real package/compiler acceptance is
+not implied. No new architecture hotspot/cycle/clone growth; reported fragments
+are unchanged baseline tests. Native acceptance follows. Full parity remains open:
+project/version cache reuse, real-tool/corpus acceptance, recovery and final
+UI/accessibility/scaling/font/sibling audit. Commit and push each increment.
+
 ## 2026-10-30 — Shared cooperative file leases for background writers (Codex)
 
 Moved existing no-follow/nonblocking regular-file lease primitives from the PR

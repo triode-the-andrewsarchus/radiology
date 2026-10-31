@@ -8,6 +8,7 @@ pub mod command;
 pub mod compilation_database;
 pub mod inventory;
 pub mod process;
+pub mod provisioning;
 pub mod service;
 pub mod tools;
 pub mod workspace;
