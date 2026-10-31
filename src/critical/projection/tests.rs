@@ -5,6 +5,47 @@ use crate::syntax::DocumentSyntax;
 const RUNTIME: &str = "rust-analyzer cargo core 0 clone().";
 const SYSTEM: &str = "rust-analyzer cargo std 0 fs/open().";
 
+#[test]
+fn classification_memo_caps_decision_keys_and_still_classifies_uncached_symbols() {
+    let mut memo = ClassificationMemo::default();
+    let index = SemanticIndex::default();
+    let policy = CriticalityPolicy::default();
+    for n in 0..CLASSIFICATION_LIMIT + 2 {
+        let id = crate::semantic::index::SemanticSymbolID::new(
+            format!("rust-analyzer cargo core 0 item{n}()."),
+            "a.rs",
+        );
+        assert_eq!(memo.classify(&id, &index, &policy), Criticality::Ordinary);
+    }
+    assert_eq!(memo.decisions.len(), CLASSIFICATION_LIMIT);
+    assert!(memo.bytes <= CLASSIFICATION_BYTES);
+    let oversized = crate::semantic::index::SemanticSymbolID::new(
+        format!(
+            "rust-analyzer cargo core 0 {}().",
+            "x".repeat(CLASSIFICATION_BYTES)
+        ),
+        "a.rs",
+    );
+    let mut fresh = ClassificationMemo::default();
+    assert_eq!(
+        fresh.classify(&oversized, &index, &policy),
+        Criticality::Ordinary
+    );
+    assert!(fresh.decisions.is_empty() && fresh.bytes == 0);
+    for n in 0..3 {
+        let id = crate::semantic::index::SemanticSymbolID::new(
+            format!(
+                "rust-analyzer cargo core 0 {}{n}().",
+                "x".repeat(3 * 1024 * 1024)
+            ),
+            "a.rs",
+        );
+        assert_eq!(fresh.classify(&id, &index, &policy), Criticality::Ordinary);
+    }
+    assert_eq!(fresh.decisions.len(), 2);
+    assert!(fresh.bytes <= CLASSIFICATION_BYTES);
+}
+
 fn index_for(buffer: &SourceBuffer, entries: &[(&str, &str)]) -> SemanticIndex {
     super::super::test_support::index_ranges(
         buffer,

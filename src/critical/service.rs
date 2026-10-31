@@ -1,11 +1,13 @@
 //! Replaceable background projection ownership for standalone and embedded readers.
 
-use super::{CriticalityOverrides, CriticalityPolicy, SourceProjection};
+use super::{CriticalityOverrides, SourceProjection};
 use crate::background::LatestRead;
 use crate::semantic::SemanticIndex;
 use crate::source::SourceBuffer;
 use crate::syntax::calls::CallSites;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+mod cache;
 
 /// Owns one current Critical Lens request and its exact-source publication.
 #[derive(Default)]
@@ -13,10 +15,11 @@ pub struct CriticalLens {
     job: LatestRead<Result<SourceProjection, String>>,
     projection: Option<SourceProjection>,
     error: Option<String>,
+    cache: Arc<Mutex<cache::ProjectionCache>>,
 }
 
 impl CriticalLens {
-    /// Computes a projection off-thread and retires all older publications.
+    /// Computes or reuses an exact projection off-thread, retiring older publications.
     pub fn start(
         &mut self,
         buffer: Arc<SourceBuffer>,
@@ -26,17 +29,29 @@ impl CriticalLens {
     ) {
         self.projection = None;
         self.error = None;
+        let cache = self.cache.clone();
         self.job.spawn(move |cancel| {
-            let policy = CriticalityPolicy::for_index(index.as_deref(), overrides);
-            super::projection::make(&buffer, &calls, index.as_deref(), &policy, cancel)
+            cache::project(&cache, &buffer, calls, index.as_ref(), overrides, cancel)
         });
     }
 
-    /// Retires pending work and clears presentation when the mode/repository closes.
+    /// Retires pending work and presentation, retaining bounded facts for revisits.
     pub fn stop(&mut self) {
         self.job.stop();
         self.projection = None;
         self.error = None;
+    }
+
+    /// Retires presentation and memoized facts when a repository or index scope closes.
+    pub fn clear(&mut self) {
+        self.stop();
+        self.cache = Default::default();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cache_counts(&self) -> (usize, usize) {
+        let cache = self.cache.lock().unwrap();
+        (cache.builds, cache.hits)
     }
 
     /// Returns whether a projection is awaiting publication.
@@ -79,3 +94,6 @@ impl CriticalLens {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

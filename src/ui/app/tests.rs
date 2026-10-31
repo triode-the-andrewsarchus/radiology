@@ -962,6 +962,20 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
     assert!(!projected.is_receded(text.find("clone").unwrap()));
     assert!(projected.is_receded(text.find("demo").unwrap()));
     assert_eq!(app.critical_status(), Some("Call-focused"));
+    let first = app.critical_lens.cache_counts();
+    app.set_source_mode(SourceMode::Normal);
+    app.set_source_mode(SourceMode::Critical);
+    settle(&mut app);
+    assert_eq!(app.critical_lens.cache_counts(), (first.0, first.1 + 1));
+    app.open_file("b.rs");
+    settle(&mut app);
+    let before_return = app.critical_lens.cache_counts();
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert_eq!(
+        app.critical_lens.cache_counts(),
+        (before_return.0, before_return.1 + 1)
+    );
 
     // Import real SCIP wire data after the syntax-only presentation was published.
     write_critical_index(&root, text);
