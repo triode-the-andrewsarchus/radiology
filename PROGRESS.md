@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Real Go/Python installation and shared four-indexer acceptance (Codex)
+
+Actual pinned scip-go 0.2.7 and scip-python 0.6.6 pass production installation,
+generation, cross-file definition/reference navigation, Unicode byte mapping,
+Update reuse and cache-only reload. Viewed files/inventory remain unchanged and
+private generation stages are removed. Python's nonfatal missing-pyright-section
+warning remains visible. Existing Rust/TypeScript cases share the same lifecycle
+assertions; all four opt-in cases pass after refactoring. [Evidence and limits](plans/rust-real-indexer-acceptance.md).
+Workspace gates pass 424 app tests (five ignored), eight shared tests and 30
+doctests; formatting and strict Clippy pass. Architecture comparison is neutral,
+with no new hotspot/cycle/clone growth. Actual Kotlin/Clang, broader corpora,
+retention/recovery and final UI/accessibility/scaling/font/sibling audit remain
+open. This increment changes acceptance tests and documentation only. Commit and
+push each increment.
+
 ## 2026-10-30 — Native Critical Lens revisit and scope invalidation acceptance (Codex)
 
 Backend `f1ca00f` is pushed. Eight measured native cache events prove initial build,
