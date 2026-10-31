@@ -170,3 +170,57 @@ Evidence: `~/.local/state/radiology-qa/command-availability-20261031-7d4eb14`.
 Broader enabled states, cross-owner sequences, source/grammar/index/PR corpus and
 final Swift UI/standalone/reuse acceptance remain open. Full accessibility and
 actual little-screen-clip integration remain deferred.
+
+
+## View availability and numbered bookmark commands — 2026-10-31
+
+At eb0ab96 View still enables folds and bookmarks without source/targets, labels
+an existing bookmark as an add action, and omits Swift BookmarkCommands' ten
+numbered menu entries. Source mode segments also accept input without source.
+View now uses the same command_enabled predicate as Search and dispatch. Folding
+requires a ready source and an applicable parsed fold; Collapse Functions requires
+a callable fold. Bookmark toggling and source mode require ready source. Numbered
+navigation requires the current repository/review and an occupied slot. Show All
+Files requires nondefault filters, including Rust's path query. Global appearance,
+source-size and filter preferences retain their existing availability.
+
+The bookmark toggle now says Remove Bookmark at an already bookmarked location.
+Go to Bookmark exposes all ten slots, current labels and Ctrl+digit hints, with
+empty/unavailable slots disabled. It reuses BookmarkStore order and OpenBookmark,
+so navigation, relocation, persistence and revision scoping use the existing path.
+No new state, storage, worker, dependency, type scale or sibling coupling.
+
+Growing policy initially trips a cognitive-complexity warning. A shared
+current_caret_symbol accessor now validates the cached source/index/caret identity
+for both availability and actual Go to Definition. The latter no longer repeats
+refresh/occurrence scans after command dispatch has refreshed the target. This
+removes redundant work rather than merely moving policy for a metric. Final
+command_enabled CCN is 6 (previously 7); cached-target validation CCN 8 and
+Go to Definition CCN 4. Architecture adds 154 NLOC including two tests and the
+shared accessor, with no new hotspot/cycle/max-CCN increase. Raw touched-file
+clone warnings are unchanged: a full multiset audit proves all 91 baseline clone
+groups identical. Duplication percentage falls only because the denominator grows.
+
+App tests cover no source, pending publication, parsed callable/type-only folds,
+filter reset, mode readiness, current bookmark toggle and occupied/empty slots.
+A rendered View test changes the toggle label while open, paints all ten entries,
+and reaches slot 9 with Home/Return while skipping disabled slots. Restoring the
+old policy and separately removing slot disabling each fails its regression.
+Final workspace passes 523 app tests (seven existing ignored), two binary, four
+font, 13 reader-text and 36 doctests. Strict Clippy/all-target check/build,
+warning-denied rustdoc, fmt and diff checks pass; Toolbar argument docs render.
+
+Native empty/loaded-reader checks at 1×/2× verify disabled folds, source-mode and
+bookmark keys without source, add/remove labels after actual toggles, all-slot
+presentation and keyboard submenu activation. After leaving the saved line,
+Home/Return in the submenu returns to it; exact copy yields `// NATIVE_SECOND`.
+Captures are inspected, original fixture and final binary hashes verified, and
+all app/compositor children exit zero. Failed OCR trials are retained and excluded:
+a focus rectangle hides View and low-resolution OCR drops a colon in a bookmark
+label. The corrected harness reuses the observed stable toolbar anchor and uses
+keyboard activation plus independent exact clipboard bytes for destination proof.
+
+Evidence: `~/.local/state/radiology-qa/view-command-state-20261031-eb0ab96`.
+Other command groups, broader bookmark model/interaction, grammar/index/PR/cache
+corpora and final Swift UI/standalone/reuse acceptance remain open. Full
+accessibility and actual sibling integration remain deferred.

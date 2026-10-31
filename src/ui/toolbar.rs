@@ -35,6 +35,8 @@ impl Toolbar {
     /// * `wrap_lines` - Whether long lines wrap at viewport width.
     /// * `history` - Navigation history tracker used to enable/disable back/forward buttons.
     /// * `change_navigation` - Available change targets for the accepted source.
+    /// * `bookmarks` - Current repository/review bookmark slots.
+    /// * `current_bookmarked` - Whether the accepted caret location has a bookmark.
     /// * `command_enabled` - Current application availability for menu commands.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
@@ -51,6 +53,8 @@ impl Toolbar {
         wrap_lines: bool,
         history: &NavigationHistory,
         change_navigation: crate::pull_request::diff::ChangeNavigation,
+        bookmarks: &crate::bookmarks::store::BookmarkStore,
+        current_bookmarked: bool,
         command_enabled: impl Fn(&ToolbarAction) -> bool,
     ) -> Option<ToolbarAction> {
         let previous_focus = ui.memory(|memory| memory.focused());
@@ -153,7 +157,7 @@ impl Toolbar {
             ui.separator();
 
             // Mode Selector: Segmented Capsule [ Normal | Critical ]
-            ui.horizontal(|ui| {
+            ui.add_enabled_ui(command_enabled(&ToolbarAction::ToggleMode(mode)), |ui| {
                 let is_normal = mode == SourceMode::Normal;
                 let is_critical = mode == SourceMode::Critical;
                 if ui.selectable_label(is_normal, "Normal").clicked() && !is_normal {
@@ -165,7 +169,19 @@ impl Toolbar {
             });
 
             // View & Filters Menu
-            menus.button(ui, "View", "view", view_items(theme, filters, wrap_lines));
+            menus.button(
+                ui,
+                "View",
+                "view",
+                view_items(
+                    theme,
+                    filters,
+                    wrap_lines,
+                    bookmarks,
+                    current_bookmarked,
+                    &command_enabled,
+                ),
+            );
             menus.button(ui, "Search", "search", search_items(&command_enabled));
 
             // Right-aligned global shortcuts and theme toggle
@@ -207,6 +223,9 @@ fn view_items(
     theme: &AppTheme,
     filters: &SourceFilters,
     wrap_lines: bool,
+    bookmarks: &crate::bookmarks::store::BookmarkStore,
+    current_bookmarked: bool,
+    command_enabled: &impl Fn(&ToolbarAction) -> bool,
 ) -> Vec<Item<ToolbarAction>> {
     let mut items = vec![
         Item::action(
@@ -239,7 +258,8 @@ fn view_items(
             ToolbarAction::ResetSourceFont,
         ),
     ] {
-        items.push(Item::action(label, action));
+        let enabled = command_enabled(&action);
+        items.push(Item::action(label, action).enabled(enabled));
     }
     items.push(Item::separator());
     for (label, action) in [
@@ -253,12 +273,36 @@ fn view_items(
         ),
         ("Show All Files", ToolbarAction::ShowAllFiles),
     ] {
-        items.push(Item::action(label, action));
+        let enabled = command_enabled(&action);
+        items.push(Item::action(label, action).enabled(enabled));
     }
     items.push(Item::separator());
-    items.push(Item::action(
-        "Bookmark Location (Ctrl+D)",
-        ToolbarAction::ToggleBookmark,
+    items.push(
+        Item::action(
+            if current_bookmarked {
+                "Remove Bookmark (Ctrl+D)"
+            } else {
+                "Bookmark Location (Ctrl+D)"
+            },
+            ToolbarAction::ToggleBookmark,
+        )
+        .enabled(command_enabled(&ToolbarAction::ToggleBookmark)),
+    );
+    items.push(Item::submenu(
+        "Go to Bookmark",
+        (0..10)
+            .map(|slot| {
+                let command = ToolbarAction::OpenBookmark(slot);
+                let label = bookmarks.get_by_index(slot).map_or_else(
+                    || format!("Bookmark {slot}"),
+                    |bookmark| bookmark.label.clone(),
+                );
+                let enabled = command_enabled(&command);
+                Item::action(label, command)
+                    .hint(format!("Ctrl+{slot}"))
+                    .enabled(enabled)
+            })
+            .collect(),
     ));
     items
 }
@@ -378,5 +422,58 @@ mod tests {
             },
         );
         assert_eq!(action, Some(ToolbarAction::OpenSearch));
+    }
+
+    #[test]
+    fn view_bookmark_menu_updates_toggle_and_navigates_the_tenth_slot() {
+        use crate::ui::{commands::test_key, test_support::menu_frame};
+        let ctx = egui::Context::default();
+        let source = crate::source::SourceBuffer::from_str("a.rs", "fn alpha() {}\n");
+        let mut bookmarks = crate::bookmarks::store::BookmarkStore::default();
+        for slot in 0..10 {
+            bookmarks
+                .bookmarks
+                .push(crate::bookmarks::bookmark::SourceBookmark::new(
+                    &source,
+                    0,
+                    format!("Slot {slot}"),
+                ));
+        }
+        let mut action = None;
+        let mut frame = |events, current| {
+            menu_frame(&ctx, egui::vec2(900.0, 700.0), events, |ui| {
+                let mut menus = MenuBar::default();
+                menus.button(
+                    ui,
+                    "View",
+                    "view",
+                    view_items(
+                        &AppTheme::dark(),
+                        &SourceFilters::default(),
+                        false,
+                        &bookmarks,
+                        current,
+                        &|command| matches!(command, ToolbarAction::OpenBookmark(9)),
+                    ),
+                );
+                action = menus.show();
+            })
+        };
+        let output = frame(vec![], false);
+        frame(click(text_center(&output, "View")), false);
+        let output = frame(vec![], false);
+        text_center(&output, "Bookmark Location (Ctrl+D)");
+        let output = frame(vec![], true);
+        text_center(&output, "Remove Bookmark (Ctrl+D)");
+        frame(click(text_center(&output, "Go to Bookmark")), true);
+        let output = frame(vec![], true);
+        for slot in 0..10 {
+            text_center(&output, &format!("Slot {slot}"));
+        }
+        frame(
+            vec![test_key(egui::Key::Home), test_key(egui::Key::Enter)],
+            true,
+        );
+        assert_eq!(action, Some(ToolbarAction::OpenBookmark(9)));
     }
 }
