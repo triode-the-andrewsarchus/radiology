@@ -23,8 +23,10 @@ bound long names and restore Swift's source-bound declaration disclosure, with
 keyboard/copy tests and native 1×/2× evidence.
 [Reference/caller presentation and region bounds](plans/rust-reference-presentation.md)
 now preserve fitted caller metadata, source-bound row activation and all three
-regions after resizing. Broader cross-owner, mixed-language/pinned-review visual
-and final parity acceptance remain open.
+regions after resizing. Ordered reference/caller keys now cross focus boundaries
+within one batch, with real-app entry/exit/history and native navigation evidence.
+Broader cross-owner, mixed-language/pinned-review visual and final parity acceptance
+remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.

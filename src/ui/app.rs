@@ -518,9 +518,9 @@ impl RadiologyApp {
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
-            for action in self.reference_viewport.take_actions(ctx) {
-                self.handle_reference_action(action);
-            }
+            let mut events = ctx.input_mut(|input| std::mem::take(&mut input.events));
+            self.handle_reference_keys(ctx, &mut events);
+            ctx.input_mut(|input| input.events = events);
             for action in ContextInspector::take_definition_actions(ctx) {
                 match action {
                     InspectorAction::ExpandDefinition(expanded) => {
@@ -559,9 +559,7 @@ impl eframe::App for RadiologyApp {
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
             self.handle_bookmark_keys(ctx, input);
             self.handle_outline_keys(ctx, input);
-            for action in self.reference_viewport.take_raw_actions(ctx, input) {
-                self.handle_reference_action(action);
-            }
+            self.handle_reference_keys(ctx, &mut input.events);
         }
     }
 

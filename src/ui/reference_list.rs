@@ -40,10 +40,9 @@ pub struct ReferenceViewport {
     geometry: Option<(usize, f32, f32)>,
     groups: BTreeMap<usize, usize>,
     reveal: bool,
-    focus_after_registration: bool,
     caller_controls: Vec<(Id, ReferenceAction)>,
     reveal_caller: Option<(usize, usize)>,
-    pending_caller_focus: Option<Id>,
+    pending_focus: Option<Id>,
 }
 
 impl ReferenceViewport {
@@ -75,7 +74,7 @@ impl ReferenceViewport {
                     .add_enabled(!loading, egui::Button::new("Load More").small())
                     .clicked()
                 {
-                    self.focus_after_registration = true;
+                    self.pending_focus = Some(Self::focus_id());
                     action = Some(ReferenceAction::More);
                 }
             });
@@ -106,7 +105,7 @@ impl ReferenceViewport {
             .iter()
             .find(|(_, action)| *action == ReferenceAction::CommitCaller(reference, 0))
         {
-            self.pending_caller_focus = Some(id);
+            self.pending_focus = Some(id);
             self.reveal_caller = Some((reference, 0));
             true
         } else {
@@ -114,24 +113,39 @@ impl ReferenceViewport {
         }
     }
 
-    pub(crate) fn take_actions(&mut self, ctx: &Context) -> Vec<ReferenceAction> {
-        if !ctx.memory(|memory| memory.has_focus(Self::focus_id())) {
-            return Vec::new();
+    pub(crate) fn action_for_key(
+        &mut self,
+        ctx: &Context,
+        key: Key,
+        modifiers: Modifiers,
+    ) -> Option<ReferenceAction> {
+        if modifiers != Modifiers::NONE {
+            return None;
         }
-        super::commands::take_key_actions(ctx, |key, modifiers| {
-            if modifiers != Modifiers::NONE {
-                return None;
-            }
-            Some(match key {
-                Key::ArrowDown => ReferenceAction::MoveSelection(true),
-                Key::ArrowUp => ReferenceAction::MoveSelection(false),
-                Key::ArrowRight => ReferenceAction::SetSelectionExpanded(true),
-                Key::ArrowLeft => ReferenceAction::SetSelectionExpanded(false),
-                Key::Enter => ReferenceAction::Commit(None),
-                Key::Escape => ReferenceAction::ClearSelection,
-                _ => return None,
-            })
-        })
+        let focused = self
+            .pending_focus
+            .or_else(|| ctx.memory(|memory| memory.focused()))
+            .or_else(|| {
+                // Prepared hosts may have already let egui surrender focus for Escape.
+                // Recover only a known previous owner, never replace a live external focus.
+                if key != Key::Escape {
+                    return None;
+                }
+                std::iter::once(Self::focus_id())
+                    .chain(self.caller_controls.iter().map(|control| control.0))
+                    .find(|id| {
+                        ctx.read_response(*id)
+                            .is_some_and(|response| response.lost_focus())
+                    })
+            });
+        if focused == Some(Self::focus_id()) {
+            return list_key(key);
+        }
+        let index = self
+            .caller_controls
+            .iter()
+            .position(|control| Some(control.0) == focused)?;
+        self.caller_key(ctx, index, key)
     }
 
     fn configure_caller_controls(
@@ -163,80 +177,48 @@ impl ReferenceViewport {
                 }
             }
         }
-        let focused = ctx.memory(|memory| memory.focused());
+        let focused = self
+            .pending_focus
+            .or_else(|| ctx.memory(|memory| memory.focused()));
         if focused.is_some_and(|id| {
             self.caller_controls.iter().any(|control| control.0 == id)
                 && !controls.iter().any(|control| control.0 == id)
         }) {
-            self.focus_after_registration = true;
+            self.pending_focus = Some(Self::focus_id());
         }
         self.caller_controls = controls;
     }
 
-    pub(crate) fn take_raw_actions(
-        &mut self,
-        ctx: &Context,
-        input: &mut egui::RawInput,
-    ) -> Vec<ReferenceAction> {
-        let focused = ctx.memory(|memory| memory.focused());
-        let Some(mut index) = self
-            .caller_controls
-            .iter()
-            .position(|control| Some(control.0) == focused)
-        else {
-            return Vec::new();
-        };
-        let mut focus_list = false;
-        let mut reveal = false;
-        let actions = super::commands::take_event_actions(&mut input.events, |key, modifiers| {
-            if modifiers != Modifiers::NONE {
-                return None;
+    fn caller_key(&mut self, ctx: &Context, index: usize, key: Key) -> Option<ReferenceAction> {
+        let reference = caller_target(&self.caller_controls[index].1).0;
+        match key {
+            Key::Enter | Key::Space => Some(self.caller_controls[index].1.clone()),
+            Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
+                let next = match key {
+                    Key::Home => 0,
+                    Key::End => self.caller_controls.len() - 1,
+                    Key::ArrowDown => (index + 1).min(self.caller_controls.len() - 1),
+                    _ => index.saturating_sub(1),
+                };
+                let (id, action) = &self.caller_controls[next];
+                let (reference, caller) = caller_target(action);
+                self.pending_focus = Some(*id);
+                self.reveal_caller = Some((reference, caller));
+                ctx.memory_mut(|memory| memory.request_focus(*id));
+                Some(ReferenceAction::Select(reference))
             }
-            let reference = match self.caller_controls[index].1 {
-                ReferenceAction::CommitCaller(reference, _)
-                | ReferenceAction::MoreCallers(reference) => reference,
-                _ => unreachable!(),
-            };
-            match key {
-                Key::Enter | Key::Space => Some(self.caller_controls[index].1.clone()),
-                Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
-                    index = if key == Key::Home {
-                        0
-                    } else if key == Key::End {
-                        self.caller_controls.len() - 1
-                    } else if key == Key::ArrowDown {
-                        (index + 1).min(self.caller_controls.len() - 1)
-                    } else {
-                        index.saturating_sub(1)
-                    };
-                    reveal = true;
-                    Some(ReferenceAction::Select(reference))
-                }
-                Key::ArrowLeft => {
-                    focus_list = true;
-                    Some(ReferenceAction::SetExpanded(reference, false))
-                }
-                Key::Escape => {
-                    focus_list = true;
-                    Some(ReferenceAction::Select(reference))
-                }
-                Key::ArrowRight => Some(ReferenceAction::Select(reference)),
-                _ => None,
+            Key::ArrowLeft | Key::Escape => {
+                self.pending_focus = Some(Self::focus_id());
+                ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+                Some(if key == Key::ArrowLeft {
+                    ReferenceAction::SetExpanded(reference, false)
+                } else {
+                    ReferenceAction::Select(reference)
+                })
             }
-        });
-        if focus_list {
-            ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
-        } else if reveal {
-            let (id, action) = &self.caller_controls[index];
-            let (reference, caller) = match *action {
-                ReferenceAction::CommitCaller(reference, caller) => (reference, caller),
-                ReferenceAction::MoreCallers(reference) => (reference, usize::MAX),
-                _ => unreachable!(),
-            };
-            self.reveal_caller = Some((reference, caller));
-            ctx.memory_mut(|memory| memory.request_focus(*id));
+            Key::ArrowRight => Some(ReferenceAction::Select(reference)),
+            _ => None,
         }
-        actions
     }
 
     pub(crate) fn show(
@@ -253,12 +235,8 @@ impl ReferenceViewport {
             Self::focus_id(),
             Sense::focusable_noninteractive(),
         );
-        // A press and release may arrive together. Registering the list would
-        // otherwise surrender focus requested by the coverage button above it.
-        if std::mem::take(&mut self.focus_after_registration) {
-            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
-        }
-        if let Some(id) = self.pending_caller_focus.take() {
+        // Apply the final owner after virtual controls have been configured.
+        if let Some(id) = self.pending_focus.take() {
             ui.memory_mut(|memory| memory.request_focus(id));
             super::commands::retain_navigation_keys(ui.ctx(), id);
         }
@@ -395,6 +373,26 @@ impl ReferenceViewport {
             }
             self.expanded.insert(row, signature);
         }
+    }
+}
+
+fn list_key(key: Key) -> Option<ReferenceAction> {
+    Some(match key {
+        Key::ArrowDown => ReferenceAction::MoveSelection(true),
+        Key::ArrowUp => ReferenceAction::MoveSelection(false),
+        Key::ArrowRight => ReferenceAction::SetSelectionExpanded(true),
+        Key::ArrowLeft => ReferenceAction::SetSelectionExpanded(false),
+        Key::Enter => ReferenceAction::Commit(None),
+        Key::Escape => ReferenceAction::ClearSelection,
+        _ => return None,
+    })
+}
+
+fn caller_target(action: &ReferenceAction) -> (usize, usize) {
+    match *action {
+        ReferenceAction::CommitCaller(reference, caller) => (reference, caller),
+        ReferenceAction::MoreCallers(reference) => (reference, usize::MAX),
+        _ => unreachable!("caller control contains a list action"),
     }
 }
 
@@ -601,13 +599,13 @@ mod tests {
         let ids = [
             super::super::reference_callers::control_id(4, Some(0)),
             super::super::reference_callers::control_id(4, Some(1)),
-            super::super::reference_callers::control_id(4, Some(2)),
-            super::super::reference_callers::control_id(4, Some(3)),
+            super::super::reference_callers::control_id(5, Some(0)),
+            super::super::reference_callers::control_id(5, Some(1)),
         ];
         viewport.caller_controls = ids
             .iter()
             .enumerate()
-            .map(|(row, id)| (*id, ReferenceAction::CommitCaller(4, row)))
+            .map(|(row, id)| (*id, ReferenceAction::CommitCaller(4 + row / 2, row % 2)))
             .collect();
         let mut frame = |keys: &[Key]| {
             let mut input = egui::RawInput {
@@ -623,7 +621,10 @@ mod tests {
                     .collect(),
                 ..Default::default()
             };
-            let actions = viewport.take_raw_actions(&ctx, &mut input);
+            let actions =
+                super::super::commands::take_event_actions(&mut input.events, |key, modifiers| {
+                    viewport.action_for_key(&ctx, key, modifiers)
+                });
             let _ = ctx.run(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.interact(
@@ -649,14 +650,14 @@ mod tests {
         assert_eq!(
             frame(&[Key::ArrowDown, Key::Enter]),
             [
-                ReferenceAction::Select(4),
-                ReferenceAction::CommitCaller(4, 2)
+                ReferenceAction::Select(5),
+                ReferenceAction::CommitCaller(5, 0)
             ]
         );
         assert!(ctx.memory(|memory| memory.has_focus(ids[2])));
         assert_eq!(
             frame(&[Key::ArrowLeft]),
-            [ReferenceAction::SetExpanded(4, false)]
+            [ReferenceAction::SetExpanded(5, false)]
         );
         assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
     }
@@ -800,7 +801,12 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    actions = viewport.take_actions(ctx);
+                    let mut events = ctx.input_mut(|input| std::mem::take(&mut input.events));
+                    actions = super::super::commands::take_event_actions(
+                        &mut events,
+                        |key, modifiers| viewport.action_for_key(ctx, key, modifiers),
+                    );
+                    ctx.input_mut(|input| input.events = events);
                     egui::CentralPanel::default().show(ctx, |ui| {
                         viewport.show(ui, &AppTheme::dark(), &results, Some(0), &BTreeMap::new());
                     });

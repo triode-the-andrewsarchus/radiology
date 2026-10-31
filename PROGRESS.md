@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Dispatch reference/caller keys in event order (Codex)
+
+The shared ordered parser now applies each reference action before resolving the
+next key, using one pending-focus ID. Coalesced Right/Down/Return commits the
+caller; Escape/Left returns later keys to reference selection; collapse/reopen
+consults the live disclosure before accepting cached controls. Caller-group moves
+select the new parent. Raw and prepared frames share application dispatch, with
+input detached before prepared routing to avoid nested context locks. Escape
+recovery only uses a known previous response when no live external focus exists.
+[Contract/evidence](plans/rust-reference-presentation.md#ordered-referencecaller-keyboard-handoff--2026-10-31).
+Four added real-app tests pass; the first three fail against ba469aa with wrong
+entry/exit destinations or a closed disclosure. Both frame paths, exact Back
+history and a live Find query are covered. Workspace passes 497 app tests (seven
+ignored), two binary, four font, eleven text and 34 doctests; final component and
+strict Clippy/check/build/fmt/diff pass. Architecture's one diff-aware clone warning
+is unchanged; the full 89-clone multiset has zero additions/removals, with no new
+hotspot/cycle/max-CCN increase. Native 1×/2× runs send the three keys together,
+commit line 5, copy exact 473-byte Unicode source and return with Back. Exact frame
+coalescence is established by RawInput tests, not inferred from native timing.
+Fixtures are unchanged and final exits zero. Archive:
+~/.local/state/radiology-qa/reference-handoff-20261031-ba469aa.
+Pinned kind/category metadata and broader modal/global ordering, review/mixed-
+language/lifecycle/reader/large-file/grammar/index/PR/cache/final Swift/reuse
+acceptance remain open. Full accessibility and actual sibling adoption remain
+deferred. Commit and push this keyboard increment before the metadata change.
+
 ## 2026-10-31 — Fit caller rows and bound inspector regions (Codex)
 
 Caller names, filenames, line/depth metadata and boundary notes now keep separate
