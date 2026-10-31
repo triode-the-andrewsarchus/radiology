@@ -16,6 +16,10 @@ use std::time::{Duration, Instant};
 /// Inputs owned by one checkout or pinned-review generation request.
 #[derive(Clone)]
 pub struct GenerationRequest {
+    /// Stable attached checkout identity, including when `root` is a pinned tree.
+    pub attached_root: PathBuf,
+    /// Reuses exact project records with matching tool versions; false forces all tools.
+    pub reuse: bool,
     /// Viewed repository whose bytes must remain unchanged.
     pub root: PathBuf,
     /// Pinned review owning this root and its tree lease, or None for a checkout.
@@ -47,6 +51,7 @@ impl GenerationRequest {
     }
 
     fn prepare(&self, cancel: &AtomicBool) -> Result<(InputInventory, IndexingWorkspace), String> {
+        super::cache::directory(self)?;
         let inventory = self.inventory(cancel)?;
         let baseline =
             IndexingWorkspace::create(&self.root, &inventory, &self.cache, self.limits, cancel)?;
@@ -90,6 +95,12 @@ pub struct StrategyOutcome {
     pub strategy: IndexingStrategy,
     /// Actual successful tool version, if its probe succeeded.
     pub version: Option<String>,
+    /// Original generating After commit or `checkout`, when this project was reused.
+    #[serde(default)]
+    pub reused_from: Option<String>,
+    /// A project cache could not be read or staged; generated data remains usable.
+    #[serde(default)]
+    pub cache_warning: Option<String>,
     /// Emitted navigable source documents.
     pub documents: usize,
     /// Source files not emitted by the tool.
@@ -139,9 +150,22 @@ impl GenerationReport {
         !self.plan.skipped.is_empty()
             || !self.omitted_directories.is_empty()
             || self.overlapping_documents != 0
+            || self.reuse_warning().is_some()
             || self.outcomes.iter().any(|outcome| {
                 outcome.failure.is_some() || outcome.missing_count != 0 || outcome.partial_build
             })
+    }
+
+    /// Returns the cross-project warning when generation mixes index origins.
+    #[must_use]
+    pub fn reuse_warning(&self) -> Option<&'static str> {
+        let origins: HashSet<_> = self
+            .outcomes
+            .iter()
+            .filter(|outcome| outcome.failure.is_none())
+            .map(|outcome| outcome.reused_from.as_deref().unwrap_or("generated here"))
+            .collect();
+        (origins.len() > 1).then_some("Projects were reused and regenerated, or reused from different revisions. Cross-project references may be outdated; Reindex regenerates everything.")
     }
 
     /// Returns a short reader-facing status without claiming full semantic resolution.
@@ -163,10 +187,8 @@ impl GenerationReport {
             "Partial cached index"
         } else if self.cached {
             "Cached index"
-        } else if self.is_partial() {
-            "Partial generated index"
         } else {
-            "Generated index"
+            self.generation_label()
         };
         format!(
             "{state} · {documents} document{} · {succeeded}/{} project{}",
@@ -174,6 +196,19 @@ impl GenerationReport {
             self.outcomes.len(),
             if self.outcomes.len() == 1 { "" } else { "s" }
         )
+    }
+
+    fn generation_label(&self) -> &'static str {
+        let reused = self
+            .outcomes
+            .iter()
+            .any(|outcome| outcome.reused_from.is_some());
+        match (reused, self.is_partial()) {
+            (true, true) => "Partial updated index",
+            (true, false) => "Updated index",
+            (false, true) => "Partial generated index",
+            (false, false) => "Generated index",
+        }
     }
 }
 
@@ -345,8 +380,8 @@ fn generate(
         cache_warning: None,
     };
     let mut merged = ScipIndex::default();
-    let mut documents = HashSet::new();
     let mut source_digests = HashMap::new();
+    let mut pending_projects = Vec::new();
     for (position, strategy) in report.plan.selected.iter().enumerate() {
         check_cancel(cancel)?;
         *state.lock().unwrap_or_else(|error| error.into_inner()) = GenerationProgress {
@@ -355,24 +390,17 @@ fn generate(
             project: Some(strategy.id()),
             message: "Preparing isolated project…".into(),
         };
-        let (outcome, scip) =
+        let (mut outcome, scip) =
             run_strategy(strategy, &request, &inventory, &baseline, cancel, state);
-        if let Some(mut scip) = scip {
-            for document in scip.documents.drain(..) {
-                if documents.insert(document.relative_path.clone()) {
-                    source_digests.insert(
-                        document.relative_path.clone(),
-                        baseline
-                            .source_digest(&document.relative_path)
-                            .expect("validated document")
-                            .to_owned(),
-                    );
-                    merged.documents.push(document);
-                } else {
-                    report.overlapping_documents += 1;
-                }
+        if let Some(scip) = scip {
+            match super::cache::projects::stage_project(
+                &request, &baseline, &outcome, &scip, cancel,
+            ) {
+                Ok(pending) => pending_projects.extend(pending),
+                Err(error) => outcome.cache_warning = Some(error),
             }
-            merged.external_symbols.extend(scip.external_symbols);
+            report.overlapping_documents +=
+                merge_project(&mut merged, scip, &baseline, &mut source_digests);
         }
         report.outcomes.push(outcome);
     }
@@ -381,15 +409,19 @@ fn generate(
     report.stale_reason = source_staleness(&request, &inventory, &baseline, cancel)?;
     check_cancel(cancel)?;
     report.documents = merged.documents.len();
-    report.cache_warning = super::cache::save(
+    let mut warnings = super::cache::projects::publish(pending_projects, &report, cancel);
+    report.cache_warning = (!warnings.is_empty()).then(|| warnings.join("\n"));
+    if let Err(error) = super::cache::save(
         &request,
         &inventory,
         &merged,
         &source_digests,
         &report,
         cancel,
-    )
-    .err();
+    ) {
+        warnings.push(error);
+        report.cache_warning = Some(warnings.join("\n"));
+    }
     check_cancel(cancel)?;
     let index = if merged.documents.is_empty() {
         None
@@ -402,6 +434,31 @@ fn generate(
         Some(index)
     };
     Ok(GeneratedIndex { index, report })
+}
+
+fn merge_project(
+    merged: &mut ScipIndex,
+    scip: ScipIndex,
+    baseline: &IndexingWorkspace,
+    source_digests: &mut HashMap<String, String>,
+) -> usize {
+    let mut overlaps = 0;
+    for document in scip.documents {
+        let digest = baseline
+            .source_digest(&document.relative_path)
+            .expect("validated document")
+            .to_owned();
+        if source_digests
+            .insert(document.relative_path.clone(), digest)
+            .is_none()
+        {
+            merged.documents.push(document);
+        } else {
+            overlaps += 1;
+        }
+    }
+    merged.external_symbols.extend(scip.external_symbols);
+    overlaps
 }
 
 fn source_staleness(
@@ -434,6 +491,8 @@ fn run_strategy(
     let mut outcome = StrategyOutcome {
         strategy: strategy.clone(),
         version: None,
+        reused_from: None,
+        cache_warning: None,
         documents: 0,
         missing_count: strategy.source_files,
         missing_paths: Vec::new(),
@@ -502,6 +561,39 @@ fn prepare_and_run(
             }
         };
     check_cancel(cancel)?;
+    if request.reuse {
+        progress(state, "Checking exact project cache…");
+        match super::cache::projects::load(request, inventory, baseline, outcome, cancel) {
+            Ok(Some((mut cached, scip))) => {
+                record_coverage(&scip, inventory, &mut cached);
+                *outcome = cached;
+                return Ok(scip);
+            }
+            Ok(None) => {}
+            Err(error) => outcome.cache_warning = Some(error),
+        }
+    }
+    check_cancel(cancel)?;
+    execute_strategy(
+        request,
+        inventory,
+        &workspace,
+        &executable,
+        cancel,
+        state,
+        outcome,
+    )
+}
+
+fn execute_strategy(
+    request: &GenerationRequest,
+    inventory: &InputInventory,
+    workspace: &IndexingWorkspace,
+    executable: &std::path::Path,
+    cancel: &AtomicBool,
+    state: &Mutex<GenerationProgress>,
+    outcome: &mut StrategyOutcome,
+) -> Result<ScipIndex, String> {
     let run = tempfile::Builder::new()
         .prefix(".radiology-index-run-")
         .tempdir_in(workspace.root())
@@ -509,17 +601,17 @@ fn prepare_and_run(
     let output = run.path().join("index.scip");
     progress(state, "Preparing indexer inputs…");
     let compilation_database = prepare_compilation_database(
-        strategy,
+        &outcome.strategy,
         &request.root,
         workspace.root(),
         run.path(),
         cancel,
     )?;
     let gradle = request.tools.gradle();
-    let mut command = strategy.command(CommandPaths {
+    let mut command = outcome.strategy.command(CommandPaths {
         workspace: workspace.root(),
-        source_root: &request.root,
-        executable: &executable,
+        source_root: &request.attached_root,
+        executable,
         output: &output,
         run: run.path(),
         gradle: gradle.as_deref(),
@@ -544,7 +636,7 @@ fn prepare_and_run(
     workspace.verify_inputs(cancel)?;
     progress(state, "Loading generated index…");
     let scip = crate::semantic::loader::read_generated(&output, cancel)?;
-    let normalized = normalize(scip, strategy, inventory, baseline)?;
+    let normalized = normalize(scip, &outcome.strategy, inventory, workspace)?;
     record_coverage(&normalized, inventory, outcome);
     Ok(normalized)
 }

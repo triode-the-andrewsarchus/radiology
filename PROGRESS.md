@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Version-qualified project cache reuse backend (Codex)
+
+Incremental GenerationRequest policy now reuses the latest exact project record
+after an actual tool-version probe; forced generation always runs tools. Stable
+attached identity supports checkout/After and same-tree cross-commit reuse while
+protecting both viewed roots and keeping Python project naming stable. Whole-repo
+byte/type/mode fingerprints conservatively include sibling dependencies. Shared
+bounded cancellable JSON and atomic staging avoid duplicate cache machinery and
+preserve accepted records on Cancel/stale source. Corrupt records regenerate with
+diagnostics; original generating origins persist and mixed origins warn as Swift.
+[Contract and tests](plans/rust-project-index-reuse.md). Full gates pass 412 app tests
+(two ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build and rustdoc.
+Reader/native integration follows; full parity remains open. Commit and push each increment.
+
 ## 2026-10-30 — Real TypeScript acceptance fixes occurrence-column parity (Codex)
 
 The actual pinned npm package exposed a coordinate bug: SCIP source-file encoding

@@ -4,7 +4,7 @@ use super::inventory::{check_cancel, InputInventory};
 use super::service::{GeneratedIndex, GenerationReport, GenerationRequest};
 use super::workspace::IndexingWorkspace;
 use crate::semantic::{ScipIndex, SemanticIndex};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -29,12 +29,18 @@ struct Entry<I, S, R, D> {
 
 type StoredEntry = Entry<InputInventory, ScipIndex, GenerationReport, HashMap<String, String>>;
 
-fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
-    let root = fs::canonicalize(&request.root).map_err(|e| e.to_string())?;
+pub(super) fn directory(request: &GenerationRequest) -> Result<PathBuf, String> {
     let parent = super::workspace::destination_path(&request.cache)?;
-    if parent.starts_with(&root) {
-        return Err("Index cache must be outside the viewed repository".into());
+    for root in [&request.root, &request.attached_root] {
+        if parent.starts_with(fs::canonicalize(root).map_err(|e| e.to_string())?) {
+            return Err("Index cache must be outside the viewed repository".into());
+        }
     }
+    Ok(parent)
+}
+
+fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
+    let parent = directory(request)?;
     let mut identity = Sha256::new();
     identity.update(request.identity_root()?.as_os_str().as_encoded_bytes());
     if let Some(revision) = request.revision() {
@@ -66,9 +72,21 @@ pub(super) fn save(
         report,
         source_digests,
     };
-    fs::create_dir_all(&request.cache).map_err(|e| e.to_string())?;
-    let mut temporary =
-        tempfile::NamedTempFile::new_in(&request.cache).map_err(|e| e.to_string())?;
+    let temporary = stage(&destination, &entry, cancel)?;
+    check_cancel(cancel)?;
+    temporary.persist(destination).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn stage<T: Serialize>(
+    destination: &std::path::Path,
+    entry: &T,
+    cancel: &AtomicBool,
+) -> Result<tempfile::NamedTempFile, String> {
+    check_cancel(cancel)?;
+    let parent = destination.parent().ok_or("Index cache has no parent")?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     // Stream to a bounded file; large indexes do not require another encoded Vec.
     {
         let mut writer = LimitedWriter {
@@ -76,13 +94,12 @@ pub(super) fn save(
             written: 0,
             cancel,
         };
-        serde_json::to_writer(&mut writer, &entry).map_err(|e| e.to_string())?;
+        serde_json::to_writer(&mut writer, entry).map_err(|e| e.to_string())?;
         writer.flush().map_err(|e| e.to_string())?;
     }
     temporary.as_file().sync_all().map_err(|e| e.to_string())?;
     check_cancel(cancel)?;
-    temporary.persist(destination).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(temporary)
 }
 
 /// Loads persisted semantic data without running tools or writing any files.
@@ -141,7 +158,7 @@ fn restore(
     })
 }
 
-fn decode(bytes: &[u8], cancelled: impl Fn() -> bool) -> Result<StoredEntry, String> {
+fn decode<T: DeserializeOwned>(bytes: &[u8], cancelled: impl Fn() -> bool) -> Result<T, String> {
     // Buffer outside the guard: serde reads individual bytes, but cancellation is
     // polled at most one 64-KiB input chunk apart, including within large strings.
     let reader = BufReader::with_capacity(
@@ -179,15 +196,24 @@ fn validate(
 ) -> Result<(), String> {
     check_cancel(cancel)?;
     let inventory = validate_inventory(entry, root)?;
+    validate_documents(&entry.scip, &inventory, &entry.source_digests, cancel)
+}
+
+fn validate_documents(
+    scip: &ScipIndex,
+    inventory: &InputInventory,
+    source_digests: &HashMap<String, String>,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
     let mut seen = HashSet::new();
-    for document in &entry.scip.documents {
+    for document in &scip.documents {
         check_cancel(cancel)?;
         if inventory
             .paths
             .binary_search(&document.relative_path)
             .is_err()
             || !seen.insert(&document.relative_path)
-            || !valid_document(document, &entry.source_digests, cancel)?
+            || !valid_document(document, source_digests, cancel)?
         {
             return Err("Index cache contains invalid semantic destinations".into());
         }
@@ -278,3 +304,5 @@ impl<W: Write> Write for LimitedWriter<'_, W> {
 
 #[cfg(test)]
 mod tests;
+
+pub(super) mod projects;

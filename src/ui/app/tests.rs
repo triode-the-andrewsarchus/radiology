@@ -730,10 +730,9 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     let cache = app.session.repository_cache(&root).unwrap().join("indexes");
     let entry = std::fs::read_dir(cache)
         .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .path();
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.is_file())
+        .unwrap();
     std::fs::write(entry, b"{truncated").unwrap();
     std::fs::write(
         root.join("index.scip"),

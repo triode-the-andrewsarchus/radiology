@@ -72,6 +72,8 @@ impl RadiologyApp {
         let attached = self.repository_root.as_ref()?;
         let cache = self.session.repository_cache(attached)?.join("indexes");
         Some(GenerationRequest {
+            attached_root: attached.clone(),
+            reuse: false,
             root: self
                 .review
                 .as_ref()

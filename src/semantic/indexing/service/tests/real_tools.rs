@@ -89,6 +89,17 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
             *path == "b.ts" && index.byte_range(&buffer, range) == Some(call_byte..call_byte + 6)
         }));
 
+    request.reuse = true;
+    let updated = run(request.clone());
+    assert_eq!(
+        updated.report.outcomes[0].reused_from.as_deref(),
+        Some("checkout")
+    );
+    assert_eq!(
+        updated.index.unwrap().find_definition(&call.symbol),
+        Some((path, range))
+    );
+
     // Cache-only loading must succeed even when no executable can be discovered.
     request.tools = ToolDirectory {
         managed: None,
@@ -111,7 +122,8 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
     );
     assert!(restored.matches_buffer(&SourceBuffer::from_str("b.ts", files[3].1)));
     assert!(!restored.matches_buffer(&SourceBuffer::from_str("b.ts", "changed\n")));
-    assert!(fs::read_dir(&fixture.cache)
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 2);
+    assert!(fs::read_dir(fixture.cache.join("projects"))
         .unwrap()
         .all(|entry| entry.unwrap().path().is_file()));
 }

@@ -5,6 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 mod real_tools;
+mod reuse;
 
 #[test]
 fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
@@ -62,6 +63,8 @@ impl Fixture {
     }
     fn request(&self) -> GenerationRequest {
         GenerationRequest {
+            attached_root: self.source.clone(),
+            reuse: false,
             review: None,
             root: self.source.clone(),
             cache: self.cache.clone(),
@@ -179,8 +182,9 @@ fn generates_isolated_projects_with_encoded_scoped_documents_and_partial_failure
     assert!(!fixture.source.join("rust/artifact.bin").exists());
     assert!(!fixture.source.join("web/artifact.bin").exists());
     let persisted: Vec<_> = fs::read_dir(&fixture.cache).unwrap().collect();
-    assert_eq!(persisted.len(), 1);
-    assert!(persisted[0].as_ref().unwrap().path().is_file());
+    assert_eq!(persisted.len(), 2); // merged cache and latest per-project records
+    assert!(fixture.cache.join("projects").is_dir());
+    assert!(cache_file(&fixture).is_file());
     assert!(generated.report.cache_warning.is_none());
     assert!(generated.report.stale_reason.is_none());
 }
@@ -363,7 +367,7 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     );
     assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
     assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 2);
 
     // A different root sharing the same cache never borrows another repository's data.
     let other = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);
@@ -581,6 +585,7 @@ fn pinned_request(fixture: &Fixture) -> (tempfile::TempDir, PathBuf, GenerationR
     let (owner, root, review) = crate::pull_request::review::tests::indexing_fixture();
     let mut request = fixture.request();
     request.root = review.head_root.clone();
+    request.attached_root = root.clone();
     request.review = Some(review);
     (owner, root, request)
 }

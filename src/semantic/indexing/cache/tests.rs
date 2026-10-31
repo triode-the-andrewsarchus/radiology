@@ -45,12 +45,14 @@ fn json_decoding_stops_inside_large_strings_and_recovers_exact_unicode_and_prove
     let entry = entry("/fixture".into(), "é🦀\"\\\n".repeat(IO_CHUNK));
     let bytes = serde_json::to_vec(&entry).unwrap();
     let checks = AtomicUsize::new(0);
-    let decoded = decode(&bytes, cancel_at(&checks, usize::MAX)).unwrap();
+    let decoded: StoredEntry = decode(&bytes, cancel_at(&checks, usize::MAX)).unwrap();
     let count = checks.load(Ordering::Relaxed);
     assert!(count > 10, "large string must span multiple guarded reads");
     for step in 1..=count {
         checks.store(0, Ordering::Relaxed);
-        let error = decode(&bytes, cancel_at(&checks, step)).err().unwrap();
+        let error = decode::<StoredEntry>(&bytes, cancel_at(&checks, step))
+            .err()
+            .unwrap();
         assert!(error.contains("cancelled"), "{step}: {error}");
         assert_eq!(checks.load(Ordering::Relaxed), step);
     }
@@ -60,8 +62,8 @@ fn json_decoding_stops_inside_large_strings_and_recovers_exact_unicode_and_prove
     );
     let mut trailing = bytes.clone();
     trailing.extend_from_slice(b" false");
-    assert!(decode(&trailing, || false).is_err());
-    assert!(decode(&bytes[..bytes.len() - 1], || false).is_err());
+    assert!(decode::<StoredEntry>(&trailing, || false).is_err());
+    assert!(decode::<StoredEntry>(&bytes[..bytes.len() - 1], || false).is_err());
     println!("Cache JSON: {count} bounded read checks; nested Unicode, cancellation and fresh recovery verified");
 }
 
@@ -128,6 +130,8 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
     fs::create_dir(&root).unwrap();
     fs::write(root.join("lib.rs"), "fn work() {}\n").unwrap();
     let request = GenerationRequest {
+        attached_root: root.clone(),
+        reuse: false,
         review: None,
         root: root.clone(),
         cache: owner.path().join("cache"),
