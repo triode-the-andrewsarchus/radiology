@@ -101,21 +101,30 @@ impl ContextInspector {
         egui::Id::new("definition_context_focus")
     }
 
-    pub(crate) fn take_definition_actions(ctx: &egui::Context) -> Vec<InspectorAction> {
-        if !ctx.memory(|memory| memory.has_focus(Self::definition_focus_id())) {
-            return Vec::new();
+    pub(crate) fn definition_key(
+        ctx: &egui::Context,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+    ) -> Option<InspectorAction> {
+        if !super::commands::focused_key(
+            ctx,
+            Self::definition_focus_id(),
+            key,
+            modifiers,
+            &[
+                egui::Key::ArrowLeft,
+                egui::Key::ArrowRight,
+                egui::Key::Enter,
+            ],
+        ) {
+            return None;
         }
-        super::commands::take_key_actions(ctx, |key, modifiers| {
-            if modifiers != egui::Modifiers::NONE {
-                return None;
-            }
-            match key {
-                egui::Key::ArrowRight => Some(InspectorAction::ExpandDefinition(true)),
-                egui::Key::ArrowLeft => Some(InspectorAction::ExpandDefinition(false)),
-                egui::Key::Enter => Some(InspectorAction::GoToDefinition),
-                _ => None,
-            }
-        })
+        match key {
+            egui::Key::ArrowRight => Some(InspectorAction::ExpandDefinition(true)),
+            egui::Key::ArrowLeft => Some(InspectorAction::ExpandDefinition(false)),
+            egui::Key::Enter => Some(InspectorAction::GoToDefinition),
+            _ => None,
+        }
     }
 
     /// Renders independently scrolling regions and returns a requested action.
@@ -526,7 +535,13 @@ mod tests {
                 ctx.memory_mut(|memory| {
                     memory.request_focus(ContextInspector::definition_focus_id())
                 });
-                actions = ContextInspector::take_definition_actions(ctx);
+                let mut events = ctx.input_mut(|input| std::mem::take(&mut input.events));
+                actions = crate::ui::commands::take_event_actions(&mut events, |key, modifiers| {
+                    (modifiers == egui::Modifiers::NONE)
+                        .then(|| ContextInspector::definition_key(ctx, key, modifiers))
+                        .flatten()
+                });
+                ctx.input_mut(|input| input.events = events);
                 assert!(ctx.input(|input| input.events.is_empty()));
             },
         );

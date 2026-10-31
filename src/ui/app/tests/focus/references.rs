@@ -1,7 +1,7 @@
 use super::*;
 use crate::ui::reference_list::{ReferenceAction, ReferenceViewport};
 
-fn caller_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
+pub(super) fn caller_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
     let (dir, mut app) = reader_with_reference_index();
     let buffer = SourceBuffer::from_str(
         "b.rs",

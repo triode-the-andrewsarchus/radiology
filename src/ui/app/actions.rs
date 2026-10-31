@@ -39,7 +39,13 @@ impl RadiologyApp {
                 }
             }
             ToggleSidebar => self.show_sidebar = !self.show_sidebar,
-            ToggleInspector => self.show_inspector = !self.show_inspector,
+            ToggleInspector => {
+                let return_source = self.inspector_has_focus(ctx);
+                self.show_inspector = !self.show_inspector;
+                if return_source && !self.show_inspector {
+                    self.source_viewport.request_focus(ctx);
+                }
+            }
             OpenRecentRepo(path) => self.open_repository(Path::new(&path)),
             OpenRepositoryDialog => {
                 if let Some(folder) = rfd::FileDialog::new().pick_folder() {
@@ -70,13 +76,17 @@ impl RadiologyApp {
             OpenPullRequest(number) => self.open_pull_request(number),
             RefreshPRList => self.recent_pull_requests.refresh(),
             CancelPRList => self.recent_pull_requests.cancel(),
-            FindInFile if self.open_buffer.is_some() => self.source_find.open(),
+            FindInFile if self.open_buffer.is_some() => {
+                self.source_find.open();
+                self.source_find.focus_query(ctx);
+            }
             NextFindMatch if self.open_buffer.is_some() => self.source_find.request_step(true),
             PreviousFindMatch if self.open_buffer.is_some() => self.source_find.request_step(false),
             FindInFile | NextFindMatch | PreviousFindMatch => {}
             OpenSearch => {
                 self.sidebar_tab = SidebarTab::Search;
                 self.show_sidebar = true;
+                ctx.memory_mut(|memory| memory.request_focus(Sidebar::search_query_id()));
             }
             ToggleMode(mode) => self.set_source_mode(mode),
             ToggleRevision(revision) => self.change_revision(revision),

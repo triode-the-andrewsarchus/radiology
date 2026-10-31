@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-31 — Preserve inspector/global keyboard ownership order (Codex)
+
+Global shortcuts and inspector actions now share per-event dispatch, so modal
+prefixes prevent later reference/caller navigation and Find/Search receive opening
+text. Pending caller focus is retired at a global handoff. Modal input survives
+the initial window sizing pass and replays on a requested frame. Existing command
+matching, local focus guards and action handlers are reused; repository reset
+clears retained inspector input. Full accessibility remains deferred; keyboard
+navigation stays required. [Contract, evidence and remaining scope](plans/rust-keyboard-owner-order.md).
+Four new real-app regressions fail against the prior paths and pass with the fix.
+Workspace passes 504 app tests (seven ignored), two binary, four font, eleven text
+and 34 doctests; strict Clippy/check/build/fmt/diff pass. Architecture reports one
+added six-line test-assertion clone (89 → 90), no production clone addition, no
+new hotspot/cycle or maximum-CCN increase. Native 1×/2× runs show opening query
+text and the correct file, preserving exact Unicode copy, Back, fixture hashes
+and zero exits. Native/evidence archive:
+~/.local/state/radiology-qa/owner-order-20261031-752e115.
+Broader mixed-owner/menu/source ordering, pinned-review/mixed-language/error and
+lifecycle visuals, reader/large-file/grammar/index/PR/cache checks and final
+Swift/reuse acceptance remain open. Actual sibling integration remains deferred.
+
 ## 2026-10-31 — Restore pinned symbol kind/category metadata (Codex)
 
 Pinned summaries show a fitted name, category marker and kind label. Metadata uses

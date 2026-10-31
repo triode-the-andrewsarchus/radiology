@@ -125,29 +125,40 @@ pub fn take_shortcuts(ctx: &Context, modal_open: bool, reader_focused: bool) -> 
     let menu_open = context_menu_is_open(ctx);
     let typing = ctx.wants_keyboard_input() && !reader_focused && !menu_open;
     ctx.input_mut(|input| {
-        take_input_actions(&mut input.events, |event| match event {
-            Event::Key {
-                key,
-                modifiers,
-                pressed: true,
-                ..
-            } if !menu_open || super::context_menu::owned_key(event).is_none() => {
-                shortcut(*key, *modifiers, typing)
-            }
-            _ => None,
+        take_input_actions(&mut input.events, |event| {
+            shortcut_event(event, typing, menu_open)
         })
     })
 }
 
-/// Consumes recognized key presses in event order, preserving all other input.
-pub(crate) fn take_key_actions<T>(
-    ctx: &Context,
-    mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
-) -> Vec<T> {
-    ctx.input_mut(|input| take_event_actions(&mut input.events, &mut resolve))
+/// Resolves one global shortcut without changing the event's place in its batch.
+pub(crate) fn shortcut_event(
+    event: &Event,
+    typing: bool,
+    menu_open: bool,
+) -> Option<ReaderCommand> {
+    match event {
+        Event::Key {
+            key,
+            modifiers,
+            pressed: true,
+            ..
+        } if !menu_open || super::context_menu::owned_key(event).is_none() => {
+            shortcut(*key, *modifiers, typing)
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn keyboard_event(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key { .. } | Event::Text(_) | Event::Paste(_) | Event::Copy | Event::Cut
+    )
 }
 
 /// Consumes owned presses before framework focus handling or from a prepared frame.
+#[cfg(test)]
 pub(crate) fn take_event_actions<T>(
     events: &mut Vec<Event>,
     mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
@@ -244,18 +255,29 @@ fn digit(key: Key) -> Option<usize> {
     DIGITS.iter().position(|&digit| digit == key)
 }
 
-/// Consumes only a focused list's unmodified keys before egui moves focus.
+/// Checks an exact local binding without consuming another control's keys.
+pub(crate) fn focused_key(
+    ctx: &Context,
+    focus: egui::Id,
+    key: Key,
+    modifiers: Modifiers,
+    keys: &[Key],
+) -> bool {
+    modifiers == Modifiers::NONE
+        && keys.contains(&key)
+        && !context_menu_is_open(ctx)
+        && ctx.memory(|memory| memory.has_focus(focus))
+}
+
+#[cfg(test)]
 pub(crate) fn take_focused_keys(
     ctx: &Context,
     input: &mut egui::RawInput,
     focus: egui::Id,
     keys: &[Key],
 ) -> Vec<Key> {
-    if context_menu_is_open(ctx) || !ctx.memory(|memory| memory.has_focus(focus)) {
-        return Vec::new();
-    }
     take_event_actions(&mut input.events, |key, modifiers| {
-        (modifiers == Modifiers::NONE && keys.contains(&key)).then_some(key)
+        focused_key(ctx, focus, key, modifiers, keys).then_some(key)
     })
 }
 

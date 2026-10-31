@@ -1,5 +1,6 @@
 //! Real app frames exercise modal/canvas focus rather than a parallel test renderer.
 use super::*;
+mod ownership;
 mod references;
 use egui::{Event, Key, Modifiers};
 
@@ -219,6 +220,8 @@ fn toolbar_left_reaches_pr_dialog_and_escape_returns_to_source() {
     frame(&mut app, &ctx, vec![]);
     assert!(matches!(app.modal, ActiveModal::PullRequest(_)));
     frame(&mut app, &ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+    frame(&mut app, &ctx, vec![]); // Replay input held during the window's sizing pass.
+    assert!(matches!(app.modal, ActiveModal::None));
     assert!(app.source_viewport.has_focus(&ctx));
     assert!(app.pending_pr.is_none());
 }
