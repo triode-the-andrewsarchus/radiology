@@ -36,6 +36,28 @@ fn source_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
     (dir, app, ctx)
 }
 
+fn assert_source_line_copy(
+    app: &mut RadiologyApp,
+    ctx: &Context,
+    caret: (usize, usize),
+    expected: &str,
+) {
+    assert!(app.source_viewport.has_focus(ctx));
+    assert_eq!((app.caret_line, app.caret_col), caret);
+    let output = frame(app, ctx, vec![key(Key::End, Modifiers::SHIFT), Event::Copy]);
+    assert_eq!(output.platform_output.copied_text, expected);
+}
+
+fn open_toolbar_menu(app: &mut RadiologyApp, ctx: &Context, label: &str) {
+    let output = frame(app, ctx, vec![]);
+    app.source_viewport.request_focus(ctx);
+    frame(
+        app,
+        ctx,
+        crate::ui::test_support::click(crate::ui::test_support::text_center(&output, label)),
+    );
+}
+
 #[test]
 fn committed_line_modal_returns_source_keys_without_a_click_and_owns_closing_batch() {
     let (_dir, mut app, ctx) = source_reader();
@@ -51,14 +73,7 @@ fn committed_line_modal_returns_source_keys_without_a_click_and_owns_closing_bat
         ],
     );
     assert!(matches!(app.modal, ActiveModal::None));
-    assert!(app.source_viewport.has_focus(&ctx));
-    assert_eq!((app.caret_line, app.caret_col), (2, 0));
-    let output = frame(
-        &mut app,
-        &ctx,
-        vec![key(Key::End, Modifiers::SHIFT), Event::Copy],
-    );
-    assert_eq!(output.platform_output.copied_text, "    let café = 1;");
+    assert_source_line_copy(&mut app, &ctx, (2, 0), "    let café = 1;");
 }
 
 #[test]
@@ -165,4 +180,44 @@ fn repository_reset_retires_modal_input_and_its_return_owner() {
     frame(&mut app, &ctx, vec![]);
     assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
     assert!(!app.source_viewport.has_focus(&ctx));
+}
+
+#[test]
+fn view_menu_keyboard_activation_restores_source_selection_without_an_extra_click() {
+    let (_dir, mut app, ctx) = source_reader();
+    app.fold_store.unfold_all();
+    app.jump_to_location("a.rs", 2, 0);
+    let original_wrap = app.session.wrap_lines;
+    open_toolbar_menu(&mut app, &ctx, "View");
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            key(Key::Home, Modifiers::NONE),
+            key(Key::ArrowDown, Modifiers::NONE),
+            key(Key::Enter, Modifiers::NONE),
+        ],
+    );
+    assert_eq!(app.session.wrap_lines, !original_wrap);
+    assert_source_line_copy(&mut app, &ctx, (2, 0), "    let café = 1;");
+}
+
+#[test]
+fn toolbar_left_reaches_pr_dialog_and_escape_returns_to_source() {
+    let (_dir, mut app, ctx) = source_reader();
+    open_toolbar_menu(&mut app, &ctx, "View");
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            key(Key::ArrowLeft, Modifiers::NONE),
+            key(Key::Home, Modifiers::NONE),
+            key(Key::Enter, Modifiers::NONE),
+        ],
+    );
+    frame(&mut app, &ctx, vec![]);
+    assert!(matches!(app.modal, ActiveModal::PullRequest(_)));
+    frame(&mut app, &ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(app.source_viewport.has_focus(&ctx));
+    assert!(app.pending_pr.is_none());
 }

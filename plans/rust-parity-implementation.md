@@ -168,8 +168,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   now retain pane geometry, compact the declaration trail and expose full-location
   copy/jumps. [Modal/breadcrumb focus return](rust-modal-focus.md) now restores
   source keys and cancellation owners, with closing-input isolation and native
-  1×/2× evidence. Complete toolbar traversal/focus and audit other long-label
-  surfaces, then complete broader wrapping/scroll/scaling,
+  1×/2× evidence. [Toolbar keyboard ownership](rust-toolbar-keyboard.md) now
+  covers all four menus, cross-menu/submenu traversal, PR scrolling and focus
+  return. Polish active menu-title styling, audit broader cross-owner/long-label
+  surfaces, then complete wrapping/scroll/scaling,
   large-file performance and long-line Back acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
@@ -221,7 +223,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - [Files-row Reveal in File Manager](rust-file-manager-reveal.md) now provides the missing file/folder action with scoped background handoff and visible errors; native file/folder/Unicode paths, private PR routing, rejection/timeout and pending-scope retirement now pass through real gdbus and a private controlled receiver.
-- [Keyboard command audit](rust-keyboard-audit.md) adds dedicated definition/Reindex shortcuts, the definition menu entry and repeated-generation guards, with native acceptance. Same-frame modal ownership now stops later reader commands when a dialog opens. Complete menu/shortcut enabled/focus states and traversal. [Shared context-menu keyboard ownership](rust-context-menu-keyboard.md) now fixes source arrow leakage, supports all four owners and reserves opening-frame keys, with native 1×/final 2× evidence. Toolbar traversal/focus still needs final acceptance. [Shared context-menu Escape dismissal](rust-context-menu-dismissal.md) now repairs the native-proven gap through pre-frame ownership, with component/native acceptance. Continue runtime light/dark/scaling checks,
+- [Keyboard command audit](rust-keyboard-audit.md) adds dedicated definition/Reindex shortcuts, the definition menu entry and repeated-generation guards, with native acceptance. Same-frame modal ownership now stops later reader commands when a dialog opens. Complete menu/shortcut enabled/focus states and traversal. [Shared context-menu keyboard ownership](rust-context-menu-keyboard.md) now fixes source arrow leakage, supports all four owners and reserves opening-frame keys, with native 1×/final 2× evidence. [Toolbar keyboard ownership](rust-toolbar-keyboard.md) now adds shared primary anchors for all four menus, queued cross-menu keys, PR scrolling and source return with native 1×/2× evidence. Broader enabled states and cross-owner transitions remain in the final audit. [Shared context-menu Escape dismissal](rust-context-menu-dismissal.md) now repairs the native-proven gap through pre-frame ownership, with component/native acceptance. Continue runtime light/dark/scaling checks,
   actual desktop visual acceptance, and requirement-by-requirement final audit.
 
 ## Commit discipline

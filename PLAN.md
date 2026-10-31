@@ -13,7 +13,9 @@ drags, Ctrl-click and menu keys while prefixes measure.
 long-name pane growth and add Swift-style compaction/full-location menus.
 [Modal/breadcrumb focus return](plans/rust-modal-focus.md) now restores source keys
 and the prior control on cancellation, with real-app and native 1×/2× evidence.
-Toolbar traversal/focus, other long-label surfaces and broader acceptance remain open.
+[Toolbar keyboard ownership](plans/rust-toolbar-keyboard.md) now shares traversal,
+PR scrolling and focus return across all four menu groups, with native 1×/2× evidence.
+Broader cross-owner/long-label and final parity acceptance remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.

@@ -88,3 +88,18 @@ pub(crate) fn secondary_click(position: egui::Pos2) -> Vec<egui::Event> {
         })
         .collect()
 }
+
+/// Runs a panel through the native reader-menu input boundary before egui focus.
+pub(crate) fn menu_frame(
+    ctx: &egui::Context,
+    size: egui::Vec2,
+    events: Vec<egui::Event>,
+    paint: impl FnMut(&mut egui::Ui),
+) -> egui::FullOutput {
+    let mut input = egui::RawInput {
+        events,
+        ..Default::default()
+    };
+    super::context_menu::take_input(ctx, &mut input);
+    painted_frame(ctx, size, input.events, paint)
+}

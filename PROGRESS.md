@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Share toolbar menu traversal and focus ownership (Codex)
+
+Repository, PR, View and Search now use the existing owned reader menu dispatcher.
+Primary anchors support keyboard opening, left/right and submenu traversal, hover
+switching, coalesced opening/release and scoped retirement. Queued keys survive
+handoff to an earlier-drawn anchor. Menus restore prior reader/button focus;
+direct toolbar controls preserve prior focus before host dispatch. Shared bounded
+scrolling, checked/disabled rows, help and status labels retain PR choices,
+refresh/cancel/error behavior and the 25-row keyboard case. No new dependency or
+alternate renderer/resolver. [Contract and evidence](plans/rust-toolbar-keyboard.md).
+Eight added regressions pass, and the View regression fails with the previous
+toolbar implementation. A 120-frame keyboard/wheel regression also fails before
+the one-shot reveal repair and passes after it; manual scrolling stays put.
+Existing PR tests now exercise the real popup. Workspace
+passes 480 app tests (seven ignored), two binary, four font, eleven text tests and
+34 doctests; strict Clippy/build/fmt/diff pass. Architecture is neutral: all 92
+clone groups are unchanged, no new hotspot/cycle; toolbar CCN falls 34 → 22.
+Native 1×/2× runs verify View → source copy, Search/PR keyboard switching and
+modal cancellation, repository copy/submenu and direct Inspector → source copy.
+All four fresh text offers per scale match expected hashes; dark/light captures
+are inspected, fixtures unchanged and all processes exit zero. Archive:
+~/.local/state/radiology-qa/toolbar-keyboard-20261031-c421d03.
+Active menu-title styling and broader cross-owner/enabled-state/long-label/reader/large-file/grammar/index/PR/
+cache/final Swift acceptance remains open. Full accessibility and actual sibling
+adoption stay deferred. Commit and push this toolbar increment before continuing.
+
 ## 2026-10-31 — Restore modal/breadcrumb keyboard ownership (Codex)
 
 Committed navigation from a modal or breadcrumb now returns source focus;

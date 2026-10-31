@@ -74,7 +74,8 @@ negative/positive tests, architecture reports, source patch and SHA256SUMS.
 
 ## Still open
 
-Toolbar menu traversal/focus, broader rapid transitions among reader/search/
+[Toolbar menu traversal/focus](rust-toolbar-keyboard.md) is now implemented.
+Broader rapid transitions among reader/search/
 inspector owners, other long-label surfaces, large-file/Back/scroll/wrap
 acceptance, broader grammar/index and PR/cache fixtures, and the final
 requirement-by-requirement Swift parity audit remain required. The current
