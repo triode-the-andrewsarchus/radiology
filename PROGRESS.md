@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-31 — Prioritize the wrapped destination window during reflow (Codex)
+
+Fresh pre-change font-reset/rewrap captures omit the 6 MB tail. Wrapped measurement
+now measures the destination and enough predecessors to cover the viewport before
+unrelated rows, reusing existing geometry/layout/height mechanisms within the same
+64-fragment/two-millisecond budget. Existing reveal ownership, post-paint/final-
+offset guards and unwrapped behavior remain intact. No new dependency/public API.
+The new 1×/2× scheduling/copy test fails before and passes after; existing reflow
+coverage shares its fixture. Workspace passes 518 app tests (seven ignored), two
+binary, four font, 13 text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/
+diff pass. Architecture is NEUTRAL (+40 NLOC including tests), with unchanged
+91 clones and no new hotspot/cycle. Final native 1×/2× early reset/rewrap captures
+show the tail; exact full/selection/pointer/Back copy, zoom, wrap toggles, settled
+views, fixture/binary hashes and zero exits pass. Broader reader/corpus performance,
+grammar/index, PR/cache, final Swift UI and standalone/reuse acceptance remain
+open. Full accessibility and actual sibling adoption stay deferred.
+[Contract and evidence](plans/rust-reader-performance.md#wrapped-destination-measurement-priority--2026-10-31).
+Archive: ~/.local/state/radiology-qa/wrapped-measurement-priority-20261031-deb2a4b.
+
 ## 2026-10-31 — Reuse native Rust highlights and remove profiled regex load cost (Codex)
 
 A fresh 6 MB Rust load profile catches the source worker in Syntect/fancy-regex

@@ -119,8 +119,9 @@ Required follow-up, before calling the whole source interaction audit complete:
    cross-file Back/wrap-selection bytes and immediate anchored unwrapped reveal
    with pointer hits at 1×/2×. Complete broader large-file/long-name/scroll/zoom
    acceptance. Wrapped reveal now survives painting and final scroll clamping,
-   with native zoom/toggle/selection evidence at both scales. Large-source reflow
-   latency and broader scroll/zoom corpora remain open.
+   with native zoom/toggle/selection evidence at both scales. Destination-window
+   measurement now also repairs the identified reset/rewrap settling delay, with
+   early native captures at both scales. Broader scroll/zoom corpora remain open.
 
 Full Swift requirement acceptance, broader grammar/index/PR/cache corpus and the
 final standalone/reuse boundary audit remain active. Full accessibility and actual

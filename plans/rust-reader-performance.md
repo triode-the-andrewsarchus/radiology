@@ -276,3 +276,45 @@ Large-source font-reset settling, total background measurement work, other
 language/fallback corpora, many-line/scroll/zoom/input and final Swift/reuse
 acceptance remain open. The font-reset samples alone do not establish another
 bottleneck. Evidence: `~/.local/state/radiology-qa/rust-native-colors-20261031-5a4d2e7`.
+
+
+## Wrapped destination measurement priority — 2026-10-31
+
+At deb2a4b, fresh native early captures after font reset and rewrap omit the
+6 MB source tail; delayed captures eventually show it. The reveal remains owned,
+but the forward background measurement frontier visits unrelated rows before
+measuring the destination's visible predecessors. Estimated predecessor heights
+can consequently displace the destination during subsequent painting.
+
+Wrapped measurement now starts at the pending destination and walks backwards
+until actual caret/fragment heights cover the viewport. It then resumes the
+existing forward frontier within the unchanged 64-fragment/two-millisecond
+post-row budget. It reuses CanvasGeometry, fragment_cursor, layout and the existing
+height recorder, including hidden-test labels. No prefix-wide glyph measurement,
+new persistent scheduler, cache, public API or dependency is introduced. Unwrapped
+priority and post-paint/final-offset reveal completion remain unchanged.
+
+The new 1×/2× regression fails before the change: the unrelated forward frontier
+advances before the visible predecessor is measured. It passes after the change,
+checks exact LONG_END copy and shares the existing Unicode/short-tail fixture.
+Workspace passes 518 app tests (seven existing ignored), two binary, four font,
+13 reader-text and 36 doctests. Strict Clippy, all-target check, build, warning-
+denied rustdoc, fmt and diff checks pass. Architecture baseline
+`before-wrapped-measurement-priority` compares NEUTRAL: +40 NLOC including tests,
+two functions (test and shared fixture), unchanged average/max CCN and 91 clone
+groups, with no new hotspot or cycle.
+
+Fresh native 1×/2× runs now show LONG_END in both early captures, approximately
+0.3 seconds after reset and rewrap. The unchanged pre-change 1× probe omits it in
+both. First/three-second wrapped captures and the thirty-second 2× settling view
+retain the tail. Exact full source, End, cross-file Back, pointer suffix, wrapped
+selection, zoom/reset and wrap-return clipboard hashes pass. Original fixture
+hashes, matching final binary hashes and zero child exits are verified. Early
+views and the settled 2× view were visually inspected; source-crop OCR independently
+requires the exact tail tokens. These debug software-rendered observations do not
+establish release or statistical latency guarantees, or bound a single layout's
+cost. Total background measurement and broader many-line/language/scroll/zoom/input
+performance, final Swift parity and standalone/reuse acceptance remain open.
+Full accessibility and actual sibling adoption remain deferred.
+
+Evidence: `~/.local/state/radiology-qa/wrapped-measurement-priority-20261031-deb2a4b`.

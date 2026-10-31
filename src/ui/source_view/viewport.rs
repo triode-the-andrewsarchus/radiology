@@ -468,13 +468,7 @@ impl SourceViewport {
                     self.row_for_byte(byte)
                         .map(|(row, _)| (row, self.fragment_x(row, false)))
                 });
-        self.measure(
-            ui,
-            content,
-            &geometry.font,
-            geometry.width,
-            geometry.minimum_height,
-        );
+        self.measure(ui, content, geometry);
         if let Some((row, old_x)) = reveal_origin {
             self.scroll_x = (self.scroll_x + (self.fragment_x(row, false) - old_x)).max(0.0);
         }
@@ -1088,18 +1082,19 @@ impl SourceViewport {
         }
     }
 
-    fn measure(
-        &mut self,
-        ui: &Ui,
-        content: &CanvasContent<'_>,
-        font: &FontId,
-        width: f32,
-        height: f32,
-    ) {
+    fn measure(&mut self, ui: &Ui, content: &CanvasContent<'_>, geometry: &CanvasGeometry) {
+        // Measure a pending wrapped destination's visible neighborhood before
+        // unrelated rows. Exact prefix heights are unnecessary for this window.
+        let wrapped_target = self
+            .pending_reveal
+            .filter(|_| content.wrap)
+            .and_then(|(byte, _, _)| self.row_for_byte(byte).map(|(row, _)| (byte, row)));
+        let mut lookbehind = wrapped_target.map(|(_, row)| row);
+        let mut covered = 0.0;
         let started = std::time::Instant::now();
         for _ in 0..64 {
             let row = if content.wrap {
-                self.rows.next_measurement
+                lookbehind.unwrap_or(self.rows.next_measurement)
             } else {
                 self.measurement_priority
                     .take()
@@ -1113,8 +1108,21 @@ impl SourceViewport {
                 break;
             }
             let part = &self.fragments[self.visible[row]];
-            let galley = layout(ui, content, part, font, width);
-            self.record_layout(row, &galley, height, content);
+            let galley = layout(ui, content, part, &geometry.font, geometry.width);
+            let coverage = wrapped_target
+                .filter(|_| lookbehind.is_some())
+                .map(|(byte, target)| {
+                    if row == target {
+                        fragment_cursor(&galley, part, &content.buffer.text, byte).bottom() + 2.0
+                    } else {
+                        measured_height(&galley, geometry.minimum_height, part, content)
+                    }
+                });
+            self.record_layout(row, &galley, geometry.minimum_height, content);
+            if let Some(height) = coverage {
+                covered += height;
+                lookbehind = (row > 0 && covered < geometry.height).then(|| row - 1);
+            }
             if row == self.rows.next_measurement {
                 self.rows.next_measurement += 1;
             }
@@ -2575,12 +2583,55 @@ mod tests {
             .all(|part| part.visible_len() <= FRAGMENT_BYTES));
     }
 
-    #[test]
-    fn wrapped_reflow_keeps_a_short_tail_visible_while_prefix_heights_change() {
+    fn wrapped_tail_reader(ctx: &egui::Context, tail_repeats: usize) -> Reader {
         // Exact Unicode blocks allow controlled short, medium and tall tails.
-        // Painting an estimated preceding row must not push the caret offscreen.
         let block = format!("{}{}", "abcdé🦀漢字 ".repeat(240), "x".repeat(16));
         assert_eq!(block.len(), FRAGMENT_BYTES);
+        let text = format!(
+            "{}{}LONG_END\r\nnext",
+            block.repeat(256),
+            "abcdé🦀漢字 ".repeat(tail_repeats)
+        );
+        let mut reader = Reader::new(&text);
+        reader.frame(ctx, vec![]);
+        reader.frame(ctx, vec![key(Key::End, Modifiers::NONE)]);
+        let end = reader.source.line_byte_range(1).end;
+        reader.viewport.select(end - 8..end);
+        reader
+    }
+
+    #[test]
+    fn wrapped_reveal_measures_the_visible_predecessor_before_unrelated_rows() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = wrapped_tail_reader(&ctx, 0);
+            let end = reader.source.line_byte_range(1).end;
+            let target = reader.viewport.row_for_byte(end).unwrap().0;
+            let before =
+                reader.viewport.rows.offset(target) - reader.viewport.rows.offset(target - 1);
+            assert!(target > 200 && before < 100.0);
+            assert!(reader.viewport.pending_reveal.is_some());
+            let mut measured = false;
+            for _ in 0..64 {
+                let frontier = reader.viewport.rows.next_measurement;
+                reader.frame(&ctx, vec![]);
+                let height =
+                    reader.viewport.rows.offset(target) - reader.viewport.rows.offset(target - 1);
+                measured = height > before + 100.0;
+                assert!(reader.viewport.rows.next_measurement == frontier || measured,
+                    "unrelated rows measured before the destination's visible predecessor at scale {scale}");
+                if measured {
+                    break;
+                }
+            }
+            assert!(measured, "destination predecessor never measured");
+            let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+            assert_eq!(output.platform_output.copied_text, "LONG_END");
+        }
+    }
+
+    #[test]
+    fn wrapped_reflow_keeps_a_short_tail_visible_while_prefix_heights_change() {
         for (scale, tail_repeats) in [
             (1.0, 0),
             (2.0, 0),
@@ -2589,17 +2640,9 @@ mod tests {
             (1.0, 200),
             (2.0, 200),
         ] {
-            let text = format!(
-                "{}{}LONG_END\r\nnext",
-                block.repeat(256),
-                "abcdé🦀漢字 ".repeat(tail_repeats)
-            );
             let ctx = reader_context(scale);
-            let mut reader = Reader::new(&text);
-            reader.frame(&ctx, vec![]);
-            reader.frame(&ctx, vec![key(Key::End, Modifiers::NONE)]);
+            let mut reader = wrapped_tail_reader(&ctx, tail_repeats);
             let end = reader.source.line_byte_range(1).end;
-            reader.viewport.select(end - 8..end);
             for (wrap, size) in [
                 (true, 14.0),
                 (true, 24.0),
