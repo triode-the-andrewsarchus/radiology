@@ -105,6 +105,19 @@ impl RadiologyApp {
         true
     }
 
+    /// Returns the cached target only while its source, index and caret still match.
+    pub(super) fn current_caret_symbol(&self) -> Option<(&SemanticSymbolID, &SemanticIndex)> {
+        let buffer = self.open_buffer.as_ref()?;
+        let index = self.semantic_index.as_ref()?;
+        let inputs = self.semantic_inputs.as_ref()?;
+        let (id, range) = self.definition_identity.as_ref()?;
+        (self.source_location_ready()
+            && Arc::ptr_eq(buffer, &inputs.buffer)
+            && Arc::ptr_eq(index, &inputs.index)
+            && range.contains(&buffer.byte_offset(self.caret_line, self.caret_col)))
+        .then_some((id, index))
+    }
+
     pub(super) fn refresh_under_caret_context(&mut self) {
         let changed_inputs = self.refresh_semantic_inputs();
         let byte = self.open_buffer.as_ref().map_or(0, |buffer| {

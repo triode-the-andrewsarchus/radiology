@@ -30,6 +30,9 @@ Active titles now follow their popup, and focused menus preserve global reader s
 [Search command availability](plans/rust-keyboard-audit.md#search-menu-command-availability--2026-10-31)
 now shares repository/source/semantic readiness between menu items and dispatch,
 including empty-reader shortcuts and live popup changes.
+[View/bookmark command states](plans/rust-keyboard-audit.md#view-availability-and-numbered-bookmark-commands--2026-10-31)
+now gate folding and source modes, expose all ten bookmark slots, and reflect the
+current add/remove action, with native 1×/2× checks.
 [Bounded Changes and Search results](plans/rust-result-pane-labels.md) now retain
 pane widths, Swift-style preview limits and exact navigation/interaction targets.
 [Inspector labels and signature disclosure](plans/rust-inspector-labels.md) now

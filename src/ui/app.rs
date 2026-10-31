@@ -605,6 +605,8 @@ impl RadiologyApp {
                 self.session.wrap_lines,
                 &self.history,
                 self.change_navigation(),
+                &self.bookmarks,
+                self.current_bookmarked(),
                 |command| self.command_enabled(command),
             ) {
                 self.execute_command(ctx, action);

@@ -2401,3 +2401,62 @@ fn navigation_availability_tracks_accepted_source_and_exact_semantic_target() {
     app.execute_command(&ctx, ToolbarAction::OpenQuickFilePicker);
     assert!(matches!(app.modal, ActiveModal::QuickFilePicker(_)));
 }
+
+#[test]
+fn view_commands_require_source_and_callable_folds_but_keep_global_preferences() {
+    let (dir, mut app) = reader();
+    let ctx = Context::default();
+    for command in [
+        ToolbarAction::ToggleBookmark,
+        ToolbarAction::OpenBookmark(0),
+        ToolbarAction::ToggleMode(SourceMode::Critical),
+        ToolbarAction::FoldToDefinitions,
+        ToolbarAction::CollapseFunctions,
+        ToolbarAction::ShowAllFiles,
+    ] {
+        assert!(
+            !app.command_enabled(&command),
+            "unexpectedly available {command:?}"
+        );
+        app.execute_command(&ctx, command);
+    }
+    assert_eq!(app.mode, SourceMode::Normal);
+    assert!(app.bookmarks.bookmarks.is_empty());
+    assert!(app.command_enabled(&ToolbarAction::IncreaseSourceFont));
+    assert!(app.command_enabled(&ToolbarAction::ToggleHideTests));
+    app.session.source_filters.path_query = "hidden".into();
+    assert!(app.command_enabled(&ToolbarAction::ShowAllFiles));
+    app.execute_command(&ctx, ToolbarAction::ShowAllFiles);
+    assert_eq!(app.session.source_filters, Default::default());
+    repository(dir.path());
+    std::fs::write(
+        dir.path().join("types.rs"),
+        "struct Only {\n    value: i32,\n}\n",
+    )
+    .unwrap();
+    app.open_repository(dir.path());
+    settle(&mut app);
+    app.open_file("a.rs");
+    settle(&mut app);
+    assert!(app.command_enabled(&ToolbarAction::CollapseFunctions));
+    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+    assert!(app.current_bookmarked());
+    assert!(app.command_enabled(&ToolbarAction::OpenBookmark(0)));
+    assert!(!app.command_enabled(&ToolbarAction::OpenBookmark(1)));
+    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+    assert!(!app.current_bookmarked());
+    assert!(!app.command_enabled(&ToolbarAction::OpenBookmark(0)));
+    app.open_file("types.rs");
+    assert!(!app.command_enabled(&ToolbarAction::CollapseFunctions));
+    assert!(!app.command_enabled(&ToolbarAction::ToggleBookmark));
+    assert!(!app.command_enabled(&ToolbarAction::ToggleMode(SourceMode::Critical)));
+    settle(&mut app);
+    assert!(app.command_enabled(&ToolbarAction::ToggleMode(SourceMode::Critical)));
+    assert!(app.command_enabled(&ToolbarAction::FoldToDefinitions));
+    assert!(!app.command_enabled(&ToolbarAction::CollapseFunctions));
+    app.execute_command(&ctx, ToolbarAction::FoldToDefinitions);
+    assert!(app
+        .fold_ranges
+        .iter()
+        .any(|fold| app.fold_store.is_folded(&fold.byte_range)));
+}

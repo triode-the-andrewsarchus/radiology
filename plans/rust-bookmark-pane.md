@@ -87,7 +87,7 @@ PID 3873238 and its restarted PID 3881943 execute that binary. Final evidence:
 Outline selection/preview/commit and hierarchical keyboard behavior are now
 integrated; see [outline acceptance](rust-outline-pane.md). Retain the final
 light/dark/scaling, pinned-PR revision labels,
-long-name/mixed-language corpus, desktop accessibility and large-list drag-edge
+long-name/mixed-language corpus and large-list drag-edge
 scroll acceptance. Bookmark navigation errors currently use the application error
 surface rather than Swift's dedicated bookmark-region status. Swift's persisted
 entry validity/deduplication and exact bookmark-location semantics merit a further
@@ -96,3 +96,15 @@ cross-language audit; this pane work does not assert full bookmark-model parity.
 The requested swiftui-pro, macos-design and typography-designer skills are absent
 from the configured skill roots. Checked-in Swift views and the Rust Body/Small
 styles provide the comparison; no new type scale was introduced.
+
+
+## Numbered toolbar menu and current-location toggle — 2026-10-31
+
+View now exposes the existing ten numbered slots in Go to Bookmark, with current
+labels, Ctrl+digit hints and disabled empty/unavailable slots. Its toggle changes
+to Remove Bookmark at the saved location. Both use existing command dispatch,
+readiness and BookmarkStore navigation/persistence. Rendered slot-9 traversal and
+native 1×/2× add/remove/menu-return checks pass; see the
+[command-state contract and evidence](rust-keyboard-audit.md#view-availability-and-numbered-bookmark-commands--2026-10-31).
+Broader model/location/deduplication and large-list/review corpus acceptance remain
+open. Full accessibility is deferred by the user.

@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-10-31 — Gate View actions and expose numbered bookmark navigation (Codex)
+
+View and dispatch now share source/fold/filter/bookmark availability, including
+source-mode segments. The current-location toggle says Remove Bookmark when
+appropriate; Go to Bookmark exposes all ten current slots with labels, shortcut
+hints and disabled empty/unavailable entries. Existing store order, relocation,
+revision scoping and navigation persist unchanged. Shared cached-target validation
+also removes duplicate refresh/occurrence scans from Go to Definition. No new
+state, dependency, storage, type scale or sibling coupling. App and painted-menu
+regressions cover source/loading/type/callable/filter/toggle states and slot-9
+keyboard traversal; old policy/ungated slots fail separately. Workspace passes
+523 app tests (seven ignored), two binary, four font, 13 text and 36 doctests;
+strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture adds 154 NLOC including
+tests/accessor; command availability CCN falls 7→6. No new hotspot/cycle; all 91
+clone groups unchanged after auditing raw touched-file warnings.
+Native empty/loaded-reader checks pass at 1×/2×: disabled actions, add/remove labels,
+numbered submenu and exact saved-line return/copy. Captures/hashes/zero exits
+verified. Excluded focus-border/bookmark-label OCR trials are retained; corrected
+QA uses the observed stable anchor and keyboard activation with exact byte proof.
+Other command, bookmark-model, Swift UI, reader/language/index/PR/cache/corpus and
+standalone/reuse acceptance remain open. Full accessibility and actual sibling
+integration stay deferred.
+[Contract/evidence](plans/rust-keyboard-audit.md#view-availability-and-numbered-bookmark-commands--2026-10-31).
+Archive: ~/.local/state/radiology-qa/view-command-state-20261031-eb0ab96.
+
 ## 2026-10-31 — Match Search commands to available repository/source/targets (Codex)
 
 Rust enabled every Search item and opened empty file/symbol/line dialogs with no

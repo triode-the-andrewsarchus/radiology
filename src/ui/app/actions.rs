@@ -9,25 +9,24 @@ impl RadiologyApp {
             OpenQuickFilePicker | OpenGoToSymbol | OpenSearch => {
                 self.repository_interaction_ready()
             }
-            OpenGoToLine | FindInFile | NextFindMatch | PreviousFindMatch => {
-                self.source_location_ready()
-            }
+            OpenGoToLine | FindInFile | NextFindMatch | PreviousFindMatch | ToggleBookmark
+            | ToggleMode(_) => self.source_location_ready(),
             GoToDefinition | FindReferences => {
-                let (Some(buffer), Some(index), Some(inputs), Some((id, range))) = (
-                    &self.open_buffer,
-                    &self.semantic_index,
-                    &self.semantic_inputs,
-                    &self.definition_identity,
-                ) else {
-                    return false;
-                };
-                self.source_location_ready()
-                    && Arc::ptr_eq(buffer, &inputs.buffer)
-                    && Arc::ptr_eq(index, &inputs.index)
-                    && range.contains(&buffer.byte_offset(self.caret_line, self.caret_col))
-                    && (matches!(command, FindReferences)
-                        || index.find_definition_for_id(id).is_some())
+                self.current_caret_symbol().is_some_and(|(id, index)| {
+                    matches!(command, FindReferences) || index.find_definition_for_id(id).is_some()
+                })
             }
+            OpenBookmark(index) => {
+                self.repository_interaction_ready() && self.bookmarks.get_by_index(*index).is_some()
+            }
+            FoldToDefinitions | CollapseFunctions => {
+                self.source_location_ready()
+                    && self.fold_ranges.iter().any(|fold| {
+                        matches!(command, FoldToDefinitions)
+                            || fold.kind == crate::syntax::folds::FoldKind::Callable
+                    })
+            }
+            ShowAllFiles => self.session.source_filters != Default::default(),
             _ => true,
         }
     }
@@ -309,25 +308,15 @@ impl RadiologyApp {
     }
 
     fn go_to_definition(&mut self) {
-        self.refresh_under_caret_context();
         if let Some(context) = &self.under_caret {
             if let Some(destination) = context.destination.clone() {
                 self.navigate_to_indexed_range(&destination.path, &destination.range);
             }
             return;
         }
-        let (Some(index), Some(buffer)) = (&self.semantic_index, &self.open_buffer) else {
-            return;
-        };
-        if buffer.revision == Some(ReviewRevision::Before) {
-            return;
+        if let Some(id) = self.current_caret_symbol().map(|(id, _)| id.clone()) {
+            self.navigate_to_indexed_symbol(&id);
         }
-        let byte = buffer.byte_offset(self.caret_line, self.caret_col);
-        let Some(occurrence) = index.occurrence_at_byte(buffer, byte) else {
-            return;
-        };
-        let id = SemanticSymbolID::new(&occurrence.symbol, &buffer.path);
-        self.navigate_to_indexed_symbol(&id);
     }
 
     pub(super) fn navigate_to_indexed_symbol(&mut self, id: &SemanticSymbolID) {
