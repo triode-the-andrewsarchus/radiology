@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-10-31 — Own keyboard input across reader context menus (Codex)
+
+Files/source/bookmark/reference menus now share a private action model and egui
+menu component. Arrows/Tab/Home/End traverse enabled entries; Left/Right handle
+submenus, Enter/Space activate and Escape/outside press dismiss. Current radio
+choices use checkmarks distinct from selection; reader focus and Ctrl+C survive.
+Semantic scopes and owner retirement prevent stale menu retargeting. Global
+reader commands dismiss before dispatch. [Contract and evidence](plans/rust-context-menu-keyboard.md).
+A 2× native pass exposed an opening-frame key race. The raw hook now reserves
+keys after the secondary press and transfers them to the new owner; unclaimed
+releases expire. The regression fails before and passes after. The original
+source-arrow regression also has a failing control. Six component tests cover
+traversal, guards, model/scope changes and focus. Native 1× covers all four owner
+workflows; the clean final 2× binary passes rapid opening/copy, batched submenu
+keys, persisted keyboard/pointer choices and light/dark leftward geometry. Failed
+and traced 2× trials are excluded. Fixtures stay unchanged; app/compositors exit
+zero. Durable evidence: ~/.local/state/radiology-qa/menu-keyboard-20261031-0566596.
+Workspace passes 453 app tests (seven ignored), two binary checker tests, four font
+tests, eight text tests and 33 doctests, strict Clippy/build/fmt/diff. No new clone
+group/hotspot/cycle/max-CCN increase; the only remaining tool flag is an unchanged
+12-line reference/modal test clone. Toolbar traversal/focus and broader corpus,
+reader, PR/cache and final Swift acceptance remain open. Accessibility and sibling
+adoption remain deferred. Commit and push this increment before continuing.
+
 ## 2026-10-30 — Add source Ctrl-click definition navigation (Codex)
 
 Swift Command-click was missing from Rust. Ctrl-click now uses exact local/global

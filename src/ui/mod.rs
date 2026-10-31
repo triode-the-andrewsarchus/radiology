@@ -5,6 +5,7 @@
 //! [`ContextInspector`] with symbol definition details, caller trees, outline, and bookmarks,
 //! and modal dialogs for quick file jumping and symbol navigation.
 
+mod context_menu;
 mod critical_hover;
 mod critical_menu;
 mod reference_callers;

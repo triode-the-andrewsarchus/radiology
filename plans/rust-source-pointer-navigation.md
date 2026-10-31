@@ -49,11 +49,10 @@ another real-indexer claim. Durable screenshots, hashes, copy bytes and drivers:
 `~/.local/state/radiology-qa/control-click-20261030-9449b3e` with SHA256SUMS.
 QA helpers use sibling compositor tooling; production remains standalone.
 
-## Remaining keyboard defect observed during native acceptance
+## Keyboard defect observed during native acceptance (subsequently repaired)
 
 Down moves the underlying source caret from line 2 to line 3 while its context
 menu remains open. Escape then closes the menu. This is captured in
-menu-arrow-ownership.png versus source-menu-disabled.png. Full context-menu key
-ownership/traversal is not fixed by pointer navigation and remains a required
-keyboard repair. Broader reader/corpus/PR/cache and final Swift acceptance also
+menu-arrow-ownership.png versus source-menu-disabled.png. The subsequent [shared menu component](rust-context-menu-keyboard.md) repairs
+context-menu key ownership/traversal, including the opening-frame race. Broader reader/corpus/PR/cache and final Swift acceptance also
 remain open; full accessibility and actual sibling adoption are deferred.

@@ -413,7 +413,10 @@ impl SourceViewport {
         let mut scroll_y = self.rows.offset(anchor) + inset;
         let mut keyboard_reveal = false;
         let focused = self.has_focus(ui.ctx()) || !ui.ctx().wants_keyboard_input();
-        if content.keyboard_enabled && focused {
+        if content.keyboard_enabled
+            && focused
+            && !crate::ui::commands::context_menu_is_open(ui.ctx())
+        {
             if let Some(next) =
                 self.keyboard(ui, content, &geometry.font, geometry.width, geometry.height)
             {
@@ -638,70 +641,85 @@ impl SourceViewport {
         response: &egui::Response,
         content: &CanvasContent<'_>,
     ) -> Option<SourceViewAction> {
-        let mut action = None;
-        crate::ui::commands::context_menu(response, |ui| {
-            if ui
-                .add_enabled(
-                    self.selection
-                        .is_some_and(|selection| !selection.range().is_empty()),
-                    egui::Button::new("Copy Selection"),
-                )
-                .clicked()
-            {
-                self.copy(ui.ctx(), content.buffer);
-                ui.close_menu();
+        #[derive(Clone)]
+        enum Action {
+            CopySelection,
+            CopyLine,
+            Reader(SourceViewAction),
+        }
+        use crate::ui::commands::MenuItem;
+        let action =
+            crate::ui::commands::context_menu(
+                response,
+                (
+                    content.buffer.position_key(),
+                    content.buffer.content_identity(),
+                ),
+                || {
+                    let byte = content
+                        .buffer
+                        .byte_offset(*content.caret_line, *content.caret_col);
+                    let definition = content.definition_at_byte(byte);
+                    let reference = content.mark_context.and_then(|context| {
+                        crate::semantic::references::ReferenceTarget::at_byte(
+                            context.index,
+                            content.buffer,
+                            byte,
+                        )
+                    });
+                    let mut items = vec![
+                        MenuItem::action("Copy Selection", Action::CopySelection)
+                            .enabled(
+                                self.selection
+                                    .is_some_and(|selection| !selection.range().is_empty()),
+                            )
+                            .shortcut(Key::C, Modifiers::CTRL, "Ctrl+C"),
+                        MenuItem::action("Copy Line", Action::CopyLine),
+                        MenuItem::action(
+                            "Go to Definition",
+                            Action::Reader(definition.clone().map_or(
+                                SourceViewAction::JumpToDefinition,
+                                SourceViewAction::NavigateToDefinition,
+                            )),
+                        )
+                        .enabled(definition.is_some())
+                        .hint("Ctrl+Alt+J / F12"),
+                        MenuItem::action(
+                            "Find References",
+                            Action::Reader(SourceViewAction::FindReferences(byte)),
+                        )
+                        .enabled(reference.is_some())
+                        .hint("Ctrl+Alt+R"),
+                    ];
+                    if let Some(menu) = content
+                        .mark_context
+                        .and_then(|context| context.at_byte(content.buffer, byte))
+                    {
+                        items.extend(crate::ui::critical_menu::items(&menu).into_iter().map(
+                            |item| {
+                                item.map(|edit| {
+                                    Action::Reader(SourceViewAction::SetCriticality(edit))
+                                })
+                            },
+                        ));
+                    }
+                    items
+                },
+            );
+        match action {
+            Some(Action::CopySelection) => {
+                self.copy(&response.ctx, content.buffer);
+                None
             }
-            if ui.button("Copy Line").clicked() {
-                ui.output_mut(|output| {
+            Some(Action::CopyLine) => {
+                response.ctx.output_mut(|output| {
                     output.copied_text = content.buffer.line_text(*content.caret_line).to_owned()
                 });
-                ui.close_menu();
+                None
             }
-            let byte = content
-                .buffer
-                .byte_offset(*content.caret_line, *content.caret_col);
-            let definition = content.definition_at_byte(byte);
-            if ui
-                .add_enabled(
-                    definition.is_some(),
-                    egui::Button::new("Go to Definition")
-                        .shortcut_text("Ctrl+Alt+J / F12")
-                        .wrap(false),
-                )
-                .clicked()
-            {
-                action = definition.map(SourceViewAction::NavigateToDefinition);
-                ui.close_menu();
-            }
-            let reference_target = content.mark_context.and_then(|context| {
-                crate::semantic::references::ReferenceTarget::at_byte(
-                    context.index,
-                    content.buffer,
-                    byte,
-                )
-            });
-            if ui
-                .add_enabled(
-                    reference_target.is_some(),
-                    egui::Button::new("Find References")
-                        .shortcut_text("Ctrl+Alt+R")
-                        .wrap(false),
-                )
-                .clicked()
-            {
-                action = Some(SourceViewAction::FindReferences(byte));
-                ui.close_menu();
-            }
-            if let Some(menu) = content
-                .mark_context
-                .and_then(|context| context.at_byte(content.buffer, byte))
-            {
-                if let Some(edit) = crate::ui::critical_menu::show(ui, &menu) {
-                    action = Some(SourceViewAction::SetCriticality(edit));
-                }
-            }
-        });
-        action
+            Some(Action::Reader(action)) => Some(action),
+            None => None,
+        }
     }
 
     fn definition_pointer(
@@ -2335,6 +2353,64 @@ mod tests {
     }
 
     #[test]
+    fn source_menu_opening_batch_retains_its_down_and_enter_before_reader_dispatch() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("one\n two\nthree\n");
+        let output = reader.frame(&ctx, vec![]);
+        let (origin, _) = text_shape(&output, " two");
+        let mut events = crate::ui::test_support::secondary_click(origin + vec2(1.0, 4.0));
+        events.extend([
+            key(Key::ArrowDown, Modifiers::NONE),
+            key(Key::Enter, Modifiers::NONE),
+        ]);
+        let mut input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        crate::ui::commands::take_context_menu_input(&ctx, &mut input);
+        assert!(!input
+            .events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Key { pressed: true, .. })));
+        let output = reader.frame(&ctx, input.events);
+        assert_eq!(output.platform_output.copied_text, " two");
+        assert_eq!((reader.line, reader.column), (2, 0));
+        assert!(!crate::ui::commands::context_menu_is_open(&ctx));
+    }
+
+    #[test]
+    fn source_menu_down_enter_copies_the_context_line_and_restores_reader_keys() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new("one\n two\nthree\n");
+        let output = reader.frame(&ctx, vec![]);
+        let (origin, galley) = text_shape(&output, " two");
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(0))
+                .center()
+                .to_vec2();
+        let events = crate::ui::test_support::secondary_click(point);
+        reader.frame(&ctx, events);
+        reader.frame(&ctx, vec![]);
+        let caret = (reader.line, reader.column);
+        let selection = reader.viewport.selection;
+        assert_eq!(caret, (2, 0));
+        reader.frame(&ctx, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+        assert_eq!((reader.line, reader.column), caret);
+        assert_eq!(reader.viewport.selection, selection);
+        let output = reader.frame(&ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+        assert_eq!(
+            output.platform_output.copied_text,
+            reader.source.line_text(2)
+        );
+        assert_eq!((reader.line, reader.column), caret);
+        assert_eq!(reader.viewport.selection, selection);
+        assert!(!crate::ui::commands::context_menu_is_open(&ctx));
+        reader.frame(&ctx, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+        assert_eq!(reader.line, 3, "closed menus return arrows to the reader");
+    }
+
+    #[test]
     fn unavailable_source_menu_actions_stay_disabled_and_keep_the_popup_open() {
         let ctx = egui::Context::default();
         let mut reader = Reader::new("fn absent() {}\n");
@@ -2345,23 +2421,7 @@ mod tests {
                 .pos_from_ccursor(egui::text::CCursor::new(5))
                 .center()
                 .to_vec2();
-        let events = crate::ui::test_support::click(point)
-            .into_iter()
-            .map(|event| match event {
-                egui::Event::PointerButton {
-                    pos,
-                    pressed,
-                    modifiers,
-                    ..
-                } => egui::Event::PointerButton {
-                    pos,
-                    pressed,
-                    modifiers,
-                    button: egui::PointerButton::Secondary,
-                },
-                other => other,
-            })
-            .collect();
+        let events = crate::ui::test_support::secondary_click(point);
         reader.frame(&ctx, events);
         for label in ["Copy Selection", "Go to Definition"] {
             let output = reader.frame(&ctx, vec![]);
@@ -2373,9 +2433,7 @@ mod tests {
             assert!(reader.last_action.is_none(), "{label}");
             assert!(output.platform_output.copied_text.is_empty());
             assert!(
-                ctx.read_response(Id::new(("source_row", 0_usize)))
-                    .unwrap()
-                    .context_menu_opened(),
+                crate::ui::commands::context_menu_is_open(&ctx),
                 "{label} must remain disabled"
             );
         }

@@ -107,62 +107,10 @@ pub enum ReaderCommand {
     ToggleWrapLines,
 }
 
-#[derive(Clone, Copy)]
-struct ContextMenuState {
-    owner: egui::Id,
-    dismiss: bool,
-}
-
-const CONTEXT_MENU: &str = "reader_context_menu";
-
-/// Reserves Escape for the open context menu before focused lists handle input.
-pub(crate) fn take_context_menu_escape(ctx: &Context, input: &mut egui::RawInput) {
-    let state_id = egui::Id::new(CONTEXT_MENU);
-    let state = ctx.data(|data| data.get_temp::<ContextMenuState>(state_id));
-    if let Some(mut state) = state.filter(|state| {
-        ctx.read_response(state.owner)
-            .is_some_and(|response| response.context_menu_opened())
-    }) {
-        let dismissed = take_event_actions(&mut input.events, |key, modifiers| {
-            (key == Key::Escape && modifiers == Modifiers::NONE).then_some(())
-        });
-        if !dismissed.is_empty() {
-            state.dismiss = true;
-            ctx.data_mut(|data| data.insert_temp(state_id, state));
-        }
-    }
-}
-
-/// Shows a context menu with Escape dismissal shared by every reader menu owner.
-pub(crate) fn context_menu(response: &egui::Response, contents: impl FnOnce(&mut egui::Ui)) {
-    let state_id = egui::Id::new(CONTEXT_MENU);
-    let ctx = &response.ctx;
-    let state = ctx
-        .data(|data| data.get_temp::<ContextMenuState>(state_id))
-        .filter(|state| state.owner == response.id);
-    response.context_menu(|ui| {
-        if state.is_some_and(|state| state.dismiss)
-            || ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape))
-        {
-            ui.close_menu();
-        } else {
-            contents(ui);
-        }
-    });
-    if response.context_menu_opened() {
-        ctx.data_mut(|data| {
-            data.insert_temp(
-                state_id,
-                ContextMenuState {
-                    owner: response.id,
-                    dismiss: false,
-                },
-            )
-        });
-    } else if state.is_some() {
-        ctx.data_mut(|data| data.remove::<ContextMenuState>(state_id));
-    }
-}
+pub(crate) use super::context_menu::{
+    close as close_context_menu, is_open as context_menu_is_open, show as context_menu,
+    take_input as take_context_menu_input, Item as MenuItem,
+};
 
 /// Takes reader shortcuts from the input stream with exact modifier matching.
 ///
@@ -223,7 +171,7 @@ pub(crate) fn take_input_actions<T>(
     actions
 }
 
-fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderCommand> {
+pub(super) fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderCommand> {
     use ReaderCommand::*;
     let primary = modifiers.command || modifiers.ctrl;
     match (primary, modifiers.alt, modifiers.shift, key) {
@@ -290,7 +238,7 @@ pub(crate) fn take_focused_keys(
     focus: egui::Id,
     keys: &[Key],
 ) -> Vec<Key> {
-    if !ctx.memory(|memory| memory.has_focus(focus)) {
+    if context_menu_is_open(ctx) || !ctx.memory(|memory| memory.has_focus(focus)) {
         return Vec::new();
     }
     take_event_actions(&mut input.events, |key, modifiers| {
@@ -415,14 +363,15 @@ mod tests {
                     egui::Sense::focusable_noninteractive(),
                 );
                 let row = ui.button("Reader row");
-                context_menu(&row, |ui| {
+                if context_menu(&row, "test", || {
                     paints.set(paints.get() + 1);
-                    if ui.button("Menu action").clicked() {
-                        invoked.set(true);
-                        ui.close_menu();
-                    }
-                });
-                open = row.context_menu_opened();
+                    vec![MenuItem::action("Menu action", ())]
+                })
+                .is_some()
+                {
+                    invoked.set(true);
+                }
+                open = context_menu_is_open(ui.ctx());
                 escape_left = ui.input(|input| input.key_pressed(Key::Escape));
             });
             (output, open, escape_left)
@@ -430,32 +379,14 @@ mod tests {
         let (output, _, _) = frame(vec![]);
         let row = text_center(&output, "Reader row");
         ctx.memory_mut(|memory| memory.request_focus(owner));
-        let secondary = || {
-            click(row)
-                .into_iter()
-                .map(|event| match event {
-                    Event::PointerButton {
-                        pos,
-                        pressed,
-                        modifiers,
-                        ..
-                    } => Event::PointerButton {
-                        pos,
-                        button: egui::PointerButton::Secondary,
-                        pressed,
-                        modifiers,
-                    },
-                    other => other,
-                })
-                .collect()
-        };
+        let secondary = || crate::ui::test_support::secondary_click(row);
         assert!(frame(secondary()).1);
         frame(vec![]);
         let before = paints.get();
         ctx.memory_mut(|memory| memory.request_focus(owner));
         let focus_before_escape = ctx.memory(|memory| memory.focused());
         let mut input = test_input(&[Key::Escape]);
-        take_context_menu_escape(&ctx, &mut input);
+        take_context_menu_input(&ctx, &mut input);
         assert!(
             input.events.is_empty(),
             "menu owns Escape before list dispatch"
@@ -472,7 +403,7 @@ mod tests {
         assert!(!invoked.get());
         assert_eq!(ctx.memory(|memory| memory.focused()), focus_before_escape);
         let mut input = test_input(&[Key::Escape]);
-        take_context_menu_escape(&ctx, &mut input);
+        take_context_menu_input(&ctx, &mut input);
         assert_eq!(input.events.len(), 1, "closed menus leave raw input alone");
         let (_, open, escape_left) = frame(vec![test_key(Key::Escape)]);
         assert!(!open);
