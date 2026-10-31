@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Restore dedicated definition and Reindex shortcuts (Codex)
+
+Swift command comparison found missing dedicated definition/Reindex shortcuts and
+no Search-menu definition action. Ctrl+Alt+J and the Search entry now use the
+existing definition command; Ctrl+Shift+I forces Reindex, retaining Ctrl+Alt+I for
+the inspector. Active generation/tool installation and unavailable-repository
+requests are guarded. [Mappings, evidence and remaining checks](plans/rust-keyboard-audit.md).
+Actual egui events verify indexed navigation and exact Back restoration, modal/
+text-entry ownership and repeated generation. Pointer-driven menu dispatch passes.
+Negative controls fail at the unchanged call site and two indexer invocations;
+fixed behavior navigates correctly and launches once. Workspace passes 442 app
+tests (seven ignored), four font tests, eight text tests and 33 doctests; strict
+Clippy/build/fmt and diff checks pass. No new clone group/cycle/max-CCN increase;
+four flagged test fragments exactly match the architecture baseline. No new
+native acceptance is claimed for these bindings. Full menu/focus, corpus, reader,
+PR/cache and final Swift audit remain open; full accessibility is deferred.
+Commit and push this increment before continuing.
+
 ## 2026-10-30 — Apply user accessibility scope clarification (Codex)
 
 Full accessibility for disabled users is explicitly a non-goal for this phase.

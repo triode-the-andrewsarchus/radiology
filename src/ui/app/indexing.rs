@@ -24,7 +24,10 @@ impl RadiologyApp {
     }
 
     pub(super) fn generate_index(&mut self, reuse: bool) {
-        if self.tool_provisioner.is_running() {
+        if !self.repository_interaction_ready()
+            || self.index_generator.is_running()
+            || self.tool_provisioner.is_running()
+        {
             return;
         }
         let Some(mut request) = self.index_request() else {
@@ -505,7 +508,7 @@ impl RadiologyApp {
                 action = Some(ToolbarAction::UpdateIndex);
             }
             if self.generation_report.is_some()
-                && ui.button("Reindex").on_hover_text("Regenerate every project, bypassing reuse.").clicked()
+                && ui.button("Reindex").on_hover_text("Regenerate every project, bypassing reuse (Ctrl+Shift+I).").clicked()
             {
                 action = Some(ToolbarAction::GenerateIndex);
             }

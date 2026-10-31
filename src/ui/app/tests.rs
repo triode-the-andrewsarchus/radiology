@@ -2158,3 +2158,97 @@ fn file_manager_failure_preserves_reader_and_repository_teardown_retires_late_er
     app.poll_reveal(&Context::default());
     assert!(app.error.is_none() && !app.reveal_job.is_running());
 }
+
+#[test]
+fn dedicated_definition_shortcut_navigates_exactly_and_back_restores_departure() {
+    let (_dir, mut app) = reader_with_reference_index();
+    let departure = "fn beta() {\n    ".len() + 1;
+    app.jump_to_location("b.rs", 2, departure);
+    settle(&mut app);
+    let ctx = Context::default();
+    let mut event = crate::ui::commands::test_key(egui::Key::J);
+    if let egui::Event::Key { modifiers, .. } = &mut event {
+        *modifiers = egui::Modifiers::CTRL | egui::Modifiers::ALT;
+    }
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![event],
+            ..Default::default()
+        },
+        |ctx| {
+            app.handle_shortcuts(ctx);
+        },
+    );
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+    app.execute_command(&ctx, ToolbarAction::NavigateBack);
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (2, 5));
+}
+
+#[test]
+fn reindex_commands_without_an_available_repository_do_not_start_work_or_report_errors() {
+    let (_dir, mut app) = reader();
+    let ctx = Context::default();
+    for command in [ToolbarAction::GenerateIndex, ToolbarAction::UpdateIndex] {
+        app.execute_command(&ctx, command);
+        assert!(!app.index_generator.is_running());
+        assert!(app.error.is_none());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn repeated_reindex_shortcut_keeps_the_running_generation() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("repo");
+    repository(&root);
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname='fixture'\nversion='0.1.0'\n",
+    )
+    .unwrap();
+    let executable = rust_indexer_fixture(dir.path(), "a.rs");
+    let script = std::fs::read_to_string(&executable).unwrap().replace(
+        "while [ \"$#\" -gt 0 ]",
+        "printf 'run\\n' >> \"$0.started\"\nwhile [ ! -e \"$0.release\" ]; do sleep 0.02; done\nwhile [ \"$#\" -gt 0 ]",
+    );
+    std::fs::write(&executable, script).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    let ctx = Context::default();
+    let mut event = crate::ui::commands::test_key(egui::Key::I);
+    if let egui::Event::Key { modifiers, .. } = &mut event {
+        *modifiers = egui::Modifiers::CTRL | egui::Modifiers::SHIFT;
+    }
+    let started = executable.with_file_name("rust-analyzer.started");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![event.clone()],
+            ..Default::default()
+        },
+        |ctx| app.handle_shortcuts(ctx),
+    );
+    while !started.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "indexer did not start"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![event],
+            ..Default::default()
+        },
+        |ctx| app.handle_shortcuts(ctx),
+    );
+    std::fs::write(executable.with_file_name("rust-analyzer.release"), "").unwrap();
+    settle(&mut app);
+    assert_eq!(std::fs::read_to_string(started).unwrap(), "run\n");
+    assert_eq!(app.generation_report().unwrap().documents, 1);
+    assert!(app.semantic_index.is_some());
+}

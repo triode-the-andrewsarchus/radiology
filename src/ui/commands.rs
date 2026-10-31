@@ -234,6 +234,8 @@ fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderComman
         (true, false, false, Key::P) => Some(OpenPRDialog),
         (true, false, false, Key::R) => Some(RefreshPR),
         (true, true, false, Key::R) if !typing => Some(FindReferences),
+        (true, true, false, Key::J) if !typing => Some(GoToDefinition),
+        (true, false, true, Key::I) => Some(GenerateIndex),
         (true, false, false, Key::D) => Some(ToggleBookmark),
         (true, false, false, Key::OpenBracket) => Some(NavigateBack),
         (true, false, false, Key::CloseBracket) => Some(NavigateForward),
@@ -535,6 +537,29 @@ mod tests {
         );
         assert!(shortcut(Key::R, modifiers, true).is_none());
         assert!(dispatch(Key::R, modifiers, true).is_empty());
+    }
+
+    #[test]
+    fn definition_and_reindex_shortcuts_are_distinct_and_modal_safe() {
+        let definition = Modifiers::CTRL | Modifiers::ALT;
+        let reindex = Modifiers::CTRL | Modifiers::SHIFT;
+        assert_eq!(
+            dispatch(Key::J, definition, false),
+            vec![ReaderCommand::GoToDefinition]
+        );
+        assert_eq!(
+            dispatch(Key::I, reindex, false),
+            vec![ReaderCommand::GenerateIndex]
+        );
+        assert_eq!(
+            dispatch(Key::I, definition, false),
+            vec![ReaderCommand::ToggleInspector]
+        );
+        assert!(shortcut(Key::J, definition, true).is_none());
+        for (key, modifiers) in [(Key::J, definition), (Key::I, reindex)] {
+            assert!(dispatch(key, modifiers, true).is_empty());
+            assert!(shortcut(key, modifiers | Modifiers::ALT | Modifiers::SHIFT, false).is_none());
+        }
     }
 
     #[test]
