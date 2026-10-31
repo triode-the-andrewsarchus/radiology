@@ -186,20 +186,6 @@ impl RadiologyApp {
 }
 
 impl RadiologyApp {
-    pub(super) fn handle_reference_keys(&mut self, ctx: &Context, events: &mut Vec<egui::Event>) {
-        if crate::ui::commands::context_menu_is_open(ctx) {
-            return;
-        }
-        // Apply each action before resolving the next key's owner and selection.
-        crate::ui::commands::take_event_actions(events, |key, modifiers| {
-            let action = self
-                .reference_viewport
-                .action_for_key(ctx, key, modifiers)?;
-            self.handle_reference_action(action);
-            Some(())
-        });
-    }
-
     pub(super) fn handle_reference_action(
         &mut self,
         action: crate::ui::reference_list::ReferenceAction,

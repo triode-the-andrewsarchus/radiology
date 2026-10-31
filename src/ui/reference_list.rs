@@ -113,6 +113,17 @@ impl ReferenceViewport {
         }
     }
 
+    pub(crate) fn publish_focus_request(&self, ctx: &Context) {
+        if let Some(id) = self.pending_focus {
+            ctx.memory_mut(|memory| memory.request_focus(id));
+        }
+    }
+
+    pub(crate) fn cancel_focus_request(&mut self) {
+        self.pending_focus = None;
+        self.reveal_caller = None;
+    }
+
     pub(crate) fn action_for_key(
         &mut self,
         ctx: &Context,

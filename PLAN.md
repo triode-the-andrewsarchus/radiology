@@ -26,7 +26,9 @@ kind/category metadata, with current-index refresh and Follow Caret coverage.
 now preserve fitted caller metadata, source-bound row activation and all three
 regions after resizing. Ordered reference/caller keys now cross focus boundaries
 within one batch, with real-app entry/exit/history and native navigation evidence.
-Broader cross-owner, mixed-language/pinned-review visual and final parity acceptance
+[Inspector/global keyboard ownership](plans/rust-keyboard-owner-order.md) now
+preserves modal/query handoff order and opening text through window registration.
+Broader mixed-owner, mixed-language/pinned-review visual and final parity acceptance
 remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses

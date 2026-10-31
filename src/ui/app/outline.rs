@@ -25,21 +25,28 @@ impl RadiologyApp {
         }
     }
 
-    pub(super) fn handle_outline_keys(&mut self, ctx: &Context, input: &mut egui::RawInput) {
-        if !self.outline_available() {
-            return;
-        }
-        self.sync_outline();
-        for key in crate::ui::commands::take_focused_keys(
+    pub(super) fn handle_outline_key(
+        &mut self,
+        ctx: &Context,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+    ) -> bool {
+        if !crate::ui::commands::focused_key(
             ctx,
-            input,
             OutlineList::focus_id(),
+            key,
+            modifiers,
             OutlineList::KEYS,
         ) {
+            return false;
+        }
+        if self.outline_available() {
+            self.sync_outline();
             if let Some(action) = self.outline_list.key(key) {
                 self.handle_outline_action(action);
             }
         }
+        true
     }
 
     pub(super) fn handle_outline_action(&mut self, action: OutlineAction) {

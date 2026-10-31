@@ -20,6 +20,14 @@ pub struct SourceFindPanel {
 }
 
 impl SourceFindPanel {
+    pub(crate) fn query_focus_id() -> egui::Id {
+        egui::Id::new("radiology_source_find_query")
+    }
+
+    pub(crate) fn focus_query(&self, ctx: &egui::Context) {
+        ctx.memory_mut(|memory| memory.request_focus(Self::query_focus_id()));
+    }
+
     /// Opens the strip and focuses its query without changing the current document.
     pub fn open(&mut self) {
         self.visible = true;
@@ -74,16 +82,16 @@ impl SourceFindPanel {
     fn controls(&mut self, ui: &mut Ui, step: &mut Option<bool>) {
         ui.horizontal_wrapped(|ui| {
             ui.label("Find");
+            if self.request_focus && ui.is_enabled() {
+                self.focus_query(ui.ctx());
+                self.request_focus = false;
+            }
             let query = ui.add(
                 egui::TextEdit::singleline(&mut self.search.options.query)
-                    .id_source("source_find_query")
+                    .id(Self::query_focus_id())
                     .hint_text("Find in file")
                     .desired_width(220.0),
             );
-            if self.request_focus && ui.is_enabled() {
-                query.request_focus();
-                self.request_focus = false;
-            }
             if ui.is_enabled() && (query.has_focus() || query.lost_focus()) {
                 if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter)) {
                     *step = Some(true);

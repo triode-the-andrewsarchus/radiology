@@ -1,21 +1,12 @@
 //! Modal action dispatch and the keyboard ownership of a disappearing sheet.
 
 use super::*;
+use crate::ui::commands::keyboard_event;
 
 pub(super) struct ModalFocus {
     previous: Option<egui::Id>,
     input: Vec<egui::Event>,
-}
-
-fn keyboard_event(event: &egui::Event) -> bool {
-    matches!(
-        event,
-        egui::Event::Key { .. }
-            | egui::Event::Text(_)
-            | egui::Event::Paste(_)
-            | egui::Event::Copy
-            | egui::Event::Cut
-    )
+    registered: bool,
 }
 
 impl RadiologyApp {
@@ -26,6 +17,7 @@ impl RadiologyApp {
         let focus = self.modal_focus.get_or_insert_with(|| ModalFocus {
             previous: ctx.memory(|memory| memory.focused()),
             input: Vec::new(),
+            registered: false,
         });
         focus.input.extend(crate::ui::commands::take_input_actions(
             &mut input.events,
@@ -42,9 +34,21 @@ impl RadiologyApp {
         let focus = self.modal_focus.get_or_insert_with(|| ModalFocus {
             previous: ctx.memory(|memory| memory.focused()),
             input: Vec::new(),
+            registered: false,
         });
         let previous = focus.previous;
-        ctx.input_mut(|input| input.events.extend(std::mem::take(&mut focus.input)));
+        if focus.registered {
+            ctx.input_mut(|input| input.events.extend(std::mem::take(&mut focus.input)));
+        } else {
+            // The first window pass can be invisible while egui measures it.
+            focus.input.extend(ctx.input_mut(|input| {
+                crate::ui::commands::take_input_actions(&mut input.events, |event| {
+                    keyboard_event(event).then(|| event.clone())
+                })
+            }));
+            focus.registered = true;
+            ctx.request_repaint();
+        }
         let action = match &mut self.modal {
             ActiveModal::None => unreachable!(),
             ActiveModal::QuickFilePicker(modal) => modal.show(ctx, &self.theme, &self.all_files),

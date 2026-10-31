@@ -60,11 +60,13 @@ impl QuickFilePickerModal {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     Icon::Search.ui(ui, 14.0, theme.text_muted);
+                    let id = ui.make_persistent_id("file_picker_query");
+                    ui.memory_mut(|memory| memory.request_focus(id));
                     let edit = TextEdit::singleline(&mut self.query)
+                        .id(id)
                         .hint_text("Type a filename or fuzzy path...")
                         .desired_width(ui.available_width() - 20.0);
-                    let resp = ui.add(edit);
-                    resp.request_focus();
+                    ui.add(edit);
                 });
 
                 ui.separator();
@@ -153,11 +155,13 @@ impl GoToLineModal {
             .fixed_size(egui::vec2(300.0, 120.0))
             .show(ctx, |ui| {
                 ui.label(format!("Enter line number (1 to {max_lines}):"));
+                let id = ui.make_persistent_id("line_picker_query");
+                ui.memory_mut(|memory| memory.request_focus(id));
                 let edit = TextEdit::singleline(&mut self.line_str)
+                    .id(id)
                     .hint_text("Line number")
                     .desired_width(ui.available_width());
-                let resp = ui.add(edit);
-                resp.request_focus();
+                ui.add(edit);
 
                 if ctx.input(|i| i.key_pressed(Key::Enter)) {
                     if let Ok(line_num) = self.line_str.trim().parse::<usize>() {
@@ -226,8 +230,11 @@ impl GoToSymbolModal {
             let changed = ui
                 .horizontal(|ui| {
                     Icon::Code.ui(ui, 14.0, theme.accent);
+                    let id = ui.make_persistent_id("symbol_picker_query");
+                    ui.memory_mut(|memory| memory.request_focus(id));
                     let response = ui.add(
                         TextEdit::singleline(&mut self.query)
+                            .id(id)
                             .hint_text(if workspace {
                                 "Search symbols in workspace..."
                             } else {
@@ -235,7 +242,6 @@ impl GoToSymbolModal {
                             })
                             .desired_width(ui.available_width() - 20.0),
                     );
-                    response.request_focus();
                     response.changed()
                 })
                 .inner;
@@ -401,7 +407,12 @@ impl PullRequestModal {
             .fixed_size(egui::vec2(320.0, 140.0))
             .show(ctx, |ui| {
                 ui.label("Enter GitHub Pull Request #:");
+                let id = ui.make_persistent_id("pull_request_query");
+                if !self.focus_requested {
+                    ui.memory_mut(|memory| memory.request_focus(id));
+                }
                 let edit = TextEdit::singleline(&mut self.pr_str)
+                    .id(id)
                     .hint_text("PR number (e.g. 42)")
                     .desired_width(ui.available_width());
                 let resp = ui.add(edit);

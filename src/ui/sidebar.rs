@@ -52,6 +52,10 @@ pub enum SidebarAction {
 pub struct Sidebar;
 
 impl Sidebar {
+    pub(crate) fn search_query_id() -> egui::Id {
+        egui::Id::new("radiology_repository_search_query")
+    }
+
     /// Renders navigation modes with independent query and search controls.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
@@ -299,11 +303,15 @@ impl Sidebar {
         search: &RepositorySearch,
     ) -> Option<SidebarAction> {
         let mut action = None;
-        let response =
-            ui.add(TextEdit::singleline(&mut options.query).hint_text("Search repository"));
+        let response = ui.add(
+            TextEdit::singleline(&mut options.query)
+                .id(Self::search_query_id())
+                .hint_text("Search repository"),
+        );
         if response.lost_focus()
             && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
         {
+            response.request_focus();
             action = Some(SidebarAction::StartSearch);
         }
         ui.horizontal(|ui| {

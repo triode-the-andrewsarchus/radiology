@@ -6,6 +6,7 @@ mod critical_marks;
 mod desktop;
 mod git;
 mod indexing;
+mod input;
 mod modal;
 mod outline;
 mod references;
@@ -161,6 +162,7 @@ pub struct RadiologyApp {
     bookmark_list: crate::ui::bookmark_list::BookmarkList,
     outline_list: crate::ui::outline_list::OutlineList,
     declaration_summary: crate::ui::context_inspector::DeclarationSummary,
+    inspector_input: Vec<egui::Event>,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -300,6 +302,7 @@ impl RadiologyApp {
             bookmark_list: Default::default(),
             outline_list: Default::default(),
             declaration_summary: Default::default(),
+            inspector_input: Vec::new(),
             active_pr: None,
             review: None,
             review_job: Default::default(),
@@ -457,6 +460,7 @@ impl RadiologyApp {
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.declaration_summary = Default::default();
+        self.inspector_input.clear();
         self.test_code = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
@@ -517,38 +521,10 @@ impl RadiologyApp {
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
-        if matches!(self.modal, ActiveModal::None) && self.show_inspector {
-            let mut events = ctx.input_mut(|input| std::mem::take(&mut input.events));
-            self.handle_reference_keys(ctx, &mut events);
-            ctx.input_mut(|input| input.events = events);
-            for action in ContextInspector::take_definition_actions(ctx) {
-                match action {
-                    InspectorAction::ExpandDefinition(expanded) => {
-                        self.definition_expanded = expanded
-                    }
-                    InspectorAction::GoToDefinition => {
-                        self.execute_command(ctx, ToolbarAction::GoToDefinition)
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let reader_focused = self.source_viewport.has_focus(ctx)
-            || self.reference_viewport.has_focus(ctx)
-            || crate::ui::bookmark_list::BookmarkList::has_focus(ctx)
-            || crate::ui::outline_list::OutlineList::has_focus(ctx)
-            || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id()));
-        for command in super::commands::take_shortcuts(
-            ctx,
-            !matches!(self.modal, ActiveModal::None),
-            reader_focused,
-        ) {
-            if !matches!(self.modal, ActiveModal::None) {
-                break;
-            }
-            super::commands::close_context_menu(ctx);
-            self.execute_command(ctx, command);
-        }
+        let mut events = std::mem::take(&mut self.inspector_input);
+        events.extend(ctx.input_mut(|input| std::mem::take(&mut input.events)));
+        self.dispatch_key_events(ctx, &mut events);
+        ctx.input_mut(|input| input.events = events);
     }
 }
 
@@ -556,11 +532,7 @@ impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         super::commands::take_context_menu_input(ctx, input);
         self.take_modal_input(ctx, input);
-        if matches!(self.modal, ActiveModal::None) && self.show_inspector {
-            self.handle_bookmark_keys(ctx, input);
-            self.handle_outline_keys(ctx, input);
-            self.handle_reference_keys(ctx, &mut input.events);
-        }
+        self.capture_inspector_input(ctx, input);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -587,6 +559,10 @@ impl eframe::App for RadiologyApp {
 
 impl RadiologyApp {
     fn render(&mut self, ctx: &Context) {
+        let captured = !self.inspector_input.is_empty();
+        if captured {
+            self.handle_shortcuts(ctx);
+        }
         self.poll_repository(ctx);
         self.poll_review(ctx);
         self.poll_recent_pull_requests(ctx);
@@ -598,7 +574,9 @@ impl RadiologyApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
 
-        self.handle_shortcuts(ctx);
+        if !captured {
+            self.handle_shortcuts(ctx);
+        }
 
         let modal_owned_frame = self.show_modal(ctx);
 
@@ -803,39 +781,7 @@ impl RadiologyApp {
                         &mut self.outline_list,
                         &mut self.declaration_summary,
                     ) {
-                        match action {
-                            InspectorAction::Reference(action) => {
-                                self.handle_reference_action(action)
-                            }
-                            InspectorAction::FollowCaret => self.follow_reference_caret(),
-                            InspectorAction::ExpandDefinition(expanded) => {
-                                self.definition_expanded = expanded
-                            }
-                            InspectorAction::GoToDefinition => {
-                                self.execute_command(ctx, ToolbarAction::GoToDefinition)
-                            }
-                            InspectorAction::JumpToIndexedLocation { path, range } => {
-                                self.navigate_to_indexed_range(&path, &range);
-                            }
-                            InspectorAction::JumpToSymbol(byte) => {
-                                if let Some(buffer) = &self.open_buffer {
-                                    self.navigate_target(
-                                        buffer.location_at_byte(byte),
-                                        None,
-                                        source::NavigationIntent {
-                                            record_history: true,
-                                            reveal: true,
-                                            flash_destination: true,
-                                            ..Default::default()
-                                        },
-                                    );
-                                }
-                            }
-                            InspectorAction::Outline(action) => self.handle_outline_action(action),
-                            InspectorAction::Bookmark(action) => {
-                                self.handle_bookmark_action(ctx, action)
-                            }
-                        }
+                        self.handle_inspector_action(ctx, action);
                     }
                 });
         }

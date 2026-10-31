@@ -1839,6 +1839,7 @@ fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
         crate::ui::commands::test_input(&[egui::Key::Home, egui::Key::Delete, egui::Key::Enter]);
     app.raw_input_hook(&ctx, &mut input);
     assert!(input.events.is_empty());
+    let _ = ctx.run(input, |ctx| app.render(ctx));
     settle(&mut app);
     assert_eq!(app.bookmark_list.selected, Some(ids[1]));
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
@@ -1907,6 +1908,7 @@ fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure
         let mut input = crate::ui::commands::test_input(&[egui::Key::Home, egui::Key::ArrowDown]);
         app.raw_input_hook(&ctx, &mut input);
         assert!(input.events.is_empty());
+        let _ = ctx.run(input, |ctx| app.render(ctx));
         assert_eq!((app.caret_line, app.caret_col), caret);
         assert_eq!(app.history.current(), history_before.as_ref());
         assert!(!app.history.can_go_back());
@@ -1917,6 +1919,7 @@ fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure
             ..Default::default()
         };
         app.raw_input_hook(&ctx, &mut input);
+        let _ = ctx.run(input, |ctx| app.render(ctx));
         settle(&mut app);
         let small = text.find("small").unwrap();
         assert_eq!(app.history.current().unwrap().byte_offset, small);

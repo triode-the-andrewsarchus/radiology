@@ -83,20 +83,27 @@ impl RadiologyApp {
         })
     }
 
-    pub(super) fn handle_bookmark_keys(&mut self, ctx: &Context, input: &mut egui::RawInput) {
-        if !self.repository_interaction_ready() {
-            return;
-        }
-        for key in crate::ui::commands::take_focused_keys(
+    pub(super) fn handle_bookmark_key(
+        &mut self,
+        ctx: &Context,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+    ) -> bool {
+        if !crate::ui::commands::focused_key(
             ctx,
-            input,
             BookmarkList::focus_id(),
+            key,
+            modifiers,
             BookmarkList::KEYS,
         ) {
+            return false;
+        }
+        if self.repository_interaction_ready() {
             if let Some(action) = self.bookmark_list.key(key, &self.bookmarks) {
                 self.handle_bookmark_action(ctx, action);
             }
         }
+        true
     }
 
     pub(super) fn handle_bookmark_action(&mut self, ctx: &Context, action: BookmarkAction) {
