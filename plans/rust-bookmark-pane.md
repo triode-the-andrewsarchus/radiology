@@ -108,3 +108,70 @@ native 1×/2× add/remove/menu-return checks pass; see the
 [command-state contract and evidence](rust-keyboard-audit.md#view-availability-and-numbered-bookmark-commands--2026-10-31).
 Broader model/location/deduplication and large-list/review corpus acceptance remain
 open. Full accessibility is deferred by the user.
+
+
+## Exact locations, persisted validity and relocation refresh — 2026-10-31
+
+The Swift model identifies a bookmark by path/revision/canonical byte. At 8ccd476
+Rust instead resolves bookmarks against the current line during control painting:
+toggling another column on that line removes the first entry. Rust also decodes
+all records without Swift's validity/UUID filtering, and successful navigation
+does not refresh relocated coordinates/digest in the persisted entry.
+
+BookmarkStore::at_location now compares exact canonical bytes, path and revision.
+It clamps incoming bytes to scalar boundaries like source navigation, without
+line scans, anchor relocation, digest formatting or per-entry source work while
+painting. Distinct columns on one line remain independent. SourceTarget::Bookmark
+still resolves anchors in the existing worker. Publication checks the UUID still
+exists before changing source/history, then refreshes the accepted bookmark using
+the existing constructor, preserving UUID, current label and current slot. It
+saves only changed metadata. A removal during preparation retires the result
+without resurrecting the entry or navigating. Reordering while preparing keeps
+the current slot through UUID lookup.
+
+Loading retains the first valid record per UUID in persisted order, using the
+existing repository-path validator and positive-line rule. Rust's unsigned
+coordinate types reject negative positions. Individual malformed records are
+skipped, allowing the other records to recover; loading never rewrites the file.
+Distinct UUIDs at the same location remain distinct, as in Swift's load filter.
+Scope paths, serialization format and save behavior are unchanged. No new public
+API, worker, cache, dependency or sibling coupling.
+
+Tests cover independent Unicode/CRLF columns, scalar-boundary clamping, path/
+revision separation, first-valid UUID ordering, invalid paths/zero lines/negative
+positions/bad UUIDs, read-only load, round-trip save and PR scope isolation.
+The existing app relocation test now checks stable UUID/label, new line/digest,
+current-location state and persisted refresh. A real Remove action during pending
+bookmark loading preserves the exact prior source/history. Restoring old store
+or publication code separately fails these regressions. Workspace passes 526 app
+tests (seven existing ignored), two binary, four font, 13 reader-text and 36
+doctests. Strict Clippy/check/build, warning-denied rustdoc, fmt/diff pass; rendered
+store docs inspected. Architecture adds 158 NLOC including three tests; no new
+hotspot/cycle/max-CCN increase. Four raw touched-file clone warnings are unchanged:
+all 91 baseline clone groups match in a complete multiset audit.
+
+Native 1×/2× runs create bookmarks at adjacent Unicode scalar columns 3 and 4,
+whose canonical bytes differ by two. Fresh clipboard sentinels prove each suffix
+before and after restart. The private config is deliberately seeded with an
+invalid path, negative byte and duplicate UUID; both valid slots still navigate
+exactly. Removing the second exact location saves only the original first UUID,
+which remains navigable. Source fixture/final binary hashes and both reader plus
+compositor zero exits are verified; captures inspected. These final checks place
+explicit frame boundaries between independent actions.
+
+**New confirmed remaining input defect:** an earlier rapid 2× sequence loses the
+two bookmarks. A separate real-app frame probe with stable source focus confirms
+Ctrl+D, Right, Ctrl+D in one batch executes global toggles before source movement
+and produces zero entries. The failing probe and native trial are retained as
+product evidence, not a passed test or an OCR-only harness failure. Model/restart
+acceptance above does not establish mixed global/source event ordering. The next
+repair must preserve that sequence through the source input pipeline, including
+pending geometry and focus/document retirement. The probe is retained outside the
+passing suite until that repair. Modal closing-frame input isolation remains a
+separate required contract.
+
+Evidence: `~/.local/state/radiology-qa/bookmark-model-20261031-8ccd476`.
+Broader bookmark anchor bounds/cancellation, region-specific navigation errors,
+review/long-name/large-list corpora, remaining command ownership and final Swift/
+standalone/reuse acceptance remain open. Full accessibility and actual sibling
+integration remain deferred.

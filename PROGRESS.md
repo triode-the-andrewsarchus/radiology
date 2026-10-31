@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-10-31 — Preserve exact bookmark locations and recover valid identities (Codex)
+
+Bookmarks now match canonical bytes/path/revision instead of resolving whole lines
+while painting, preserving separate Unicode columns on one line. Load filters
+invalid/malformed records and duplicate UUIDs in first-valid order without writing
+the archive. Successful worker relocation refreshes coordinates/digest while
+preserving UUID/label/current slot; a removed identity retires pending publication
+before source/history changes. Existing constructor, navigation worker and path
+validator are reused. No new API/cache/dependency. Old store/publication paths fail
+new regressions. Workspace passes 526 app tests (seven ignored), two binary, four
+font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture adds 158 NLOC including three tests; no new hotspot/cycle. Audited
+raw clone warnings refer to the same 91 baseline groups, all unchanged.
+Native 1×/2× independent-action checks preserve adjacent Unicode-column suffixes
+through restart with invalid/duplicate config records, then remove only the second
+location and retain the first UUID. Exact copies, fixture/final binary hashes,
+inspected captures and zero child exits verified.
+**Next concrete defect:** a rapid 2× sequence failed; a retained real-app frame
+probe confirms Ctrl+D, Right, Ctrl+D runs global toggles before source movement,
+leaving zero bookmarks. This is product input-order evidence, not a passed case.
+The model acceptance uses explicit frame boundaries and does not resolve it.
+Repair mixed source/global batching next; preserve deferred geometry and owner/
+document retirement. Broader bookmark anchor bounds/cancellation, error presentation,
+Swift UI/reader/grammar/index/PR/cache/corpus and standalone/reuse acceptance remain
+open. Full accessibility and actual sibling adoption stay deferred.
+[Contract, evidence and failing probe](plans/rust-bookmark-pane.md#exact-locations-persisted-validity-and-relocation-refresh--2026-10-31).
+Archive: ~/.local/state/radiology-qa/bookmark-model-20261031-8ccd476.
+
 ## 2026-10-31 — Gate View actions and expose numbered bookmark navigation (Codex)
 
 View and dispatch now share source/fold/filter/bookmark availability, including

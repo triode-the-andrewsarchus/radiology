@@ -88,24 +88,20 @@ impl BookmarkStore {
         }
     }
 
-    /// Finds a bookmark that resolves to the current document, revision, and line.
+    /// Finds a bookmark at the exact canonical byte in the current document and revision.
+    ///
+    /// Relocation occurs during navigation, never while painting current-location controls.
     #[must_use]
     pub fn at_location(
         &self,
         buffer: &SourceBuffer,
         byte_offset: usize,
     ) -> Option<&SourceBookmark> {
-        let line = buffer.line_at_byte(byte_offset);
-        let text = buffer.line_text(line);
+        let byte = buffer.clamp_to_char_boundary(byte_offset.min(buffer.byte_len()));
         self.bookmarks.iter().find(|bookmark| {
-            // Only a matching anchor (or the original line for unchanged/blank
-            // source) can resolve here. Avoid scanning the document for every
-            // unrelated bookmark while painting the current-location control.
-            (bookmark.line == line || bookmark.anchor.as_deref() == Some(text))
-                && bookmark
-                    .resolve(buffer)
-                    .ok()
-                    .is_some_and(|location| buffer.line_at_byte(location.byte_offset) == line)
+            bookmark.path == buffer.path
+                && bookmark.revision == buffer.revision
+                && bookmark.byte_offset == byte
         })
     }
 
@@ -192,13 +188,32 @@ impl BookmarkStore {
         })
     }
 
-    /// Loads bookmarks from a host-selected configuration directory.
+    /// Loads valid bookmarks from a host-selected configuration directory.
+    ///
+    /// Discards malformed entries, invalid repository paths, zero lines and duplicate
+    /// identities. The first valid entry for each identity retains its original order.
     #[must_use]
     pub fn load_in(config_dir: &Path, scope: &BookmarkScope) -> Self {
-        std::fs::read(Self::storage_path_in(config_dir, &scope.key()))
+        #[derive(Deserialize)]
+        struct Archive {
+            bookmarks: Vec<serde_json::Value>,
+        }
+        let archive = std::fs::read(Self::storage_path_in(config_dir, &scope.key()))
             .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
+            .and_then(|bytes| serde_json::from_slice::<Archive>(&bytes).ok());
+        let mut seen = std::collections::HashSet::new();
+        Self {
+            bookmarks: archive
+                .into_iter()
+                .flat_map(|archive| archive.bookmarks)
+                .filter_map(|value| serde_json::from_value::<SourceBookmark>(value).ok())
+                .filter(|bookmark| {
+                    crate::source::SourceLocation::is_repository_path(&bookmark.path)
+                        && bookmark.line > 0
+                        && seen.insert(bookmark.id)
+                })
+                .collect(),
+        }
     }
 
     /// Persists bookmarks to disk for the given repository and optional pull request number.
@@ -260,7 +275,7 @@ mod tests {
         assert_eq!(store.index_of(id), Some(0));
         assert_eq!(
             store
-                .at_location(&buffer, buffer.byte_offset(3, 2))
+                .at_location(&buffer, buffer.byte_offset(3, 0))
                 .unwrap()
                 .id,
             id
@@ -284,5 +299,93 @@ mod tests {
 
         assert_ne!(scope1.key(), scope2.key());
         assert_ne!(scope1.key(), scope3.key());
+    }
+
+    #[test]
+    fn exact_unicode_columns_are_independent_bookmarks_and_revisions() {
+        let buffer = SourceBuffer::from_str("a.rs", "é🦀漢字\r\nnext\r\n");
+        let mut store = BookmarkStore::new();
+        for byte in [0, 2, 6] {
+            assert!(store.toggle(&buffer, byte));
+        }
+        let original = store.bookmarks.clone();
+        for (slot, byte) in [0, 2, 6].into_iter().enumerate() {
+            assert_eq!(
+                store.at_location(&buffer, byte).unwrap().id,
+                original[slot].id
+            );
+        }
+        assert_eq!(store.at_location(&buffer, 3).unwrap().id, original[1].id);
+        assert!(store.at_location(&buffer, 9).is_none());
+        let mut other = buffer.clone();
+        other.path = "b.rs".into();
+        assert!(store.at_location(&other, 2).is_none());
+        other.path = buffer.path.clone();
+        other.revision = Some(crate::source::ReviewRevision::Before);
+        assert!(store.toggle(&other, 2));
+        assert!(!store.toggle(&buffer, 2));
+        assert_eq!(
+            store.bookmarks.iter().map(|b| b.id).collect::<Vec<_>>(),
+            vec![
+                original[0].id,
+                original[2].id,
+                store.at_location(&other, 2).unwrap().id
+            ]
+        );
+    }
+
+    #[test]
+    fn persisted_records_keep_first_valid_unique_identity_and_recover_other_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let scope = BookmarkScope::new(dir.path(), None);
+        let buffer = SourceBuffer::from_str("a.rs", "é🦀漢字\r\n");
+        let first = SourceBookmark::new(&buffer, 0, "first");
+        let second = SourceBookmark::new(&buffer, 2, "second");
+        let same_location = SourceBookmark::new(&buffer, 0, "distinct identity");
+        let mut zero_line = serde_json::to_value(&second).unwrap();
+        zero_line["line"] = 0.into();
+        let mut negative = serde_json::to_value(&second).unwrap();
+        negative["byte_offset"] = (-1).into();
+        let mut bad_id = serde_json::to_value(&second).unwrap();
+        bad_id["id"] = "broken".into();
+        let mut duplicate = first.clone();
+        duplicate.label = "duplicate".into();
+        let mut records = vec![
+            serde_json::to_value(&first).unwrap(),
+            zero_line,
+            negative,
+            bad_id,
+        ];
+        for path in ["", "/absolute.rs", "../escape.rs", "src/../escape.rs"] {
+            let mut invalid = serde_json::to_value(&second).unwrap();
+            invalid["path"] = path.into();
+            records.push(invalid);
+        }
+        records.extend([
+            serde_json::to_value(duplicate).unwrap(),
+            serde_json::to_value(&second).unwrap(),
+            serde_json::to_value(&same_location).unwrap(),
+        ]);
+        let raw = serde_json::to_vec(&serde_json::json!({"bookmarks":records})).unwrap();
+        let path = BookmarkStore::storage_path_in(dir.path(), &scope.key());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &raw).unwrap();
+        let loaded = BookmarkStore::load_in(dir.path(), &scope);
+        assert_eq!(loaded.bookmarks, vec![first, second, same_location]);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            raw,
+            "loading must not rewrite the archive"
+        );
+        loaded.save_in(dir.path(), &scope).unwrap();
+        assert_eq!(
+            BookmarkStore::load_in(dir.path(), &scope).bookmarks,
+            loaded.bookmarks
+        );
+        assert!(
+            BookmarkStore::load_in(dir.path(), &BookmarkScope::new(dir.path(), Some(7)))
+                .bookmarks
+                .is_empty()
+        );
     }
 }

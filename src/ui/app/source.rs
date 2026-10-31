@@ -282,6 +282,14 @@ impl RadiologyApp {
         let Some(syntax) = prepared.syntax else {
             return;
         };
+        let bookmark_slot = if let SourceTarget::Bookmark(original) = &pending.request.target {
+            let Some(slot) = self.bookmarks.index_of(original.id) else {
+                return;
+            };
+            Some(slot)
+        } else {
+            None
+        };
         self.commit_departure(pending.intent);
         self.selected_path = Some(prepared.buffer.path.clone());
         self.active_revision = prepared.buffer.revision;
@@ -307,7 +315,23 @@ impl RadiologyApp {
         self.open_buffer = Some(prepared.buffer);
         self.refresh_critical_projection();
         self.error = None;
+        let destination_byte = prepared.destination.byte_offset;
         self.apply_destination(pending.intent, prepared.destination);
+        if let (Some(slot), Some(buffer)) = (bookmark_slot, &self.open_buffer) {
+            let entry = &mut self.bookmarks.bookmarks[slot];
+            let updated = crate::bookmarks::bookmark::SourceBookmark {
+                id: entry.id,
+                ..crate::bookmarks::bookmark::SourceBookmark::new(
+                    buffer,
+                    destination_byte,
+                    entry.label.clone(),
+                )
+            };
+            if *entry != updated {
+                *entry = updated;
+                self.save_bookmarks();
+            }
+        }
     }
 
     fn commit_departure(&mut self, intent: NavigationIntent) {

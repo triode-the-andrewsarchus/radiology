@@ -167,6 +167,7 @@ fn bookmark_toolbar_mutations_persist_and_navigation_relocates() {
             .len(),
         1
     );
+    let original = app.bookmarks.bookmarks[0].clone();
     std::fs::write(
         root.join("a.rs"),
         "// inserted\nfn alpha() {\n    let café = 1;\n}\n",
@@ -177,6 +178,18 @@ fn bookmark_toolbar_mutations_persist_and_navigation_relocates() {
     app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
     settle(&mut app);
     assert_eq!(app.caret_line, 3);
+    let refreshed = &app.bookmarks.bookmarks[0];
+    assert_eq!(
+        (refreshed.id, refreshed.label.as_str()),
+        (original.id, original.label.as_str())
+    );
+    assert_eq!(refreshed.line, 3);
+    assert_ne!(refreshed.digest, original.digest);
+    assert!(app.current_bookmarked());
+    assert_eq!(
+        BookmarkStore::load_in(&dir.path().join("settings"), &scope).bookmarks,
+        app.bookmarks.bookmarks
+    );
     app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
     settle(&mut app);
     // A relocated bookmark must be removed at its current location, not duplicated.
@@ -2459,4 +2472,27 @@ fn view_commands_require_source_and_callable_folds_but_keep_global_preferences()
         .fold_ranges
         .iter()
         .any(|fold| app.fold_store.is_folded(&fold.byte_range)));
+}
+
+#[test]
+fn removed_bookmark_retires_pending_navigation_without_changing_source_or_history() {
+    let (_dir, mut app) = opened_repository();
+    let ctx = Context::default();
+    app.open_file("a.rs");
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+    let id = app.bookmarks.bookmarks[0].id;
+    app.open_file("b.rs");
+    settle(&mut app);
+    let before = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    assert!(app.is_source_loading());
+    app.handle_bookmark_action(&ctx, crate::ui::bookmark_list::BookmarkAction::Remove(id));
+    settle(&mut app);
+    assert!(app.bookmarks.bookmarks.is_empty());
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &before));
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!(format!("{:?}", app.history), history);
+    assert!(app.error.is_none());
 }
