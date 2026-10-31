@@ -4,6 +4,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
+exact indexed targets, preserves departure history and gates source menu actions.
+Native acceptance also identifies an open context-menu arrow ownership defect.
+
 [Headless syntax-resource verification](plans/rust-resource-verification.md) now
 checks native reader facts and both color themes, with failing-query and standalone
 binary evidence. It replaces the old fallback-presence-only verifier.
