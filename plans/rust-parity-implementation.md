@@ -166,8 +166,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   Ctrl-click and context-menu keys while distant prefixes measure; the saved
   failing regression passes. [Bounded Files labels/source breadcrumbs](rust-pane-labels.md)
   now retain pane geometry, compact the declaration trail and expose full-location
-  copy/jumps. Repair automatic toolbar/modal/breadcrumb focus return and audit
-  other long-label surfaces, then complete broader wrapping/scroll/scaling,
+  copy/jumps. [Modal/breadcrumb focus return](rust-modal-focus.md) now restores
+  source keys and cancellation owners, with closing-input isolation and native
+  1×/2× evidence. Complete toolbar traversal/focus and audit other long-label
+  surfaces, then complete broader wrapping/scroll/scaling,
   large-file performance and long-line Back acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only

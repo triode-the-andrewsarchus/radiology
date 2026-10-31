@@ -2288,3 +2288,5 @@ fn opening_a_modal_blocks_later_reader_shortcuts_in_the_same_frame() {
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert_eq!((app.caret_line, app.caret_col), (2, 5));
 }
+
+mod focus;

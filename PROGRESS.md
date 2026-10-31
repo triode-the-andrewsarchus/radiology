@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-10-31 — Restore modal/breadcrumb keyboard ownership (Codex)
+
+Committed navigation from a modal or breadcrumb now returns source focus;
+cancellation restores the previous live control, including Find. Modal keys/text
+are staged through the existing extractor before framework focus traversal and
+retired before underlying controls render. Closing input cannot also move source
+or close Find. The stable canvas remains registered during first-file loading;
+publication never requests focus. Repository reset retires modal input/owner.
+A shared modal dispatcher removes repeated action/close branches; native update
+and tests use one render path. Native 2× evidence also prompted an explicit close
+repaint. [Contract and evidence](plans/rust-modal-focus.md).
+Five new real-app regressions pass; disabling source focus makes all four initial
+focus regressions fail. Workspace passes 472 app tests (seven ignored), two binary,
+four font, eleven text tests and 34 doctests; strict Clippy/build/fmt/diff pass.
+The comparison tool flags the renamed rendering hotspot and unchanged app-test
+clones; actual event-loop CCN falls 47 → 36, with 92 clone groups before/after and
+zero additions/removals. No new cycle/max-CCN increase. Final native 1×/2× runs
+verify exact source and restored-Find clipboard bytes, modal disappearance without
+another event, breadcrumb selection and light rendering. Fixtures are unchanged,
+all process exits zero. Archive: ~/.local/state/radiology-qa/modal-focus-20261031-4266178.
+Toolbar traversal/focus and broader cross-owner/long-label/reader/large-file/
+grammar/index/PR/cache/final Swift acceptance remain open. Full accessibility and
+actual sibling adoption stay deferred. Commit and push this verified increment
+before continuing with toolbar ownership.
+
 ## 2026-10-31 — Bound file rows and port compact source breadcrumbs (Codex)
 
 The native long-name Files/source-header overflow is repaired. A shared measured

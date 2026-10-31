@@ -11,7 +11,9 @@ bounded source fragments, with native 1×/2× copy/layout evidence.
 drags, Ctrl-click and menu keys while prefixes measure.
 [Bounded Files labels and source breadcrumbs](plans/rust-pane-labels.md) repair
 long-name pane growth and add Swift-style compaction/full-location menus.
-Automatic focus return, other long-label surfaces and broader acceptance remain open.
+[Modal/breadcrumb focus return](plans/rust-modal-focus.md) now restores source keys
+and the prior control on cancellation, with real-app and native 1×/2× evidence.
+Toolbar traversal/focus, other long-label surfaces and broader acceptance remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.
