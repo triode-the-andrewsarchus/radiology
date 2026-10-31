@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-31 — Bound Unicode coordinate conversion for long source lines (Codex)
+
+Shared reader-text CoordinateIndex stores sparse absolute byte/UTF-16/scalar
+checkpoints, with binary search and at most 4099 suffix bytes per lookup.
+SourceBuffer reuses it in both coordinate directions, retaining CRLF, clamping,
+invalid-input and exact line-relative semantics; existing encoding import paths
+remain available. No dependency or GUI coupling is added. Independent encoding,
+line-boundary and >6 MB sparse-bound tests pass. Workspace passes 514 app tests
+(seven ignored), two binary, four font, 13 text and 36 doctests; strict Clippy/
+check/build/fmt/diff and warning-denied rustdoc pass, rendered docs inspected.
+Architecture is NEUTRAL (+218 NLOC including tests), with 91 unchanged clone
+groups and no new hotspot/cycle/max-CCN increase. Native 1×/2× exact full copy,
+End suffix, cross-file Back and wrap selection pass with fresh clipboard markers,
+unchanged fixtures, matching final binary hashes and zero exits. At 1× observed
+End copy wait drops from ~2.8 s to 4 ms; Back remains ~9.4 s and loading ~8.7 s.
+Single debug-run observations are not release/statistical guarantees. Delayed
+captures still leave horizontal reveal/measurement acceptance open; broader
+reader, grammar/index, PR/cache and final Swift/reuse audits remain required.
+[Contract, observations and limits](plans/rust-reader-performance.md#sparse-source-coordinates--2026-10-31).
+Evidence: ~/.local/state/radiology-qa/coordinate-index-20261031-01f8519.
+Full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-10-31 — Initialize syntax queries only for the requested language (Codex)
 
 A fresh 6 MB Unicode/CRLF fixture verifies original full copy, End suffix, exact

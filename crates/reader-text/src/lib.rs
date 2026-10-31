@@ -4,10 +4,12 @@
 //! Source bytes remain owned by the host; wrapping and continuation rows never
 //! change selection/copy coordinates.
 
+mod coordinates;
 mod find;
 mod projection;
 mod rows;
 mod unwrapped;
+pub use coordinates::{ColumnEncoding, CoordinateIndex};
 pub use find::{FindOptions, MatchSpool};
 pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
 pub use rows::RowHeights;
