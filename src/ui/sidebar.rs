@@ -32,6 +32,8 @@ pub enum SidebarTab {
 pub enum SidebarAction {
     /// Requests opening the file at the specified repository-relative path.
     OpenFile(String),
+    /// Selects a Files row in the desktop file manager without opening its content.
+    RevealInFileManager(String),
     /// Requests opening a file and navigating to the specific line/column of a search hit.
     OpenSearchMatch(SearchMatch),
     /// Triggers execution of a text search with current query and options.
@@ -306,7 +308,7 @@ impl Sidebar {
         changed_paths: &HashSet<&str>,
         indent_level: usize,
     ) -> Option<SidebarAction> {
-        let mut action = None;
+        let mut action;
         let indent = indent_level as f32 * 14.0;
 
         if node.is_directory {
@@ -331,7 +333,9 @@ impl Sidebar {
                 })
                 .response;
 
-            if resp.interact(egui::Sense::click()).clicked() {
+            let response = resp.interact(egui::Sense::click());
+            action = Self::row_menu(&response, &node.path);
+            if response.clicked() {
                 if is_expanded {
                     expanded_dirs.remove(&node.path);
                 } else {
@@ -384,18 +388,27 @@ impl Sidebar {
                 .response;
 
             let interact_resp = resp.interact(egui::Sense::click());
-            interact_resp.context_menu(|ui| {
-                if ui.button("Copy Relative Path").clicked() {
-                    ui.output_mut(|o| o.copied_text = node.path.clone());
-                    ui.close_menu();
-                }
-            });
+            action = Self::row_menu(&interact_resp, &node.path);
 
             if interact_resp.clicked() {
                 action = Some(SidebarAction::OpenFile(node.path.clone()));
             }
         }
 
+        action
+    }
+    fn row_menu(response: &egui::Response, path: &str) -> Option<SidebarAction> {
+        let mut action = None;
+        response.context_menu(|ui| {
+            if ui.button("Reveal in File Manager").clicked() {
+                action = Some(SidebarAction::RevealInFileManager(path.to_owned()));
+                ui.close_menu();
+            }
+            if ui.button("Copy Relative Path").clicked() {
+                ui.output_mut(|output| output.copied_text = path.to_owned());
+                ui.close_menu();
+            }
+        });
         action
     }
 }

@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — File/folder Reveal in File Manager (Codex)
+
+Files rows now share Reveal in File Manager and Copy Relative Path context actions,
+matching Swift's missing file/folder reveal workflow. A small egui-independent
+module uses literal file URIs and the standard FileManager1 ShowItems RPC through
+the existing bounded gdbus client runner. LatestRead owns background publication;
+errors preserve the reader and use the existing notice/Details. PR actions capture
+the After tree/snapshot lease, and scope changes retire late errors. No new crate or
+sibling runtime is introduced. [Contract](plans/rust-file-manager-reveal.md).
+Three backend tests and one reader integration cover path/URI correctness, error/
+timeout/cancellation and retirement. Workspace gates pass 432 app tests (seven
+ignored), eight shared tests, 30 doctests, strict Clippy, formatting and build.
+No new hotspot/cycle/clone growth; all eight flagged clone fragments are exact
+baseline app tests. Native protocol/file/folder/PR-menu acceptance remains open,
+along with broader corpus/recovery and final UI/accessibility/scaling/font/sibling
+audit. Commit and push each increment.
+
 ## 2026-10-30 — Native PR semantic retention and regeneration acceptance (Codex)
 
 Backend `84d320c` is pushed. Four real same-tree QA heads publish through native
