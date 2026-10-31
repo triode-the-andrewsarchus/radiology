@@ -11,6 +11,7 @@ features, ripgrep supplies repository search, and gh supplies GitHub PR metadata
 cargo build --workspace
 cargo run -- --repository /path/to/repository
 cargo test --workspace
+cargo run --locked -- --verify-resources
 ```
 
 The Rust app builds independently of little-screen-clip. Open Index Projects and
@@ -28,6 +29,10 @@ reference; consult PLAN.md and PROGRESS.md for current Rust acceptance.
 Linux definition navigation uses **Ctrl+Alt+J**, F12, or Return in source;
 **Ctrl+Shift+I** forces Reindex, while **Ctrl+Alt+I** toggles the inspector.
 See [Linux keyboard mappings and audit](plans/rust-keyboard-audit.md).
+
+The headless [syntax-resource check](plans/rust-resource-verification.md) exercises
+native parsing/queries and both color themes; a fallback alone cannot certify
+TypeScript/TSX support. It does not require a running desktop.
 
 ## Swift/macOS requirements and quick start
 

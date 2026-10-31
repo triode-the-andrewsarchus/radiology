@@ -4,6 +4,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Headless syntax-resource verification](plans/rust-resource-verification.md) now
+checks native reader facts and both color themes, with failing-query and standalone
+binary evidence. It replaces the old fallback-presence-only verifier.
+
 **Parity implementation underway (2026-10-30):** initial correctness, private PR
 snapshots, cancellable repository/local source search, inspector integration, and
 a measured selectable source viewport with zoom are implemented with regression
