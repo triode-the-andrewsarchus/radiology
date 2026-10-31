@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Preserve rapid source keyboard event order (Codex)
+
+Native 2× font acceptance exposed a reader batching bug: Copy ran before selection,
+and only one navigation event was consumed per frame. The viewport now applies
+all owned key/platform-copy events in arrival order through the existing command
+dispatcher, updates each intermediate caret and publishes the final movement once.
+[Failure, regression and native evidence](plans/rust-source-input-order.md).
+The regression fails against the old implementation and passes at 1×/1.5×/2×.
+Workspace gates pass 433 app tests (seven ignored), three font tests, eight text
+tests and 31 doctests, strict Clippy, build and formatting. Architecture is neutral
+with no new hotspot/clone/cycle. Native 2× rapid selection/copy preserves exact CJK
+and emoji line bytes; app and both compositors exit zero. The broader keyboard/
+accessibility, corpus and final Swift parity audit remain open. Commit and push
+this increment before proceeding.
+
 ## 2026-10-30 — Portable host-matching CJK/emoji fallback package (Codex)
 
 Radiology now registers CJK and monochrome emoji fallbacks from a small local

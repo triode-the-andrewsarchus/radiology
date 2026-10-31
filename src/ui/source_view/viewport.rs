@@ -404,10 +404,10 @@ impl SourceViewport {
         let mut keyboard_reveal = false;
         let focused = self.has_focus(ui.ctx()) || !ui.ctx().wants_keyboard_input();
         if content.keyboard_enabled && focused {
-            if let Some(byte) =
+            if let Some(next) =
                 self.keyboard(ui, content, &geometry.font, geometry.width, geometry.height)
             {
-                action = Some(move_caret(content, byte));
+                action = Some(next);
                 keyboard_reveal = true;
             }
         }
@@ -858,33 +858,36 @@ impl SourceViewport {
         font: &FontId,
         width: f32,
         height: f32,
-    ) -> Option<usize> {
-        let copy = ui.input_mut(|input| {
-            input.consume_key(Modifiers::COMMAND, Key::C)
-                || input.consume_key(Modifiers::CTRL, Key::C)
-                || input
-                    .events
-                    .iter()
-                    .any(|event| matches!(event, egui::Event::Copy))
+    ) -> Option<SourceViewAction> {
+        let actions = ui.input_mut(|input| {
+            crate::ui::commands::take_input_actions(&mut input.events, source_input)
         });
-        if copy {
-            self.copy(ui.ctx(), content.buffer);
+        let mut moved = None;
+        for action in actions {
+            match action {
+                SourceInput::Copy => self.copy(ui.ctx(), content.buffer),
+                SourceInput::SelectAll => {
+                    self.select(0..content.buffer.byte_len());
+                    ui.ctx().request_repaint();
+                }
+                SourceInput::Move(key, shift) => {
+                    moved = Some(self.move_key(ui, content, font, width, height, (key, shift)));
+                }
+            }
         }
-        if ui.input_mut(|input| {
-            input.consume_key(Modifiers::COMMAND, Key::A)
-                || input.consume_key(Modifiers::CTRL, Key::A)
-        }) {
-            self.select(0..content.buffer.byte_len());
-            ui.ctx().request_repaint();
-            return None;
-        }
-        let key = ui.input_mut(|input| {
-            let event = input.events.iter().position(|event| matches!(event, egui::Event::Key { key: Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight | Key::Home | Key::End | Key::PageUp | Key::PageDown, pressed: true, modifiers, .. } if !modifiers.alt && !modifiers.command && !modifiers.ctrl));
-            event.map(|index| input.events.remove(index))
-        });
-        let Some(egui::Event::Key { key, modifiers, .. }) = key else {
-            return None;
-        };
+        moved
+    }
+
+    fn move_key(
+        &mut self,
+        ui: &Ui,
+        content: &mut CanvasContent<'_>,
+        font: &FontId,
+        width: f32,
+        height: f32,
+        navigation: (Key, bool),
+    ) -> SourceViewAction {
+        let (key, shift) = navigation;
         let buffer = content.buffer;
         let byte = buffer.byte_offset(*content.caret_line, *content.caret_col);
         let target = if matches!(key, Key::ArrowUp | Key::ArrowDown) {
@@ -899,7 +902,7 @@ impl SourceViewport {
                 (height / (font.size + 4.0)).max(1.0) as isize,
             )
         };
-        if modifiers.shift {
+        if shift {
             self.selection
                 .get_or_insert(ByteSelection {
                     anchor: byte,
@@ -910,7 +913,7 @@ impl SourceViewport {
             self.selection = None;
         }
         *content.target = Some(buffer.line_at_byte(target));
-        Some(target)
+        move_caret(content, target)
     }
 
     fn vertical_target(
@@ -1113,6 +1116,48 @@ impl SourceViewport {
             );
         }
     }
+}
+
+enum SourceInput {
+    Copy,
+    SelectAll,
+    Move(Key, bool),
+}
+
+fn source_input(event: &egui::Event) -> Option<SourceInput> {
+    if matches!(event, egui::Event::Copy) {
+        return Some(SourceInput::Copy);
+    }
+    let egui::Event::Key {
+        key,
+        modifiers,
+        pressed: true,
+        ..
+    } = event
+    else {
+        return None;
+    };
+    if modifiers.command || modifiers.ctrl {
+        if modifiers.alt || modifiers.shift {
+            return None;
+        }
+        return match key {
+            Key::C => Some(SourceInput::Copy),
+            Key::A => Some(SourceInput::SelectAll),
+            _ => None,
+        };
+    }
+    const NAVIGATION: [Key; 8] = [
+        Key::ArrowUp,
+        Key::ArrowDown,
+        Key::ArrowLeft,
+        Key::ArrowRight,
+        Key::Home,
+        Key::End,
+        Key::PageUp,
+        Key::PageDown,
+    ];
+    (!modifiers.alt && NAVIGATION.contains(key)).then_some(SourceInput::Move(*key, modifiers.shift))
 }
 
 fn move_caret(content: &mut CanvasContent<'_>, byte: usize) -> SourceViewAction {
@@ -2407,6 +2452,56 @@ mod tests {
         let output = reader.frame(&ctx, Vec::new());
         let (_, stale) = text_shape(&output, &text.replace("unknown", "altered"));
         assert_eq!(at(&stale, 0), color); // Wrong-content projection is ignored.
+    }
+
+    #[test]
+    fn coalesced_navigation_selection_and_copy_follow_input_order_at_each_scale() {
+        let text = "aé中🦀🫠z\ntail\n";
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = egui::Context::default();
+            let mut definitions = egui::FontDefinitions::default();
+            reader_fonts::append_fallbacks(&mut definitions);
+            ctx.set_fonts(definitions);
+            ctx.set_pixels_per_point(scale);
+            for (events, initial, copied, column) in [
+                (
+                    vec![
+                        key(Key::Home, Modifiers::NONE),
+                        key(Key::End, Modifiers::SHIFT),
+                        egui::Event::Copy,
+                    ],
+                    2,
+                    "aé中🦀🫠z",
+                    6,
+                ),
+                (
+                    vec![
+                        key(Key::ArrowRight, Modifiers::NONE),
+                        key(Key::ArrowRight, Modifiers::NONE),
+                        key(Key::ArrowRight, Modifiers::NONE),
+                        key(Key::ArrowRight, Modifiers::SHIFT),
+                        key(Key::ArrowRight, Modifiers::SHIFT),
+                        key(Key::C, Modifiers::CTRL),
+                    ],
+                    0,
+                    "🦀🫠",
+                    5,
+                ),
+                (
+                    vec![key(Key::A, Modifiers::CTRL), egui::Event::Copy],
+                    0,
+                    text,
+                    0,
+                ),
+            ] {
+                let mut reader = Reader::new(text);
+                reader.column = initial;
+                reader.frame(&ctx, Vec::new());
+                let output = reader.frame(&ctx, events);
+                assert_eq!(output.platform_output.copied_text, copied, "scale {scale}");
+                assert_eq!((reader.line, reader.column), (1, column));
+            }
+        }
     }
 
     #[test]

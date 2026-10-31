@@ -134,24 +134,36 @@ pub(crate) fn take_event_actions<T>(
     events: &mut Vec<Event>,
     mut resolve: impl FnMut(Key, Modifiers) -> Option<T>,
 ) -> Vec<T> {
-    let mut commands = Vec::new();
-    events.retain(|event| {
-        let Event::Key {
+    take_input_actions(events, |event| {
+        if let Event::Key {
             key,
             modifiers,
             pressed: true,
             ..
         } = event
-        else {
-            return true;
-        };
-        let Some(command) = resolve(*key, *modifiers) else {
-            return true;
-        };
-        commands.push(command);
-        false
+        {
+            resolve(*key, *modifiers)
+        } else {
+            None
+        }
+    })
+}
+
+/// Consumes owned input events in order, including platform copy events.
+pub(crate) fn take_input_actions<T>(
+    events: &mut Vec<Event>,
+    mut resolve: impl FnMut(&Event) -> Option<T>,
+) -> Vec<T> {
+    let mut actions = Vec::new();
+    events.retain(|event| {
+        if let Some(action) = resolve(event) {
+            actions.push(action);
+            false
+        } else {
+            true
+        }
     });
-    commands
+    actions
 }
 
 fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<ReaderCommand> {
