@@ -164,9 +164,11 @@ for simultaneous inspector regions and source keyboard exclusion.
   now shares one horizontal row and defers measured keyboard/copy/reveal geometry.
   [Ordered gestures](rust-source-gesture-order.md) now retain clicks, drag/selection,
   Ctrl-click and context-menu keys while distant prefixes measure; the saved
-  failing regression passes. Repair automatic toolbar/modal focus return and
-  long-filename sidebar/header constraints, then complete broader wrapping/scroll/
-  scaling, large-file performance and long-line Back acceptance.
+  failing regression passes. [Bounded Files labels/source breadcrumbs](rust-pane-labels.md)
+  now retain pane geometry, compact the declaration trail and expose full-location
+  copy/jumps. Repair automatic toolbar/modal/breadcrumb focus return and audit
+  other long-label surfaces, then complete broader wrapping/scroll/scaling,
+  large-file performance and long-line Back acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
   exact current-file pins and applies new fold defaults, with native acceptance.

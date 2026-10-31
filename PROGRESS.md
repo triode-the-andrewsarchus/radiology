@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-10-31 — Bound file rows and port compact source breadcrumbs (Codex)
+
+The native long-name Files/source-header overflow is repaired. A shared measured
+middle-elision helper preserves type size/name suffixes; deep indentation cannot
+force Files rows beyond their pane. Original paths still drive open/help/copy.
+The header now ports Swift's directory/declaration compaction and ellipsis menu,
+with canonical declaration jumps and full relative-path copy. Existing revision,
+change and collapse actions get their fixed trailing space first. [Contract and evidence](plans/rust-pane-labels.md).
+The exact final row regression fails before (196 → 535.8439 points) and passes
+after; four added UI tests cover pane bounds, original action targets, five header
+widths in both themes/scales, full-location menu and all declaration jumps.
+Workspace passes 467 app tests (seven ignored), two binary tests, four font tests,
+eleven text tests and 34 doctests; strict Clippy/build/fmt/diff pass. The comparison
+tool flags two unchanged baseline test clones; full fingerprint audit confirms
+92 groups before/after and zero new clones. No new hotspot/cycle/max-CCN increase;
+SourceView::show CCN falls from 21 to 8. Native 1×/2× runs with a 170-byte Unicode
+filename retain pane boundaries in dark/light mode, copy exact paths from both
+menus and jump to real declarations at lines 4/1. Fixtures are unchanged and all
+processes exit zero. Archive: ~/.local/state/radiology-qa/pane-labels-20261031-c9fd9e1.
+Automatic modal/toolbar/breadcrumb focus return and traversal are next. Other
+long-label surfaces, broader reader/large-file/Back and grammar/index/PR/cache/
+final Swift acceptance remain open; this is not a claim of full UI parity.
+Accessibility and actual sibling adoption stay deferred. Commit and push this
+layout/breadcrumb increment before continuing.
+
 ## 2026-10-31 — Retain source gestures until exact hit geometry is ready (Codex)
 
 The saved lost-click regression now passes. The existing source queue carries
