@@ -94,11 +94,45 @@ new hotspots/cycles/clones. Logs: `/tmp/radiology-real-kotlin-java.log`,
 `/tmp/radiology-kotlin-java-{workspace,clippy}.log`, and
 `/tmp/radiology-kotlin-build.log`.
 
+## Real C/C++ scip-clang lifecycle — 2026-10-30
+
+`real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload` passes
+against the official v0.4.0 x86_64 Linux release asset. This is a manual QA download;
+the app's manual-only Clang provisioning policy remains unchanged. Release metadata
+is saved as `/tmp/radiology-scip-clang-release.json`. The downloaded binary reports
+`scip-clang 0.4.0` and Clang/LLVM commit
+`2078da43e25a4623cab2d0d60decddf709aaea28`. Its locally measured SHA-256 is
+`06fd18c576f979a726c651594644ec4a35db4f471f2160b3f72eb89fa6001784`;
+this records the tested artifact, not an upstream checksum verification claim.
+
+One shared lifecycle runs separately in C11 and C++17 modes. Each real translation
+unit includes a repository header and uses a copied GNU response file. Production
+rebasing expands/repaths its include, source and output arguments before invoking
+the actual compiler indexer. Both produce two documents, zero missing sources,
+zero errored translation units and no partial/stale/cache-warning state. An emoji
+before the call exercises UTF-8 byte columns; exact header definitions and caller
+references, Update reuse, cache-only reload, source-digest rejection and private
+workspace cleanup pass. Viewed source/header/response/database bytes and inventory
+remain unchanged; no object or index output appears in the viewed root.
+
+```sh
+RADIOLOGY_REAL_SCIP_CLANG=/path/to/scip-clang \
+cargo test --lib real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload -- --ignored --nocapture
+```
+
+The Rust and Clang external-tool overrides now share their existing request setup;
+the real Rust feature-gated case is rerun to check that path. Architecture comparison
+against `before-real-clang-acceptance` is neutral, without new hotspots, cycles or
+clone groups. Logs: `/tmp/radiology-real-clang.log` and
+`/tmp/radiology-real-clang-rust-helper.log`. Workspace gates pass 425 app tests
+(seven ignored), eight shared tests and 30 doctests; strict Clippy and formatting
+pass. Gate logs: `/tmp/radiology-real-clang-{workspace,clippy}.log`.
+
 ## Limits and remaining acceptance
 
 These are small real-tool projects, not evidence for dependency-heavy or broad
 mixed-language corpora. They exercise backend production paths, not new native UI
-interactions. Actual scip-clang, Android/AGP and broader Gradle corpora remain open, as do the
+interactions. Broader C/C++ databases/dependencies, Android/AGP and broader Gradle corpora remain open, as do the
 broader recovery, retention and final visual/accessibility/scaling/font/sibling
 reuse audits. See [implementation queue](rust-parity-implementation.md),
 [provisioning](rust-tool-provisioning.md) and

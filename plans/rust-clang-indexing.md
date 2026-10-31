@@ -64,8 +64,9 @@ because Clang is an external prerequisite. Architecture comparison finds no new
 production duplication, excessive CCN or cycle; its REGRESSION verdict is a new
 six-line test-fixture clone. Max CCN remains 100; duplication is about 0.7%.
 
-No installed `scip-clang` was found on this machine. Real compiler acceptance plus
-fixture semantic publication do not prove real compiler-indexer output.
+At the original integration checkpoint, no real `scip-clang` was installed. That
+checkpoint's real compiler plus fixture semantic output did not prove real
+compiler-indexer acceptance. The 2026-10-30 acceptance below supersedes this gap.
 
 Input discovery retains its existing policy: tracked/unignored files in Git;
 browser exclusions in non-Git directories. Thus ignored/untracked generated build
@@ -75,5 +76,19 @@ tracks its database explicitly; broader build-database discovery is still requir
 External build working directories, generated dependencies outside the copied
 inventory, Windows/MSVC response quoting, uncommon path-valued compiler options
 (including named module-file/plugin option protocols), CUDA strategy coverage and
-actual compiler-indexer acceptance remain open. They must not be described as
+broader compiler-indexer corpus acceptance remain open. They must not be described as
 completed by support for ordinary repository-local C/C++ compilation databases.
+
+## Real compiler-indexer acceptance — 2026-10-30
+
+The official scip-clang 0.4.0 Linux binary now passes production generation,
+decoding, exact definition/reference navigation, Update reuse and cache-only
+reload in separate C11 and C++17 fixtures. Repository headers and GNU response
+inputs go through the actual private compilation-database rebaser. Both have two
+documents, zero missing sources and no errored translation units, partial/stale
+state or cache warning. Unicode before the call validates UTF-8 coordinates.
+Viewed bytes/inventory remain intact and private workspaces are removed.
+[Commands, artifact identity and limits](rust-real-indexer-acceptance.md).
+This is backend acceptance; the earlier native UI test still uses controlled SCIP
+output. Ignored/generated build-database discovery and the other corpus limits
+above remain open.

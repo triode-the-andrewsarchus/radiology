@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Actual scip-clang C/C++ lifecycle acceptance (Codex)
+
+The official scip-clang 0.4.0 Linux binary passes the production lifecycle in
+separate C11/C++17 fixtures: copied response inputs, rebased database, exact Unicode
+header definition/reference coordinates, Update reuse and cache-only reload. Both
+have two documents, zero missing sources/errored translation units and no partial,
+stale or cache warning. Viewed bytes/inventory remain unchanged and workspaces are
+removed. Clang remains manually installed. [Artifact identity, commands and scope](plans/rust-real-indexer-acceptance.md).
+All six adapter families now have small real-tool evidence. Rust and Clang share
+the external override setup; the real Rust feature-gated case passes again.
+Workspace gates pass 425 app tests (seven ignored), eight shared tests and 30
+doctests; strict Clippy and formatting pass. Architecture is neutral with no new
+hotspot/cycle/clone growth. Broader C/C++ database discovery/corpora, Android/AGP,
+retention/recovery and final UI/accessibility/scaling/font/sibling audit remain
+open. This increment changes acceptance tests and documentation only. Commit and
+push each increment.
+
 ## 2026-10-30 — Real pinned Kotlin/Java compiler and navigation acceptance (Codex)
 
 The final mixed fixture passes actual pinned scip-java installation through the

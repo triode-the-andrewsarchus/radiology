@@ -5,6 +5,48 @@ use crate::semantic::indexing::provisioning::{ProvisioningRequest, ToolProvision
 use crate::source::ColumnEncoding;
 
 #[test]
+#[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
+fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
+    for (extension, standard) in [("c", "c11"), ("cpp", "c++17")] {
+        let main = format!("main.{extension}");
+        let database = serde_json::json!([{
+            "directory": ".", "file": main,
+            "arguments": ["/usr/bin/clang", "@compile.rsp"]
+        }])
+        .to_string();
+        let response = format!("-I. -std={standard} -c {main} -o main.o\n");
+        let files = [
+            ("compile_commands.json", database.as_str()),
+            ("compile.rsp", response.as_str()),
+            (
+                "helper.h",
+                "inline int twice(int value) { return value * 2; }\n",
+            ),
+            (
+                main.as_str(),
+                "#include \"helper.h\"\nint main() { /* 🦀 */ return twice(21); }\n",
+            ),
+        ];
+        let fixture = Fixture::new(&files);
+        let request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
+        verify_lifecycle(
+            &fixture,
+            request,
+            &files,
+            Navigation {
+                caller: &main,
+                callee: "twice",
+                target: "helper.h",
+                span: (0, 11, 16),
+                encoding: ColumnEncoding::Utf8,
+                documents: 2,
+            },
+            &["main.o", "index.scip"],
+        );
+    }
+}
+
+#[test]
 #[ignore = "builds pinned scip-java and downloads Kotlin/Gradle; requires JDK 17+ and network access"]
 fn pinned_kotlin_java_install_navigation_unicode_reuse_and_reload() {
     let files = [
@@ -125,17 +167,7 @@ fn real_rust_analyzer_indexes_feature_gated_workspace_calls_and_reuses_the_resul
         ("member/src/lib.rs", "pub fn member() {}\n"),
     ];
     let fixture = Fixture::new(&files);
-    let mut request = fixture.request();
-    request.tools = ToolDirectory::from_environment(None);
-    if let Some(executable) = std::env::var_os("RADIOLOGY_REAL_RUST_ANALYZER") {
-        let executable = PathBuf::from(executable).canonicalize().unwrap();
-        assert_eq!(executable.file_name().unwrap(), "rust-analyzer");
-        request
-            .tools
-            .search_path
-            .insert(0, executable.parent().unwrap().into());
-    }
-    request.timeout = Duration::from_secs(120);
+    let request = external_tool_request(&fixture, Indexer::Rust, "RADIOLOGY_REAL_RUST_ANALYZER");
     verify_lifecycle(
         &fixture,
         request,
@@ -196,6 +228,25 @@ struct Navigation<'a> {
     span: (i32, i32, i32),
     encoding: ColumnEncoding,
     documents: usize,
+}
+
+fn external_tool_request(
+    fixture: &Fixture,
+    indexer: Indexer,
+    override_variable: &str,
+) -> GenerationRequest {
+    let mut request = fixture.request();
+    request.tools = ToolDirectory::from_environment(None);
+    if let Some(executable) = std::env::var_os(override_variable) {
+        let executable = PathBuf::from(executable).canonicalize().unwrap();
+        assert_eq!(executable.file_name().unwrap(), indexer.id());
+        request
+            .tools
+            .search_path
+            .insert(0, executable.parent().unwrap().into());
+    }
+    request.timeout = Duration::from_secs(120);
+    request
 }
 
 fn installed_case(
