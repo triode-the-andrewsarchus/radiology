@@ -346,9 +346,14 @@ fn execute(
     if output.succeeded() {
         Ok(())
     } else {
+        let reason = match (output.exit_code, output.signal) {
+            (Some(code), _) => format!("exited with status {code}"),
+            (_, Some(signal)) => format!("terminated by signal {signal}"),
+            _ => "did not exit successfully".into(),
+        };
         Err(format!(
-            "Installer exited {:?}\n{}\n{}",
-            output.exit_code, output.stdout.text, output.stderr.text
+            "Installer {reason}\n{}\n{}",
+            output.stdout.text, output.stderr.text
         ))
     }
 }
