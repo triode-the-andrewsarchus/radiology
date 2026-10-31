@@ -120,6 +120,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
+        self.reveal_job.stop();
         self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;

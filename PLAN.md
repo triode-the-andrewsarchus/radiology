@@ -510,6 +510,8 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/rust-file-manager-reveal.md](plans/rust-file-manager-reveal.md) — shared file/folder context action, scoped desktop handoff, bounded RPC ownership and validation.
+
 - [plans/rust-normalized-revision-retention.md](plans/rust-normalized-revision-retention.md) — bounded recognized PR semantic records, shared writer ownership, safe deferred cleanup and open-reader behavior.
 
 - [plans/rust-real-indexer-acceptance.md](plans/rust-real-indexer-acceptance.md) — actual Rust, TypeScript, Go, Python, Kotlin/Java and C/C++ tools through shared generation/navigation/reuse/reload acceptance.

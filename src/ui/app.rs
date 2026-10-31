@@ -3,6 +3,7 @@
 mod actions;
 mod bookmarks;
 mod critical_marks;
+mod desktop;
 mod git;
 mod indexing;
 mod outline;
@@ -195,6 +196,7 @@ pub struct RadiologyApp {
     /// Most recent recoverable error shown in the reader.
     pub error: Option<String>,
     error_notice: crate::ui::error_notice::ErrorNotice,
+    reveal_job: crate::background::LatestRead<Result<(), String>>,
     /// Whether the left navigation sidebar is visible.
     pub show_sidebar: bool,
     /// Whether the right context inspector is visible.
@@ -310,6 +312,7 @@ impl RadiologyApp {
             scroll_to_line: None,
             error: None,
             error_notice: Default::default(),
+            reveal_job: Default::default(),
             show_sidebar: true,
             show_inspector: true,
         }
@@ -434,6 +437,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.reveal_job.stop();
         self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
@@ -566,6 +570,7 @@ impl eframe::App for RadiologyApp {
         self.poll_recent_pull_requests(ctx);
         self.poll_source(ctx);
         self.poll_git_refresh(ctx);
+        self.poll_reveal(ctx);
         self.poll_index(ctx);
         if self.repository_search.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
@@ -739,6 +744,9 @@ impl eframe::App for RadiologyApp {
                         self.branch_name.as_deref(),
                     ) {
                         match action {
+                            SidebarAction::RevealInFileManager(path) => {
+                                self.reveal_in_file_manager(path)
+                            }
                             SidebarAction::OpenFile(p) => {
                                 self.open_file(&p);
                             }

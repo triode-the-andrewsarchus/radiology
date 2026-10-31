@@ -2100,3 +2100,28 @@ mod reviews;
 mod review_refresh;
 
 mod provisioning;
+
+#[test]
+fn file_manager_failure_preserves_reader_and_repository_teardown_retires_late_errors() {
+    let (_owner, mut app) = opened_repository();
+    app.open_file("a.rs");
+    settle(&mut app);
+    let buffer = app.open_buffer.clone().unwrap();
+    app.reveal_job
+        .spawn(|_| Err("Desktop file manager unavailable".into()));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while app.reveal_job.is_running() {
+        app.poll_reveal(&Context::default());
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(
+        app.error.as_deref(),
+        Some("Desktop file manager unavailable")
+    );
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    app.reveal_job.spawn(|_| Err("retired request".into()));
+    app.reset_repository_state();
+    app.poll_reveal(&Context::default());
+    assert!(app.error.is_none() && !app.reveal_job.is_running());
+}
