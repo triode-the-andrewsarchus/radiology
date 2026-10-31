@@ -510,6 +510,8 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/rust-project-cache-maintenance.md](plans/rust-project-cache-maintenance.md) — repository namespaces, cooperative leases, legacy migration and safe retired-record cleanup.
+
 - [plans/rust-feature-configuration.md](plans/rust-feature-configuration.md) — manifest feature cfg parity, real rust-analyzer coverage/navigation, negative control and native acceptance.
 
 - [plans/rust-project-index-reuse.md](plans/rust-project-index-reuse.md) — version-qualified whole-context project reuse, staged cache publication and origin provenance.

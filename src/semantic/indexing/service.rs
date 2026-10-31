@@ -50,7 +50,10 @@ impl GenerationRequest {
         Ok(inventory)
     }
 
-    fn prepare(&self, cancel: &AtomicBool) -> Result<(InputInventory, IndexingWorkspace), String> {
+    fn prepare(
+        &self,
+        cancel: &AtomicBool,
+    ) -> Result<(InputInventory, IndexingWorkspace, std::fs::File), String> {
         super::cache::directory(self)?;
         let inventory = self.inventory(cancel)?;
         let baseline =
@@ -58,7 +61,8 @@ impl GenerationRequest {
         if let Some(review) = &self.review {
             baseline.verify_snapshot(&review.head_inputs(cancel)?.blobs)?;
         }
-        Ok((inventory, baseline))
+        let lease = super::cache::projects::reader_lease(self, cancel)?;
+        Ok((inventory, baseline, lease))
     }
 
     pub(super) fn identity_root(&self) -> Result<PathBuf, String> {
@@ -365,7 +369,7 @@ fn generate(
     cancel: &AtomicBool,
     state: &Mutex<GenerationProgress>,
 ) -> Result<GeneratedIndex, String> {
-    let (inventory, baseline) = request.prepare(cancel)?;
+    let (inventory, baseline, project_lease) = request.prepare(cancel)?;
     let plan = IndexPlan::inspect(inventory.paths.iter().map(String::as_str));
     let mut report = GenerationReport {
         revision: request.revision().map(str::to_owned),
@@ -409,7 +413,8 @@ fn generate(
     report.stale_reason = source_staleness(&request, &inventory, &baseline, cancel)?;
     check_cancel(cancel)?;
     report.documents = merged.documents.len();
-    let mut warnings = super::cache::projects::publish(pending_projects, &report, cancel);
+    let mut warnings =
+        super::cache::projects::publish(pending_projects, &request, &report, project_lease, cancel);
     report.cache_warning = (!warnings.is_empty()).then(|| warnings.join("\n"));
     if let Err(error) = super::cache::save(
         &request,

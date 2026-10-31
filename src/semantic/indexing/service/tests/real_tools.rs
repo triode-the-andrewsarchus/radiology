@@ -189,10 +189,17 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
     assert!(!fixture.source.join("node_modules").exists());
     assert!(restored.matches_buffer(&SourceBuffer::from_str("b.ts", files[3].1)));
     assert!(!restored.matches_buffer(&SourceBuffer::from_str("b.ts", "changed\n")));
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 2);
-    assert!(fs::read_dir(fixture.cache.join("projects"))
-        .unwrap()
-        .all(|entry| entry.unwrap().path().is_file()));
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 3);
+    let files: Vec<_> = walkdir::WalkDir::new(fixture.cache.join("projects"))
+        .into_iter()
+        .map(Result::unwrap)
+        .filter(|entry| entry.file_type().is_file())
+        .collect();
+    assert!((1..=2).contains(&files.len())); // accepted record and optional completed migration marker
+    assert!(files
+        .iter()
+        .all(|entry| entry.file_name() == ".legacy-migrated"
+            || entry.path().extension().is_some_and(|ext| ext == "json")));
 }
 
 fn assert_viewed_inputs_unchanged(fixture: &Fixture, files: &[(&str, &str)]) {

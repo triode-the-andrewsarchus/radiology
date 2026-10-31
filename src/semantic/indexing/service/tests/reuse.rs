@@ -1,10 +1,14 @@
 use super::*;
 
-fn project_cache(fixture: &Fixture) -> Vec<(PathBuf, Vec<u8>)> {
-    let mut entries: Vec<_> = fs::read_dir(fixture.cache.join("projects"))
-        .unwrap()
+pub(super) fn project_cache(fixture: &Fixture) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut entries: Vec<_> = walkdir::WalkDir::new(fixture.cache.join("projects"))
+        .into_iter()
+        .map(Result::unwrap)
+        .filter(|entry| {
+            entry.file_type().is_file() && entry.path().extension().is_some_and(|ext| ext == "json")
+        })
         .map(|entry| {
-            let path = entry.unwrap().path();
+            let path = entry.into_path();
             let bytes = fs::read(&path).unwrap();
             (path, bytes)
         })
@@ -175,19 +179,22 @@ fn cancelled_generation_discards_staged_projects_and_preserves_accepted_records(
     let mut generator = IndexGenerator::default();
     generator.start(fixture.request());
     wait_for(&ready);
-    assert_eq!(
-        fs::read_dir(fixture.cache.join("projects"))
-            .unwrap()
-            .count(),
-        3
-    ); // two accepted, one staged
+    let staged = || {
+        walkdir::WalkDir::new(fixture.cache.join("projects"))
+            .into_iter()
+            .map(Result::unwrap)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".radiology-index-stage-")
+            })
+            .count()
+    };
+    assert_eq!(staged(), 1); // first project is staged while the second is live
     generator.stop();
     let deadline = Instant::now() + Duration::from_secs(5);
-    while fs::read_dir(fixture.cache.join("projects"))
-        .unwrap()
-        .count()
-        != 2
-    {
+    while staged() != 0 {
         assert!(Instant::now() < deadline, "staged project was not retired");
         std::thread::sleep(Duration::from_millis(5));
     }

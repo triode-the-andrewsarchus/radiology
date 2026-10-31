@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Scoped project cache maintenance and migration (Codex)
+
+Project records now use repository-owned namespaces with flat-layout read fallback
+and owned-record migration. Shared generation leases and exclusive idle maintenance
+reuse existing primitives; waiting is cancellable/bounded and cleanup defers while
+another generator owns data. Verified successful runs remove retired strategies and
+abandoned owned stages, retaining skipped strategies, unknown files, symlinks and
+foreign roots. Marker creation does not follow dangling links. [Contract and tests](plans/rust-project-cache-maintenance.md).
+Full gates pass 419 app tests (three ignored), eight shared tests, 30 doctests, fmt,
+strict Clippy, build and rustdoc. After fixture sharing, five maintenance tests, both
+real Rust/TS tests and strict Clippy pass again. No new hotspot/cycle/clone growth;
+flagged fragments are exact baseline code. Native migration/restart evidence follows.
+Other real tools/corpora, broader recovery, normalized revision retention and final
+UI/accessibility/scaling/font/sibling audit remain open. Commit and push each increment.
+
 ## 2026-10-30 — Rust manifest feature cfg parity and real native navigation (Codex)
 
 Rust generation now unions explicit nested Cargo feature names into cfg overrides,
