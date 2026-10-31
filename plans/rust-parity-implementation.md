@@ -177,7 +177,8 @@ for simultaneous inspector regions and source keyboard exclusion.
   large-file performance and long-line Back acceptance. Shared sparse Unicode
   coordinates and immediate anchored unwrapped reveal now pass exact-byte/native
   1×/2× checks; [reader performance](rust-reader-performance.md) records remaining
-  loading delays and large-source reflow latency. Wrapped End/reflow now retains
+  profiling and the repaired wrapped reset/rewrap measurement priority. Broader
+  corpus performance and scroll/zoom/input acceptance remain open. Wrapped End/reflow now retains
   reveal until painting and final scroll offsets agree, with native 1×/2×
   zoom/toggle/selection evidence.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
