@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-10-30 — Shared readable process completion diagnostics (Codex)
+
+The native-discovered indexer message now reads “Indexer exited with status 9”
+instead of exposing Some/None values. RunOutput owns the same shared exit/signal
+formatter used by installation; process status fields and bounded diagnostics stay
+intact. Eleven process tests, eight provisioning tests and the reader Update/forced
+failure/retention test pass; the reader asserts exact wording. Strict Clippy and
+formatting pass. No new hotspot/cycle/clone growth; flagged reader-test fragments
+are baseline code. Rust manifest feature overrides are the next active gap, and
+full parity remains open. Commit and push each increment.
+
 ## 2026-10-30 — Reader Update/Reindex controls and native reuse recovery (Codex)
 
 Backend `8317edd` is pushed. Index Projects now separates exact/version-qualified

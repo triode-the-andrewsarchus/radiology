@@ -101,8 +101,9 @@ The misnamed `forced-recovery-fresh-index.png` precedes the successful force act
 and is not evidence of warning clearance. Controlled local tooling tests lifecycle
 and UI; the separate real TypeScript test covers real compiler output. The sibling
 capture helper is QA-only; the app remains standalone. Native mixed-project and
-pinned-origin visual acceptance remain open. The generic indexer failure text still
-exposes Option-style status formatting; installer failures already use plain status.
+pinned-origin visual acceptance remain open. A follow-up shares RunOutput status formatting between generation and installation;
+indexer failures now show plain status/signal text. The reader failure test asserts
+the exact status message.
 
 This latest-record design avoids revision/version file growth, but does not yet
 sweep records for removed/renamed project identities or qualify external build

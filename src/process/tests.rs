@@ -26,6 +26,7 @@ fn preserves_exit_status_streams_and_literal_arguments() {
     );
     let output = run(&command, &AtomicBool::new(false), Duration::from_secs(5)).unwrap();
     assert_eq!(output.exit_code, Some(7));
+    assert_eq!(output.status_description(), "exited with status 7");
     assert!(!output.succeeded());
     assert_eq!(output.stdout.text, root.path().to_str().unwrap());
     assert_eq!(output.stderr.text, "diagnostic");
@@ -91,6 +92,10 @@ fn spawn_failure_and_signalled_exit_are_distinct() {
     let output = run(&command, &AtomicBool::new(false), Duration::from_secs(5)).unwrap();
     assert_eq!(output.exit_code, None);
     assert_eq!(output.signal, Some(libc::SIGTERM));
+    assert_eq!(
+        output.status_description(),
+        format!("terminated by signal {}", libc::SIGTERM)
+    );
     command.executable = root.path().join("missing-tool");
     assert!(matches!(
         run(&command, &AtomicBool::new(false), Duration::from_secs(5))

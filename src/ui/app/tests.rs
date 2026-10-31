@@ -669,9 +669,12 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     assert_eq!(app.generation_report().unwrap().documents, 1);
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
     settle(&mut app);
-    assert!(app.generation_report().unwrap().outcomes[0]
-        .failure
-        .is_some());
+    assert_eq!(
+        app.generation_report().unwrap().outcomes[0]
+            .failure
+            .as_deref(),
+        Some("Indexer exited with status 9")
+    );
     assert_eq!(
         app.semantic_index.as_ref().unwrap().source_digests["a.rs"],
         digest
