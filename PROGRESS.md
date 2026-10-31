@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-10-30 — Native PR refresh rename, caret, pin and viewport acceptance (Codex)
+
+Implementation `275d8db` is pushed. A native long-file review retained line 100,
+content row 80 at viewport top and 200 teal pins through an exact rename. Inserting
+two lines mapped caret to 102 and viewport source line 81→83 while retaining the
+same visible content row; changed bytes dropped pins. Same-commit refresh retained
+state with an up-to-date notice. Metadata failure retained the accepted reader;
+fresh retry recovered. Six metadata reads were observed. Checkout HEAD/status/bytes
+remain unchanged; app/compositors exit zero. [Contract and hashed evidence](plans/rust-pr-refresh-restoration.md).
+No production changes or additional automated run in this evidence increment.
+Remaining measured UI issues include oversized multiline error notices and enabled
+unavailable revision controls. Full parity remains open: complete tool provisioning/
+project/version reuse, broader recovery and final UI/accessibility/scaling/font/
+sibling reuse acceptance. Commit and push each increment.
+
 ## 2026-10-30 — Atomic active-PR refresh and current-reader restoration (Codex)
 
 Changed head/base reviews stage source/syntax/fold preparation before publication,

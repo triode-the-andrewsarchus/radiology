@@ -52,6 +52,33 @@ file. New refresh fixtures share their initial revision setup; no new clone grou
 remains. Shared source preparation, line mapping, pin memory and bounded job
 ownership are reused. Logs: `/tmp/radiology-pr-refresh-{tests,viewport-tests,all-tests,clippy,build,doc}.log`.
 
-Native rename/caret/pin/viewport acceptance is pending. Full parity remains open:
+## Native acceptance
+
+Implementation `275d8db` passed a private 1280×900 Wayland sequence. A 202-line
+function was opened at caret line 100, with content row 80 at the viewport top and
+200 helper occurrences pinned. A pure rename to `moved café.rs` preserved that
+caret, visible source row, pin count and teal color. Two inserted lines then moved
+the caret to line 102 and the viewport anchor from source line 81 to 83 while
+retaining content row 80 at the top. Changed bytes dropped the pins as specified.
+A same-commit refresh preserved the reader and showed the up-to-date notice.
+Controlled metadata failure retained the accepted path/line/source; a fresh retry
+recovered. Six metadata view requests were observed. Checkout HEAD, dirty status
+and source bytes compare unchanged. App and both compositor exit statuses are zero.
+
+Artifacts: `/tmp/radiology-pr-refresh-native/manifest.json`, `acceptance.json`,
+`heads.json`, `gh-requests.jsonl`, and hashed screenshots `pinned-before-refresh.png`,
+`renamed-restored.png`, `inserted-restored.png`, `up-to-date-retained.png`,
+`metadata-failure-retained.png` and `recovered-up-to-date.png`. Caret/viewport/pin
+observations are visual checks, not OCR assertions. Before/base movement, revision
+fallback, failure during source preparation and Cancel remain covered by automated
+tests rather than this native sequence. Controlled local gh responses and Git
+fixtures make no remote PR writes. Sibling capture helpers are QA only.
+
+The metadata-failure capture also records a remaining UI issue: multiline process
+diagnostics occupy an oversized error banner. Bounding that notice while keeping
+full details available belongs to the remaining UI cleanup. Unavailable revision
+controls also still need the enabled-state audit.
+
+Full parity remains open:
 complete index provisioning/project/version reuse, broader corrupt-store recovery,
 and the final UI/accessibility/scaling/font and sibling reuse audit.
