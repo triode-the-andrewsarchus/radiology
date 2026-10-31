@@ -289,7 +289,7 @@ impl Sidebar {
             ui.painter()
                 .rect_stroke(response.rect, 3.0, egui::Stroke::new(1.0_f32, theme.border));
         }
-        Self::row_activated(&response)
+        super::commands::row_activated(&response)
     }
 
     fn search(
@@ -397,16 +397,7 @@ impl Sidebar {
             theme.text_primary,
         );
         let response = response.on_hover_text(format!("{}:{}:{}", hit.path, hit.line, hit.column));
-        Self::row_activated(&response)
-    }
-
-    fn row_activated(response: &egui::Response) -> bool {
-        // A result can move after egui's hit test; validate the live rectangle.
-        response.clicked()
-            && (!response.clicked_by(egui::PointerButton::Primary)
-                || response
-                    .interact_pointer_pos()
-                    .is_some_and(|position| response.interact_rect.contains(position)))
+        super::commands::row_activated(&response)
     }
 
     /// Recursively renders a single tree node (directory or file).

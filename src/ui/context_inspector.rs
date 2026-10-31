@@ -125,23 +125,14 @@ impl ContextInspector {
     ) -> Option<InspectorAction> {
         let mut action = None;
         let height = ui.available_height();
-        egui::TopBottomPanel::top("declaration_region")
-            .resizable(true)
-            .default_height(height * 0.38)
-            .min_height(100.0)
-            .max_height((height - 220.0).max(100.0))
-            .show_inside(ui, |ui| {
-                action =
-                    Self::render_declaration_context(ui, theme, &content, references, declaration);
-            });
         egui::TopBottomPanel::bottom("bookmarks_region")
             .resizable(true)
             .default_height(height * 0.25)
             .min_height(100.0)
             .max_height((height * 0.5).max(100.0))
             .show_inside(ui, |ui| {
-                let next = ui
-                    .add_enabled_ui(content.bookmarks_enabled, |ui| {
+                let next = region(ui, |ui| {
+                    ui.add_enabled_ui(content.bookmarks_enabled, |ui| {
                         bookmarks.show(
                             ui,
                             theme,
@@ -152,15 +143,31 @@ impl ContextInspector {
                                 .then_some(content.current_bookmarked),
                         )
                     })
-                    .inner;
+                    .inner
+                    .map(InspectorAction::Bookmark)
+                });
                 if let Some(next) = next {
-                    action = Some(InspectorAction::Bookmark(next));
+                    action = Some(next);
+                }
+            });
+        egui::TopBottomPanel::top("declaration_region")
+            .resizable(true)
+            .default_height(height * 0.38)
+            .min_height(100.0)
+            .max_height((ui.available_height() - 120.0).max(100.0))
+            .show_inside(ui, |ui| {
+                if let Some(next) = region(ui, |ui| {
+                    Self::render_declaration_context(ui, theme, &content, references, declaration)
+                }) {
+                    action = Some(next);
                 }
             });
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
             .show_inside(ui, |ui| {
-                if let Some(next) = Self::render_under_caret_context(ui, theme, &content, outline) {
+                if let Some(next) = region(ui, |ui| {
+                    Self::render_under_caret_context(ui, theme, &content, outline)
+                }) {
                     action = Some(next);
                 }
             });
@@ -314,6 +321,19 @@ impl ContextInspector {
     }
 }
 
+// Panel layout owns its extent; clipped child content cannot enlarge a sibling region.
+fn region(
+    ui: &mut Ui,
+    render: impl FnOnce(&mut Ui) -> Option<InspectorAction>,
+) -> Option<InspectorAction> {
+    let rect = ui.available_rect_before_wrap();
+    let mut child = ui.child_ui(rect, egui::Layout::top_down(egui::Align::Min));
+    child.set_clip_rect(rect.intersect(ui.clip_rect()));
+    let action = render(&mut child);
+    ui.allocate_space(rect.size().max(egui::Vec2::ZERO));
+    action
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,70 +374,88 @@ mod tests {
                         symbol.selection_range.start,
                         None,
                     );
-                    let mut pane = egui::Rect::NOTHING;
-                    let output = crate::ui::test_support::painted_frame(
+                    crate::ui::test_support::painted_frame(
                         &ctx,
                         egui::vec2(1280.0, 800.0),
                         vec![],
-                        |ui| {
-                            pane = egui::SidePanel::right("inspector-test")
-                                .default_width(width)
-                                .min_width(200.0)
-                                .show_inside(ui, |ui| {
-                                    ui.style_mut().interaction.selectable_labels = false;
-                                    ContextInspector::show(
-                                        ui,
-                                        &theme,
-                                        InspectorContent {
-                                            under_caret: None,
-                                            under_caret_loading: false,
-                                            under_caret_error: None,
-                                            definition_preview:
-                                                &crate::source::preview::PreviewPhase::None,
-                                            definition_expanded: false,
-                                            declaration: Some(symbol),
-                                            buffer: Some(&buffer),
-                                            reference_results: &ReferenceResults::default(),
-                                            selected_reference: None,
-                                            reference_disclosures: &Default::default(),
-                                            reference_target: None,
-                                            explicit_references: false,
-                                            references_loading: false,
-                                            reference_error: None,
-                                            references_available: false,
-                                            outline: &symbols,
-                                            test_code: None,
-                                            bookmarks: &bookmarks,
-                                            scope: &"Review scope with long title".repeat(200),
-                                            bookmarks_enabled: true,
-                                            can_toggle_bookmark: true,
-                                            current_bookmarked: false,
-                                            outline_enabled: true,
-                                        },
-                                        &mut Default::default(),
-                                        &mut Default::default(),
-                                        &mut outline,
-                                        &mut Default::default(),
-                                    );
-                                })
-                                .response
-                                .rect;
-                        },
+                        |_| {},
                     );
+                    let mut render = || {
+                        let mut pane = egui::Rect::NOTHING;
+                        let output = crate::ui::test_support::painted_frame(
+                            &ctx,
+                            egui::vec2(1280.0, 800.0),
+                            vec![],
+                            |ui| {
+                                pane = egui::SidePanel::right("inspector-test")
+                                    .default_width(width)
+                                    .min_width(200.0)
+                                    .show_inside(ui, |ui| {
+                                        ui.style_mut().interaction.selectable_labels = false;
+                                        ContextInspector::show(
+                                            ui,
+                                            &theme,
+                                            InspectorContent {
+                                                under_caret: None,
+                                                under_caret_loading: false,
+                                                under_caret_error: None,
+                                                definition_preview:
+                                                    &crate::source::preview::PreviewPhase::None,
+                                                definition_expanded: false,
+                                                declaration: Some(symbol),
+                                                buffer: Some(&buffer),
+                                                reference_results: &ReferenceResults::default(),
+                                                selected_reference: None,
+                                                reference_disclosures: &Default::default(),
+                                                reference_target: None,
+                                                explicit_references: false,
+                                                references_loading: false,
+                                                reference_error: None,
+                                                references_available: false,
+                                                outline: &symbols,
+                                                test_code: None,
+                                                bookmarks: &bookmarks,
+                                                scope: &"Review scope with long title".repeat(200),
+                                                bookmarks_enabled: true,
+                                                can_toggle_bookmark: true,
+                                                current_bookmarked: false,
+                                                outline_enabled: true,
+                                            },
+                                            &mut Default::default(),
+                                            &mut Default::default(),
+                                            &mut outline,
+                                            &mut Default::default(),
+                                        );
+                                    })
+                                    .response
+                                    .rect;
+                            },
+                        );
+                        (output, pane)
+                    };
+                    let (output, pane) = render();
+                    assert_region_geometry(&output, pane, width);
+                    ctx.data_mut(|data| {
+                        for name in ["declaration_region", "bookmarks_region"] {
+                            data.insert_persisted(
+                                egui::Id::new(name),
+                                egui::containers::panel::PanelState {
+                                    rect: egui::Rect::from_min_size(
+                                        egui::Pos2::ZERO,
+                                        egui::vec2(width, 10000.0),
+                                    ),
+                                },
+                            );
+                        }
+                    });
+                    let (output, pane) = render();
                     assert_region_geometry(&output, pane, width);
                 }
             }
         }
     }
     fn assert_region_geometry(output: &egui::FullOutput, pane: egui::Rect, width: f32) {
-        let labels: Vec<_> = output
-            .shapes
-            .iter()
-            .filter_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) => Some(text),
-                _ => None,
-            })
-            .collect();
+        let labels: Vec<_> = crate::ui::test_support::text_shapes(output).collect();
         for heading in ["Declaration", "Outline", "Bookmarks", "Ctrl+0"] {
             assert!(
                 labels.iter().any(|text| text.galley.job.text == heading),

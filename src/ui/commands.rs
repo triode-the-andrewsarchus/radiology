@@ -312,6 +312,15 @@ pub(crate) fn retain_navigation_keys(ctx: &egui::Context, id: egui::Id) {
     });
 }
 
+pub(crate) fn row_activated(response: &egui::Response) -> bool {
+    // A result can move after egui's hit test; validate the live rectangle.
+    response.clicked()
+        && (!response.clicked_by(egui::PointerButton::Primary)
+            || response
+                .interact_pointer_pos()
+                .is_some_and(|position| response.interact_rect.contains(position)))
+}
+
 #[cfg(test)]
 pub(crate) fn test_key(key: Key) -> egui::Event {
     egui::Event::Key {
