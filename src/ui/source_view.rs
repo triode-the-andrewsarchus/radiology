@@ -101,6 +101,8 @@ pub struct SourceViewContent<'a> {
     pub fold_store: &'a mut FoldStore,
     /// Revision-specific diff overlays.
     pub line_changes: Option<&'a FileLineChanges>,
+    /// Change metadata determines whether Before and After exist for this path.
+    pub file_change: Option<&'a crate::pull_request::change::FileChange>,
     /// Pinned source ranges.
     pub pin_store: &'a OccurrencePinStore,
     /// Whether source wraps at the viewport edge.
@@ -153,6 +155,7 @@ impl SourceView {
             highlight_error,
             fold_store,
             line_changes,
+            file_change,
             pin_store,
             wrap_lines,
             enclosing_symbols,
@@ -201,20 +204,28 @@ impl SourceView {
                 if let Some(diff) = line_changes {
                     if !diff.hunks.is_empty() {
                         ui.separator();
-                        if Icon::ArrowUp
-                            .button(ui, 11.0, theme.text_primary)
-                            .on_hover_text("Previous change block (⌥↑)")
-                            .clicked()
-                        {
-                            action = Some(SourceViewAction::PrevChangeBlock);
-                        }
-                        if Icon::ArrowDown
-                            .button(ui, 11.0, theme.text_primary)
-                            .on_hover_text("Next change block (⌥↓)")
-                            .clicked()
-                        {
-                            action = Some(SourceViewAction::NextChangeBlock);
-                        }
+                        let navigation = diff.navigation_at(
+                            *caret_line,
+                            buffer.revision.unwrap_or(ReviewRevision::After),
+                        );
+                        ui.add_enabled_ui(navigation.previous.is_some(), |ui| {
+                            if Icon::ArrowUp
+                                .button(ui, 11.0, theme.text_primary)
+                                .on_hover_text("Previous change block (Alt+↑)")
+                                .clicked()
+                            {
+                                action = Some(SourceViewAction::PrevChangeBlock);
+                            }
+                        });
+                        ui.add_enabled_ui(navigation.next.is_some(), |ui| {
+                            if Icon::ArrowDown
+                                .button(ui, 11.0, theme.text_primary)
+                                .on_hover_text("Next change block (Alt+↓)")
+                                .clicked()
+                            {
+                                action = Some(SourceViewAction::NextChangeBlock);
+                            }
+                        });
                     }
                 }
 
@@ -231,20 +242,16 @@ impl SourceView {
                 // Right side: Modified status + Revision [ Before | After ] segmented pill
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some(rev) = buffer.revision {
-                        let is_after = rev == ReviewRevision::After;
-                        let is_before = rev == ReviewRevision::Before;
                         ui.horizontal(|ui| {
-                            if ui.selectable_label(is_after, "After").clicked() && !is_after {
-                                action =
-                                    Some(SourceViewAction::ToggleRevision(ReviewRevision::After));
-                            }
-                            if ui.selectable_label(is_before, "Before").clicked() && !is_before {
-                                action =
-                                    Some(SourceViewAction::ToggleRevision(ReviewRevision::Before));
+                            if let Some(revision) = revision_buttons(ui, rev, file_change) {
+                                action = Some(SourceViewAction::ToggleRevision(revision));
                             }
                             ui.colored_label(theme.text_secondary, "Revision");
                             if line_changes.is_some() {
-                                ui.colored_label(Color32::from_rgb(234, 179, 8), "Modified");
+                                ui.colored_label(
+                                    Color32::from_rgb(234, 179, 8),
+                                    file_change.map_or("Modified", |change| change.status.title()),
+                                );
                             }
                         });
                     }
@@ -461,6 +468,29 @@ fn show_pin_groups(
     action
 }
 
+fn revision_buttons(
+    ui: &mut Ui,
+    current: ReviewRevision,
+    change: Option<&crate::pull_request::change::FileChange>,
+) -> Option<ReviewRevision> {
+    let mut action = None;
+    for revision in [ReviewRevision::After, ReviewRevision::Before] {
+        let available = change.is_none_or(|change| change.path_for_revision(revision).is_some());
+        let response = ui.add_enabled(
+            available,
+            egui::SelectableLabel::new(current == revision, revision.title()),
+        );
+        if response
+            .on_disabled_hover_text(format!("This file is unavailable in {}", revision.title()))
+            .clicked()
+            && current != revision
+        {
+            action = Some(revision);
+        }
+    }
+    action
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -577,6 +607,7 @@ mod tests {
                             highlight_error: None,
                             fold_store: &mut folds,
                             line_changes: None,
+                            file_change: None,
                             pin_store: &pins,
                             wrap_lines: false,
                             enclosing_symbols: &[],
@@ -603,5 +634,64 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(painted_text.contains(&"one"));
         assert!(painted_text.iter().all(|text| !text.contains(['\r', '\n'])));
+    }
+    #[test]
+    fn revision_buttons_do_not_dispatch_unavailable_or_already_selected_revisions() {
+        use crate::pull_request::change::{FileChange, FileChangeStatus};
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        for (status, current, requested, expected) in [
+            (
+                FileChangeStatus::Added,
+                ReviewRevision::After,
+                ReviewRevision::Before,
+                None,
+            ),
+            (
+                FileChangeStatus::Deleted,
+                ReviewRevision::Before,
+                ReviewRevision::After,
+                None,
+            ),
+            (
+                FileChangeStatus::Modified,
+                ReviewRevision::After,
+                ReviewRevision::Before,
+                Some(ReviewRevision::Before),
+            ),
+            (
+                FileChangeStatus::Renamed { similarity: 100 },
+                ReviewRevision::Before,
+                ReviewRevision::After,
+                Some(ReviewRevision::After),
+            ),
+            (
+                FileChangeStatus::Added,
+                ReviewRevision::After,
+                ReviewRevision::After,
+                None,
+            ),
+        ] {
+            let change = FileChange {
+                path: "new.rs".into(),
+                old_path: Some("old.rs".into()),
+                status,
+                before_blob: "before".into(),
+                after_blob: "after".into(),
+                additions: 1,
+                deletions: 1,
+                is_binary: false,
+            };
+            let ctx = egui::Context::default();
+            let size = egui::vec2(240.0, 80.0);
+            let mut action = None;
+            let output = painted_frame(&ctx, size, vec![], |ui| {
+                action = revision_buttons(ui, current, Some(&change));
+            });
+            let target = text_center(&output, requested.title());
+            painted_frame(&ctx, size, click(target), |ui| {
+                action = revision_buttons(ui, current, Some(&change));
+            });
+            assert_eq!(action, expected, "{:?}", change.status);
+        }
     }
 }

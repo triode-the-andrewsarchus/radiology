@@ -233,16 +233,21 @@ impl RadiologyApp {
         }
     }
 
+    pub(super) fn change_navigation(&self) -> crate::pull_request::diff::ChangeNavigation {
+        self.open_buffer
+            .as_ref()
+            .zip(self.line_changes.as_ref())
+            .map_or_else(Default::default, |(buffer, changes)| {
+                changes.navigation_at(
+                    self.caret_line,
+                    buffer.revision.unwrap_or(ReviewRevision::After),
+                )
+            })
+    }
+
     fn navigate_change(&mut self, next: bool) {
-        let Some(changes) = &self.line_changes else {
-            return;
-        };
-        let revision = self.active_revision.unwrap_or(ReviewRevision::After);
-        let line = if next {
-            changes.next_change_line(self.caret_line, revision)
-        } else {
-            changes.previous_change_line(self.caret_line, revision)
-        };
+        let targets = self.change_navigation();
+        let line = if next { targets.next } else { targets.previous };
         if let (Some(line), Some(buffer)) = (line, &self.open_buffer) {
             self.navigate_target(
                 buffer.location_at_byte(buffer.byte_offset(line, 0)),
@@ -347,6 +352,13 @@ impl RadiologyApp {
             return;
         }
         let location = SourceLocation::with_revision(&buffer.path, 0, Some(revision));
+        if self
+            .review
+            .as_ref()
+            .is_none_or(|review| review.resolve(location.clone()).is_err())
+        {
+            return;
+        }
         let line = self
             .line_changes
             .as_ref()

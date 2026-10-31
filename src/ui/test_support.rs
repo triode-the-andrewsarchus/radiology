@@ -34,3 +34,36 @@ pub(crate) fn painted_frame(
         },
     )
 }
+
+/// Finds a rendered label's center for pointer-driven acceptance checks.
+pub(crate) fn text_center(output: &egui::FullOutput, label: &str) -> egui::Pos2 {
+    output
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text == label => {
+                Some(text.pos + text.galley.size() / 2.0)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing painted label {label}"))
+}
+
+/// Sends one complete pointer click to an observed control position.
+pub(crate) fn click(position: egui::Pos2) -> Vec<egui::Event> {
+    vec![
+        egui::Event::PointerMoved(position),
+        egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        },
+        egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]
+}

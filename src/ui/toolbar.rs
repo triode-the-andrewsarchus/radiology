@@ -33,6 +33,7 @@ impl Toolbar {
     /// * `filters` - Repository file filter settings.
     /// * `wrap_lines` - Whether long lines wrap at viewport width.
     /// * `history` - Navigation history tracker used to enable/disable back/forward buttons.
+    /// * `change_navigation` - Available change targets for the accepted source.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -47,6 +48,7 @@ impl Toolbar {
         filters: &SourceFilters,
         wrap_lines: bool,
         history: &NavigationHistory,
+        change_navigation: crate::pull_request::diff::ChangeNavigation,
     ) -> Option<ToolbarAction> {
         let mut action = None;
 
@@ -124,20 +126,24 @@ impl Toolbar {
             }
             if review_menu.active.is_some() {
                 // Change navigation buttons
-                if Icon::ArrowUp
-                    .button(ui, 11.0, theme.text_primary)
-                    .on_hover_text("Previous Change Block (Alt+↑)")
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::PrevChangeBlock);
-                }
-                if Icon::ArrowDown
-                    .button(ui, 11.0, theme.text_primary)
-                    .on_hover_text("Next Change Block (Alt+↓)")
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::NextChangeBlock);
-                }
+                ui.add_enabled_ui(change_navigation.previous.is_some(), |ui| {
+                    if Icon::ArrowUp
+                        .button(ui, 11.0, theme.text_primary)
+                        .on_hover_text("Previous Change Block (Alt+↑)")
+                        .clicked()
+                    {
+                        action = Some(ToolbarAction::PrevChangeBlock);
+                    }
+                });
+                ui.add_enabled_ui(change_navigation.next.is_some(), |ui| {
+                    if Icon::ArrowDown
+                        .button(ui, 11.0, theme.text_primary)
+                        .on_hover_text("Next Change Block (Alt+↓)")
+                        .clicked()
+                    {
+                        action = Some(ToolbarAction::NextChangeBlock);
+                    }
+                });
             }
 
             ui.separator();
