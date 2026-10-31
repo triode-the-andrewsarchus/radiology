@@ -3,6 +3,7 @@
 //! Provides the primary repository status display, back/forward history navigation,
 //! pull request review switcher, criticality mode selector, and quick palette shortcuts.
 
+use super::context_menu::{Item, MenuBar};
 use crate::critical::lens::SourceMode;
 use crate::repository::filters::SourceFilters;
 use crate::source::history::NavigationHistory;
@@ -50,6 +51,8 @@ impl Toolbar {
         history: &NavigationHistory,
         change_navigation: crate::pull_request::diff::ChangeNavigation,
     ) -> Option<ToolbarAction> {
+        let previous_focus = ui.memory(|memory| memory.focused());
+        let mut menus = MenuBar::default();
         let mut action = None;
 
         ui.horizontal(|ui| {
@@ -89,29 +92,28 @@ impl Toolbar {
 
             // Repository Menu (macOS Swift RepositoryMenu parity)
             if let Some(name) = repo_name {
-                ui.menu_button(RichText::new(name).strong().size(13.0), |ui| {
-                    if ui.button("Open Repository… (Ctrl+O)").clicked() {
-                        action = Some(ToolbarAction::OpenRepositoryDialog);
-                        ui.close_menu();
-                    }
-                    if ui.button("Copy Repository Path").clicked() {
-                        action = Some(ToolbarAction::CopyRepoPath);
-                        ui.close_menu();
-                    }
-                    ui.separator();
-                    ui.menu_button("Open Recent", |ui| {
-                        if recent_repos.is_empty() {
-                            ui.colored_label(theme.text_muted, "No recent repositories");
-                        } else {
-                            for r in recent_repos {
-                                if ui.button(r).clicked() {
-                                    action = Some(ToolbarAction::OpenRecentRepo(r.clone()));
-                                    ui.close_menu();
-                                }
-                            }
-                        }
-                    });
-                });
+                menus.button(
+                    ui,
+                    RichText::new(name).strong().size(13.0),
+                    ("repository", name, recent_repos),
+                    vec![
+                        Item::action(
+                            "Open Repository… (Ctrl+O)",
+                            ToolbarAction::OpenRepositoryDialog,
+                        ),
+                        Item::action("Copy Repository Path", ToolbarAction::CopyRepoPath),
+                        Item::separator(),
+                        Item::submenu(
+                            "Open Recent",
+                            recent_repos
+                                .iter()
+                                .map(|path| {
+                                    Item::action(path, ToolbarAction::OpenRecentRepo(path.clone()))
+                                })
+                                .collect(),
+                        ),
+                    ],
+                );
                 if let Some(branch) = branch_name {
                     ui.colored_label(theme.text_secondary, RichText::new(branch).size(10.5));
                 }
@@ -121,7 +123,7 @@ impl Toolbar {
 
             ui.separator();
 
-            if let Some(command) = review_menu.show(ui) {
+            if let Some(command) = review_menu.add_to_bar(ui, &mut menus) {
                 action = Some(command);
             }
             if review_menu.active.is_some() {
@@ -161,86 +163,8 @@ impl Toolbar {
             });
 
             // View & Filters Menu
-            ui.menu_button("View", |ui| {
-                let theme_label = if theme.is_dark {
-                    "Switch to Light Mode"
-                } else {
-                    "Switch to Dark Mode"
-                };
-                if ui.button(theme_label).clicked() {
-                    action = Some(ToolbarAction::ToggleTheme);
-                    ui.close_menu();
-                }
-                ui.separator();
-                if ui
-                    .checkbox(&mut { wrap_lines }, "Wrap Lines")
-                    .on_hover_text(
-                        "Wrap long lines at viewport edge instead of scrolling horizontally",
-                    )
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::ToggleWrapLines);
-                }
-                ui.separator();
-                if ui
-                    .checkbox(&mut { filters.source_files_only }, "Source Files Only")
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::ToggleSourceFilesOnly);
-                }
-                if ui
-                    .checkbox(&mut { filters.hides_tests }, "Hide Tests")
-                    .clicked()
-                {
-                    action = Some(ToolbarAction::ToggleHideTests);
-                }
-                ui.separator();
-                for (label, command) in [
-                    (
-                        "Larger Source Text (Ctrl++)",
-                        ToolbarAction::IncreaseSourceFont,
-                    ),
-                    (
-                        "Smaller Source Text (Ctrl+-)",
-                        ToolbarAction::DecreaseSourceFont,
-                    ),
-                    (
-                        "Reset Source Text (Ctrl+Alt+=)",
-                        ToolbarAction::ResetSourceFont,
-                    ),
-                ] {
-                    if ui.button(label).clicked() {
-                        action = Some(command);
-                        ui.close_menu();
-                    }
-                }
-                ui.separator();
-                for (label, next) in [
-                    (
-                        "Fold to Definitions (Ctrl+Alt+0)",
-                        ToolbarAction::FoldToDefinitions,
-                    ),
-                    (
-                        "Collapse Functions (Ctrl+Shift+0)",
-                        ToolbarAction::CollapseFunctions,
-                    ),
-                    ("Show All Files", ToolbarAction::ShowAllFiles),
-                ] {
-                    if ui.button(label).clicked() {
-                        action = Some(next);
-                        ui.close_menu();
-                    }
-                }
-                ui.separator();
-                if ui.button("Bookmark Location (Ctrl+D)").clicked() {
-                    action = Some(ToolbarAction::ToggleBookmark);
-                    ui.close_menu();
-                }
-            });
-
-            if let Some(command) = search_menu(ui) {
-                action = Some(command);
-            }
+            menus.button(ui, "View", "view", view_items(theme, filters, wrap_lines));
+            menus.button(ui, "Search", "search", search_items());
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -263,52 +187,128 @@ impl Toolbar {
             });
         });
 
-        action
+        let menu_action = menus.show();
+        if action.is_some() && menu_action.is_none() {
+            ui.memory_mut(|memory| {
+                if let Some(previous) = previous_focus {
+                    memory.request_focus(previous);
+                } else if let Some(focused) = memory.focused() {
+                    memory.surrender_focus(focused);
+                }
+            });
+        }
+        menu_action.or(action)
     }
 }
 
+fn view_items(
+    theme: &AppTheme,
+    filters: &SourceFilters,
+    wrap_lines: bool,
+) -> Vec<Item<ToolbarAction>> {
+    let mut items = vec![
+        Item::action(
+            if theme.is_dark {
+                "Switch to Light Mode"
+            } else {
+                "Switch to Dark Mode"
+            },
+            ToolbarAction::ToggleTheme,
+        ),
+        Item::separator(),
+        Item::action("Wrap Lines", ToolbarAction::ToggleWrapLines).checked(wrap_lines),
+        Item::separator(),
+        Item::action("Source Files Only", ToolbarAction::ToggleSourceFilesOnly)
+            .checked(filters.source_files_only),
+        Item::action("Hide Tests", ToolbarAction::ToggleHideTests).checked(filters.hides_tests),
+        Item::separator(),
+    ];
+    for (label, action) in [
+        (
+            "Larger Source Text (Ctrl++)",
+            ToolbarAction::IncreaseSourceFont,
+        ),
+        (
+            "Smaller Source Text (Ctrl+-)",
+            ToolbarAction::DecreaseSourceFont,
+        ),
+        (
+            "Reset Source Text (Ctrl+Alt+=)",
+            ToolbarAction::ResetSourceFont,
+        ),
+    ] {
+        items.push(Item::action(label, action));
+    }
+    items.push(Item::separator());
+    for (label, action) in [
+        (
+            "Fold to Definitions (Ctrl+Alt+0)",
+            ToolbarAction::FoldToDefinitions,
+        ),
+        (
+            "Collapse Functions (Ctrl+Shift+0)",
+            ToolbarAction::CollapseFunctions,
+        ),
+        ("Show All Files", ToolbarAction::ShowAllFiles),
+    ] {
+        items.push(Item::action(label, action));
+    }
+    items.push(Item::separator());
+    items.push(Item::action(
+        "Bookmark Location (Ctrl+D)",
+        ToolbarAction::ToggleBookmark,
+    ));
+    items
+}
+
 /// Search and navigation menu shares one data-driven command dispatch.
-fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
-    let mut action = None;
-    ui.menu_button("Search", |ui| {
-        let groups = [
-            &[
-                ("Find in File (Ctrl+F)", ToolbarAction::FindInFile),
-                ("Next Match (Ctrl+G)", ToolbarAction::NextFindMatch),
-                (
-                    "Previous Match (Ctrl+Shift+G)",
-                    ToolbarAction::PreviousFindMatch,
-                ),
-            ][..],
-            &[
-                ("Go to File… (Ctrl+K)", ToolbarAction::OpenQuickFilePicker),
-                ("Go to Symbol… (Ctrl+T)", ToolbarAction::OpenGoToSymbol),
-                ("Go to Line… (Ctrl+L)", ToolbarAction::OpenGoToLine),
-                (
-                    "Go to Definition (Ctrl+Alt+J / F12)",
-                    ToolbarAction::GoToDefinition,
-                ),
-                (
-                    "Find References (Ctrl+Alt+R)",
-                    ToolbarAction::FindReferences,
-                ),
-            ][..],
-            &[(
-                "Search Repository (Ctrl+Shift+F)",
-                ToolbarAction::OpenSearch,
-            )][..],
-        ];
-        for group in groups {
-            for (label, command) in group {
-                if ui.button(*label).clicked() {
-                    action = Some(command.clone());
-                    ui.close_menu();
-                }
-            }
-            ui.separator();
+fn search_items() -> Vec<Item<ToolbarAction>> {
+    let groups = [
+        &[
+            ("Find in File (Ctrl+F)", ToolbarAction::FindInFile),
+            ("Next Match (Ctrl+G)", ToolbarAction::NextFindMatch),
+            (
+                "Previous Match (Ctrl+Shift+G)",
+                ToolbarAction::PreviousFindMatch,
+            ),
+        ][..],
+        &[
+            ("Go to File… (Ctrl+K)", ToolbarAction::OpenQuickFilePicker),
+            ("Go to Symbol… (Ctrl+T)", ToolbarAction::OpenGoToSymbol),
+            ("Go to Line… (Ctrl+L)", ToolbarAction::OpenGoToLine),
+            (
+                "Go to Definition (Ctrl+Alt+J / F12)",
+                ToolbarAction::GoToDefinition,
+            ),
+            (
+                "Find References (Ctrl+Alt+R)",
+                ToolbarAction::FindReferences,
+            ),
+        ][..],
+        &[(
+            "Search Repository (Ctrl+Shift+F)",
+            ToolbarAction::OpenSearch,
+        )][..],
+    ];
+    let mut items = Vec::new();
+    for group in groups {
+        if !items.is_empty() {
+            items.push(Item::separator());
         }
-    });
-    action
+        items.extend(
+            group
+                .iter()
+                .map(|(label, action)| Item::action(*label, action.clone())),
+        );
+    }
+    items
+}
+
+#[cfg(test)]
+fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
+    let mut menus = MenuBar::default();
+    menus.button(ui, "Search", "search", search_items());
+    menus.show()
 }
 
 #[cfg(test)]

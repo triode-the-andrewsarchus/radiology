@@ -1,5 +1,5 @@
 use super::*;
-use crate::ui::test_support::{click, painted_frame, text_center};
+use crate::ui::test_support::{click, menu_frame, painted_frame, text_center};
 
 struct Menu {
     ctx: Context,
@@ -22,12 +22,7 @@ impl Menu {
         }
     }
     fn frame(&mut self, events: Vec<Event>) -> egui::FullOutput {
-        let mut raw = egui::RawInput {
-            events,
-            ..Default::default()
-        };
-        take_input(&self.ctx, &mut raw);
-        painted_frame(&self.ctx, egui::vec2(600.0, 500.0), raw.events, |ui| {
+        menu_frame(&self.ctx, egui::vec2(600.0, 500.0), events, |ui| {
             ui.interact(
                 ui.max_rect(),
                 self.focus,

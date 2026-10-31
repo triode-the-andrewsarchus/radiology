@@ -1,12 +1,17 @@
 //! Reader context menus with owned keyboard input and ordinary egui controls.
 
+mod bar;
+pub(crate) use bar::MenuBar;
+
 use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect, Response};
+use std::collections::VecDeque;
 
 pub(crate) struct Item<T> {
     label: String,
     enabled: bool,
     checked: bool,
     hint: String,
+    tooltip: String,
     shortcut: Option<egui::KeyboardShortcut>,
     action: Option<T>,
     children: Vec<Self>,
@@ -19,6 +24,7 @@ impl<T> Item<T> {
             enabled: true,
             checked: false,
             hint: String::new(),
+            tooltip: String::new(),
             shortcut: None,
             action: Some(action),
             children: vec![],
@@ -30,6 +36,7 @@ impl<T> Item<T> {
             enabled: !children.is_empty(),
             checked: false,
             hint: "▶".into(),
+            tooltip: String::new(),
             shortcut: None,
             action: None,
             children,
@@ -41,10 +48,20 @@ impl<T> Item<T> {
             enabled: false,
             checked: false,
             hint: String::new(),
+            tooltip: String::new(),
             shortcut: None,
             action: None,
             children: vec![],
         }
+    }
+    pub fn label(text: impl Into<String>) -> Self {
+        let mut item = Self::separator();
+        item.label = text.into();
+        item
+    }
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = text.into();
+        self
     }
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -69,6 +86,7 @@ impl<T> Item<T> {
             enabled: self.enabled,
             checked: self.checked,
             hint: self.hint,
+            tooltip: self.tooltip,
             shortcut: self.shortcut,
             action: self.action.map(convert),
             children: self
@@ -88,7 +106,7 @@ struct State {
     origin: Pos2,
     open: Vec<usize>,
     selected: Option<usize>,
-    pending: Vec<(Key, Modifiers)>,
+    pending: VecDeque<(Key, Modifiers)>,
     rects: Vec<Rect>,
     seen: u64,
 }
@@ -96,8 +114,9 @@ struct State {
 #[derive(Clone, Default)]
 struct Opening {
     focus: Option<Id>,
-    pending: Vec<(Key, Modifiers)>,
+    pending: VecDeque<(Key, Modifiers)>,
     armed: bool,
+    primary: bool,
     released: Option<u64>,
     held: Option<(Id, u64)>,
 }
@@ -105,19 +124,22 @@ struct Opening {
 impl Opening {
     fn capture(ctx: &Context, input: &egui::RawInput) -> Option<Self> {
         let id = state_id().with("opening");
-        let pressed = input.events.iter().any(|event| {
-            matches!(
-                event,
-                Event::PointerButton {
-                    button: egui::PointerButton::Secondary,
-                    pressed: true,
-                    ..
-                }
-            )
-        });
+        let primary = bar::primary_press(ctx, input);
+        let pressed = primary
+            || input.events.iter().any(|event| {
+                matches!(
+                    event,
+                    Event::PointerButton {
+                        button: egui::PointerButton::Secondary,
+                        pressed: true,
+                        ..
+                    }
+                )
+            });
         let mut opening = if pressed {
             Self {
                 focus: ctx.memory(|memory| memory.focused()),
+                primary,
                 ..Default::default()
             }
         } else {
@@ -141,10 +163,10 @@ impl Opening {
             matches!(
                 event,
                 Event::PointerButton {
-                    button: egui::PointerButton::Secondary,
+                    button,
                     pressed: false,
                     ..
-                }
+                } if *button == if opening.primary { egui::PointerButton::Primary } else { egui::PointerButton::Secondary }
             )
         }) {
             opening.released = Some(ctx.frame_nr());
@@ -171,6 +193,9 @@ pub(crate) fn is_open(ctx: &Context) -> bool {
 }
 
 pub(crate) fn close(ctx: &Context) {
+    if current(ctx).is_some() {
+        ctx.request_repaint();
+    }
     ctx.data_mut(|data| data.remove::<Opening>(state_id().with("opening")));
     let state = ctx.data_mut(|data| {
         let state = data.get_temp::<State>(state_id());
@@ -225,10 +250,10 @@ pub(crate) fn take_input(ctx: &Context, input: &mut egui::RawInput) {
                 if matches!(
                     event,
                     Event::PointerButton {
-                        button: egui::PointerButton::Secondary,
+                        button,
                         pressed: true,
                         ..
-                    }
+                    } if *button == if opening.primary { egui::PointerButton::Primary } else { egui::PointerButton::Secondary }
                 ) {
                     opening.armed = true;
                 }
@@ -334,8 +359,8 @@ impl State {
         }
     }
 
-    fn keys<T: Clone>(&mut self, items: &[Item<T>]) -> (bool, Option<T>) {
-        for (key, modifiers) in std::mem::take(&mut self.pending) {
+    fn keys<T: Clone>(&mut self, items: &[Item<T>], bar: &[bar::Anchor]) -> (bool, Option<T>) {
+        while let Some((key, modifiers)) = self.pending.pop_front() {
             if modifiers.ctrl || modifiers.command || modifiers.alt {
                 if let Some(action) = entries(items, &self.open)
                     .iter()
@@ -352,6 +377,9 @@ impl State {
                     return (true, Some(action));
                 }
                 continue;
+            }
+            if self.switch_bar(items, bar, key) {
+                return (false, None);
             }
             match key {
                 Key::Escape if modifiers == Modifiers::NONE => return (true, None),
@@ -399,19 +427,37 @@ pub(crate) fn show_at<T: Clone>(
     opening: Option<Pos2>,
     build: impl FnOnce() -> Vec<Item<T>>,
 ) -> Option<T> {
+    show_owned(
+        response,
+        scope,
+        opening.map(|origin| (origin, response.ctx.memory(|memory| memory.focused()))),
+        &[],
+        None,
+        build,
+    )
+}
+
+fn show_owned<T: Clone>(
+    response: &Response,
+    scope: impl std::hash::Hash,
+    opening: Option<(Pos2, Option<Id>)>,
+    bar: &[bar::Anchor],
+    initial: Option<Key>,
+    build: impl FnOnce() -> Vec<Item<T>>,
+) -> Option<T> {
     let ctx = &response.ctx;
     let scope = response.id.with(scope);
     if current(ctx).is_some_and(|state| state.owner == response.id && state.scope != scope) {
         close(ctx);
     }
-    let mut state = if let Some(origin) = opening {
+    let mut state = if let Some((origin, focus)) = opening {
         let opening = ctx
             .data_mut(|data| data.remove_temp::<Opening>(state_id().with("opening")))
             .unwrap_or_default();
         State {
             owner: response.id,
             scope,
-            return_focus: ctx.memory(|memory| memory.focused()).or(opening.focus),
+            return_focus: focus.or(opening.focus),
             origin,
             open: vec![],
             selected: None,
@@ -428,7 +474,7 @@ pub(crate) fn show_at<T: Clone>(
     );
     if state
         .pending
-        .first()
+        .front()
         .is_some_and(|(key, modifiers)| *key == Key::Escape && *modifiers == Modifiers::NONE)
     {
         ctx.data_mut(|data| data.insert_temp(state_id(), state));
@@ -436,13 +482,26 @@ pub(crate) fn show_at<T: Clone>(
         return None;
     }
     let items = build();
-    let (dismiss, action) = state.keys(&items);
+    let reveal_selection = initial.is_some() || !state.pending.is_empty();
+    if let Some(key) = initial {
+        state.move_selection(&items, key, false);
+    }
+    let (dismiss, action) = state.keys(&items, bar);
+    if state.owner != response.id {
+        state.seen = ctx.frame_nr();
+        ctx.data_mut(|data| data.insert_temp(state_id(), state));
+        ctx.request_repaint();
+        return None;
+    }
     if dismiss {
         ctx.data_mut(|data| data.insert_temp(state_id(), state));
         close(ctx);
         return action;
     }
-    let action = paint(ctx, &items, &mut state);
+    let action = paint(ctx, &items, &mut state, reveal_selection);
+    if !bar.is_empty() {
+        state.rects.push(response.rect);
+    }
     state.seen = ctx.frame_nr();
     ctx.data_mut(|data| data.insert_temp(state_id(), state));
     if action.is_some() {
@@ -451,10 +510,16 @@ pub(crate) fn show_at<T: Clone>(
     action
 }
 
-fn paint<T: Clone>(ctx: &Context, items: &[Item<T>], state: &mut State) -> Option<T> {
+fn paint<T: Clone>(
+    ctx: &Context,
+    items: &[Item<T>],
+    state: &mut State,
+    reveal_selection: bool,
+) -> Option<T> {
     state.rects.clear();
     let pointer_changed =
         ctx.input(|input| input.pointer.delta() != egui::Vec2::ZERO || input.pointer.any_pressed());
+    let reveal_selection = reveal_selection && !pointer_changed;
     let mut origin = state.origin;
     let mut level = 0;
     loop {
@@ -464,7 +529,15 @@ fn paint<T: Clone>(ctx: &Context, items: &[Item<T>], state: &mut State) -> Optio
             state.open.truncate(level.saturating_sub(1));
             break;
         }
-        let (rect, child_y, action) = paint_level(ctx, rows, state, level, origin, pointer_changed);
+        let (rect, child_y, action) = paint_level(
+            ctx,
+            rows,
+            state,
+            level,
+            origin,
+            pointer_changed,
+            reveal_selection,
+        );
         state.rects.push(rect);
         if action.is_some() {
             return action;
@@ -493,6 +566,7 @@ fn paint_level<T: Clone>(
     level: usize,
     origin: Pos2,
     pointer_changed: bool,
+    reveal_selection: bool,
 ) -> (Rect, f32, Option<T>) {
     let mut child_y = origin.y;
     let mut action = None;
@@ -506,19 +580,30 @@ fn paint_level<T: Clone>(
             egui::Frame::menu(ui.style()).show(ui, |ui| {
                 ui.set_min_width(180.0);
                 ui.set_max_width(300.0);
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    for (index, item) in rows.iter().enumerate() {
-                        let Some((response, chosen)) =
-                            paint_item(ui, item, state, index, level, pointer_changed)
-                        else {
-                            continue;
-                        };
-                        if state.open.get(level) == Some(&index) {
-                            child_y = response.rect.top();
-                        }
-                        action = chosen.or(action.take());
-                    }
-                });
+                egui::ScrollArea::vertical()
+                    .id_source(state.scope.with(("menu_scroll", level)))
+                    .max_height((ctx.screen_rect().height() - 32.0).max(48.0))
+                    .show(ui, |ui| {
+                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                            for (index, item) in rows.iter().enumerate() {
+                                let Some((response, chosen)) = paint_item(
+                                    ui,
+                                    item,
+                                    state,
+                                    index,
+                                    level,
+                                    pointer_changed,
+                                    reveal_selection,
+                                ) else {
+                                    continue;
+                                };
+                                if state.open.get(level) == Some(&index) {
+                                    child_y = response.rect.top();
+                                }
+                                action = chosen.or(action.take());
+                            }
+                        });
+                    });
             });
         });
     (area.response.rect, child_y, action)
@@ -531,10 +616,14 @@ fn paint_item<T: Clone>(
     index: usize,
     level: usize,
     pointer_changed: bool,
+    reveal_selection: bool,
 ) -> Option<(Response, Option<T>)> {
     if item.label.is_empty() {
         ui.separator();
         return None;
+    }
+    if item.action.is_none() && item.children.is_empty() {
+        return Some((ui.add(egui::Label::new(&item.label).wrap(true)), None));
     }
     let selected = state.open.get(level) == Some(&index)
         || (state.open.len() == level && state.selected == Some(index));
@@ -544,6 +633,7 @@ fn paint_item<T: Clone>(
         item.label.clone()
     };
     let button = egui::Button::new(label)
+        .wrap(true)
         .shortcut_text(&item.hint)
         .selected(selected)
         .frame(selected)
@@ -552,6 +642,14 @@ fn paint_item<T: Clone>(
             ..egui::Sense::click()
         });
     let response = ui.add_enabled(item.enabled, button);
+    let response = if item.tooltip.is_empty() {
+        response
+    } else {
+        response.on_hover_text(&item.tooltip)
+    };
+    if selected && reveal_selection {
+        response.scroll_to_me(None);
+    }
     if !item.enabled {
         return Some((response, None));
     }

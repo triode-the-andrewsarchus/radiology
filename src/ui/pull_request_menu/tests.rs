@@ -1,5 +1,5 @@
 use super::*;
-use crate::ui::test_support::{painted_frame, painted_text};
+use crate::ui::test_support::{menu_frame, painted_frame, text_center};
 
 use crate::pull_request::test_support::summary;
 
@@ -9,21 +9,46 @@ fn render(
     events: Vec<egui::Event>,
 ) -> (egui::FullOutput, Option<ReaderCommand>) {
     let mut action = None;
-    let output = painted_frame(ctx, egui::vec2(700.0, 600.0), events, |ui| {
-        action = menu.contents(ui)
+    let output = menu_frame(ctx, egui::vec2(700.0, 600.0), events, |ui| {
+        action = menu.show(ui)
     });
     (output, action)
 }
 
+fn open(menu: &PullRequestMenu<'_>, ctx: &egui::Context) -> egui::FullOutput {
+    let (output, _) = render(menu, ctx, vec![]);
+    let title = menu
+        .pending
+        .map(|number| format!("#{number}…"))
+        .or_else(|| menu.active.map(|pr| format!("#{}", pr.number)))
+        .unwrap_or_else(|| "Pull Request".into());
+    render(
+        menu,
+        ctx,
+        crate::ui::test_support::click(text_center(&output, &title)),
+    );
+    render(menu, ctx, vec![]).0
+}
+
+fn text(output: &egui::FullOutput) -> Vec<String> {
+    output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
 fn click(menu: &PullRequestMenu<'_>, text: &str) -> Option<ReaderCommand> {
     let ctx = egui::Context::default();
-    render(menu, &ctx, vec![]);
-    let (output, _) = render(menu, &ctx, vec![]);
+    let output = open(menu, &ctx);
     let point = output
         .shapes
         .iter()
         .find_map(|shape| match &shape.shape {
-            egui::Shape::Text(label) if label.galley.job.text == text => {
+            egui::Shape::Text(label) if label.galley.job.text.trim_start_matches("✓ ") == text => {
                 Some(label.pos + label.galley.size() * 0.5)
             }
             _ => None,
@@ -122,9 +147,8 @@ fn menu_reports_empty_loading_failure_and_retention_with_wrapped_titles_and_boun
                 phase: &phase,
                 enabled: true,
             };
-            let text = painted_text(&ctx, egui::vec2(400.0, 600.0), |ui| {
-                menu.contents(ui);
-            });
+            crate::ui::context_menu::close(&ctx);
+            let text = text(&open(&menu, &ctx));
             assert!(text.iter().any(|text| text == "Showing the previous list."));
             assert!(text
                 .iter()
@@ -138,9 +162,8 @@ fn menu_reports_empty_loading_failure_and_retention_with_wrapped_titles_and_boun
             phase: &PullRequestListPhase::Loaded,
             enabled: true,
         };
-        let text = painted_text(&ctx, egui::vec2(400.0, 600.0), |ui| {
-            empty.contents(ui);
-        });
+        crate::ui::context_menu::close(&ctx);
+        let text = text(&open(&empty, &ctx));
         assert!(text.iter().any(|text| text == "No recent pull requests."));
     }
 }
@@ -149,9 +172,9 @@ fn menu_reports_empty_loading_failure_and_retention_with_wrapped_titles_and_boun
 fn keyboard_selection_reveals_recent_rows_including_the_last_scrolled_choice() {
     let active = summary(7);
     for (active, rows, tabs, expected) in [
-        (Some(&active), vec![summary(3), summary(9)], 3, 3),
-        // A long list includes the scrollbar as an additional keyboard stop.
-        (None, (1..=25).map(summary).collect(), 27, 25),
+        (Some(&active), vec![summary(3), summary(9)], 2, 3),
+        // Disabled current choices and scrollbars are not keyboard stops.
+        (None, (1..=25).map(summary).collect(), 25, 25),
     ] {
         let ctx = egui::Context::default();
         let menu = PullRequestMenu {
@@ -161,7 +184,7 @@ fn keyboard_selection_reveals_recent_rows_including_the_last_scrolled_choice() {
             phase: &PullRequestListPhase::Loaded,
             enabled: true,
         };
-        render(&menu, &ctx, vec![]);
+        open(&menu, &ctx);
         for _ in 0..tabs {
             render(
                 &menu,
@@ -175,10 +198,8 @@ fn keyboard_selection_reveals_recent_rows_including_the_last_scrolled_choice() {
                 }],
             );
         }
-        for _ in 0..16 {
-            render(&menu, &ctx, vec![]);
-        }
-        let (output, action) = render(
+        let output = settled(&menu, &ctx, 16);
+        let (_, action) = render(
             &menu,
             &ctx,
             vec![egui::Event::Key {
@@ -190,7 +211,10 @@ fn keyboard_selection_reveals_recent_rows_including_the_last_scrolled_choice() {
             }],
         );
         assert_eq!(action, Some(ReaderCommand::OpenPullRequest(expected)));
-        assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.starts_with(&format!("#{expected}  ")) && shape.clip_rect.contains(text.pos + text.galley.size() * 0.5))), "focused choice should be visible after scroll settles");
+        assert!(
+            visible_choice(&output, expected),
+            "focused choice should be visible after scroll settles"
+        );
     }
 }
 
@@ -239,8 +263,56 @@ fn toolbar_tooltip_remains_available_when_closed_and_does_not_cover_the_open_pop
         }]);
     }
     let output = paint(vec![]);
-    assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "Local Checkout")));
+    assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.trim_start_matches("✓ ") == "Local Checkout")));
     assert!(!output.shapes.iter().any(
         |shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == help)
     ));
+}
+
+fn settled(menu: &PullRequestMenu<'_>, ctx: &egui::Context, frames: usize) -> egui::FullOutput {
+    for _ in 0..frames {
+        render(menu, ctx, vec![]);
+    }
+    render(menu, ctx, vec![]).0
+}
+
+fn visible_choice(output: &egui::FullOutput, number: usize) -> bool {
+    output.shapes.iter().any(|shape| {
+        matches!(&shape.shape, egui::Shape::Text(text)
+        if text.galley.job.text.trim_start_matches("✓ ").starts_with(&format!("#{number}  "))
+            && shape.clip_rect.contains(text.pos + text.galley.size() * 0.5))
+    })
+}
+
+#[test]
+fn manual_menu_scrolling_is_not_pulled_back_to_the_keyboard_selection() {
+    let ctx = egui::Context::default();
+    let rows: Vec<_> = (1..=25).map(summary).collect();
+    let menu = PullRequestMenu {
+        active: None,
+        pending: None,
+        recent: &rows,
+        phase: &PullRequestListPhase::Loaded,
+        enabled: true,
+    };
+    open(&menu, &ctx);
+    render(
+        &menu,
+        &ctx,
+        vec![egui::Event::PointerMoved(egui::pos2(100.0, 180.0))],
+    );
+    // Wait through the complete smoothed wheel tail: 16 frames would hide the
+    // old repeated-reveal bug by checking before manual scroll input expires.
+    for (event, frames, visible) in [
+        (crate::ui::commands::test_key(egui::Key::Home), 16, true),
+        (egui::Event::Scroll(egui::vec2(0.0, -500.0)), 120, false),
+        (crate::ui::commands::test_key(egui::Key::Home), 16, true),
+    ] {
+        render(&menu, &ctx, vec![event]);
+        assert_eq!(
+            visible_choice(&settled(&menu, &ctx, frames), 1),
+            visible,
+            "row visibility after {frames} settled frames"
+        );
+    }
 }
