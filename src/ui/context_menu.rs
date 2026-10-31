@@ -99,6 +99,7 @@ struct Opening {
     pending: Vec<(Key, Modifiers)>,
     armed: bool,
     released: Option<u64>,
+    held: Option<(Id, u64)>,
 }
 
 impl Opening {
@@ -122,7 +123,17 @@ impl Opening {
         } else {
             ctx.data(|data| data.get_temp::<Self>(id))?
         };
-        if opening.released.is_some_and(|frame| frame < ctx.frame_nr()) {
+        if opening.held.is_some() && input.events.iter().any(|event| matches!(event,
+            Event::PointerButton { button, pressed: true, .. } if *button != egui::PointerButton::Secondary)) {
+            ctx.data_mut(|data| data.remove::<Self>(id));
+            return None;
+        }
+        if opening
+            .held
+            .is_some_and(|(_, frame)| frame.saturating_add(1) < ctx.frame_nr())
+            || (opening.held.is_none()
+                && opening.released.is_some_and(|frame| frame < ctx.frame_nr()))
+        {
             ctx.data_mut(|data| data.remove::<Self>(id));
             return None;
         }
@@ -178,7 +189,7 @@ pub(crate) fn close(ctx: &Context) {
     }
 }
 
-fn owned_key(event: &Event) -> Option<(Key, Modifiers)> {
+pub(crate) fn owned_key(event: &Event) -> Option<(Key, Modifiers)> {
     match event {
         Event::Key {
             key,
@@ -227,6 +238,41 @@ pub(crate) fn take_input(ctx: &Context, input: &mut egui::RawInput) {
             ctx.data_mut(|data| data.insert_temp(state_id().with("opening"), opening));
         }
     }
+}
+
+/// Keeps opening-frame keys scoped to a reader awaiting exact hit geometry.
+pub(crate) fn hold_opening(ctx: &Context, owner: Id, key: Option<(Key, Modifiers)>) {
+    let frame = ctx.frame_nr();
+    ctx.data_mut(|data| {
+        let id = state_id().with("opening");
+        let mut opening = data.get_temp::<Opening>(id).unwrap_or_default();
+        opening.held = Some((owner, frame));
+        opening.armed = true;
+        opening.pending.extend(key);
+        data.insert_temp(id, opening);
+    });
+}
+
+pub(crate) fn owns_opening(ctx: &Context, owner: Id) -> bool {
+    let frame = ctx.frame_nr();
+    ctx.data(|data| data.get_temp::<Opening>(state_id().with("opening")))
+        .is_some_and(|opening| {
+            opening
+                .held
+                .is_some_and(|(held, seen)| held == owner && seen.saturating_add(1) >= frame)
+        })
+}
+
+pub(crate) fn cancel_opening(ctx: &Context, owner: Id) {
+    ctx.data_mut(|data| {
+        let id = state_id().with("opening");
+        if data
+            .get_temp::<Opening>(id)
+            .is_some_and(|opening| opening.held.is_some_and(|(held, _)| held == owner))
+        {
+            data.remove::<Opening>(id);
+        }
+    });
 }
 
 fn entries<'a, T>(mut items: &'a [Item<T>], path: &[usize]) -> &'a [Item<T>] {
@@ -335,12 +381,30 @@ pub(crate) fn show<T: Clone>(
     scope: impl std::hash::Hash,
     build: impl FnOnce() -> Vec<Item<T>>,
 ) -> Option<T> {
+    show_at(
+        response,
+        scope,
+        response
+            .secondary_clicked()
+            .then(|| response.interact_pointer_pos())
+            .flatten(),
+        build,
+    )
+}
+
+/// Opens a menu after a source-owned gesture has resolved its canonical target.
+pub(crate) fn show_at<T: Clone>(
+    response: &Response,
+    scope: impl std::hash::Hash,
+    opening: Option<Pos2>,
+    build: impl FnOnce() -> Vec<Item<T>>,
+) -> Option<T> {
     let ctx = &response.ctx;
     let scope = response.id.with(scope);
     if current(ctx).is_some_and(|state| state.owner == response.id && state.scope != scope) {
         close(ctx);
     }
-    let mut state = if response.secondary_clicked() {
+    let mut state = if let Some(origin) = opening {
         let opening = ctx
             .data_mut(|data| data.remove_temp::<Opening>(state_id().with("opening")))
             .unwrap_or_default();
@@ -348,7 +412,7 @@ pub(crate) fn show<T: Clone>(
             owner: response.id,
             scope,
             return_focus: ctx.memory(|memory| memory.focused()).or(opening.focus),
-            origin: response.interact_pointer_pos()?,
+            origin,
             open: vec![],
             selected: None,
             pending: opening.pending,

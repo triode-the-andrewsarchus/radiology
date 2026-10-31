@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-10-31 — Retain source gestures until exact hit geometry is ready (Codex)
+
+The saved lost-click regression now passes. The existing source queue carries
+pointer press/motion/release with document coordinates, modifiers/time and later
+keys/Copy; it waits for exact bounded shaped hits and retires stale owners.
+Ctrl-click resolves current semantic data without moving the departure caret.
+Shared context menus hold opening keys until their source target resolves, for
+raw and prepared hosts. Adjacent motions coalesce; stationary autoscroll, real
+scrollbars, labels and the stable canvas focus keep their own behavior. No new
+parser/renderer/dependency. [Contract and evidence](plans/rust-source-gesture-order.md).
+Six added viewport regressions cover exact Unicode selection/copy, definition
+routing, menu ownership/cancellation and scroll controls; all 35 viewport tests
+pass. Workspace passes 463 app tests (seven ignored), two binary tests, four font
+tests, eleven text tests and 34 doctests; strict Clippy/build/fmt/diff pass.
+Architecture is neutral with no new clone/hotspot/cycle. Final native 1×/2× runs
+wait for source readiness and expected clipboard hashes: exact far-right `_END`,
+menu Down/Enter, CRLF drag/Copy All and light-mode source keys after an explicit
+click back from toolbar pass. Fixtures are unchanged and child exits are zero.
+Archive: ~/.local/state/radiology-qa/source-gestures-20261031-0fd76ed.
+Exploratory trials expose long-filename sidebar/header overflow and inconsistent
+automatic modal/toolbar focus return. Their early/stale clipboard probes are
+excluded, not counted as final acceptance or a diagnosed performance stall. The
+roughly 6 MB performance case remains unproven; a separate ordinary-fixture GDB
+sample shows an idle event loop only. Fix pane constraints and automatic focus
+next, then continue broader reader/grammar/index/PR/cache/final Swift acceptance.
+Full accessibility and actual sibling adoption remain deferred. Commit and push
+this input increment before continuing.
+
 ## 2026-10-31 — Integrate horizontal source fragments and ordered measured navigation (Codex)
 
 The native-proven unwrapped stacking/Down regression now passes in the actual

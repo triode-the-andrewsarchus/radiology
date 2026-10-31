@@ -23,6 +23,9 @@ use std::{
     sync::Arc,
 };
 
+mod input;
+use input::{PointerCapture, PointerEvent};
+
 const FRAGMENT_BYTES: usize = 4096;
 const TEXT_INSET: f32 = 12.0;
 
@@ -43,7 +46,11 @@ pub struct SourceViewport {
     layout_key: Option<(FontId, f32, f32)>,
     measurement_priority: Option<usize>,
     viewport_size: Option<egui::Vec2>,
+    scrollbars: Vec<Rect>,
     pending_input: VecDeque<SourceInput>,
+    pointer: PointerCapture,
+    menu_request: Option<egui::Pos2>,
+    context_byte: Option<usize>,
     pending_reveal: Option<(usize, bool, bool)>,
     test_generation: u64,
     hover: crate::critical::hover::CriticalHover,
@@ -260,6 +267,10 @@ impl SourceViewport {
             self.rows = RowHeights::default();
             self.layout_key = None;
             self.pending_input.clear();
+            self.pointer = PointerCapture::default();
+            self.dragging = false;
+            self.menu_request = None;
+            self.context_byte = None;
             self.pending_reveal = None;
             self.measurement_priority = None;
         }
@@ -301,7 +312,7 @@ impl SourceViewport {
             self.occurrence_clicks = None;
         }
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
-        ui.interact(
+        let canvas = ui.interact(
             geometry.code_rect,
             Self::focus_id(),
             Sense::focusable_noninteractive(),
@@ -323,9 +334,22 @@ impl SourceViewport {
                     action = Some(event);
                 }
             });
+        // egui 0.27 registers its horizontal/vertical scrollbar responses under
+        // these axis IDs. Keep their real hit rectangles out of source capture.
+        self.scrollbars = (0_usize..2)
+            .filter_map(|axis| {
+                ui.ctx()
+                    .read_response(output.id.with(axis))
+                    .map(|response| response.interact_rect)
+            })
+            .collect();
         self.scroll_y = output.state.offset.y;
         self.scroll_x = output.state.offset.x;
         self.finish_drag(ui, geometry.code_rect);
+        let opening = self.menu_request.take();
+        if let Some(event) = self.context_menu(&canvas, &content, opening) {
+            action = Some(event);
+        }
         if let Some(event) = self.show_hover(ui, content.theme) {
             action = Some(event);
         }
@@ -443,33 +467,9 @@ impl SourceViewport {
                 true,
             ));
         }
-        if ui.input(|input| {
-            input.raw_scroll_delta != egui::Vec2::ZERO || input.pointer.any_pressed()
-        }) {
-            self.pending_reveal = None;
-            self.pending_input.clear();
-        }
-        // A new host navigation supersedes source input waiting on old geometry.
-        if content.target.is_some() && !self.pending_input.is_empty() {
-            self.pending_input.clear();
-            self.pending_reveal = None;
-            self.measurement_priority = None;
-        }
-        let mut keyboard_reveal = false;
-        let focused = self.has_focus(ui.ctx()) || !ui.ctx().wants_keyboard_input();
-        if content.keyboard_enabled
-            && focused
-            && !crate::ui::commands::context_menu_is_open(ui.ctx())
-        {
-            if let Some(next) =
-                self.keyboard(ui, content, &geometry.font, geometry.width, geometry.height)
-            {
-                action = Some(next);
-                keyboard_reveal = true;
-            }
-        } else {
-            self.pending_input.clear();
-        }
+        self.retire_input(ui, content, geometry);
+        let (input_action, keyboard_reveal) = self.source_events(ui, content, geometry, scroll_y);
+        action = input_action.or(action);
         scroll_y = self.apply_reveal(ui, content, geometry, scroll_y, keyboard_reveal);
         if content.find.take_selection_request() {
             if let Some(range) = &content.find.active_range {
@@ -584,7 +584,10 @@ impl SourceViewport {
             let response = ui.interact(
                 *code_hit,
                 Id::new(("source_row", fragment.bytes.start)),
-                Sense::click_and_drag(),
+                Sense {
+                    focusable: false,
+                    ..Sense::click_and_drag()
+                },
             );
             self.paint_row(
                 &fragment_painter,
@@ -610,14 +613,9 @@ impl SourceViewport {
                 action = Some(event);
             }
             if content.wrap || self.unwrapped.prefix_measured(row) {
-                action = self
-                    .fragment_pointer(ui, &response, &frame, geometry.code_rect, content)
-                    .or(action);
+                self.fragment_hover(ui, &response, &frame, geometry.code_rect, content);
             } else {
                 self.measurement_priority = Some(row);
-            }
-            if let Some(event) = self.context_menu(&response, content) {
-                action = Some(event);
             }
             row = self.next_painted_fragment(row, viewport, content.wrap);
             y = self.rows.offset(row);
@@ -703,20 +701,23 @@ impl SourceViewport {
         }
     }
 
-    fn fragment_pointer(
+    fn fragment_hover(
         &mut self,
         ui: &Ui,
         response: &egui::Response,
         frame: &FragmentFrame,
         code_rect: Rect,
         content: &mut CanvasContent<'_>,
-    ) -> Option<SourceViewAction> {
-        let pointer = response
+    ) {
+        let Some(pointer) = response
             .interact_pointer_pos()
-            .or_else(|| ui.ctx().pointer_interact_pos())?;
+            .or_else(|| ui.ctx().pointer_interact_pos())
+        else {
+            return;
+        };
         let target = code_rect.shrink(0.1).clamp(pointer);
         if !frame.hit_rect.contains(target) {
-            return None;
+            return;
         }
         let byte = hit_byte(
             &frame.galley,
@@ -731,12 +732,19 @@ impl SourceViewport {
             &frame.part,
             content.buffer,
         );
-        let action = self
-            .definition_pointer(ui, response, byte, content)
-            .or_else(|| {
-                self.pointer_input(ui, response, byte, code_rect.contains(pointer), content)
-            });
-        self.occurrence_click(ui, response, byte).or(action)
+        if content.keyboard_enabled
+            && response.hovered()
+            && ui.input(|input| {
+                (input.modifiers.ctrl || input.modifiers.command)
+                    && !input.modifiers.alt
+                    && !input.modifiers.shift
+            })
+            && content.definition_at_byte(byte).is_some()
+        {
+            response
+                .clone()
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
+        }
     }
 
     fn track_hover_geometry(
@@ -763,16 +771,13 @@ impl SourceViewport {
     }
 
     fn finish_drag(&mut self, ui: &Ui, code_rect: Rect) {
-        if self.dragging {
+        if self.dragging && ui.input(|input| input.pointer.primary_down()) {
             if let Some(pointer) = ui.ctx().pointer_interact_pos() {
                 let outside = pointer.y - pointer.y.clamp(code_rect.top(), code_rect.bottom());
                 if outside.abs() > 0.0 {
                     self.scroll_y = (self.scroll_y + outside.clamp(-30.0, 30.0)).max(0.0);
                     ui.ctx().request_repaint();
                 }
-            }
-            if !ui.input(|input| input.pointer.primary_down()) {
-                self.dragging = false;
             }
         }
     }
@@ -781,6 +786,7 @@ impl SourceViewport {
         &self,
         response: &egui::Response,
         content: &CanvasContent<'_>,
+        opening: Option<egui::Pos2>,
     ) -> Option<SourceViewAction> {
         #[derive(Clone)]
         enum Action {
@@ -790,16 +796,20 @@ impl SourceViewport {
         }
         use crate::ui::commands::MenuItem;
         let action =
-            crate::ui::commands::context_menu(
+            crate::ui::context_menu::show_at(
                 response,
                 (
                     content.buffer.position_key(),
                     content.buffer.content_identity(),
+                    self.context_byte,
                 ),
+                opening,
                 || {
-                    let byte = content
-                        .buffer
-                        .byte_offset(*content.caret_line, *content.caret_col);
+                    let byte = self.context_byte.unwrap_or_else(|| {
+                        content
+                            .buffer
+                            .byte_offset(*content.caret_line, *content.caret_col)
+                    });
                     let definition = content.definition_at_byte(byte);
                     let reference = content.mark_context.and_then(|context| {
                         crate::semantic::references::ReferenceTarget::at_byte(
@@ -854,7 +864,15 @@ impl SourceViewport {
             }
             Some(Action::CopyLine) => {
                 response.ctx.output_mut(|output| {
-                    output.copied_text = content.buffer.line_text(*content.caret_line).to_owned()
+                    let byte = self.context_byte.unwrap_or_else(|| {
+                        content
+                            .buffer
+                            .byte_offset(*content.caret_line, *content.caret_col)
+                    });
+                    output.copied_text = content
+                        .buffer
+                        .line_text(content.buffer.line_at_byte(byte))
+                        .to_owned()
                 });
                 None
             }
@@ -863,106 +881,12 @@ impl SourceViewport {
         }
     }
 
-    fn definition_pointer(
-        &mut self,
-        ui: &Ui,
-        response: &egui::Response,
-        byte: usize,
-        content: &CanvasContent<'_>,
-    ) -> Option<SourceViewAction> {
-        let modifiers = ui.input(|input| input.modifiers);
-        if !content.keyboard_enabled
-            || !response.hovered()
-            || !(modifiers.ctrl || modifiers.command)
-            || modifiers.alt
-            || modifiers.shift
-        {
-            return None;
-        }
-        let target = content.definition_at_byte(byte)?;
-        response
-            .clone()
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
-        if !ui.input(|input| input.pointer.primary_pressed()) {
-            return None;
-        }
-        self.dragging = false;
-        self.occurrence_clicks = None;
-        self.hover.dismiss();
-        Some(SourceViewAction::NavigateToDefinition(target))
-    }
-
-    fn pointer_input(
-        &mut self,
-        ui: &Ui,
-        response: &egui::Response,
-        byte: usize,
-        inside: bool,
-        content: &mut CanvasContent<'_>,
-    ) -> Option<SourceViewAction> {
-        let pressed = inside
-            && response.contains_pointer()
-            && ui.input(|input| input.pointer.primary_pressed());
-        let secondary = inside && response.secondary_clicked();
-        if pressed || secondary {
-            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
-            crate::ui::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
-            let extending = ui.input(|input| input.modifiers.shift);
-            let keep_selection = secondary
-                && self
-                    .selection
-                    .is_some_and(|selection| selection.range().contains(&byte));
-            if !keep_selection {
-                let previous = content
-                    .buffer
-                    .byte_offset(*content.caret_line, *content.caret_col);
-                let anchor = if extending {
-                    self.selection
-                        .map_or(previous, |selection| selection.anchor)
-                } else {
-                    byte
-                };
-                self.selection = Some(ByteSelection {
-                    anchor,
-                    focus: byte,
-                });
-            }
-            self.dragging = pressed;
-        } else if self.dragging
-            && ui.input(|input| input.pointer.primary_down() || input.pointer.primary_released())
-        {
-            if let Some(selection) = &mut self.selection {
-                selection.focus = byte;
-            }
-        } else {
-            return None;
-        }
-        ui.ctx().request_repaint();
-        Some(move_caret(content, byte))
-    }
-
     fn occurrence_click(
         &mut self,
-        ui: &Ui,
-        response: &egui::Response,
+        point: egui::Pos2,
+        now: f64,
         byte: usize,
     ) -> Option<SourceViewAction> {
-        if self
-            .selection
-            .is_some_and(|selection| selection.anchor != selection.focus)
-        {
-            self.occurrence_clicks = None;
-            return None;
-        }
-        if !response.clicked() {
-            return None;
-        }
-        if ui.input(|input| input.modifiers != Modifiers::NONE) {
-            self.occurrence_clicks = None;
-            return None;
-        }
-        let point = response.interact_pointer_pos()?;
-        let now = ui.input(|input| input.time);
         // egui 0.27's global double-click count checks time only. Keep the
         // source gesture local and use its same six-point / 300 ms tolerances.
         let count = self
@@ -1053,6 +977,9 @@ impl SourceViewport {
         };
         self.measurement_priority = None;
         self.pending_input.clear();
+        self.pointer = PointerCapture::default();
+        self.dragging = false;
+        self.menu_request = None;
         if self.layout_key.is_some() && self.pending_reveal.is_none() {
             self.pending_reveal = Some((
                 content
@@ -1164,40 +1091,6 @@ impl SourceViewport {
         {
             ctx.output_mut(|output| output.copied_text = text.to_owned());
         }
-    }
-
-    fn keyboard(
-        &mut self,
-        ui: &Ui,
-        content: &mut CanvasContent<'_>,
-        font: &FontId,
-        width: f32,
-        height: f32,
-    ) -> Option<SourceViewAction> {
-        let actions = ui.input_mut(|input| {
-            crate::ui::commands::take_input_actions(&mut input.events, source_input)
-        });
-        self.pending_input.extend(actions);
-        let mut moved = None;
-        while let Some(action) = self.pending_input.front().copied() {
-            match action {
-                SourceInput::Copy => self.copy(ui.ctx(), content.buffer),
-                SourceInput::SelectAll => {
-                    self.select(0..content.buffer.byte_len());
-                    ui.ctx().request_repaint();
-                }
-                SourceInput::Move(key, shift) => {
-                    let Some(next) = self.move_key(ui, content, font, width, height, (key, shift))
-                    else {
-                        ui.ctx().request_repaint();
-                        break;
-                    };
-                    moved = Some(next);
-                }
-            }
-            self.pending_input.pop_front();
-        }
-        moved
     }
 
     fn move_key(
@@ -1514,6 +1407,8 @@ enum SourceInput {
     Copy,
     SelectAll,
     Move(Key, bool),
+    Pointer(PointerEvent),
+    MenuKey(Key, Modifiers),
 }
 
 fn source_input(event: &egui::Event) -> Option<SourceInput> {
@@ -2078,6 +1973,7 @@ mod tests {
         function_shade: Option<Range<usize>>,
         theme: AppTheme,
         changes: Vec<Range<usize>>,
+        menu_raw_hook: bool,
     }
 
     impl Reader {
@@ -2105,6 +2001,7 @@ mod tests {
                 function_shade: None,
                 theme: AppTheme::dark(),
                 changes: Vec::new(),
+                menu_raw_hook: false,
             }
         }
 
@@ -2134,69 +2031,407 @@ mod tests {
         }
 
         fn frame(&mut self, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
-            ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(400.0, 360.0))),
-                    modifiers: events
-                        .iter()
-                        .rev()
-                        .find_map(|event| match event {
-                            egui::Event::PointerButton { modifiers, .. }
-                            | egui::Event::Key { modifiers, .. } => Some(*modifiers),
-                            _ => None,
-                        })
-                        .unwrap_or_default(),
-                    events,
-                    time: self.now,
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        let event = self.viewport.show(
-                            ui,
-                            CanvasContent {
-                                theme: &self.theme,
-                                test_code: &self.test_code,
-                                mode: self.mode,
-                                mark_context: self.hover_inputs.as_deref().map(|inputs| {
-                                    crate::critical::menu::MarkContext {
-                                        index: &inputs.index,
-                                        overrides: &inputs.overrides,
-                                    }
-                                }),
-                                projection: self.projection.as_ref(),
-                                annotations: self.annotations.current(&self.source),
-                                hover_inputs: self.hover_inputs.clone(),
-                                buffer: &self.source,
-                                highlights: &self.highlights,
-                                function_shade: self.function_shade.as_ref(),
-                                caret_line: &mut self.line,
-                                caret_col: &mut self.column,
-                                folds: &self.ranges,
-                                fold_store: &mut self.folds,
-                                changes: &self.changes,
-                                pins: &self.pins,
-                                wrap: self.wrap,
-                                font_size: self.font_size,
-                                target: &mut self.target,
-                                keyboard_enabled: true,
-                                find: &mut self.find,
-                            },
-                        );
-                        if let Some(SourceViewAction::ToggleTestRegion(id)) = &event {
-                            self.test_code.toggle(&self.source, *id);
-                        }
-                        self.last_action = event;
-                    });
-                },
-            )
+            let mut raw = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(400.0, 360.0))),
+                modifiers: events
+                    .iter()
+                    .rev()
+                    .find_map(|event| match event {
+                        egui::Event::PointerButton { modifiers, .. }
+                        | egui::Event::Key { modifiers, .. } => Some(*modifiers),
+                        _ => None,
+                    })
+                    .unwrap_or_default(),
+                events,
+                time: self.now,
+                ..Default::default()
+            };
+            if self.menu_raw_hook {
+                crate::ui::commands::take_context_menu_input(ctx, &mut raw);
+            }
+            ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let event = self.viewport.show(
+                        ui,
+                        CanvasContent {
+                            theme: &self.theme,
+                            test_code: &self.test_code,
+                            mode: self.mode,
+                            mark_context: self.hover_inputs.as_deref().map(|inputs| {
+                                crate::critical::menu::MarkContext {
+                                    index: &inputs.index,
+                                    overrides: &inputs.overrides,
+                                }
+                            }),
+                            projection: self.projection.as_ref(),
+                            annotations: self.annotations.current(&self.source),
+                            hover_inputs: self.hover_inputs.clone(),
+                            buffer: &self.source,
+                            highlights: &self.highlights,
+                            function_shade: self.function_shade.as_ref(),
+                            caret_line: &mut self.line,
+                            caret_col: &mut self.column,
+                            folds: &self.ranges,
+                            fold_store: &mut self.folds,
+                            changes: &self.changes,
+                            pins: &self.pins,
+                            wrap: self.wrap,
+                            font_size: self.font_size,
+                            target: &mut self.target,
+                            keyboard_enabled: true,
+                            find: &mut self.find,
+                        },
+                    );
+                    if let Some(SourceViewAction::ToggleTestRegion(id)) = &event {
+                        self.test_code.toggle(&self.source, *id);
+                    }
+                    self.last_action = event;
+                });
+            })
         }
+    }
+
+    fn distant_reader(ctx: &egui::Context) -> Reader {
+        let mut reader = Reader::new(&format!(
+            "{}\r\nnext é🦀\r\nlast",
+            "abcdé🦀漢字 ".repeat(350_000)
+        ));
+        reader.wrap = false;
+        reader.frame(ctx, vec![]);
+        reader.viewport.scroll_x = reader.viewport.unwrapped.offset(350) as f32;
+        reader.frame(ctx, vec![]);
+        reader
+    }
+
+    // Linear shaped reference, independent of UnwrappedRows and its estimates.
+    fn shaped_byte_at(ctx: &egui::Context, reader: &Reader, x: f32) -> usize {
+        let mut x = f64::from(x);
+        for part in reader
+            .viewport
+            .fragments
+            .iter()
+            .take_while(|part| part.line == 1)
+        {
+            let text: String = part
+                .spans()
+                .iter()
+                .map(|span| &reader.source.text[span.clone()])
+                .collect();
+            let galley = ctx.fonts(|fonts| {
+                fonts.layout_no_wrap(text, FontId::monospace(reader.font_size), Color32::WHITE)
+            });
+            if x <= f64::from(galley.size().x) {
+                return part.byte_at_char(
+                    &reader.source.text,
+                    galley.cursor_from_pos(vec2(x as f32, 0.0)).ccursor.index,
+                );
+            }
+            x -= f64::from(galley.size().x);
+        }
+        reader.source.line_byte_range(1).end
+    }
+
+    #[test]
+    fn deferred_menus_retire_their_gesture_and_keys_at_owner_boundaries() {
+        for change in [
+            "navigation",
+            "document",
+            "zoom",
+            "focus",
+            "outside",
+            "scroll",
+            "global",
+            "owner_gap",
+        ] {
+            let ctx = reader_context(1.0);
+            let mut reader = distant_reader(&ctx);
+            reader.menu_raw_hook = true;
+            let mut events = crate::ui::test_support::secondary_click(pos2(180.0, 18.0));
+            events.extend([
+                key(Key::ArrowDown, Modifiers::NONE),
+                key(Key::Enter, Modifiers::NONE),
+            ]);
+            reader.frame(&ctx, events);
+            assert!(!reader.viewport.pending_input.is_empty(), "{change}");
+            let next = match change {
+                "navigation" => {
+                    reader.line = 3;
+                    reader.column = 0;
+                    reader.target = Some(3);
+                    vec![]
+                }
+                "document" => {
+                    reader.source = SourceBuffer::from_str("fresh.rs", "fresh\nsecond");
+                    vec![]
+                }
+                "zoom" => {
+                    reader.font_size = 18.0;
+                    vec![]
+                }
+                "focus" => {
+                    ctx.memory_mut(|memory| memory.request_focus(Id::new("other_control")));
+                    vec![]
+                }
+                "outside" => pointer(pos2(30.0, 18.0), true),
+                "scroll" => vec![egui::Event::Scroll(vec2(0.0, -30.0))],
+                "global" => {
+                    crate::ui::commands::close_context_menu(&ctx);
+                    vec![]
+                }
+                "owner_gap" => {
+                    for _ in 0..2 {
+                        let _ = ctx.run(Default::default(), |_| {});
+                    }
+                    vec![]
+                }
+                _ => unreachable!(),
+            };
+            let output = reader.frame(&ctx, next);
+            assert!(output.platform_output.copied_text.is_empty(), "{change}");
+            assert!(reader.viewport.pending_input.is_empty(), "{change}");
+            assert!(
+                !crate::ui::context_menu::owns_opening(&ctx, SourceViewport::focus_id()),
+                "{change}"
+            );
+            for _ in 0..3 {
+                let output = reader.frame(&ctx, vec![]);
+                assert!(output.platform_output.copied_text.is_empty(), "{change}");
+                assert!(!crate::ui::commands::context_menu_is_open(&ctx), "{change}");
+            }
+        }
+    }
+
+    #[test]
+    fn source_capture_leaves_scrollbars_and_stationary_drag_autoscroll_working() {
+        let ctx = reader_context(1.0);
+        let mut style = (*ctx.style()).clone();
+        style.animation_time = 0.0;
+        ctx.set_style(style);
+        let text = "line content\n".repeat(200);
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        for _ in 0..3 {
+            reader.frame(&ctx, vec![]);
+        }
+        reader.column = 2;
+        reader.viewport.select(0..4);
+        let selected = reader.viewport.selection;
+        let scrollbar = *reader
+            .viewport
+            .scrollbars
+            .iter()
+            .find(|rect| rect.height() > 200.0 && rect.width() < 30.0)
+            .expect("vertical scrollbar response");
+        let start = scrollbar.center_top() + vec2(0.0, 5.0);
+        reader.frame(&ctx, pointer(start, true));
+        let end = scrollbar.center_bottom() - vec2(0.0, 5.0);
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(end)]);
+        reader.frame(&ctx, pointer(end, false));
+        assert!(reader.viewport.scroll_y > 200.0);
+        assert_eq!((reader.line, reader.column), (1, 2));
+        assert_eq!(reader.viewport.selection, selected);
+        assert!(reader.viewport.pending_input.is_empty());
+        reader.viewport.scroll_y = 0.0;
+        reader.frame(&ctx, vec![]);
+        reader.frame(&ctx, pointer(pos2(150.0, 18.0), true));
+        let outside = pos2(150.0, 345.0);
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(outside)]);
+        let focus = reader.viewport.selection.unwrap().focus;
+        for _ in 0..5 {
+            reader.frame(&ctx, vec![]);
+        }
+        assert!(
+            reader.viewport.selection.unwrap().focus > focus,
+            "stationary pointer must follow autoscroll"
+        );
+        reader.frame(&ctx, pointer(outside, false));
+        assert!(!reader.viewport.dragging);
+    }
+
+    #[test]
+    fn deferred_pointer_selection_and_copy_use_exact_shaped_bytes_in_event_order() {
+        for gesture in ["click", "drag", "shift"] {
+            let ctx = reader_context(1.0);
+            let mut reader = distant_reader(&ctx);
+            let start = pos2(180.0, 18.0);
+            let end = if gesture == "drag" {
+                start + vec2(120.0, 0.0)
+            } else {
+                start
+            };
+            // Surface x=8, gutter=104, inset=12 in this harness.
+            let x = reader.viewport.scroll_x + start.x - 124.0;
+            let first = shaped_byte_at(&ctx, &reader, x);
+            let last = shaped_byte_at(&ctx, &reader, x + end.x - start.x);
+            let mut events = pointer(start, true);
+            if gesture == "shift" {
+                reader.column = 1;
+                reader.viewport.select(1..3);
+                if let egui::Event::PointerButton { modifiers, .. } = &mut events[1] {
+                    *modifiers = Modifiers::SHIFT;
+                }
+            }
+            events.extend(pointer(end, false));
+            if gesture == "click" {
+                events.push(key(Key::End, Modifiers::SHIFT));
+            }
+            events.push(egui::Event::Copy);
+            let mut output = reader.frame(&ctx, events);
+            assert!(!reader.viewport.pending_input.is_empty(), "{gesture}");
+            assert!(output.platform_output.copied_text.is_empty(), "{gesture}");
+            for _ in 0..1024 {
+                output = reader.frame(&ctx, vec![]);
+                if reader.viewport.pending_input.is_empty() {
+                    break;
+                }
+            }
+            let range = match gesture {
+                "click" => first..reader.source.line_byte_range(1).end,
+                "drag" => first..last,
+                "shift" => 1..first,
+                _ => unreachable!(),
+            };
+            assert!(
+                output.platform_output.copied_text == reader.source.text[range.clone()],
+                "{gesture}: expected range {range:?}, copied {} bytes",
+                output.platform_output.copied_text.len()
+            );
+            assert_eq!(
+                reader.viewport.selection.map(ByteSelection::range),
+                Some(range),
+                "{gesture}"
+            );
+            assert!(!reader.viewport.dragging);
+        }
+    }
+
+    #[test]
+    fn deferred_control_click_preserves_departure_and_uses_current_semantic_target() {
+        use crate::semantic::test_support::occurrence;
+        use crate::semantic::{ScipDocument, ScipIndex, SemanticIndex};
+        let ctx = reader_context(1.0);
+        let mut reader = distant_reader(&ctx);
+        let point = pos2(180.0, 18.0);
+        let byte = shaped_byte_at(&ctx, &reader, reader.viewport.scroll_x + point.x - 124.0);
+        let symbol = "rust-analyzer cargo fixture 0 target().";
+        let destination = reader.source.text.find("next").unwrap();
+        let index = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![ScipDocument {
+                relative_path: reader.source.path.clone(),
+                position_encoding: 2,
+                occurrences: vec![
+                    occurrence(
+                        &reader.source,
+                        byte..byte
+                            + reader.source.text[byte..]
+                                .chars()
+                                .next()
+                                .unwrap()
+                                .len_utf8(),
+                        symbol,
+                        false,
+                    ),
+                    occurrence(&reader.source, destination..destination + 4, symbol, true),
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let buffer = Arc::new(reader.source.clone());
+        reader.hover_inputs = Some(Arc::new(crate::critical::worker::GraphInputs {
+            source: crate::source::loader::SourceRead::Buffer(buffer.clone()),
+            buffer,
+            calls: Arc::new(Default::default()),
+            index: Arc::new(index),
+            overrides: Default::default(),
+        }));
+        reader.column = 1;
+        reader.viewport.select(0..3);
+        let selection = reader.viewport.selection;
+        let mut events = pointer(point, true);
+        if let egui::Event::PointerButton { modifiers, .. } = &mut events[1] {
+            *modifiers = Modifiers::CTRL;
+        }
+        reader.frame(&ctx, events);
+        assert!(!reader.viewport.pending_input.is_empty());
+        for _ in 0..1024 {
+            reader.frame(&ctx, vec![]);
+            if reader.viewport.pending_input.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            reader.last_action,
+            Some(SourceViewAction::NavigateToDefinition(
+                crate::semantic::index::SemanticSymbolID::new(symbol, &reader.source.path)
+            ))
+        );
+        assert_eq!((reader.line, reader.column), (1, 1));
+        assert_eq!(reader.viewport.selection, selection);
+        reader.frame(&ctx, pointer(point, false));
+        assert_eq!((reader.line, reader.column), (1, 1));
+    }
+
+    #[test]
+    fn deferred_context_menu_holds_opening_keys_for_raw_and_prepared_hosts() {
+        for raw_hook in [false, true] {
+            let ctx = reader_context(1.0);
+            let mut reader = distant_reader(&ctx);
+            reader.menu_raw_hook = raw_hook;
+            let point = pos2(180.0, 18.0);
+            let mut events = crate::ui::test_support::secondary_click(point);
+            events.extend([
+                key(Key::ArrowDown, Modifiers::NONE),
+                key(Key::Enter, Modifiers::NONE),
+            ]);
+            let mut output = reader.frame(&ctx, events);
+            assert!(!reader.viewport.pending_input.is_empty());
+            assert_eq!((reader.line, reader.column), (1, 0));
+            for _ in 0..1024 {
+                output = reader.frame(&ctx, vec![]);
+                if !output.platform_output.copied_text.is_empty() {
+                    break;
+                }
+            }
+            assert_eq!(
+                output.platform_output.copied_text,
+                reader.source.line_text(1),
+                "raw hook: {raw_hook}"
+            );
+            assert!(!crate::ui::commands::context_menu_is_open(&ctx));
+            assert!(reader.viewport.pending_input.is_empty());
+            reader.frame(&ctx, vec![key(Key::Home, Modifiers::NONE)]);
+            assert_eq!((reader.line, reader.column), (1, 0));
+        }
+    }
+
+    #[test]
+    fn distant_unmeasured_pointer_click_is_retained_until_geometry_is_ready() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new(&"abcd ".repeat(1_000_000));
+        reader.wrap = false;
+        reader.frame(&ctx, vec![]);
+        reader.viewport.scroll_x = reader.viewport.unwrapped.offset(900) as f32;
+        reader.frame(&ctx, vec![]);
+        let point = pos2(180.0, 18.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        for _ in 0..1024 {
+            reader.frame(&ctx, vec![]);
+            if reader.viewport.measurement_priority.is_none() {
+                break;
+            }
+        }
+        assert!(
+            reader.column > 100_000,
+            "click must not disappear while its prefix is measuring"
+        );
     }
 
     #[test]
     fn deferred_source_input_retires_on_navigation_document_zoom_and_focus_changes() {
         let text = format!("{}\r\nnext\r\nlast", "é🦀漢字 ".repeat(60000));
-        for change in ["navigation", "document", "zoom", "focus"] {
+        for change in ["navigation", "document", "zoom", "focus", "source_click"] {
             let ctx = reader_context(1.0);
             let mut reader = Reader::new(&text);
             reader.wrap = false;
@@ -2232,10 +2467,16 @@ mod tests {
                     ctx.memory_mut(|memory| memory.request_focus(Id::new("other_control")));
                     1
                 }
+                "source_click" => 1,
                 _ => unreachable!(),
             };
-            for _ in 0..4 {
-                let output = reader.frame(&ctx, vec![]);
+            for frame in 0..4 {
+                let events = if change == "source_click" && frame == 0 {
+                    crate::ui::test_support::click(pos2(180.0, 18.0))
+                } else {
+                    vec![]
+                };
+                let output = reader.frame(&ctx, events);
                 assert!(output.platform_output.copied_text.is_empty(), "{change}");
                 assert!(reader.viewport.pending_input.is_empty(), "{change}");
                 assert_eq!(reader.line, expected_line, "{change}");

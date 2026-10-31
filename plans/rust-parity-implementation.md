@@ -162,9 +162,11 @@ for simultaneous inspector regions and source keyboard exclusion.
   see [source process acceptance](rust-source-process-cancellation.md).
 - Remaining source presentation: [unwrapped fragment placement](rust-unwrapped-fragment-geometry.md)
   now shares one horizontal row and defers measured keyboard/copy/reveal geometry.
-  Retain clicks while distant prefixes measure (external failing regression),
-  repair toolbar focus restoration, then complete broader wrapping/scroll/scaling
-  and long-line Back acceptance.
+  [Ordered gestures](rust-source-gesture-order.md) now retain clicks, drag/selection,
+  Ctrl-click and context-menu keys while distant prefixes measure; the saved
+  failing regression passes. Repair automatic toolbar/modal focus return and
+  long-filename sidebar/header constraints, then complete broader wrapping/scroll/
+  scaling, large-file performance and long-line Back acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
   exact current-file pins and applies new fold defaults, with native acceptance.
