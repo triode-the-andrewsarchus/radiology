@@ -183,6 +183,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   owned retired-project cleanup and legacy migration are integrated with native
   cross-process/restart acceptance; see [cache maintenance](rust-project-cache-maintenance.md).
   [Normalized revision retention](rust-normalized-revision-retention.md) now bounds owned current-format records with shared writer protection and cross-process tests; native refresh/reuse, cross-process deferral, restart, eviction and explicit regeneration now pass. Broader corpus acceptance remains open.
+- [Portable CJK/emoji fallbacks](shared-font-fallbacks.md) now use a local asset-only/optional-egui crate with exact host assets; primary font, type-role/palette and native font acceptance remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - [Files-row Reveal in File Manager](rust-file-manager-reveal.md) now provides the missing file/folder action with scoped background handoff and visible errors; native file/folder/Unicode paths, private PR routing, rejection/timeout and pending-scope retirement now pass through real gdbus and a private controlled receiver.

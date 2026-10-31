@@ -208,6 +208,9 @@ impl RadiologyApp {
     #[must_use]
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        let mut fonts = egui::FontDefinitions::default();
+        reader_fonts::append_fallbacks(&mut fonts);
+        cc.egui_ctx.set_fonts(fonts);
         let app = Self::from_session(SessionStore::load());
         cc.egui_ctx.set_visuals(if app.theme.is_dark {
             egui::Visuals::dark()

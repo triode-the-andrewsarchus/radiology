@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-10-30 — Portable host-matching CJK/emoji fallback package (Codex)
+
+Radiology now registers CJK and monochrome emoji fallbacks from a small local
+reader-fonts package. Font bytes/notices exactly match the sibling's existing
+assets. Default mode has no normal dependencies; optional egui registration
+preserves primary fonts, custom families and host type sizes, and is idempotent.
+Standalone builds need no sibling checkout or renderer. [Contract and provenance](plans/shared-font-fallbacks.md).
+Tests prove representative glyph coverage/real texture regions and unchanged Latin
+layout at 1×/1.5×/2×, registration ownership and asset hashes. Assets-only mode passes
+independently. Workspace gates pass 432 app tests (seven ignored), three font tests,
+eight shared text tests and 31 doctests, strict Clippy, formatting, build and
+warning-denied/render-inspected crate rustdoc. No new code hotspot/cycle/clone;
+the one new 89-line duplication group is required unchanged OFL license text in
+the two third-party notices. Native glyph/selection acceptance, primary font,
+type-role/palette alignment and broader parity audit remain open. The sibling has
+not migrated to this package yet. Commit and push each increment.
+
 ## 2026-10-30 — Native file-manager menus and real D-Bus handoff acceptance (Codex)
 
 Backend `7cfdd12` is pushed. Native file/folder menus send exact typed URI requests
