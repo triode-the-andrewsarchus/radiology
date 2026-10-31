@@ -33,6 +33,10 @@ including empty-reader shortcuts and live popup changes.
 [View/bookmark command states](plans/rust-keyboard-audit.md#view-availability-and-numbered-bookmark-commands--2026-10-31)
 now gate folding and source modes, expose all ten bookmark slots, and reflect the
 current add/remove action, with native 1×/2× checks.
+[Bookmark model parity](plans/rust-bookmark-pane.md#exact-locations-persisted-validity-and-relocation-refresh--2026-10-31)
+now covers exact Unicode columns, valid unique persisted identities and refreshed
+relocation metadata. A new confirmed mixed global/source input-order defect
+(Ctrl+D, Right, Ctrl+D in one frame) remains the next repair target.
 [Bounded Changes and Search results](plans/rust-result-pane-labels.md) now retain
 pane widths, Swift-style preview limits and exact navigation/interaction targets.
 [Inspector labels and signature disclosure](plans/rust-inspector-labels.md) now
