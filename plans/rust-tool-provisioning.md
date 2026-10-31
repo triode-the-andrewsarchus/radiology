@@ -175,3 +175,10 @@ Kotlin-to-Java definitions, Update reuse and cache-only reload under a private
 full JDK 17. The current system JDK 27 installs the tool successfully but fails
 Gradle script analysis during generation; prefer the verified JDK 17 environment.
 Android/AGP, broader dependency-heavy Gradle projects and actual Clang remain open.
+
+## Real manual Clang tool acceptance — 2026-10-30
+
+The [real C/C++ lifecycle](rust-real-indexer-acceptance.md) now passes with a manually
+downloaded official scip-clang 0.4.0 Linux binary. The app still does not download
+Clang automatically. C11/C++17 response-input rebasing, Unicode navigation, Update
+reuse and cache-only reload are verified; broader projects remain open.
