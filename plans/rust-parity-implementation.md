@@ -183,11 +183,11 @@ for simultaneous inspector regions and source keyboard exclusion.
   owned retired-project cleanup and legacy migration are integrated with native
   cross-process/restart acceptance; see [cache maintenance](rust-project-cache-maintenance.md).
   [Normalized revision retention](rust-normalized-revision-retention.md) now bounds owned current-format records with shared writer protection and cross-process tests; native refresh/reuse, cross-process deferral, restart, eviction and explicit regeneration now pass. Broader corpus acceptance remains open.
-- [Portable CJK/emoji fallbacks](shared-font-fallbacks.md) now use a local asset-only/optional-egui crate with exact host assets; native representative glyph/selection/copy checks now pass at 1×/1.5×/2×, with light/dark find at 1×/2×. The sibling-matching Fira Sans UI face and 12 pt metadata are now integrated with unchanged source geometry and native 1×/2× evidence. Broader type-role/palette alignment remains open.
+- [Portable CJK/emoji fallbacks](shared-font-fallbacks.md) now use a local asset-only/optional-egui crate with exact host assets; native representative glyph/selection/copy checks now pass at 1×/1.5×/2×, with light/dark find at 1×/2×. The sibling-matching Fira Sans UI face and 12 pt metadata are now integrated with unchanged source geometry and native 1×/2× evidence. [Unified reader visuals](rust-reader-appearance.md) now align neutral surfaces/text and widget states, with contrast and native 1×/2× checks. Broader type-role/spacing alignment remains open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - [Files-row Reveal in File Manager](rust-file-manager-reveal.md) now provides the missing file/folder action with scoped background handoff and visible errors; native file/folder/Unicode paths, private PR routing, rejection/timeout and pending-scope retirement now pass through real gdbus and a private controlled receiver.
-- Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,
+- Complete menu/shortcut enabled/focus states (including the native-proven file context-menu Escape gap in [reader appearance](rust-reader-appearance.md)), runtime light/dark/scaling checks,
   actual desktop visual acceptance, and requirement-by-requirement final audit.
 
 ## Commit discipline

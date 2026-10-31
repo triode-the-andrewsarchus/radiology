@@ -339,6 +339,39 @@ fn source_zoom_commands_persist_without_changing_other_ui_fonts() {
 }
 
 #[test]
+fn theme_commands_publish_reader_visuals_and_persist_without_resetting_host_metrics() {
+    let (dir, mut app) = reader();
+    let ctx = Context::default();
+    ctx.style_mut(|style| {
+        style
+            .text_styles
+            .insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
+        style.spacing.item_spacing = egui::vec2(9.0, 7.0);
+    });
+    let styles = ctx.style().text_styles.clone();
+    let spacing = ctx.style().spacing.clone();
+    let initial = app.theme.is_dark;
+    for expected in [!initial, initial] {
+        app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+        let visuals = ctx.style().visuals.clone();
+        assert_eq!(app.theme.is_dark, expected);
+        assert_eq!(visuals.dark_mode, expected);
+        assert_eq!(visuals.panel_fill, app.theme.bg_sidebar);
+        assert_eq!(visuals.hyperlink_color, app.theme.accent);
+        assert_eq!(
+            visuals.widgets.inactive.fg_stroke.color,
+            app.theme.text_primary
+        );
+        assert_eq!(ctx.style().text_styles, styles);
+        assert_eq!(ctx.style().spacing, spacing);
+        assert_eq!(
+            SessionStore::load_from(dir.path().join("settings/session.json")).dark_mode,
+            expected
+        );
+    }
+}
+
+#[test]
 fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
     let (_dir, mut app) = reader();
     let text = "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }";

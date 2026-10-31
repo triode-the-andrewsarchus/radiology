@@ -218,11 +218,7 @@ impl RadiologyApp {
                 .insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
         });
         let app = Self::from_session(SessionStore::load());
-        cc.egui_ctx.set_visuals(if app.theme.is_dark {
-            egui::Visuals::dark()
-        } else {
-            egui::Visuals::light()
-        });
+        cc.egui_ctx.set_visuals(app.theme.visuals());
         app
     }
 
