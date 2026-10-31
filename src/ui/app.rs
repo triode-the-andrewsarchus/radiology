@@ -6,6 +6,7 @@ mod critical_marks;
 mod desktop;
 mod git;
 mod indexing;
+mod modal;
 mod outline;
 mod references;
 mod repository;
@@ -189,6 +190,7 @@ pub struct RadiologyApp {
     pub bookmarks: BookmarkStore,
     /// Active modal dialog sheet.
     pub modal: ActiveModal,
+    modal_focus: Option<modal::ModalFocus>,
     source_loader: crate::source::loader::SourceLoader,
     pending_navigation: Option<source::PendingNavigation>,
     /// Target line to scroll and center into view in the code editor.
@@ -312,6 +314,7 @@ impl RadiologyApp {
             repository_search: RepositorySearch::default(),
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
+            modal_focus: None,
             source_loader: Default::default(),
             pending_navigation: None,
             scroll_to_line: None,
@@ -489,6 +492,7 @@ impl RadiologyApp {
         self.caret_col = 0;
         self.scroll_to_line = None;
         self.modal = ActiveModal::None;
+        self.modal_focus = None;
         self.sidebar_tab = SidebarTab::Files;
         self.error = None;
     }
@@ -548,6 +552,7 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         super::commands::take_context_menu_input(ctx, input);
+        self.take_modal_input(ctx, input);
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
             self.handle_bookmark_keys(ctx, input);
             self.handle_outline_keys(ctx, input);
@@ -575,6 +580,12 @@ impl eframe::App for RadiologyApp {
     }
 
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        self.render(ctx);
+    }
+}
+
+impl RadiologyApp {
+    fn render(&mut self, ctx: &Context) {
         self.poll_repository(ctx);
         self.poll_review(ctx);
         self.poll_recent_pull_requests(ctx);
@@ -588,87 +599,7 @@ impl eframe::App for RadiologyApp {
 
         self.handle_shortcuts(ctx);
 
-        let mut close_modal = false;
-        match &mut self.modal {
-            ActiveModal::None => {}
-            ActiveModal::QuickFilePicker(modal) => {
-                if let Some(action) = modal.show(ctx, &self.theme, &self.all_files) {
-                    match action {
-                        ModalAction::OpenFile(path) => {
-                            self.open_file(&path);
-                            close_modal = true;
-                        }
-                        ModalAction::Close => {
-                            close_modal = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            ActiveModal::GoToLine(modal) => {
-                let max_lines = self.open_buffer.as_ref().map_or(1, |b| b.line_count());
-                if let Some(action) = modal.show(ctx, &self.theme, max_lines) {
-                    match action {
-                        ModalAction::JumpToLine(line) => {
-                            if let Some(buf) = &self.open_buffer {
-                                let offset = buf.byte_offset(line, 0);
-                                let p = buf.path.clone();
-                                self.jump_to_location(&p, line, offset);
-                            }
-                            close_modal = true;
-                        }
-                        ModalAction::Close => {
-                            close_modal = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            ActiveModal::GoToSymbol(modal) => {
-                if let Some(action) = modal.show(
-                    ctx,
-                    &self.theme,
-                    self.semantic_index
-                        .as_deref()
-                        .filter(|_| self.active_revision != Some(ReviewRevision::Before)),
-                    &self.outline_symbols,
-                ) {
-                    match action {
-                        ModalAction::JumpToIndexedSymbol(id) => {
-                            self.navigate_to_indexed_symbol(&id);
-                            close_modal = true;
-                        }
-                        ModalAction::JumpToSymbol(byte) => {
-                            if let Some(buffer) = &self.open_buffer {
-                                self.navigate(buffer.location_at_byte(byte), true);
-                            }
-                            close_modal = true;
-                        }
-                        ModalAction::Close => {
-                            close_modal = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            ActiveModal::PullRequest(modal) => {
-                if let Some(action) = modal.show(ctx, &self.theme) {
-                    match action {
-                        ModalAction::OpenPullRequest(num) => {
-                            self.open_pull_request(num);
-                            close_modal = true;
-                        }
-                        ModalAction::Close => {
-                            close_modal = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if close_modal {
-            self.modal = ActiveModal::None;
-        }
+        let modal_owned_frame = self.show_modal(ctx);
 
         TopBottomPanel::top("top_toolbar").show(ctx, |ui| {
             if let Some(action) = Toolbar::show(
@@ -968,7 +899,8 @@ impl eframe::App for RadiologyApp {
                                         && index.column_encoding(&buf.path).is_some()
                                 },
                             ) && buf.revision != Some(ReviewRevision::Before),
-                            keyboard_enabled: matches!(self.modal, ActiveModal::None),
+                            keyboard_enabled: !modal_owned_frame
+                                && matches!(self.modal, ActiveModal::None),
                             find: &mut self.source_find,
                             font_size: self.session.source_font_size,
                             test_code: &self.test_code,
@@ -1010,6 +942,7 @@ impl eframe::App for RadiologyApp {
                             SourceViewAction::JumpToSymbol(byte) => {
                                 if let Some(buffer) = &self.open_buffer {
                                     self.navigate(buffer.location_at_byte(byte), true);
+                                    self.source_viewport.request_focus(ctx);
                                 }
                             }
                             SourceViewAction::PinAtByte(byte) => self.pin_at_byte(byte),
@@ -1030,6 +963,8 @@ impl eframe::App for RadiologyApp {
                     }
                     self.finish_source_interaction(caret_before);
                 } else if self.repository_root.is_some() {
+                    self.source_viewport
+                        .focus_surface(ui, ui.available_rect_before_wrap());
                     ui.centered_and_justified(|ui| {
                         ui.vertical_centered(|ui| {
                             ui.heading("No File Selected");

@@ -166,6 +166,14 @@ impl SourceViewport {
         ctx.memory(|memory| memory.has_focus(Self::focus_id()))
     }
 
+    pub(crate) fn request_focus(&self, ctx: &egui::Context) {
+        ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+    }
+
+    pub(crate) fn focus_surface(&self, ui: &egui::Ui, rect: Rect) -> egui::Response {
+        ui.interact(rect, Self::focus_id(), Sense::focusable_noninteractive())
+    }
+
     /// Briefly highlights a successfully resolved destination without changing selection.
     /// The hold/fade clock begins when these exact source bytes are painted.
     pub fn flash_destination(&mut self, buffer: &SourceBuffer, byte: usize) {
@@ -312,11 +320,7 @@ impl SourceViewport {
             self.occurrence_clicks = None;
         }
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
-        let canvas = ui.interact(
-            geometry.code_rect,
-            Self::focus_id(),
-            Sense::focusable_noninteractive(),
-        );
+        let canvas = self.focus_surface(ui, geometry.code_rect);
         crate::ui::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         let output = egui::ScrollArea::new([!content.wrap, true])
             .id_source((
