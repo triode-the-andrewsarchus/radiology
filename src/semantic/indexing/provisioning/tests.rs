@@ -323,3 +323,38 @@ printf '#!/bin/sh\nprintf "rust-analyzer fixture\\n"\n' > bin/rust-analyzer
         "untouched checkout"
     );
 }
+
+#[test]
+fn kotlin_installer_rejects_runtime_only_java_home_before_downloads() {
+    let fixture = Fixture::new();
+    // A compiler on PATH cannot repair Gradle's runtime-only JAVA_HOME.
+    fixture.program("javac", "exit 0");
+    let script = fixture._owner.path().join("installer.sh");
+    fs::write(
+        &script,
+        include_bytes!("../../../../Sources/Radiology/IndexingScripts/install-kotlin-indexer.sh"),
+    )
+    .unwrap();
+    for java_home in [Some(fixture.bin.clone()), None] {
+        let mut command = std::process::Command::new("/bin/sh");
+        command.arg(&script).args([
+            fixture.tools.managed.as_ref().unwrap().as_os_str(),
+            std::ffi::OsStr::new(plan::KOTLIN_COMMIT),
+            std::ffi::OsStr::new(plan::KOTLIN_VERSION),
+            std::ffi::OsStr::new(""),
+            std::ffi::OsStr::new("9.7.1"),
+        ]);
+        if let Some(root) = java_home {
+            command.env("JAVA_HOME", root).env("PATH", &fixture.bin);
+        } else {
+            command
+                .env_remove("JAVA_HOME")
+                .env("PATH", fixture.source.clone());
+        }
+        let output = command.output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("including javac"));
+        assert!(output.stdout.is_empty(), "no download should start");
+        assert!(!fixture.tools.managed.as_ref().unwrap().exists());
+    }
+}
