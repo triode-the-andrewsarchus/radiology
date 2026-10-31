@@ -60,6 +60,16 @@ impl RunOutput {
     pub fn succeeded(&self) -> bool {
         self.exit_code == Some(0) && self.signal.is_none()
     }
+
+    /// Returns a readable exit status or terminating signal for diagnostics.
+    #[must_use]
+    pub fn status_description(&self) -> String {
+        match (self.exit_code, self.signal) {
+            (Some(code), _) => format!("exited with status {code}"),
+            (_, Some(signal)) => format!("terminated by signal {signal}"),
+            _ => "did not exit successfully".into(),
+        }
+    }
 }
 
 /// Why a subprocess could not complete.

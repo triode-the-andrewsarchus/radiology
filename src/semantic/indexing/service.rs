@@ -733,10 +733,7 @@ fn run_command(
         output_log.stdout.text, output_log.stderr.text
     );
     if !output_log.succeeded() {
-        return Err(format!(
-            "Indexer exited with code {:?}, signal {:?}",
-            output_log.exit_code, output_log.signal
-        ));
+        return Err(format!("Indexer {}", output_log.status_description()));
     }
     Ok(())
 }
