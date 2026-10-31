@@ -120,3 +120,53 @@ menu traversal and broader focus acceptance remain in the final keyboard pass. E
 reader wrapping/scroll/scaling, PR/cache recovery and the final Swift requirement
 audit remain required. Full accessibility and actual little-screen-clip adoption
 remain deferred.
+
+
+## Search-menu command availability — 2026-10-31
+
+Swift ReaderCommands disables file/symbol/repository search without a repository,
+line/find commands without a source, and definition/references without an eligible
+caret target. At 7d4eb14 Rust's Search popup enables every item; Ctrl+K/T/L can
+open empty dialogs, and Ctrl+Shift+F switches to a repository search with no root.
+
+Search items now receive current availability from RadiologyApp::command_enabled;
+the same predicate guards execute_command for pointer/menu/global-shortcut paths.
+Repository commands reuse repository_interaction_ready. Local commands reuse
+source_location_ready, so a pending source publication cannot open a dialog on
+outgoing bytes. Semantic commands reuse the existing cached definition_identity
+and source/index Arcs, verify the current caret remains in the cached range, and
+require a canonical definition for Go to Definition. Drawing introduces no new
+occurrence scan, parser, cache, worker or dependency. Dispatch refreshes the
+existing target before checking, preserving a preceding caret move's destination.
+Redundant local-find guards now live in the shared predicate. Other command groups
+retain their existing handlers and availability; this is not a claim of complete
+View/PR/indexing/keyboard acceptance.
+
+Actual egui shortcut tests reject empty-reader file/symbol/line/search dialogs.
+Accepted-source tests cover loading, no source, ready navigation, whitespace,
+indexed targets and a caret move immediately before explicit references. A painted
+menu test changes availability after opening, rejects a stale row click and uses
+Home/Return to skip disabled commands. Removing the dispatch guard or menu enabled
+state separately fails its regression. Final workspace passes 521 app tests
+(seven ignored), two binary, four font, 13 reader-text and 36 doctests. Strict
+Clippy, all-target check, build, warning-denied rustdoc, fmt and diff checks pass.
+Architecture adds 153 NLOC including tests; command_enabled CCN is 7 and
+execute_command falls from 14 to 13. No new hotspot/cycle/max-CCN increase.
+The raw comparison flags four touched-file test clones; a complete multiset audit
+proves all 91 baseline clones unchanged (zero added/removed).
+
+Native private Wayland empty/loaded-reader runs at 1×/2× verify disabled clicks,
+empty-reader shortcuts and available Go to Line navigation. The loaded fixture is
+unindexed: definition remains disabled, while Go to Line opens and line-two copy
+returns the exact original `// NATIVE_SECOND`. Captures are inspected; final
+binary/fixture hashes and zero child exits are verified. Indexed command execution
+is covered by the app suite and earlier dedicated native definition acceptance;
+these four native runs do not add real-indexer coverage. An initial OCR selector
+matched both toolbar and sidebar Search labels; its failed trial is retained and
+excluded, then corrected by limiting the toolbar search region. Preliminary
+pre-cache-reuse runs are retained separately from final-binary acceptance.
+
+Evidence: `~/.local/state/radiology-qa/command-availability-20261031-7d4eb14`.
+Broader enabled states, cross-owner sequences, source/grammar/index/PR corpus and
+final Swift UI/standalone/reuse acceptance remain open. Full accessibility and
+actual little-screen-clip integration remain deferred.

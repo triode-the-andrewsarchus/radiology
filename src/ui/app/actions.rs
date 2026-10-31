@@ -3,7 +3,45 @@
 use super::*;
 
 impl RadiologyApp {
+    pub(super) fn command_enabled(&self, command: &ToolbarAction) -> bool {
+        use ToolbarAction::*;
+        match command {
+            OpenQuickFilePicker | OpenGoToSymbol | OpenSearch => {
+                self.repository_interaction_ready()
+            }
+            OpenGoToLine | FindInFile | NextFindMatch | PreviousFindMatch => {
+                self.source_location_ready()
+            }
+            GoToDefinition | FindReferences => {
+                let (Some(buffer), Some(index), Some(inputs), Some((id, range))) = (
+                    &self.open_buffer,
+                    &self.semantic_index,
+                    &self.semantic_inputs,
+                    &self.definition_identity,
+                ) else {
+                    return false;
+                };
+                self.source_location_ready()
+                    && Arc::ptr_eq(buffer, &inputs.buffer)
+                    && Arc::ptr_eq(index, &inputs.index)
+                    && range.contains(&buffer.byte_offset(self.caret_line, self.caret_col))
+                    && (matches!(command, FindReferences)
+                        || index.find_definition_for_id(id).is_some())
+            }
+            _ => true,
+        }
+    }
+
     pub(super) fn execute_command(&mut self, ctx: &Context, command: ToolbarAction) {
+        if matches!(
+            command,
+            ToolbarAction::GoToDefinition | ToolbarAction::FindReferences
+        ) {
+            self.refresh_under_caret_context();
+        }
+        if !self.command_enabled(&command) {
+            return;
+        }
         use ToolbarAction::*;
         match command {
             ReloadSource => {
@@ -76,13 +114,12 @@ impl RadiologyApp {
             OpenPullRequest(number) => self.open_pull_request(number),
             RefreshPRList => self.recent_pull_requests.refresh(),
             CancelPRList => self.recent_pull_requests.cancel(),
-            FindInFile if self.open_buffer.is_some() => {
+            FindInFile => {
                 self.source_find.open();
                 self.source_find.focus_query(ctx);
             }
-            NextFindMatch if self.open_buffer.is_some() => self.source_find.request_step(true),
-            PreviousFindMatch if self.open_buffer.is_some() => self.source_find.request_step(false),
-            FindInFile | NextFindMatch | PreviousFindMatch => {}
+            NextFindMatch => self.source_find.request_step(true),
+            PreviousFindMatch => self.source_find.request_step(false),
             OpenSearch => {
                 self.sidebar_tab = SidebarTab::Search;
                 self.show_sidebar = true;

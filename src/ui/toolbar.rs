@@ -35,6 +35,7 @@ impl Toolbar {
     /// * `wrap_lines` - Whether long lines wrap at viewport width.
     /// * `history` - Navigation history tracker used to enable/disable back/forward buttons.
     /// * `change_navigation` - Available change targets for the accepted source.
+    /// * `command_enabled` - Current application availability for menu commands.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -50,6 +51,7 @@ impl Toolbar {
         wrap_lines: bool,
         history: &NavigationHistory,
         change_navigation: crate::pull_request::diff::ChangeNavigation,
+        command_enabled: impl Fn(&ToolbarAction) -> bool,
     ) -> Option<ToolbarAction> {
         let previous_focus = ui.memory(|memory| memory.focused());
         let mut menus = MenuBar::default();
@@ -164,7 +166,7 @@ impl Toolbar {
 
             // View & Filters Menu
             menus.button(ui, "View", "view", view_items(theme, filters, wrap_lines));
-            menus.button(ui, "Search", "search", search_items());
+            menus.button(ui, "Search", "search", search_items(&command_enabled));
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -262,7 +264,7 @@ fn view_items(
 }
 
 /// Search and navigation menu shares one data-driven command dispatch.
-fn search_items() -> Vec<Item<ToolbarAction>> {
+fn search_items(command_enabled: &impl Fn(&ToolbarAction) -> bool) -> Vec<Item<ToolbarAction>> {
     let groups = [
         &[
             ("Find in File (Ctrl+F)", ToolbarAction::FindInFile),
@@ -295,19 +297,17 @@ fn search_items() -> Vec<Item<ToolbarAction>> {
         if !items.is_empty() {
             items.push(Item::separator());
         }
-        items.extend(
-            group
-                .iter()
-                .map(|(label, action)| Item::action(*label, action.clone())),
-        );
+        items.extend(group.iter().map(|(label, action)| {
+            Item::action(*label, action.clone()).enabled(command_enabled(action))
+        }));
     }
     items
 }
 
 #[cfg(test)]
-fn search_menu(ui: &mut Ui) -> Option<ToolbarAction> {
+fn search_menu(ui: &mut Ui, enabled: impl Fn(&ToolbarAction) -> bool) -> Option<ToolbarAction> {
     let mut menus = MenuBar::default();
-    menus.button(ui, "Search", "search", search_items());
+    menus.button(ui, "Search", "search", search_items(&enabled));
     menus.show()
 }
 
@@ -321,18 +321,18 @@ mod tests {
         let ctx = egui::Context::default();
         let mut action = None;
         let output = painted_frame(&ctx, egui::vec2(600.0, 600.0), vec![], |ui| {
-            action = search_menu(ui);
+            action = search_menu(ui, |_| true);
         });
         painted_frame(
             &ctx,
             egui::vec2(600.0, 600.0),
             click(text_center(&output, "Search")),
             |ui| {
-                action = search_menu(ui);
+                action = search_menu(ui, |_| true);
             },
         );
         let output = painted_frame(&ctx, egui::vec2(600.0, 600.0), vec![], |ui| {
-            action = search_menu(ui);
+            action = search_menu(ui, |_| true);
         });
         assert!(action.is_none());
         painted_frame(
@@ -340,9 +340,43 @@ mod tests {
             egui::vec2(600.0, 600.0),
             click(text_center(&output, "Go to Definition (Ctrl+Alt+J / F12)")),
             |ui| {
-                action = search_menu(ui);
+                action = search_menu(ui, |_| true);
             },
         );
         assert_eq!(action, Some(ToolbarAction::GoToDefinition));
+    }
+
+    #[test]
+    fn search_menu_rechecks_availability_while_open_and_skips_disabled_commands() {
+        let ctx = egui::Context::default();
+        let size = egui::vec2(600.0, 600.0);
+        let mut action = None;
+        let mut frame = |events, available| {
+            painted_frame(&ctx, size, events, |ui| {
+                action = search_menu(ui, |command| {
+                    available || matches!(command, ToolbarAction::OpenSearch)
+                });
+            })
+        };
+        let output = frame(vec![], true);
+        frame(click(text_center(&output, "Search")), true);
+        let output = frame(vec![], true);
+        frame(click(text_center(&output, "Go to Line… (Ctrl+L)")), false);
+        assert!(
+            action.is_none(),
+            "a stale enabled row dispatched after its source vanished"
+        );
+        crate::ui::test_support::menu_frame(
+            &ctx,
+            size,
+            vec![
+                crate::ui::commands::test_key(egui::Key::Home),
+                crate::ui::commands::test_key(egui::Key::Enter),
+            ],
+            |ui| {
+                action = search_menu(ui, |command| matches!(command, ToolbarAction::OpenSearch));
+            },
+        );
+        assert_eq!(action, Some(ToolbarAction::OpenSearch));
     }
 }

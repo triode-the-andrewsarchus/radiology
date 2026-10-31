@@ -2314,3 +2314,90 @@ fn opening_a_modal_blocks_later_reader_shortcuts_in_the_same_frame() {
 mod focus;
 
 mod outline_status;
+
+#[test]
+fn unavailable_navigation_shortcuts_do_not_open_empty_dialogs_or_search() {
+    let (_dir, mut app) = reader();
+    let ctx = Context::default();
+    for (key, modifiers) in [
+        (egui::Key::K, egui::Modifiers::CTRL),
+        (egui::Key::T, egui::Modifiers::CTRL),
+        (egui::Key::L, egui::Modifiers::CTRL),
+        (egui::Key::F, egui::Modifiers::CTRL | egui::Modifiers::SHIFT),
+    ] {
+        let mut event = crate::ui::commands::test_key(key);
+        if let egui::Event::Key {
+            modifiers: value, ..
+        } = &mut event
+        {
+            *value = modifiers;
+        }
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![event],
+                ..Default::default()
+            },
+            |ctx| {
+                app.handle_shortcuts(ctx);
+            },
+        );
+        assert!(
+            matches!(app.modal, ActiveModal::None),
+            "unavailable {key:?} opened a dialog"
+        );
+        assert_eq!(app.sidebar_tab, SidebarTab::Files);
+    }
+    for command in [
+        ToolbarAction::FindInFile,
+        ToolbarAction::NextFindMatch,
+        ToolbarAction::PreviousFindMatch,
+        ToolbarAction::GoToDefinition,
+        ToolbarAction::FindReferences,
+    ] {
+        assert!(!app.command_enabled(&command));
+        app.execute_command(&ctx, command);
+        assert!(app.error.is_none());
+    }
+}
+
+#[test]
+fn navigation_availability_tracks_accepted_source_and_exact_semantic_target() {
+    let (_dir, mut app) = reader_at_indexed_call();
+    let ctx = Context::default();
+    for command in [
+        ToolbarAction::OpenQuickFilePicker,
+        ToolbarAction::OpenGoToSymbol,
+        ToolbarAction::OpenSearch,
+        ToolbarAction::OpenGoToLine,
+        ToolbarAction::FindInFile,
+        ToolbarAction::NextFindMatch,
+        ToolbarAction::PreviousFindMatch,
+        ToolbarAction::GoToDefinition,
+        ToolbarAction::FindReferences,
+    ] {
+        assert!(app.command_enabled(&command), "unavailable {command:?}");
+    }
+    app.execute_command(&ctx, ToolbarAction::OpenGoToLine);
+    assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
+    app.modal = ActiveModal::None;
+    app.caret_line = 3;
+    app.caret_col = 0;
+    assert!(!app.command_enabled(&ToolbarAction::GoToDefinition));
+    assert!(!app.command_enabled(&ToolbarAction::FindReferences));
+    // Dispatch must refresh the cached target if a preceding input moved the caret.
+    app.caret_line = 1;
+    app.caret_col = 3;
+    app.execute_command(&ctx, ToolbarAction::FindReferences);
+    assert_eq!(app.reference_context.target().unwrap().name, "beta");
+    app.open_file("a.rs");
+    assert!(!app.command_enabled(&ToolbarAction::OpenGoToLine));
+    app.execute_command(&ctx, ToolbarAction::OpenGoToLine);
+    assert!(matches!(app.modal, ActiveModal::None));
+    settle(&mut app);
+    assert!(app.command_enabled(&ToolbarAction::OpenGoToLine));
+    app.open_buffer = None;
+    assert!(!app.command_enabled(&ToolbarAction::OpenGoToLine));
+    assert!(app.command_enabled(&ToolbarAction::OpenQuickFilePicker));
+    app.execute_command(&ctx, ToolbarAction::OpenQuickFilePicker);
+    assert!(matches!(app.modal, ActiveModal::QuickFilePicker(_)));
+}

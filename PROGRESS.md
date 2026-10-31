@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-10-31 — Match Search commands to available repository/source/targets (Codex)
+
+Rust enabled every Search item and opened empty file/symbol/line dialogs with no
+repository/source. Menus and command dispatch now share existing readiness rules;
+semantic items reuse source/index-bound cached target identity, without new
+per-frame occurrence scans. Dispatch refreshes the target after preceding caret
+input. Local-find guards are centralized. Empty-reader key events, ready/loading/
+missing source, exact indexed/whitespace targets and live-popup disabled-row plus
+keyboard-skip tests pass; removing either repair fails its regression. Workspace
+passes 521 app tests (seven ignored), two binary, four font, 13 text and 36
+doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture adds 153
+NLOC including tests; command_enabled CCN 7, execute_command 14→13. Raw touched-
+file clone warnings are audited: all 91 groups unchanged, no new hotspot/cycle.
+Native final-binary empty/loaded-reader checks pass at 1×/2×, including disabled
+clicks, shortcut gating and exact line-two Go to Line copy. Captures, hashes and
+zero exits verified; excluded OCR/preliminary trials retained separately.
+Other command groups and broader Swift UI/reader/grammar/index/PR/cache/corpus/
+standalone-reuse acceptance remain open. Full accessibility and actual sibling
+integration stay deferred.
+[Contract/evidence](plans/rust-keyboard-audit.md#search-menu-command-availability--2026-10-31).
+Archive: ~/.local/state/radiology-qa/command-availability-20261031-7d4eb14.
+
 ## 2026-10-31 — Prioritize the wrapped destination window during reflow (Codex)
 
 Fresh pre-change font-reset/rewrap captures omit the 6 MB tail. Wrapped measurement
