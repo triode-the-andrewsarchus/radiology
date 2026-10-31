@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-31 — Confirm long-line defect and add reusable width bookkeeping (Codex)
+
+The source acceptance audit found a real open defect: Wrap Lines off still stacks
+4 KiB fragments vertically, and Down stays within the same canonical line. The
+viewport regression fails at y offsets 0 versus 60.890625; native evidence shows
+the continuation rows and Line 1 after Down. [Evidence and integration steps](plans/rust-unwrapped-fragment-geometry.md).
+reader-text now provides UnwrappedRows for grouped horizontal prefixes, measured
+width updates and readiness frontiers. It owns no text, font or GUI and adds no
+dependency. Tests cover source projections, Unicode, hidden-newline joins, zero
+widths, boundary hits and arbitrary update order against linear geometry. The UI
+has not adopted it yet: the defect remains required work, not a passed acceptance
+case. The failing UI test is preserved outside the worktree as ui-regression.rs
+under ~/.local/state/radiology-qa/unwrapped-before-20261031-9fc02dc, alongside native
+captures, hashes and zero process exits. Workspace passes 453 app tests (seven
+ignored), two binary tests, four font tests, eleven text tests and 34 doctests;
+strict Clippy/fmt/diff and warning-denied/inspected rustdoc pass. Architecture is
+neutral with no new clone/hotspot/cycle. Commit and push this backend boundary,
+then integrate it into placement, hit testing, deferred measurement/navigation and
+copy without lifting the shaping bound. Broader parity remains active.
+
 ## 2026-10-31 — Own keyboard input across reader context menus (Codex)
 
 Files/source/bookmark/reference menus now share a private action model and egui

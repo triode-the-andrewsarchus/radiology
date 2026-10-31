@@ -7,10 +7,12 @@
 mod find;
 mod projection;
 mod rows;
+mod unwrapped;
 pub use find::{FindOptions, MatchSpool};
 pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
 pub use rows::RowHeights;
 use std::ops::Range;
+pub use unwrapped::UnwrappedRows;
 
 /// One bounded display fragment of a canonical source line.
 #[derive(Debug, Clone, PartialEq, Eq)]
