@@ -398,17 +398,28 @@ impl Sidebar {
         action
     }
     fn row_menu(response: &egui::Response, path: &str) -> Option<SidebarAction> {
-        let mut action = None;
-        crate::ui::commands::context_menu(response, |ui| {
-            if ui.button("Reveal in File Manager").clicked() {
-                action = Some(SidebarAction::RevealInFileManager(path.to_owned()));
-                ui.close_menu();
+        #[derive(Clone)]
+        enum FileMenuAction {
+            Reveal,
+            CopyPath,
+        }
+        use crate::ui::commands::MenuItem;
+        match crate::ui::commands::context_menu(response, path, || {
+            vec![
+                MenuItem::action("Reveal in File Manager", FileMenuAction::Reveal),
+                MenuItem::action("Copy Relative Path", FileMenuAction::CopyPath),
+            ]
+        }) {
+            Some(FileMenuAction::Reveal) => {
+                Some(SidebarAction::RevealInFileManager(path.to_owned()))
             }
-            if ui.button("Copy Relative Path").clicked() {
-                ui.output_mut(|output| output.copied_text = path.to_owned());
-                ui.close_menu();
+            Some(FileMenuAction::CopyPath) => {
+                response
+                    .ctx
+                    .output_mut(|output| output.copied_text = path.to_owned());
+                None
             }
-        });
-        action
+            None => None,
+        }
     }
 }

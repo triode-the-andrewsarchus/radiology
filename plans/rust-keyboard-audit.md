@@ -113,8 +113,9 @@ flagged baseline fragments remain unchanged.
 
 ## Still open
 
-Complete toolbar/context-menu traversal and focus restoration remain in the final
-keyboard pass. Existing context-menu Escape evidence is recorded
+[Context-menu traversal and input ownership](rust-context-menu-keyboard.md) now
+cover all four reader owners, nested actions and opening-frame batching. Toolbar
+menu traversal and broader focus acceptance remain in the final keyboard pass. Existing context-menu Escape evidence is recorded
 [separately](rust-context-menu-dismissal.md). Broader indexing/grammar corpora,
 reader wrapping/scroll/scaling, PR/cache recovery and the final Swift requirement
 audit remain required. Full accessibility and actual little-screen-clip adoption

@@ -235,9 +235,9 @@ impl BookmarkList {
             bookmark.line,
             bookmark.column + 1
         ));
-        super::commands::context_menu(&response, |ui| {
-            action = bookmark_menu(ui, store, index).or(action.take());
-        });
+        action =
+            super::commands::context_menu(&response, bookmark.id, || bookmark_menu(store, index))
+                .or(action);
         action
     }
 
@@ -295,10 +295,13 @@ impl BookmarkList {
     }
 }
 
-fn bookmark_menu(ui: &mut Ui, store: &BookmarkStore, index: usize) -> Option<BookmarkAction> {
+fn bookmark_menu(
+    store: &BookmarkStore,
+    index: usize,
+) -> Vec<super::commands::MenuItem<BookmarkAction>> {
+    use super::commands::MenuItem;
     let id = store.bookmarks[index].id;
-    let mut action = None;
-    for (label, enabled, next) in [
+    let mut items: Vec<_> = [
         ("Go to Bookmark", true, BookmarkAction::Open(id)),
         (
             "Move Up",
@@ -316,29 +319,25 @@ fn bookmark_menu(ui: &mut Ui, store: &BookmarkStore, index: usize) -> Option<Boo
                 slot: index + 1,
             },
         ),
-    ] {
-        if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-            action = Some(next);
-            ui.close_menu();
-        }
-    }
-    ui.menu_button("Move to Shortcut", |ui| {
-        for slot in 0..store.bookmarks.len().min(10) {
-            if ui
-                .add_enabled(slot != index, egui::Button::new(format!("Ctrl+{slot}")))
-                .clicked()
-            {
-                action = Some(BookmarkAction::Move { id, slot });
-                ui.close_menu();
-            }
-        }
-    });
-    ui.separator();
-    if ui.button("Remove Bookmark").clicked() {
-        action = Some(BookmarkAction::Remove(id));
-        ui.close_menu();
-    }
-    action
+    ]
+    .into_iter()
+    .map(|(label, enabled, action)| MenuItem::action(label, action).enabled(enabled))
+    .collect();
+    items.push(MenuItem::submenu(
+        "Move to Shortcut",
+        (0..store.bookmarks.len().min(10))
+            .map(|slot| {
+                MenuItem::action(format!("Ctrl+{slot}"), BookmarkAction::Move { id, slot })
+                    .enabled(slot != index)
+            })
+            .collect(),
+    ));
+    items.push(MenuItem::separator());
+    items.push(MenuItem::action(
+        "Remove Bookmark",
+        BookmarkAction::Remove(id),
+    ));
+    items
 }
 
 #[cfg(test)]

@@ -70,6 +70,7 @@ impl RadiologyApp {
             Ok(Some(Ok(repository))) => {
                 if let Some(request) = self.pending_repository.take() {
                     if repository.filters == self.session.source_filters {
+                        crate::ui::commands::close_context_menu(ctx);
                         self.accept_repository(repository, request);
                     } else {
                         self.request_repository(request);

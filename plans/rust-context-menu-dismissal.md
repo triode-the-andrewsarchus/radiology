@@ -1,5 +1,9 @@
 # Context-menu Escape dismissal
 
+The later [keyboard menu component](rust-context-menu-keyboard.md) supersedes this
+Escape-only implementation while preserving the regression and historical native
+evidence below.
+
 The [appearance native pass](rust-reader-appearance.md) proved that file context
 menus stayed visible after standalone Escape and a 400 ms wait. Egui 0.27 handles
 Escape for toolbar menus but its context-menu path does not implement that action.

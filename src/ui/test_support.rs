@@ -67,3 +67,24 @@ pub(crate) fn click(position: egui::Pos2) -> Vec<egui::Event> {
         },
     ]
 }
+
+/// Sends one complete context-menu click to an observed control position.
+pub(crate) fn secondary_click(position: egui::Pos2) -> Vec<egui::Event> {
+    click(position)
+        .into_iter()
+        .map(|event| match event {
+            egui::Event::PointerButton {
+                pos,
+                pressed,
+                modifiers,
+                ..
+            } => egui::Event::PointerButton {
+                pos,
+                pressed,
+                modifiers,
+                button: egui::PointerButton::Secondary,
+            },
+            other => other,
+        })
+        .collect()
+}

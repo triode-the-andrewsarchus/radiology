@@ -437,12 +437,22 @@ fn render_row(
     } else {
         None
     };
-    crate::ui::commands::context_menu(&response, |ui| {
-        if ui.button("Go to Reference").clicked() {
-            action = Some(ReferenceAction::Commit(Some(index)));
-            ui.close_menu();
-        }
-    });
+    action = crate::ui::commands::context_menu(
+        &response,
+        (
+            &node.path,
+            node.byte_range.start,
+            node.byte_range.end,
+            &node.source_line.text,
+        ),
+        || {
+            vec![crate::ui::commands::MenuItem::action(
+                "Go to Reference",
+                ReferenceAction::Commit(Some(index)),
+            )]
+        },
+    )
+    .or(action);
     response.widget_info(|| {
         egui::WidgetInfo::labeled(
             egui::WidgetType::SelectableLabel,
