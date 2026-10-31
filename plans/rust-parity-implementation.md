@@ -155,8 +155,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   frontiers and snapshot workers now feed source fold counts; see
   [graph/count acceptance](rust-call-graph.md). Exact background projection and
   persisted symbol/package menus are integrated; see [marks](rust-critical-marks.md).
-- Complete remaining PR workflow: broader reuse provenance and disabled
-  unavailable revision/change controls and late-data/refresh folding behavior.
+- Complete remaining PR workflow: broader reuse provenance and final late-data/
+  refresh acceptance. [Reader notices and control availability](rust-reader-notices-controls.md)
+  now provide bounded diagnostics with complete Details/Copy, disabled unavailable
+  revisions, guarded keyboard toggles and change-boundary controls, with native checks.
   [Preparation processes](rust-pr-process-cancellation.md) now share cancellation/
   deadlines with native metadata/fetch Cancel and pinned-review recovery checks.
   [Recent chooser](rust-pr-chooser.md) now provides 25 repository-owned entries,

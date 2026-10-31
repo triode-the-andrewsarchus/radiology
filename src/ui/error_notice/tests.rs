@@ -36,6 +36,11 @@ fn notices_stay_one_row_for_long_unicode_and_multiline_diagnostics_at_narrow_siz
         for (width, scale) in [(220.0, 1.0), (400.0, 1.5), (1000.0, 2.0)] {
             let ctx = Context::default();
             ctx.set_pixels_per_point(scale);
+            ctx.set_visuals(if theme.is_dark {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            });
             let mut notice = ErrorNotice::default();
             let (output, dismissed) = frame(
                 &mut notice,
@@ -50,6 +55,22 @@ fn notices_stay_one_row_for_long_unicode_and_multiline_diagnostics_at_narrow_siz
                 ctx.used_rect().height() <= 40.0,
                 "notice expanded: {:?}",
                 ctx.used_rect()
+            );
+            let summary_x = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text)
+                        if text.galley.job.text.starts_with("Source failed:") =>
+                    {
+                        Some(text.pos.x)
+                    }
+                    _ => None,
+                })
+                .expect("summary must be painted");
+            assert!(
+                summary_x <= 12.0,
+                "summary must align with reader notices: {summary_x}"
             );
             text_position(&output, "Dismiss");
             text_position(&output, "Details…");

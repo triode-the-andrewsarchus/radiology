@@ -26,10 +26,17 @@ impl ErrorNotice {
                     if ui.small_button("Details…").clicked() {
                         self.details_open = true;
                     }
-                    ui.add_sized(
-                        [ui.available_width(), ui.spacing().interact_size.y],
-                        Label::new(RichText::new(summary(message)).color(theme.text_primary))
-                            .truncate(true),
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.add(
+                                Label::new(
+                                    RichText::new(summary(message)).color(theme.text_primary),
+                                )
+                                .truncate(true),
+                            );
+                        },
                     );
                 });
             });

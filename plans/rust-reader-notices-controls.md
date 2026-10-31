@@ -52,6 +52,42 @@ of requiring best-effort drop-time maintenance to finish while another writer ma
 be busy. Active lease, reuse, bound and LRU checks remain; production retention is
 unchanged.
 
-Native error-details/revision/navigation acceptance is pending. Full parity remains
-open: complete index provisioning/project/version reuse, broader store recovery,
+## Native acceptance
+
+Core implementation `d602a49` plus the summary-alignment follow-up passed a private
+1280×900 Wayland sequence. Two modified hunks navigate to source lines 10 and 40;
+global/source arrows visibly disable at the corresponding boundaries. Added
+new.rs keeps Before disabled; deleted b.rs opens in Before with After disabled.
+Both pointer attempts and Ctrl+Alt+B preserve each accepted reader without an
+error. The header correctly reports Added and Deleted.
+
+A controlled metadata failure emits 1,200 diagnostic rows. Its notice remains one
+left-aligned row with Details and Dismiss. The bounded Details window scrolls from
+the initial rows to later rows. Copy Details produces the exact complete 45,793-byte
+reader message, including all rows and the final marker; its SHA-256 is
+`a31325811c88a6d8c96305c58295abbf324fc41febcbee0ebd9450158e9a1353`.
+Dismiss closes both notice and details while keeping the Before reader; fresh PR
+refresh recovers. Checkout HEAD/status/source bytes compare unchanged. Final app
+and compositor exit statuses are zero.
+
+The first native capture also exposed centered summary text; the follow-up aligns
+it with other reader notices. Two focused notice tests and strict Clippy pass after
+that fix and explicit dark/light context setup; build passes after the production
+alignment change. The full 396/eight/30 gates and rustdoc passed before this small
+layout follow-up. Broad native scaling/accessibility acceptance remains open.
+
+Artifacts: `/tmp/radiology-reader-controls-native-accepted/manifest.json`,
+`acceptance.json`, `clipboard-proof.json`, `copied-details.txt`, and hashed captures
+`first-change.png`, `last-change.png`, `added-before-disabled.png`,
+`added-unavailable-retained.png`, `deleted-after-disabled.png`,
+`deleted-unavailable-retained.png`, `bounded-long-error.png`, `full-details.png`,
+`details-scrolled.png`, `dismissed-reader-retained.png`, and `recovered-reader.png`.
+Control and geometry observations are visual checks; clipboard equality and
+checkout preservation are exact comparisons. Earlier QA sessions were retired by
+harness errors involving clipboard MIME inference and an unsupported scroll amount.
+The final session explicitly requests text, waits for publication, uses the helper's
+supported range and exits cleanly. Sibling capture helpers remain QA-only; the app
+has no sibling runtime dependency. Fixtures make no remote PR writes.
+
+Full parity remains open: complete index provisioning/project/version reuse, broader store recovery,
 and final visual/accessibility/scaling/font and sibling reuse acceptance.
