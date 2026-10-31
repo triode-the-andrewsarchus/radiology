@@ -16,7 +16,7 @@ struct Capture {
     pattern: usize,
 }
 
-/// Native Swift, Kotlin and ECMAScript captures retained across appearance changes.
+/// Native language captures retained across appearance changes.
 #[derive(Debug, Clone, Default)]
 pub struct NativeHighlights {
     captures: Vec<Capture>,
@@ -34,7 +34,8 @@ impl NativeHighlights {
     ) -> Self {
         if !matches!(
             grammar,
-            SupportedGrammar::Swift
+            SupportedGrammar::Rust
+                | SupportedGrammar::Swift
                 | SupportedGrammar::Kotlin
                 | SupportedGrammar::JavaScript
                 | SupportedGrammar::TypeScript

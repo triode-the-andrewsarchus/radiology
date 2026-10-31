@@ -493,11 +493,12 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert!(!app.theme.is_dark);
     let buffer = app.open_buffer.as_ref().unwrap().clone();
-    let expected = app.highlighter.highlight_document(
-        app.highlighter.find_syntax_for_path("b.rs"),
-        &buffer.text,
-        false,
-    );
+    let retained = app.native_highlights.clone();
+    assert!(retained.matches(&buffer));
+    let expected = crate::syntax::DocumentSyntax::analyze(&buffer)
+        .native_highlights
+        .recolor(&buffer, false, || false)
+        .unwrap();
     assert_eq!(app.highlighted_lines, expected);
     assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
     app.fold_store.toggle_header(1, &app.fold_ranges);
@@ -506,6 +507,11 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert!(Arc::ptr_eq(&app.native_highlights, &retained));
+    assert_eq!(
+        app.highlighted_lines,
+        retained.recolor(&buffer, true, || false).unwrap()
+    );
     assert!(
         !app.fold_store.is_header_folded(1, &app.fold_ranges),
         "theme recolor must preserve explicit expansion"

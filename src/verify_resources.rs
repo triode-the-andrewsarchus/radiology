@@ -7,7 +7,7 @@ use radiology::{
 use std::collections::HashSet;
 
 const NATIVE: &[(&str, &str, bool)] = &[
-    ("probe.rs", "fn probe(value: i32) -> i32 {\n target(value)\n}\n#[test]\nfn test_probe() { probe(1); }\n", false),
+    ("probe.rs", "fn probe(value: i32) -> i32 {\n target(value)\n}\n#[test]\nfn test_probe() { probe(1); }\n", true),
     ("probe.py", "def probe(value):\n result = target(value)\n return result\n", false),
     ("probe.go", "package main\nfunc probe(value int) int {\n return target(value)\n}\n", false),
     ("probe.js", "function probe(value) {\n return target(value);\n}\n", true),

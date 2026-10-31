@@ -3,6 +3,7 @@ use crate::source::ReviewRevision;
 #[test]
 fn native_highlight_queries_compile() {
     for grammar in [
+        SupportedGrammar::Rust,
         SupportedGrammar::Swift,
         SupportedGrammar::Kotlin,
         SupportedGrammar::JavaScript,
@@ -58,6 +59,7 @@ fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
     let javascript =
         "// café 😀\r\nexport function greet(value) {\r\n  return value + \"hi\";\r\n}\r\n";
     for (path, text, expected) in [
+        ("a.rs", "// café 😀\r\n#[derive(Debug)]\r\nstruct Record<'borrow> { field: &'borrow str }\r\nfn run<'borrow>(value: &'borrow str) -> Record<'borrow> {\r\n let text = \"hi\\n\"; let raw = r#\"raw\"#; let count = 42; let yes = true;\r\n println!(\"{}\", text); Record { field: value }\r\n}\r\n", vec![("derive", "attribute"), ("struct", "keyword"), ("Record", "type"), ("borrow", "label"), ("field:", "property"), ("str }", "type"), ("run", "function"), ("hi", "string"), ("\\n\"", "string.escape"), ("raw\"#", "string"), ("42", "number"), ("true", "constant"), ("println", "function")]),
         ("a.swift", "// café 😀\r\nfunc run(value: Int) {\r\n let text = \"hi\\n\"\r\n print(text)\r\n}\r\n", vec![("run", "function"), ("func", "keyword"), ("hi", "string"), ("\\n\"", "primary")]),
         ("a.kt", "// café 😀\r\nfun run(value: Int) {\r\n val text = \"hi\\n\"\r\n println(text)\r\n}\r\n", vec![("run", "function"), ("fun", "keyword"), ("hi", "string"), ("\\n\"", "string.escape")]),
         (
@@ -217,4 +219,40 @@ fn kotlin_native_nodes_supply_type_property_constant_and_annotation_roles() {
             "{word}"
         );
     }
+}
+
+#[test]
+fn rust_native_long_comment_preserves_full_unicode_crlf_and_recolors_without_a_parse() {
+    let text = format!(
+        "// {} LONG_END\r\nfn tail() {{}}\r\n",
+        "abcdé🦀漢字 ".repeat(370_000)
+    );
+    let buffer = SourceBuffer::from_str("long.rs", &text);
+    assert!(buffer.byte_len() > 6_000_000);
+    let facts = super::super::DocumentSyntax::analyze(&buffer).native_highlights;
+    assert!(
+        facts.matches(&buffer),
+        "Rust must retain exact native captures"
+    );
+    assert!(facts.error.is_none(), "{:?}", facts.error);
+    for dark in [false, true] {
+        let lines = facts.recolor(&buffer, dark, || false).unwrap();
+        assert_original_bytes(&lines, &buffer);
+        let theme = if dark {
+            AppTheme::dark()
+        } else {
+            AppTheme::light()
+        };
+        for token in ["é", "🦀", "LONG_END"] {
+            assert_eq!(
+                color_at(&lines, &buffer, text.find(token).unwrap()),
+                theme.text_secondary
+            );
+        }
+        assert_eq!(
+            color_at(&lines, &buffer, text.find("tail").unwrap()),
+            theme.accent
+        );
+    }
+    assert!(facts.recolor(&buffer, true, || true).is_none());
 }

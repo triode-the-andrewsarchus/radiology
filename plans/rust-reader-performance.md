@@ -250,3 +250,29 @@ statistical latency guarantees. Full accessibility and actual sibling adoption
 remain deferred.
 
 Evidence: `~/.local/state/radiology-qa/wrapped-reveal-20261031-595f688`.
+
+
+## Native Rust colors remove a confirmed load cost — 2026-10-31
+
+The next fresh profile finds the source worker in Syntect/fancy-regex search on
+the 6 MB line three seconds after mapping, after native structure is already
+available. Rust now reuses the shared native color path and Swift's existing Rust
+highlight query. No extra parse, query asset, renderer or dependency is introduced.
+[Implementation and full evidence](rust-native-highlights.md#rust-query-reuse-and-long-line-loading--2026-10-31).
+
+A fresh unprofiled pre-change 1× probe waits 8.7 seconds for full-source copy and
+9.4 seconds for Back suffix copy. The final 1× run observes 89 ms and 587 ms;
+2× observes 198 ms and 821 ms. These are readiness-probe waits in single debug
+software-rendered runs, not total startup measurements or statistical guarantees.
+All exact-byte, pointer, End/Back/wrap/zoom and settled-visual checks pass at both
+scales. An explicit initial caret reset accounts for source becoming available
+before the script's initial click; the full-copy readiness assertion precedes
+that reset. Brighter native comments use contrast-adaptive OCR, with failed
+validation trials retained. Separate 1×/2× dark/light Rust role fixtures check
+native RGB values and original Unicode/CRLF copy. Standalone verification and
+517 app tests pass; the full 91-clone multiset is unchanged.
+
+Large-source font-reset settling, total background measurement work, other
+language/fallback corpora, many-line/scroll/zoom/input and final Swift/reuse
+acceptance remain open. The font-reset samples alone do not establish another
+bottleneck. Evidence: `~/.local/state/radiology-qa/rust-native-colors-20261031-5a4d2e7`.

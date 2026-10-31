@@ -1,6 +1,6 @@
 //! Syntax highlighting, document outline extraction, and code folding.
 //!
-//! Provides multi-language syntax highlighting powered by `syntect` ([`SyntaxHighlighter`]),
+//! Provides native capture-based colors with `syntect` fallback ([`SyntaxHighlighter`]),
 //! language identification ([`LanguageRegistry`]), Tree-sitter AST queries for hierarchical
 //! document symbols ([`SymbolExtractor`]), and foldable block detection ([`FoldDetector`]).
 
