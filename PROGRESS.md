@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Bounded Critical Lens projection and classification reuse (Codex)
+
+CriticalLens now reuses eight exact-source projections within a 16 MiB estimated
+syntax/range budget and memoizes up to 4,096 decisions/8 MiB of identity storage.
+Complete syntax facts, path/bytes/revision, weak index identity and policy qualify
+reuse. Mode stop retains valid entries; repository/index teardown clears ownership.
+Lookup/computation stay off-thread with cancellable lock waiting and existing
+LatestRead retirement. No source buffers, old indexes or PR leases are retained.
+[Contract and tests](plans/rust-critical-projection-reuse.md). Full gates pass 424 app
+tests (three ignored), eight shared tests, 30 doctests, build and rustdoc. Final
+47 Critical tests, reader integration, fmt, strict Clippy, build and rustdoc pass
+after test-table/budget/doc refinement. No new hotspot/cycle/clone growth; flagged
+fragments are exact baseline tests. Native revisit/policy evidence follows. Broader
+corpus, recovery and final UI/accessibility/scaling/font/sibling audit remain open.
+Commit and push each increment.
+
 ## 2026-10-30 — Native legacy cache migration and live-reader maintenance acceptance (Codex)
 
 Backend `5dad3ca` is pushed. A copied real Rust cache loads without tools, then native

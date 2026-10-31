@@ -85,7 +85,7 @@ pub(super) fn annotated_range(node: Node<'_>) -> Range<usize> {
 }
 
 /// Call-query coverage for one exact document parse.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallSites {
     /// Complete source-ordered sites, including unresolved/dynamic callees.
     pub sites: Vec<CallSite>,
