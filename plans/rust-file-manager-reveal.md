@@ -69,5 +69,48 @@ all eight exact fragments match HEAD byte for byte and none intersects the added
 test. Logs: `/tmp/radiology-reveal-{tests,app-tests,workspace,clippy,build}.log`.
 The full workspace run preceded the final plain-language error-summary wording;
 three focused backend tests, strict Clippy and build pass again afterward.
-Actual gdbus-to-service and native file/folder/PR context-menu acceptance remain
-open; the backend fixtures are not proof of a desktop file-manager window.
+The native protocol/menu acceptance below now passes. Neither backend fixtures
+nor the controlled receiver claim a real desktop file-manager window.
+
+## Native protocol/menu acceptance — 2026-10-30
+
+Backend `7cfdd12` was built and exercised in a private 1280×900 Weston/Niri session.
+An independently owned private session bus and Python/Gio FileManager1 receiver
+isolate the desktop handoff from the user's normal desktop. The app runs the real
+gdbus binary; no fake client parses or forwards its arguments. The service receives
+actual typed ShowItems calls, proving that the serialized URI array is accepted by
+the real GVariant parser and D-Bus signature. This is controlled-receiver evidence,
+not a claim that a Nautilus/Dolphin window was inspected.
+
+Native checks pass:
+
+- Revealing unselected `b.rs` selects that exact URI while `a.rs` remains the reader.
+- Folder rows expose both context actions; revealing the folder does not expand it.
+- A nested filename containing spaces, single/double quotes, Unicode, semicolon and
+  `$(touch sentinel)` reaches the receiver exactly, with no shell-created file.
+- A rejected selection reports the plain-language notice and full service failure
+  in Error Details, retaining the source and selection.
+- An After-only Cargo.toml reveals the private After-tree URI from both After and
+  Before readers. The file does not exist in the attached checkout.
+- During a slow selection, a file click still navigates. The five-second client
+  timeout reports Details without disrupting that new reader. The receiver
+  completes its delayed reply later and remains alive.
+- A timed request is retired by Exit PR. The checkout capture occurs 1.164 seconds
+  after dispatch, before the five-second client deadline and seven-second server
+  completion. The delayed reply introduces no error into the checkout reader.
+
+Nine calls are recorded, including the controlled rejection and slow-request
+experiments. The final timed retirement is proven specifically by
+`retirement-order.json` and the `retire-case-*` captures listed in the manifest;
+other exploratory retirement captures are not acceptance evidence. All viewed
+checkout regular-file bytes, HEAD and dirty status compare unchanged. The app,
+receiver, private bus and both compositors exit zero. The sibling capture helper
+is QA only and creates no sibling app dependency.
+
+Evidence: `/tmp/radiology-reveal-native/acceptance.json`, `manifest.json`,
+`reveal-requests.jsonl`, source before/after proofs and exit statuses. The manifest
+lists accepted captures explicitly and hashes them, the logs/proofs, receiver,
+fixture chain, driver, capture helper and tested binary. No production change or
+fresh automated test rerun was needed for this evidence increment. Broader desktop
+implementations, UI/accessibility/scaling/font and sibling reuse acceptance remain
+part of the full parity audit.

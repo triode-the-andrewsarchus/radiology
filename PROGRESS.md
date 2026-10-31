@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Native file-manager menus and real D-Bus handoff acceptance (Codex)
+
+Backend `7cfdd12` is pushed. Native file/folder menus send exact typed URI requests
+through real gdbus to an independently owned private bus/Gio receiver. Unselected
+file and quoted/Unicode/shell-like paths are exact; reader selection and folder
+expansion stay intact. Rejection/timeout expose complete Details, navigation stays
+usable, and the receiver survives the client deadline. An After-only manifest
+routes to the private head tree from either reader revision. Timed Exit PR restores
+checkout before the delayed reply, with no late error. [Hashed evidence and scope](plans/rust-file-manager-reveal.md).
+Nine calls are logged; checkout HEAD/status/all regular-file bytes stay unchanged.
+App, receiver, private bus and both compositors exit zero. This verifies the native
+protocol path with a controlled receiver, not an inspected real file-manager window.
+No production changes or fresh automated rerun in this documentation increment.
+Broader corpus/recovery and final UI/accessibility/scaling/font/sibling audit remain
+open. Commit and push each increment.
+
 ## 2026-10-30 — File/folder Reveal in File Manager (Codex)
 
 Files rows now share Reveal in File Manager and Copy Relative Path context actions,
