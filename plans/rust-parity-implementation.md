@@ -155,7 +155,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   are integrated; see [metadata acceptance](rust-inspector-metadata.md).
   Source excerpts, validated caller trees and reference selection/disclosure/commit
   are integrated; [preview contract and remaining scope](rust-inspector-previews.md).
-- Critical Lens request/revisit cache reuse and broader corpus/runtime acceptance.
+- [Critical Lens projection/classification reuse](rust-critical-projection-reuse.md)
+  now has exact scope invalidation, bounded LRU and native revisit/policy/index
+  acceptance. Broader graph/corpus/runtime acceptance remains.
   Fold counts now publish progressively with retired-request isolation. Pointer-dwell hover summaries/navigation
   are integrated; see [hover acceptance](rust-critical-hover.md). Parsed summaries, bounded
   frontiers and snapshot workers now feed source fold counts; see
