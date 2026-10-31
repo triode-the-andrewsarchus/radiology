@@ -23,43 +23,7 @@ use eframe::egui::Vec2;
 use radiology::RadiologyApp;
 use std::path::PathBuf;
 
-fn verify_resources() -> bool {
-    let mut ok = true;
-    let highlighter = radiology::syntax::highlighter::SyntaxHighlighter::new();
-    println!("Checking registered syntax grammars...");
-    let grammars = [
-        ("rust", "rs"),
-        ("python", "py"),
-        ("javascript", "js"),
-        ("typescript", "ts"),
-        ("tsx", "tsx"),
-        ("c", "c"),
-        ("cpp", "cpp"),
-        ("go", "go"),
-        ("html", "html"),
-        ("json", "json"),
-        ("markdown", "md"),
-        ("yaml", "yaml"),
-        ("toml", "toml"),
-    ];
-
-    for (name, ext) in grammars {
-        let fake_path = format!("test.{ext}");
-        if highlighter.find_syntax_for_path(&fake_path).is_some() {
-            println!("ok   {name} (.{ext})");
-        } else {
-            println!("FAIL {name} (.{ext})");
-            ok = false;
-        }
-    }
-
-    if ok {
-        println!("All registered syntax grammars verified successfully.");
-    } else {
-        println!("Some syntax grammars failed verification.");
-    }
-    ok
-}
+mod verify_resources;
 
 /// Application entry point configuring the native window and running the main event loop.
 fn main() -> eframe::Result<()> {
@@ -68,7 +32,7 @@ fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
     if args.iter().any(|a| a == "--verify-resources") {
-        let success = verify_resources();
+        let success = verify_resources::verify_resources();
         std::process::exit(if success { 0 } else { 1 });
     }
 

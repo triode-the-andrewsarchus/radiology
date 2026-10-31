@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Verify native syntax resources through reader analysis (Codex)
+
+Replaced the fallback-presence-only CLI verifier identified in R17. Its private
+binary module uses DocumentSyntax and existing highlighting to check all nine
+native grammar fixtures for outline/folds/calls/occurrences, expected native
+colors and both themes; Rust also checks test detection. Six fallback probes are
+explicitly labeled. [Contract and evidence](plans/rust-resource-verification.md).
+A deliberately broken TS/TSX query makes the real command report errors and exit
+1 despite passing fallbacks. Restored resources pass headlessly, including a
+copied executable in an otherwise empty working directory with display variables
+unset. No checkout/sibling/runtime desktop is required. Durable logs and hashes:
+~/.local/state/radiology-qa/native-resources-20261030-4409820. Workspace passes 443
+app tests (seven ignored), two binary checker tests, four font tests, eight text
+tests and 33 doctests; strict Clippy/build/fmt/diff checks pass. Architecture is
+neutral with no new clone group/hotspot/cycle/max-CCN increase. This closes the
+verifier false-positive gap, not the broader R17 final-acceptance audit. Corpus,
+reader, keyboard/menu/focus and PR/cache acceptance remain; accessibility and
+sibling adoption are deferred. Commit and push this increment before proceeding.
+
 ## 2026-10-30 — Use native TypeScript/TSX and JavaScript source colors (Codex)
 
 Audit found TS/TSX still using JavaScript fallback colors. The existing native

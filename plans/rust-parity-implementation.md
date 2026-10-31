@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Headless syntax-resource checks](rust-resource-verification.md) exercise all nine
+  native grammars through reader facts, native/fallback colors and Rust test
+  detection. Broken TS/TSX queries fail the CLI; an isolated copied executable
+  passes without a source checkout or running desktop.
+
 - One command type and consumed shortcut path for buttons, menus, and keys;
   exact modifier matching prevents theme/symbol and mode/bookmark collisions.
 - Idle reader construction independent of eframe; explicit launch intent takes
