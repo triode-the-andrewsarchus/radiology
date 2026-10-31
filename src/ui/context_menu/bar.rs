@@ -51,10 +51,17 @@ impl<T: Clone> MenuBar<T> {
         items: Vec<Item<T>>,
     ) -> Response {
         let previous = ui.memory(|memory| memory.focused());
-        let response = ui.button(label);
+        let id = ui.next_auto_id();
+        let current_owner = current(ui.ctx()).is_some_and(|state| state.owner == id);
+        let label = label.into();
+        let label = if current_owner {
+            label.color(ui.visuals().selection.stroke.color)
+        } else {
+            label
+        };
+        let response = ui.add(egui::Button::new(label).selected(current_owner));
         crate::ui::commands::retain_navigation_keys(ui.ctx(), response.id);
         let pressed = response.contains_pointer() && ui.input(|input| input.pointer.any_pressed());
-        let current_owner = current(ui.ctx()).is_some_and(|state| state.owner == response.id);
         let keyboard_open = if !current_owner && response.has_focus() {
             ui.input_mut(|input| {
                 [Key::Enter, Key::Space, Key::ArrowDown, Key::ArrowUp]
@@ -99,7 +106,8 @@ impl<T: Clone> MenuBar<T> {
                 rect: menu.response.rect,
             })
             .collect();
-        if let Some(ctx) = self.menus.first().map(|menu| &menu.response.ctx) {
+        let ctx = self.menus.first().map(|menu| menu.response.ctx.clone());
+        if let Some(ctx) = &ctx {
             let seen = ctx.frame_nr();
             ctx.data_mut(|data| {
                 data.insert_temp(
@@ -140,6 +148,17 @@ impl<T: Clone> MenuBar<T> {
                 || menu.items,
             ) {
                 action = Some(next);
+            }
+        }
+        if let Some(ctx) = ctx {
+            if let Some(state) = current(&ctx)
+                .filter(|state| anchors.iter().any(|anchor| anchor.owner == state.owner))
+            {
+                ctx.memory_mut(|memory| {
+                    if !memory.has_focus(state.owner) {
+                        memory.request_focus(state.owner);
+                    }
+                });
             }
         }
         action

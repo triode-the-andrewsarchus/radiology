@@ -122,8 +122,21 @@ pub fn take_shortcuts(ctx: &Context, modal_open: bool, reader_focused: bool) -> 
     if modal_open {
         return Vec::new();
     }
-    let typing = ctx.wants_keyboard_input() && !reader_focused;
-    take_key_actions(ctx, |key, modifiers| shortcut(key, modifiers, typing))
+    let menu_open = context_menu_is_open(ctx);
+    let typing = ctx.wants_keyboard_input() && !reader_focused && !menu_open;
+    ctx.input_mut(|input| {
+        take_input_actions(&mut input.events, |event| match event {
+            Event::Key {
+                key,
+                modifiers,
+                pressed: true,
+                ..
+            } if !menu_open || super::context_menu::owned_key(event).is_none() => {
+                shortcut(*key, *modifiers, typing)
+            }
+            _ => None,
+        })
+    })
 }
 
 /// Consumes recognized key presses in event order, preserving all other input.

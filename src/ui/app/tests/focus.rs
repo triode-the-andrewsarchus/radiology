@@ -221,3 +221,22 @@ fn toolbar_left_reaches_pr_dialog_and_escape_returns_to_source() {
     assert!(app.source_viewport.has_focus(&ctx));
     assert!(app.pending_pr.is_none());
 }
+
+#[test]
+fn focused_toolbar_menu_keeps_global_definition_shortcuts_available() {
+    let (_dir, mut app) = reader_at_indexed_call();
+    let ctx = Context::default();
+    open_toolbar_menu(&mut app, &ctx, "View");
+    assert!(crate::ui::context_menu::is_open(&ctx));
+    frame(
+        &mut app,
+        &ctx,
+        vec![key(Key::J, Modifiers::CTRL | Modifiers::ALT)],
+    );
+    settle(&mut app);
+    frame(&mut app, &ctx, vec![]);
+    assert!(!crate::ui::context_menu::is_open(&ctx));
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+    assert!(app.source_viewport.has_focus(&ctx));
+}

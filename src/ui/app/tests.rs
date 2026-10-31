@@ -2159,12 +2159,16 @@ fn file_manager_failure_preserves_reader_and_repository_teardown_retires_late_er
     assert!(app.error.is_none() && !app.reveal_job.is_running());
 }
 
+fn reader_at_indexed_call() -> (tempfile::TempDir, RadiologyApp) {
+    let (dir, mut app) = reader_with_reference_index();
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    (dir, app)
+}
+
 #[test]
 fn dedicated_definition_shortcut_navigates_exactly_and_back_restores_departure() {
-    let (_dir, mut app) = reader_with_reference_index();
-    let departure = "fn beta() {\n    ".len() + 1;
-    app.jump_to_location("b.rs", 2, departure);
-    settle(&mut app);
+    let (_dir, mut app) = reader_at_indexed_call();
     let ctx = Context::default();
     let mut event = crate::ui::commands::test_key(egui::Key::J);
     if let egui::Event::Key { modifiers, .. } = &mut event {

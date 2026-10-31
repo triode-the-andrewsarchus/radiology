@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-10-31 — Align active toolbar titles and preserve global shortcuts (Codex)
+
+The popup owner now selects/colors its existing title and receives keyboard focus
+while retaining the original dismissal owner. The native Search/View focus-ring
+mismatch is repaired. The shortcut dispatcher reuses the shared menu classifier
+so focused menus allow global reader commands and retain bare activation keys,
+including prepared egui hosts; text-entry/modal guards remain. No new owner state,
+dispatcher or dependency. [Contract/evidence](plans/rust-toolbar-keyboard.md#active-titles-and-global-shortcuts-2026-10-31-follow-up).
+Three added regressions cover theme/scale title rendering, prepared-host ownership
+and actual indexed navigation through an open menu. Saved negatives reproduce the
+title mismatch and the old focused-menu shortcut guard failure. Indexed fixtures
+are reused, preserving the existing Back-history test. Workspace passes 483 app
+tests (seven ignored), two binary, four font, eleven text tests and 34 doctests;
+strict Clippy/build/fmt/diff pass. Architecture flags four unchanged app-test
+clones; the full audit has 92 before/after and zero additions/removals, with no new
+hotspot/cycle/max-CCN increase. Native 1×/2× checks repeat menu switching/modal/
+repository/direct-control/source-copy cases with correct active titles, exact
+text hashes, unchanged fixtures and zero exits. Dark/light captures are inspected.
+Archive: ~/.local/state/radiology-qa/menu-title-20261031-ed35b9e.
+Broader cross-owner/enabled-state/long-label/reader/large-file/grammar/index/PR/
+cache/final Swift acceptance remains open. Full accessibility and actual sibling
+adoption stay deferred. Commit and push this title/shortcut increment before the
+next UI audit.
+
 ## 2026-10-31 — Share toolbar menu traversal and focus ownership (Codex)
 
 Repository, PR, View and Search now use the existing owned reader menu dispatcher.

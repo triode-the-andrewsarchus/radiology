@@ -142,6 +142,9 @@ fn a_tab_focused_toolbar_button_opens_with_the_keyboard_and_returns_to_that_butt
         reader.keys(&[Key::Enter]);
         assert_eq!(reader.choice, Some(expected));
         assert!(reader.ctx.memory(|memory| memory.has_focus(button)));
+        reader.keys(&[opening, Key::ArrowRight]);
+        reader.keys(&[Key::Escape]);
+        assert!(reader.ctx.memory(|memory| memory.has_focus(button)));
     }
 }
 
@@ -159,4 +162,110 @@ fn hovering_another_toolbar_anchor_replaces_the_popup_and_keeps_return_focus() {
     ));
     reader.keys(&[Key::End, Key::Enter]);
     reader.expect_action("beta-last");
+}
+
+#[test]
+fn the_active_menu_title_tracks_popup_ownership_without_changing_return_focus() {
+    for dark in [true, false] {
+        for scale in [1.0, 2.0] {
+            let mut reader = BarReader::default();
+            let theme = if dark {
+                crate::theme::AppTheme::dark()
+            } else {
+                crate::theme::AppTheme::light()
+            };
+            reader.ctx.set_visuals(theme.visuals());
+            reader.ctx.set_pixels_per_point(scale);
+            reader.open();
+            for (movement, selected) in [
+                (None, 0),
+                (Some(Key::ArrowRight), 1),
+                (Some(Key::ArrowLeft), 0),
+            ] {
+                if let Some(key) = movement {
+                    reader.keys(&[key]);
+                }
+                let output = reader.frame(vec![]);
+                let anchors = reader
+                    .ctx
+                    .data(|data| data.get_temp::<Anchors>(state_id().with("bar")))
+                    .unwrap()
+                    .buttons;
+                assert_eq!(current(&reader.ctx).unwrap().owner, anchors[selected].owner);
+                assert!(
+                    reader
+                        .ctx
+                        .memory(|memory| memory.has_focus(anchors[selected].owner)),
+                    "keyboard focus should follow the active title"
+                );
+                let visuals = reader.ctx.style().visuals.clone();
+                for (index, anchor) in anchors.iter().enumerate() {
+                    let highlighted = output.shapes.iter().any(|shape| matches!(&shape.shape,
+                        egui::Shape::Rect(rect) if rect.fill == visuals.selection.bg_fill && rect.rect.contains(anchor.rect.center())));
+                    if index == selected {
+                        assert!(
+                            highlighted,
+                            "the active title needs its selected background"
+                        );
+                    }
+                    let label = ["Alpha", "Beta", "Gamma"][index];
+                    let accented = output.shapes.iter().any(|shape| matches!(&shape.shape,
+                        egui::Shape::Text(text) if text.galley.job.text == label
+                            && text.galley.job.sections.iter().any(|section| section.format.color == visuals.selection.stroke.color)));
+                    assert_eq!(
+                        accented,
+                        index == selected,
+                        "only the active title should use the accent caption"
+                    );
+                }
+            }
+            reader.keys(&[Key::Escape]);
+            assert!(!is_open(&reader.ctx));
+            assert!(reader
+                .ctx
+                .memory(|memory| memory.has_focus(Id::new("source"))));
+        }
+    }
+}
+
+#[test]
+fn prepared_hosts_keep_bare_activation_in_the_menu_and_global_shortcuts_in_the_reader() {
+    fn frame(
+        ctx: &Context,
+        events: Vec<Event>,
+    ) -> (
+        egui::FullOutput,
+        Option<&'static str>,
+        Vec<crate::ui::commands::ReaderCommand>,
+    ) {
+        let mut choice = None;
+        let mut commands = Vec::new();
+        let output =
+            crate::ui::test_support::painted_frame(ctx, egui::vec2(600.0, 500.0), events, |ui| {
+                commands = crate::ui::commands::take_shortcuts(ctx, false, false);
+                let mut bar = MenuBar::default();
+                bar.button(ui, "Menu", "prepared", vec![Item::action("First", "first")]);
+                choice = bar.show();
+            });
+        (output, choice, commands)
+    }
+    let ctx = Context::default();
+    let (output, _, _) = frame(&ctx, vec![]);
+    let position = text_center(&output, "Menu");
+    frame(&ctx, click(position));
+    frame(&ctx, vec![test_key(Key::Home)]);
+    let (_, choice, commands) = frame(&ctx, vec![test_key(Key::Enter)]);
+    assert_eq!(choice, Some("first"));
+    assert!(commands.is_empty());
+    frame(&ctx, click(position));
+    let mut shortcut = test_key(Key::J);
+    if let Event::Key { modifiers, .. } = &mut shortcut {
+        *modifiers = Modifiers::CTRL | Modifiers::ALT;
+    }
+    let (_, choice, commands) = frame(&ctx, vec![shortcut]);
+    assert!(choice.is_none());
+    assert_eq!(
+        commands,
+        [crate::ui::commands::ReaderCommand::GoToDefinition]
+    );
 }
