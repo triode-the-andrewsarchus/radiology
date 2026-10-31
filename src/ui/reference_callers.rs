@@ -17,10 +17,30 @@ pub(super) fn control_id(reference: usize, caller: Option<usize>) -> Id {
     Id::new(("reference_caller", reference, caller))
 }
 
+// Include source identity so a retained press cannot transfer to a replacement row.
+pub(super) fn row_id(reference: usize, caller: usize, row: &CallerRow, digest: Option<&str>) -> Id {
+    control_id(reference, Some(caller)).with((&row.location, digest))
+}
+
+pub(super) fn more_id(reference: usize, tree: &CallerTree) -> Id {
+    control_id(reference, None).with((
+        tree.rows.first().map(|row| &row.location),
+        &tree.source_identities,
+    ))
+}
+
+fn row_height(row: &CallerRow) -> f32 {
+    ROW_HEIGHT + 20.0 * f32::from(row.note.is_some())
+}
+
+pub(super) fn row_offset(tree: &CallerTree, caller: usize) -> f32 {
+    tree.rows.iter().take(caller).map(row_height).sum()
+}
+
 pub(super) fn height(tree: Option<&CallerTree>, error: Option<&str>) -> f32 {
     HEADER_HEIGHT
         + tree.map_or(0.0, |tree| {
-            ROW_HEIGHT * tree.rows.len() as f32
+            row_offset(tree, tree.rows.len())
                 + 24.0 * f32::from(!tree.notices.is_empty())
                 + 24.0 * f32::from(tree.has_more)
         })
@@ -45,28 +65,22 @@ pub(super) fn show(
         None if loading => "Callers · Tracing…".into(),
         None => "Callers".into(),
     };
-    ui.painter().text(
-        header.left_center(),
-        Align2::LEFT_CENTER,
-        title,
+    let title = super::text_fit::middle(
+        ui,
+        &title,
         FontId::proportional(12.0),
+        theme.text_secondary,
+        header.width(),
+    );
+    ui.painter().galley(
+        header.left_center() - egui::vec2(0.0, title.size().y / 2.0),
+        title,
         theme.text_secondary,
     );
     ui.interact(header, Id::new(("caller_header", reference)), Sense::hover()).on_hover_text("Calls traced backward from this site's containing callable. Dynamic dispatch, unindexed code and callback invocations may be missing. Up/Down moves between caller controls; Return opens a site; Left returns to the reference.");
     let mut action = None;
     if let Some(tree) = tree {
-        let origin = ui.cursor().top();
-        let first = ((ui.clip_rect().top() - origin).max(0.0) / ROW_HEIGHT).floor() as usize;
-        let last = (((ui.clip_rect().bottom() - origin).max(0.0) / ROW_HEIGHT).ceil() as usize)
-            .min(tree.rows.len());
-        let first = first.min(tree.rows.len());
-        ui.add_space(first as f32 * ROW_HEIGHT);
-        for (caller, row) in tree.rows.iter().enumerate().take(last).skip(first) {
-            if show_row(ui, theme, reference, caller, row) {
-                action = Some(ReferenceAction::CommitCaller(reference, caller));
-            }
-        }
-        ui.add_space((tree.rows.len() - last.max(first)) as f32 * ROW_HEIGHT);
+        action = show_rows(ui, theme, reference, tree);
         if !tree.notices.is_empty() {
             ui.add_sized(
                 [ui.available_width(), 24.0],
@@ -81,9 +95,9 @@ pub(super) fn show(
             let (rect, response) =
                 ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), Sense::hover());
             let response = ui
-                .interact(rect, control_id(reference, None), Sense::click())
+                .interact(rect, more_id(reference, tree), Sense::click())
                 .union(response);
-            super::commands::retain_navigation_keys(ui.ctx(), control_id(reference, None));
+            super::commands::retain_navigation_keys(ui.ctx(), more_id(reference, tree));
             ui.painter().text(
                 rect.left_center(),
                 Align2::LEFT_CENTER,
@@ -102,7 +116,7 @@ pub(super) fn show(
                     egui::Stroke::new(1.0_f32, theme.accent),
                 );
             }
-            if response.clicked() && !loading {
+            if super::commands::row_activated(&response) && !loading {
                 action = Some(ReferenceAction::MoreCallers(reference));
             }
             response.widget_info(|| {
@@ -121,21 +135,56 @@ pub(super) fn show(
     action
 }
 
+fn show_rows(
+    ui: &mut Ui,
+    theme: &AppTheme,
+    reference: usize,
+    tree: &CallerTree,
+) -> Option<ReferenceAction> {
+    let mut action = None;
+    let mut top = ui.cursor().top();
+    for (caller, row) in tree.rows.iter().enumerate() {
+        let bottom = top + row_height(row);
+        if bottom >= ui.clip_rect().top() && top <= ui.clip_rect().bottom() {
+            ui.add_space((top - ui.cursor().top()).max(0.0));
+            if show_row(
+                ui,
+                theme,
+                reference,
+                caller,
+                row,
+                tree.source_identities
+                    .get(&row.location.path)
+                    .map(String::as_str),
+            ) {
+                action = Some(ReferenceAction::CommitCaller(reference, caller));
+            }
+        }
+        top = bottom;
+    }
+    ui.add_space((top - ui.cursor().top()).max(0.0));
+    action
+}
+
 fn show_row(
     ui: &mut Ui,
     theme: &AppTheme,
     reference: usize,
     caller: usize,
     row: &CallerRow,
+    digest: Option<&str>,
 ) -> bool {
-    let (outer, _) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), ROW_HEIGHT), Sense::hover());
+    let (outer, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), row_height(row)),
+        Sense::hover(),
+    );
     let rect = egui::Rect::from_min_max(
         outer.min + egui::vec2(row.depth.min(4) as f32 * 10.0, 1.0),
         outer.max - egui::vec2(0.0, 1.0),
     );
-    let response = ui.interact(rect, control_id(reference, Some(caller)), Sense::click());
-    super::commands::retain_navigation_keys(ui.ctx(), control_id(reference, Some(caller)));
+    let id = row_id(reference, caller, row, digest);
+    let response = ui.interact(rect, id, Sense::click());
+    super::commands::retain_navigation_keys(ui.ctx(), id);
     let color = caller_pill_color(&row.name, &row.location.path);
     ui.painter().rect_filled(
         rect,
@@ -157,49 +206,69 @@ fn show_row(
         .rsplit('/')
         .next()
         .unwrap_or(&row.location.path);
-    let title = format!("{} · {}:{}", row.name, file, row.line);
-    painter.text(
-        rect.min + egui::vec2(5.0, 4.0),
-        Align2::LEFT_TOP,
-        title,
+    let metadata = if row.depth > 4 {
+        format!("{} · L{}", row.line, row.depth)
+    } else {
+        row.line.to_string()
+    };
+    let metadata = super::text_fit::middle(
+        ui,
+        &metadata,
+        FontId::proportional(11.0),
+        theme.text_muted,
+        rect.width() * 0.4,
+    );
+    let name = super::text_fit::middle(
+        ui,
+        &row.name,
         FontId::monospace(12.0),
         theme.text_primary,
+        (rect.width() - metadata.size().x - 16.0).max(0.0),
     );
-    let detail = row.note.as_deref().unwrap_or(&row.location.path);
-    painter.text(
-        rect.min + egui::vec2(5.0, 23.0),
-        Align2::LEFT_TOP,
-        detail,
+    painter.galley(rect.min + egui::vec2(5.0, 4.0), name, theme.text_primary);
+    painter.galley(
+        egui::pos2(rect.right() - metadata.size().x - 5.0, rect.top() + 4.0),
+        metadata,
+        theme.text_muted,
+    );
+    let file = super::text_fit::middle(
+        ui,
+        file,
         FontId::proportional(11.0),
         theme.text_secondary,
+        rect.width() - 10.0,
     );
-    if row.depth > 4 {
-        painter.text(
-            rect.right_top() + egui::vec2(-4.0, 4.0),
-            Align2::RIGHT_TOP,
-            format!("L{}", row.depth),
+    painter.galley(rect.min + egui::vec2(5.0, 23.0), file, theme.text_secondary);
+    if let Some(note) = &row.note {
+        let text = super::text_fit::middle(
+            ui,
+            note,
             FontId::proportional(11.0),
             theme.text_muted,
+            rect.width() - 10.0,
         );
+        painter.galley(rect.min + egui::vec2(5.0, 43.0), text, theme.text_muted);
     }
     let label = format!(
         "Caller level {} · {} · {}:{}{}",
         row.depth,
-        row.name,
-        row.location.path,
+        super::text_fit::bounded(&row.name),
+        super::text_fit::bounded(&row.location.path),
         row.line,
-        row.note
-            .as_ref()
-            .map_or(String::new(), |note| format!(" · {note}"))
+        row.note.as_ref().map_or(String::new(), |note| format!(
+            " · {}",
+            super::text_fit::bounded(note)
+        ))
     );
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, &label));
-    let clicked = response.clicked();
+    let clicked = super::commands::row_activated(&response);
     response.on_hover_text(label);
     clicked
 }
 
 #[cfg(test)]
 mod tests {
+    mod presentation;
     use super::*;
     use crate::{semantic::incoming_calls::CallerRow, source::SourceLocation};
 
@@ -223,7 +292,12 @@ mod tests {
     #[test]
     fn deep_trees_paint_only_the_visible_slice_and_reveal_the_end() {
         let ctx = egui::Context::default();
-        let tree = tree(1000);
+        let mut tree = tree(1000);
+        for (index, row) in tree.rows.iter_mut().enumerate() {
+            if index % 2 == 0 {
+                row.note = Some("A boundary note".into());
+            }
+        }
         let render = |offset| {
             ctx.run(
                 egui::RawInput {
@@ -252,12 +326,12 @@ mod tests {
         );
         let mut last = None;
         for _ in 0..3 {
-            last = Some(render(ROW_HEIGHT * 1000.0 - 180.0));
+            last = Some(render(row_offset(&tree, 1000) - 180.0));
         }
         let last = last.unwrap();
         assert!(last.shapes.len() < 100);
-        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "caller999 · source.rs:1")));
-        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "L999")));
+        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "caller999")));
+        assert!(last.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "1 · L999")));
     }
 
     #[test]
@@ -288,7 +362,7 @@ mod tests {
             .shapes
             .iter()
             .find_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) if text.galley.job.text == "caller1 · source.rs:1" => {
+                egui::Shape::Text(text) if text.galley.job.text == "caller1" => {
                     Some(text.pos + egui::vec2(20.0, 5.0))
                 }
                 _ => None,

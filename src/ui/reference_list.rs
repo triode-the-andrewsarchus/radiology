@@ -101,8 +101,11 @@ impl ReferenceViewport {
     }
 
     pub(crate) fn focus_callers(&mut self, reference: usize) -> bool {
-        let id = super::reference_callers::control_id(reference, Some(0));
-        if self.caller_controls.iter().any(|control| control.0 == id) {
+        if let Some(&(id, _)) = self
+            .caller_controls
+            .iter()
+            .find(|(_, action)| *action == ReferenceAction::CommitCaller(reference, 0))
+        {
             self.pending_caller_focus = Some(id);
             self.reveal_caller = Some((reference, 0));
             true
@@ -139,15 +142,22 @@ impl ReferenceViewport {
         let mut controls = Vec::new();
         for (&reference, disclosure) in disclosures {
             if let Some(tree) = disclosure.callers() {
-                controls.extend((0..tree.rows.len()).map(|caller| {
+                controls.extend(tree.rows.iter().enumerate().map(|(caller, row)| {
                     (
-                        super::reference_callers::control_id(reference, Some(caller)),
+                        super::reference_callers::row_id(
+                            reference,
+                            caller,
+                            row,
+                            tree.source_identities
+                                .get(&row.location.path)
+                                .map(String::as_str),
+                        ),
                         ReferenceAction::CommitCaller(reference, caller),
                     )
                 }));
                 if tree.has_more {
                     controls.push((
-                        super::reference_callers::control_id(reference, None),
+                        super::reference_callers::more_id(reference, tree),
                         ReferenceAction::MoreCallers(reference),
                     ));
                 }
@@ -271,8 +281,9 @@ impl ReferenceViewport {
                     + 24.0 * f32::from(self.groups.contains_key(&reference))
                     + super::source_preview::height(disclosure.phase())
                     + super::reference_callers::HEADER_HEIGHT
-                    + caller.min(disclosure.callers().map_or(0, |tree| tree.rows.len())) as f32
-                        * super::reference_callers::ROW_HEIGHT;
+                    + disclosure.callers().map_or(0.0, |tree| {
+                        super::reference_callers::row_offset(tree, caller)
+                    });
                 scroll = scroll.vertical_scroll_offset(
                     (offset - super::reference_callers::ROW_HEIGHT).max(0.0),
                 );
@@ -297,6 +308,7 @@ impl ReferenceViewport {
                     index,
                     selected == Some(index),
                     previews.contains_key(&index),
+                    results.source_digest(&node.path),
                 ) {
                     action = Some(next);
                 }
@@ -393,9 +405,11 @@ fn render_row(
     index: usize,
     selected: bool,
     expanded: bool,
+    digest: Option<&str>,
 ) -> Option<ReferenceAction> {
-    let (rect, response) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), Sense::click());
+    let id = ui.make_persistent_id(("reference_row", &node.path, &node.byte_range, digest));
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), Sense::hover());
+    let response = ui.interact(rect, id, Sense::click());
     if selected || response.hovered() {
         ui.painter().rect_filled(
             rect,
@@ -412,7 +426,12 @@ fn render_row(
         super::icons::Icon::ChevronRight
     };
     let disclosure = chevron
-        .button(&mut child, 10.0, theme.text_secondary)
+        .button_with_id(
+            &mut child,
+            10.0,
+            theme.text_secondary,
+            id.with("disclosure"),
+        )
         .on_hover_text("Right shows source; Left hides it. Return opens the reference.");
     child.label(
         RichText::new(format!("{:>3}", node.source_line.number))
@@ -428,30 +447,21 @@ fn render_row(
     if node.is_definition {
         child.colored_label(theme.text_muted, RichText::new("def").size(11.0));
     }
-    let mut action = if disclosure.clicked() {
+    let mut action = if super::commands::row_activated(&disclosure) {
         Some(ReferenceAction::SetExpanded(index, !expanded))
-    } else if response.double_clicked() {
+    } else if super::commands::row_activated(&response) && response.double_clicked() {
         Some(ReferenceAction::Commit(Some(index)))
-    } else if response.clicked() {
+    } else if super::commands::row_activated(&response) {
         Some(ReferenceAction::Select(index))
     } else {
         None
     };
-    action = crate::ui::commands::context_menu(
-        &response,
-        (
-            &node.path,
-            node.byte_range.start,
-            node.byte_range.end,
-            &node.source_line.text,
-        ),
-        || {
-            vec![crate::ui::commands::MenuItem::action(
-                "Go to Reference",
-                ReferenceAction::Commit(Some(index)),
-            )]
-        },
-    )
+    action = crate::ui::commands::context_menu(&response, id, || {
+        vec![crate::ui::commands::MenuItem::action(
+            "Go to Reference",
+            ReferenceAction::Commit(Some(index)),
+        )]
+    })
     .or(action);
     response.widget_info(|| {
         egui::WidgetInfo::labeled(
@@ -547,31 +557,23 @@ fn render_group(
 ) {
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), Sense::hover());
-    let text = ui.painter().layout_no_wrap(
-        group.path.clone(),
-        egui::FontId::proportional(12.0),
-        theme.text_secondary,
-    );
     let count = ui.painter().layout_no_wrap(
         group.hits.len().to_string(),
         egui::FontId::monospace(11.0),
         theme.text_muted,
     );
-    let path_rect = egui::Rect::from_min_max(
-        rect.min,
-        egui::pos2(rect.right() - count.size().x - 8.0, rect.bottom()),
+    let text = super::text_fit::head(
+        ui,
+        &group.path,
+        egui::FontId::proportional(12.0),
+        theme.text_secondary,
+        (rect.width() - count.size().x - 8.0).max(0.0),
     );
-    let offset = (text.size().x - path_rect.width()).max(0.0);
-    ui.painter()
-        .with_clip_rect(path_rect.intersect(ui.clip_rect()))
-        .galley(
-            egui::pos2(
-                path_rect.left() - offset,
-                rect.center().y - text.size().y / 2.0,
-            ),
-            text,
-            theme.text_secondary,
-        );
+    ui.painter().galley(
+        egui::pos2(rect.left(), rect.center().y - text.size().y / 2.0),
+        text,
+        theme.text_secondary,
+    );
     ui.painter().galley(
         egui::pos2(
             rect.right() - count.size().x,
@@ -589,6 +591,7 @@ fn render_group(
 
 #[cfg(test)]
 mod tests {
+    mod interaction;
     use super::*;
 
     #[test]
@@ -714,7 +717,7 @@ mod tests {
         let _ = context.run(frame(vec![]), |context| {
             egui::CentralPanel::default().show(context, |ui| {
                 position = ui.next_widget_position() + egui::vec2(120.0, 12.0);
-                action = render_row(ui, &AppTheme::dark(), &node, 0, false, false);
+                action = render_row(ui, &AppTheme::dark(), &node, 0, false, false, None);
             });
         });
         for expected in [ReferenceAction::Select(0), ReferenceAction::Commit(Some(0))] {
@@ -731,7 +734,8 @@ mod tests {
                     ]),
                     |context| {
                         egui::CentralPanel::default().show(context, |ui| {
-                            action = render_row(ui, &AppTheme::dark(), &node, 0, false, false);
+                            action =
+                                render_row(ui, &AppTheme::dark(), &node, 0, false, false, None);
                         });
                     },
                 );
@@ -836,7 +840,7 @@ mod tests {
             },
             |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    render_row(ui, &AppTheme::dark(), &hit, 0, false, false);
+                    render_row(ui, &AppTheme::dark(), &hit, 0, false, false, None);
                 });
             },
         );

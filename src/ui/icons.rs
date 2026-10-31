@@ -142,8 +142,24 @@ impl Icon {
 
     /// Renders the icon as a clickable button with hover feedback.
     pub fn button(&self, ui: &mut Ui, size: f32, tint: Color32) -> Response {
-        let (rect, response) =
-            ui.allocate_exact_size(Vec2::splat(size + 6.0), egui::Sense::click());
+        let (_, response) = ui.allocate_exact_size(Vec2::splat(size + 6.0), egui::Sense::click());
+        self.paint_button(ui, size, tint, response)
+    }
+
+    pub(crate) fn button_with_id(
+        &self,
+        ui: &mut Ui,
+        size: f32,
+        tint: Color32,
+        id: egui::Id,
+    ) -> Response {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(size + 6.0), egui::Sense::hover());
+        let response = ui.interact(rect, id, egui::Sense::click());
+        self.paint_button(ui, size, tint, response)
+    }
+
+    fn paint_button(&self, ui: &Ui, size: f32, tint: Color32, response: Response) -> Response {
+        let rect = response.rect;
         let icon_rect = Rect::from_center_size(rect.center(), Vec2::splat(size));
         let icon_color = if response.hovered() {
             tint

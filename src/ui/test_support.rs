@@ -5,13 +5,9 @@ pub(crate) fn painted_text(
     size: egui::Vec2,
     paint: impl FnMut(&mut egui::Ui),
 ) -> Vec<String> {
-    painted_frame(ctx, size, vec![], paint)
-        .shapes
-        .into_iter()
-        .filter_map(|shape| match shape.shape {
-            egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
-            _ => None,
-        })
+    let output = painted_frame(ctx, size, vec![], paint);
+    text_shapes(&output)
+        .map(|text| text.galley.job.text.clone())
         .collect()
 }
 
@@ -37,15 +33,9 @@ pub(crate) fn painted_frame(
 
 /// Finds a rendered label's center for pointer-driven acceptance checks.
 pub(crate) fn text_center(output: &egui::FullOutput, label: &str) -> egui::Pos2 {
-    output
-        .shapes
-        .iter()
-        .find_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if text.galley.job.text == label => {
-                Some(text.pos + text.galley.size() / 2.0)
-            }
-            _ => None,
-        })
+    text_shapes(output)
+        .find(|text| text.galley.job.text == label)
+        .map(|text| text.pos + text.galley.size() / 2.0)
         .unwrap_or_else(|| panic!("missing painted label {label}"))
 }
 
@@ -115,4 +105,14 @@ pub(crate) fn themed_context(dark: bool, scale: f32) -> (egui::Context, crate::t
     ctx.set_visuals(theme.visuals());
     ctx.set_pixels_per_point(scale);
     (ctx, theme)
+}
+
+/// Iterates painted text geometry without repeating shape filtering in assertions.
+pub(crate) fn text_shapes(
+    output: &egui::FullOutput,
+) -> impl Iterator<Item = &egui::epaint::TextShape> {
+    output.shapes.iter().filter_map(|shape| match &shape.shape {
+        egui::Shape::Text(text) => Some(text),
+        _ => None,
+    })
 }

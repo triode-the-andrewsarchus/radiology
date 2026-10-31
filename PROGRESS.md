@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Fit caller rows and bound inspector regions (Codex)
+
+Caller names, filenames, line/depth metadata and boundary notes now keep separate
+slots. Noted rows share variable extents with virtual painting and keyboard reveal.
+Reference file headers reuse measured head elision. Reference rows/chevrons and
+caller/Trace More controls bind exact source identities, retiring replacement
+presses. Result and reference panes share current-rectangle activation validation;
+ordinary icon buttons preserve their keyboard behavior. Native 2× resizing also
+exposed Definition painting over Bookmarks. Bookmarks now reserves its actual
+height first; References leaves a middle region, and clipped child content cannot
+enlarge any sibling. [Contract/evidence/remaining checks](plans/rust-reference-presentation.md).
+Four new regressions pass, along with enhanced mixed-height 1,000-caller and saved
+oversized-region cases. Three saved negatives fail against the previous renderer/
+layout bodies. Workspace passes 493 app tests (seven ignored), two binary, four
+font, eleven text and 34 doctests; final focused tests, strict Clippy/check/build/
+fmt/diff pass. Architecture flags five unchanged test clusters: the full clone
+multiset remains 89 with zero additions/removals, no new hotspot/cycle/max-CCN
+increase and average CCN 3.37 → 3.36. Native 1×/2× indexed runs verify pinned
+references, caller navigation to line 5, exact 473-byte Unicode copy, Back to line
+2, narrow themes and the repaired region separation. Fixtures are unchanged and
+all final exits zero. Archive: ~/.local/state/radiology-qa/reference-presentation-20261031-f29df40.
+Coalesced Right/Down/Return handoff, pinned kind/icon metadata, broader reference/
+review/mixed-language/lifecycle visuals, reader/large-file/grammar/index/PR/cache
+and final Swift/reuse acceptance remain open. Full accessibility and actual sibling
+adoption stay deferred. Commit and push this increment before continuing.
+
 ## 2026-10-31 — Bound inspector labels and restore declaration disclosure (Codex)
 
 The enclosing declaration now has Swift's initially closed signature disclosure,

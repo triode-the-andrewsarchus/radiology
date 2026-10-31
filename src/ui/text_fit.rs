@@ -4,6 +4,15 @@ use egui::{text::LayoutJob, Color32, FontId, Galley, Ui};
 use std::{borrow::Cow, sync::Arc};
 
 pub(crate) fn middle(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<Galley> {
+    fit(ui, text, font, color, width, false)
+}
+
+/// Fits one row while preserving the filename/location end of a path.
+pub(crate) fn head(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<Galley> {
+    fit(ui, text, font, color, width, true)
+}
+
+fn fit(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32, head: bool) -> Arc<Galley> {
     let text = bounded(text);
     let text = text.as_ref();
     let shape = |text: String| {
@@ -27,8 +36,8 @@ pub(crate) fn middle(ui: &Ui, text: &str, font: FontId, color: Color32, width: f
         let keep = low + (high - low) / 2;
         let candidate = shape(format!(
             "{}…{}",
-            &text[..boundaries[keep.div_ceil(2)]],
-            &text[boundaries[count - keep / 2]..]
+            &text[..boundaries[if head { 0 } else { keep.div_ceil(2) }]],
+            &text[boundaries[count - if head { keep } else { keep / 2 }]..]
         ));
         if candidate.size().x <= width.max(0.0) {
             fitted = candidate;

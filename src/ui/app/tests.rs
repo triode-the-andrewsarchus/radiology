@@ -1794,7 +1794,16 @@ fn caller_controls_leave_global_definition_shortcuts_available() {
         });
     });
     ctx.memory_mut(|memory| {
-        memory.request_focus(crate::ui::reference_callers::control_id(1, Some(0)))
+        let tree = app.reference_context.disclosures[&1].callers().unwrap();
+        let row = &tree.rows[0];
+        memory.request_focus(crate::ui::reference_callers::row_id(
+            1,
+            0,
+            row,
+            tree.source_identities
+                .get(&row.location.path)
+                .map(String::as_str),
+        ))
     });
     let _ = ctx.run(
         egui::RawInput {
