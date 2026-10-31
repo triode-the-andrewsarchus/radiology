@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Align interface font with the future host (Codex)
+
+Radiology now opts into the sibling's exact Fira Sans UI face via reader-fonts,
+with its complete OFL notice. Asset-only consumers retain zero normal dependencies;
+optional egui registration changes only proportional text and preserves host code
+fonts/custom families. Small metadata is 12 pt; compact body/heading and independent
+source zoom stay intact. [Contract and native evidence](plans/shared-font-fallbacks.md).
+All-scale tests prove source geometry unchanged. Native 1280×900 at 1× and narrower
+1024×768 at 2× verify toolbar/inspector/find/footer layout, both appearances, 1/1
+emoji find and exact source copy. Fixture bytes are unchanged; app/compositors exit
+zero. Workspace passes 433 app tests (seven ignored), four font tests, eight shared
+text tests and 32 doctests with eight test threads; strict Clippy/build/fmt and
+warning-denied/render-inspected rustdoc pass. One unrelated five-second loader test
+timeout in the initial loaded run passes focused and in the full rerun, unchanged.
+No new code hotspot/cycle/clone; the added clone group is required original OFL text.
+Palette/widget/type-role alignment, sibling adoption, broader corpus/recovery,
+keyboard/accessibility and final Swift parity audit remain open. Commit and push
+this increment before continuing.
+
 ## 2026-10-30 — Native CJK/emoji font and source-copy acceptance (Codex)
 
 Portable font backend `257c434` and ordered-input fix `daf295f` are pushed.

@@ -19,8 +19,8 @@ font/context setup explicitly. A screen renderer can use the asset-only package
 without adopting egui, image/media or GPU dependencies.
 
 This reuses the sibling's fallback policy without importing its unrelated style
-helpers or large rendering crate. Its Fira Sans primary face, palette and type
-role/spacing integration remain part of the broader UI audit. Current source zoom
+helpers or large rendering crate. The explicit Fira Sans opt-in is now integrated, as recorded below; palette and
+broader type-role/spacing integration remain part of the UI audit. Current source zoom
 and compact metadata hierarchy are preserved. The requested design/typography
 skills remain unavailable locally; the checked-in design system and actual host
 font setup were reviewed before and after this decision. No new type scale is
@@ -108,3 +108,63 @@ and the exercised selection/find paths. They do not complete every script,
 wrapping/scrolling scenario, accessibility, host primary-font/type-role/palette
 alignment, sibling adoption or the final Swift requirement audit. No additional
 production change or automated rerun is part of this evidence-only increment.
+
+
+## Optional host-matching interface face — 2026-10-30
+
+The same dependency-free asset package now exposes Fira Sans regular, copied with
+its full original OFL notice from `clip-workbench/assets/fonts`. Asset hash:
+`43c240a110cf888686d13cd17400fd0ca376ce55656150e52abff95f67a9532e`.
+It adds 487,472 bytes (about 476 KiB) when embedded. `use_ui_font` is a separate,
+explicit egui opt-in: it selects Fira Sans for proportional text while retaining
+the original faces as fallbacks. Monospace/custom families and font sizes remain
+host-owned. `append_fallbacks` alone still preserves primary fonts. Both operations
+are idempotent and compose in either order. There is no added Rust dependency,
+sibling checkout requirement or change to the sibling application.
+
+Standalone Radiology opts in at window creation. Its compact reader scale retains
+14 pt body/button, 20 pt heading and independently adjustable 14 pt default source;
+Small metadata rises from egui's 10 pt default to 12 pt. Color and existing emphasis
+distinguish supporting text. The sibling's 16 pt body/36 pt controls are workbench
+metrics, not an instruction to enlarge every dense reader row. Code remains
+monospace, with the existing measured geometry, source zoom and bytes. Headless
+`from_session` does not configure or mutate a host context.
+
+The requested typography/macOS/SwiftUI skills are still absent from configured
+skill/plugin roots and the historical path in `design-system.md`. Before/after
+review uses that checked-in specification, the original parity review's explicit
+host-size guidance and the sibling's real font setup. This increment does not
+complete broader type-role/spacing or palette alignment.
+
+Validation:
+
+- Four font tests and two doctests pass. New coverage proves UI layout actually
+  changes, source glyph positions/sizes are identical at 14/28 pt and 1×/1.5×/2×,
+  custom families survive, both registrations compose and repeated calls are safe.
+  All three asset hashes are checked. Asset-only mode passes independently with
+  no normal dependency, including no egui.
+- `cargo test --workspace -- --test-threads=8`: 433 app tests (seven ignored), four
+  font tests, eight shared-text tests and 32 doctests. Strict Clippy, build,
+  formatting and warning-denied crate rustdoc pass. The rendered `use_ui_font`
+  contract/example was visually inspected in Chromium.
+- The initial default-thread suite timed out in the source-loader test
+  `checkout_hunks_use_literal_paths_and_cover_untracked_source_on_first_open`.
+  Its unchanged five-second helper deadline ran under heavy external build/test
+  load. It passed on its own (1.93 s) and in the eight-thread workspace rerun.
+  No timeout or production source-loading behavior was changed.
+- Logs: `/tmp/radiology-ui-font-{tests,assets-only,workspace,workspace-recheck,clippy,build,doc,hunks-recheck}.log`.
+  Rendered API capture: `/tmp/radiology-ui-font-rustdoc.png`.
+- Architecture baseline `before-reader-ui-typography`: no new code clone, hotspot
+  or cycle. The new clone group is the original OFL text shared with the Noto
+  notices (91→92 groups, +0.08 percentage points); complete notices are retained.
+
+Native evidence is in `/tmp/radiology-ui-font-native-{1.0,2.0}`, each with
+`acceptance.json`, `SHA256SUMS`, captures, exact `emoji-copy.txt` and exit statuses.
+At 1×, the 1280×900 workspace shows the UI face, source, inspector and local find
+in both appearances. At 2×, a 1024×768 logical workspace (2048×1536 capture) keeps
+toolbar/inspector/footer controls visible; find controls wrap to a second row,
+including count and Close, without overlap. Both runs copy the exact original
+emoji line and find the melting-face glyph at 1/1 in dark/light. Source fixture
+bytes remain unchanged; app and both compositors close normally with exit zero.
+The sibling capture helper is QA-only. These are representative native checks,
+not broad accessibility, all-width or every-project acceptance.

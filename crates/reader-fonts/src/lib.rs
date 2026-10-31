@@ -1,9 +1,49 @@
-//! Portable CJK and monochrome emoji font assets.
+//! Portable interface and fallback font assets.
 //!
-//! The assets match little-screen-clip's bundled fallback faces byte for byte.
+//! The assets match little-screen-clip's bundled faces byte for byte.
 //! Asset-only hosts need no GUI dependency. Enable `egui` to append them to a
-//! host's existing font definitions without changing its primary fonts or sizes.
-//! Font software uses SIL OFL 1.1; both notices ship in `assets/`.
+//! host's existing font definitions. The optional UI face is an explicit opt-in;
+//! hosts retain control over font sizes and source typography.
+//! Font software uses SIL OFL 1.1; complete notices ship in `assets/`.
+
+/// The bundled Fira Sans regular interface face (SIL OFL 1.1).
+///
+/// Matches little-screen-clip's UI face. Asset-only hosts can register these bytes
+/// with their own renderer without enabling `egui`.
+pub const UI_FONT_BYTES: &[u8] = include_bytes!("../assets/FiraSans-Regular.ttf");
+
+/// Selects bundled Fira Sans for proportional interface text.
+///
+/// Keeps existing proportional faces as fallbacks and leaves monospace/custom
+/// families unchanged. Repeated calls are safe. This explicit opt-in is separate
+/// from [`append_fallbacks`], which preserves every family's primary face.
+/// Neither function sets font sizes, spacing, zoom or context state.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "egui")] {
+/// let mut definitions = egui::FontDefinitions::default();
+/// reader_fonts::use_ui_font(&mut definitions);
+/// reader_fonts::append_fallbacks(&mut definitions);
+/// let context = egui::Context::default();
+/// context.set_fonts(definitions);
+/// # }
+/// ```
+#[cfg(feature = "egui")]
+pub fn use_ui_font(definitions: &mut egui::FontDefinitions) {
+    const NAME: &str = "reader-ui-fira-sans";
+    definitions
+        .font_data
+        .entry(NAME.into())
+        .or_insert_with(|| egui::FontData::from_static(UI_FONT_BYTES));
+    let proportional = definitions
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default();
+    proportional.retain(|font| font != NAME);
+    proportional.insert(0, NAME.into());
+}
 
 /// The bundled Noto Sans CJK JP regular face (SIL OFL 1.1).
 pub const CJK_FONT_BYTES: &[u8] = include_bytes!("../assets/NotoSansCJK-JP-Regular.ttf");
