@@ -11,7 +11,7 @@ pub(super) enum QueryRole {
     Occurrences,
     Highlights,
 }
-type Queries = HashMap<SupportedGrammar, Result<Query, String>>;
+type Queries = HashMap<SupportedGrammar, OnceLock<Result<Query, String>>>;
 
 pub(super) fn query(grammar: SupportedGrammar, role: QueryRole) -> Result<&'static Query, String> {
     static CALLS: OnceLock<Queries> = OnceLock::new();
@@ -24,6 +24,15 @@ pub(super) fn query(grammar: SupportedGrammar, role: QueryRole) -> Result<&'stat
         QueryRole::Occurrences => &OCCURRENCES,
         QueryRole::Highlights => &HIGHLIGHTS,
     };
+    cached_query(cache, grammar, role)
+}
+
+// The outer registry is cheap; compilation is owned by one grammar/role cell.
+fn cached_query(
+    cache: &OnceLock<Queries>,
+    grammar: SupportedGrammar,
+    role: QueryRole,
+) -> Result<&Query, String> {
     use SupportedGrammar::*;
     cache
         .get_or_init(|| {
@@ -31,22 +40,20 @@ pub(super) fn query(grammar: SupportedGrammar, role: QueryRole) -> Result<&'stat
                 Rust, Python, Go, JavaScript, TypeScript, Tsx, Swift, Kotlin, C,
             ]
             .into_iter()
-            .map(|grammar| {
-                let source = match role {
-                    QueryRole::Calls => call_source(grammar),
-                    QueryRole::Folds => fold_source(grammar),
-                    QueryRole::Occurrences => occurrence_source(grammar),
-                    QueryRole::Highlights => highlight_source(grammar),
-                };
-                (
-                    grammar,
-                    Query::new(&grammar.language(), &source).map_err(|error| error.to_string()),
-                )
-            })
+            .map(|grammar| (grammar, OnceLock::new()))
             .collect()
         })
         .get(&grammar)
         .expect("registered reader grammar")
+        .get_or_init(|| {
+            let source = match role {
+                QueryRole::Calls => call_source(grammar),
+                QueryRole::Folds => fold_source(grammar),
+                QueryRole::Occurrences => occurrence_source(grammar),
+                QueryRole::Highlights => highlight_source(grammar),
+            };
+            Query::new(&grammar.language(), &source).map_err(|error| error.to_string())
+        })
         .as_ref()
         .map_err(Clone::clone)
 }
@@ -229,4 +236,62 @@ pub(super) fn visit_matches<'tree>(
         return Err(format!("{role} query exceeded its match limit"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn one_grammar_role_does_not_compile_unrelated_languages() {
+        for (grammar, role) in [
+            (SupportedGrammar::Rust, QueryRole::Calls),
+            (SupportedGrammar::Rust, QueryRole::Folds),
+            (SupportedGrammar::Rust, QueryRole::Occurrences),
+            (SupportedGrammar::Kotlin, QueryRole::Highlights),
+        ] {
+            let cache = OnceLock::new();
+            let first = cached_query(&cache, grammar, role).unwrap();
+            assert!(std::ptr::eq(
+                first,
+                cached_query(&cache, grammar, role).unwrap()
+            ));
+            for (&other, cell) in cache.get().unwrap() {
+                assert_eq!(
+                    cell.get().is_some(),
+                    other == grammar,
+                    "{role:?}: {other:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn concurrent_requests_share_one_compiled_query() {
+        let cache = OnceLock::new();
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        cached_query(&cache, SupportedGrammar::Rust, QueryRole::Calls).unwrap()
+                            as *const Query as usize
+                    })
+                })
+                .collect();
+            let pointers: Vec<_> = workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect();
+            assert!(pointers.iter().all(|&pointer| pointer == pointers[0]));
+        });
+        assert_eq!(
+            cache
+                .get()
+                .unwrap()
+                .values()
+                .filter(|cell| cell.get().is_some())
+                .count(),
+            1
+        );
+    }
 }
