@@ -4,7 +4,7 @@ use crate::semantic::{ScipDocument, ScipSymbolInformation};
 use std::sync::atomic::AtomicUsize;
 use std::time::{Duration, Instant};
 
-fn entry(root: PathBuf, documentation: String) -> StoredEntry {
+pub(super) fn entry(root: PathBuf, documentation: String) -> StoredEntry {
     let inventory = InputInventory::from_paths(["lib.rs".into()]).unwrap();
     let plan = super::super::IndexPlan::inspect(["lib.rs"]);
     Entry {
@@ -129,20 +129,7 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
     let root = owner.path().join("source");
     fs::create_dir(&root).unwrap();
     fs::write(root.join("lib.rs"), "fn work() {}\n").unwrap();
-    let request = GenerationRequest {
-        attached_root: root.clone(),
-        reuse: false,
-        review: None,
-        root: root.clone(),
-        cache: owner.path().join("cache"),
-        tools: crate::semantic::indexing::tools::ToolDirectory {
-            managed: None,
-            home: None,
-            search_path: vec![],
-        },
-        timeout: Duration::from_secs(5),
-        limits: Default::default(),
-    };
+    let request = request(root.clone(), owner.path().join("cache"));
     let mut entry = entry(fs::canonicalize(&root).unwrap(), "accepted".into());
     let cancel = AtomicBool::new(false);
     let save_entry = |entry: &StoredEntry| {
@@ -183,7 +170,7 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
         assert!(error.contains("cancelled"), "{error}");
     });
     assert_eq!(fs::read(&destination).unwrap(), pristine);
-    assert_eq!(fs::read_dir(&request.cache).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(&request.cache).unwrap().count(), 2); // accepted record and shared lease
     cancel.store(false, Ordering::Relaxed);
     entry.scip.documents[0].symbols[0].documentation = vec!["fresh".into()];
     save_entry(&entry).unwrap();
@@ -209,4 +196,21 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
             .contains("cancelled")
     );
     println!("Cache serialization: live temporary write interrupted, accepted file retained, temporary removed, fresh save/load succeeds");
+}
+
+pub(super) fn request(root: PathBuf, cache: PathBuf) -> GenerationRequest {
+    GenerationRequest {
+        attached_root: root.clone(),
+        reuse: false,
+        review: None,
+        root: root.clone(),
+        cache,
+        tools: crate::semantic::indexing::tools::ToolDirectory {
+            managed: None,
+            home: None,
+            search_path: vec![],
+        },
+        timeout: Duration::from_secs(5),
+        limits: Default::default(),
+    }
 }

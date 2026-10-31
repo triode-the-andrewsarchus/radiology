@@ -8,7 +8,9 @@ use std::time::{Duration, Instant};
 const STAGE_PREFIX: &str = ".radiology-index-stage-";
 const MIGRATED: &str = ".legacy-migrated";
 
-fn lease_file(request: &GenerationRequest) -> Result<File, String> {
+pub(in crate::semantic::indexing) fn lease_file(
+    request: &GenerationRequest,
+) -> Result<File, String> {
     open_lock(&directory(request)?.join(".project-cache.lock"), true)
         .map_err(|error| format!("Project cache lease: {error}"))
 }

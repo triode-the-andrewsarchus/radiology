@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Bounded normalized PR revision records (Codex)
+
+Normalized cache publication now shares the existing project writer lease. After
+fresh successful PR publication, idle maintenance retains the current record plus
+two recent owned revisions, matching the managed-worktree count. Filename/root/
+format provenance protects checkout, foreign, malformed, unsupported and unknown
+records; symlinks stay untouched. Busy writers defer cleanup, open descriptors
+survive eviction, and abandoned regular stages are removed only while idle.
+Failures/stale inputs/compiler-partial builds preserve history; cleanup failures
+use the existing warning path. [Contract and limits](plans/rust-normalized-revision-retention.md).
+Three new retention tests include an actual external lock holder, reaping and
+open-reader decoding; existing cancellation/serialization recovery tests pass.
+Workspace gates pass 428 app tests (seven ignored), eight shared tests and 30
+doctests, strict Clippy, formatting and build. Real Rust/C/C++ lifecycle cases pass
+with the publication guard. Architecture is neutral with no new hotspot/cycle/clone
+growth. Native PR retention acceptance, broader corpora/recovery and final
+UI/accessibility/scaling/font/sibling audit remain open. Commit and push each increment.
+
 ## 2026-10-30 — Actual scip-clang C/C++ lifecycle acceptance (Codex)
 
 The official scip-clang 0.4.0 Linux binary passes the production lifecycle in

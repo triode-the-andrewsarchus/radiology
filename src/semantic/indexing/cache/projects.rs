@@ -6,7 +6,7 @@ use crate::semantic::indexing::IndexingStrategy;
 
 mod maintenance;
 
-pub(in crate::semantic::indexing) use maintenance::{maintain, reader_lease};
+pub(in crate::semantic::indexing) use maintenance::{lease_file, maintain, reader_lease};
 
 #[derive(Serialize, Deserialize)]
 struct Project<S, O, D> {

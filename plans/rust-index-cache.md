@@ -69,3 +69,11 @@ Per-project incremental cache reuse, cross-revision reuse, validated tool-versio
 refresh policy, retention controls and pinned PR cache namespaces remain required.
 Swift's cache is a behavioral reference; these entries are Rust-private normalized
 data, not a promise of Swift disk-format compatibility.
+
+## Normalized revision retention — 2026-10-30
+
+[Retention](rust-normalized-revision-retention.md) now keeps the newly published PR
+revision and two recent owned records per review-store identity. It shares the
+project writer lease, defers while busy, preserves unknown/foreign data and leaves
+cache-only reads unchanged. Automated cross-process/publication/open-reader checks
+pass; final native PR retention acceptance remains open.
