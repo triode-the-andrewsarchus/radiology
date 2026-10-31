@@ -76,4 +76,5 @@ data, not a promise of Swift disk-format compatibility.
 revision and two recent owned records per review-store identity. It shares the
 project writer lease, defers while busy, preserves unknown/foreign data and leaves
 cache-only reads unchanged. Automated cross-process/publication/open-reader checks
-pass; final native PR retention acceptance remains open.
+pass. Native four-head refresh/publication, deferred cleanup, restart, eviction and
+explicit regeneration now pass; see the retention evidence.

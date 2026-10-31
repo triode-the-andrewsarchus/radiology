@@ -62,8 +62,8 @@ concurrent fork/exec briefly inheriting a close-on-exec lease descriptor. The te
 holder uses `flock --no-fork` so the runner owns and reaps its actual PID.
 The existing large-JSON cancellation and live serialization/recovery tests pass
 with the shared lease. Real Rust and C/C++ lifecycle cases also pass after adding
-the normalized publication guard. A final native PR generation/restart/eviction
-check and broader corpus acceptance remain open.
+the normalized publication guard. The native PR generation/restart/eviction check below now passes; broader corpus
+acceptance remains open.
 
 Full workspace gates pass 428 app tests (seven ignored), eight shared tests and
 30 doctests; strict Clippy, formatting and workspace build pass.
@@ -72,3 +72,47 @@ Architecture comparison against `before-normalized-revision-retention` is neutra
 no new hotspots, cycles or clone groups. Logs:
 `/tmp/radiology-normalized-retention-{tests,workspace,real,build}.log` and
 `/tmp/radiology-normalized-retention-final-clippy.log`.
+
+## Native acceptance — 2026-10-30
+
+Backend `84d320c` was built and run in a private 1280×900 Weston/Niri session.
+PR #7 uses local controlled gh/tool responses, a dirty attached checkout and four
+real pinned Git commits with identical trees. Each head is refreshed and published
+through the app. The first run invokes the controlled SCIP producer; subsequent
+heads reuse its exact-input/version-qualified project record. Coverage remains
+honest: one document and one missing source, with no cache warning. This is native
+lifecycle evidence, not another real compiler acceptance claim.
+
+A separate process holds the shared cache lease while the fourth head publishes.
+All four normalized records and a QA active-stage stand-in remain intact. After
+release, native Update removes the oldest normalized record and the stage, keeps
+the current plus two recent heads, and preserves unknown notes. Reload Index and
+restarting/reopening the review restore the current index without another tool
+invocation. Explicit repository launch first opens checkout scope as designed;
+the review is reopened through its command rather than relying on session restore.
+
+Reopening the evicted first head shows no semantic index, with no checkout-import
+leakage. Explicit Generate reuses the retained project data, restores that head's
+normalized record and evicts the next oldest publication. The original generating
+revision remains valid provenance for the independent project record even after
+its earlier normalized copy was evicted. Final disk records are heads 1, 3 and 4.
+Only the initial SCIP production run occurs; five later observed tool invocations
+are version probes for project reuse. Reload/restart add none.
+
+All four commits exist in the private object store and have the same Git tree.
+Viewed checkout HEAD/status/all regular-file bytes remain unchanged, including
+proof against the initial committed files and original dirty source. The private
+producer sees exact pinned After bytes; its workspace and all build-input/stage
+paths are removed. Both app instances, both compositors and the lease holder exit
+zero. The sibling capture helper is used for QA only; the app's standalone runtime
+and dependency boundaries are unchanged.
+
+Evidence: `/tmp/radiology-normalized-retention-native/acceptance.json` and
+`manifest.json` (SHA-256 of captures, logs, fixtures, drivers and the tested binary).
+Key captures: `generated-after.png`, `head-4-live-writer-generated.png`,
+`idle-update-pruned.png`, `cached-reload.png`, `reopened-review-cached.png`,
+`evicted-head-no-index.png`, `evicted-head-regenerated-from-project.png` and
+`final-accepted-reader.png`. The record-state JSON files preserve before/deferred/
+after sets. No production source changes or fresh automated test rerun were needed
+in this evidence increment. Broader corpus/recovery and final UI/accessibility/
+scaling/font/sibling acceptance remain open.
