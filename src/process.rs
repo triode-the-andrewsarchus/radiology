@@ -4,6 +4,8 @@
 //! a GUI runtime, and a child owns a separate POSIX process group. Cancellation,
 //! deadlines, I/O failures and unwinding kill the group and reap the direct child.
 
+pub(crate) mod lease;
+
 use std::collections::VecDeque;
 use std::io::{self, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -136,7 +138,17 @@ pub fn run_observed(
     timeout: Duration,
     observer: impl FnMut(OutputStream, &[u8]) -> io::Result<()>,
 ) -> Result<RunOutput, RunFailure> {
-    observe(command, cancel, timeout, None, observer)
+    run_observed_with_lease(command, cancel, timeout, None, observer)
+}
+
+pub(crate) fn run_observed_with_lease(
+    command: &ProcessCommand,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    lease: Option<&std::fs::File>,
+    observer: impl FnMut(OutputStream, &[u8]) -> io::Result<()>,
+) -> Result<RunOutput, RunFailure> {
+    observe(command, cancel, timeout, lease, observer)
 }
 
 fn observe(
