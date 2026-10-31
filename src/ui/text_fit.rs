@@ -1,9 +1,11 @@
 //! Measured single-row labels shared by constrained panes and breadcrumbs.
 
 use egui::{text::LayoutJob, Color32, FontId, Galley, Ui};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 pub(crate) fn middle(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<Galley> {
+    let text = bounded(text);
+    let text = text.as_ref();
     let shape = |text: String| {
         let mut job = LayoutJob::simple(text, font.clone(), color, f32::INFINITY);
         job.break_on_newline = false;
@@ -60,4 +62,20 @@ pub(crate) fn lines(
     job.wrap.max_rows = rows;
     job.wrap.break_anywhere = true;
     ui.fonts(|fonts| fonts.layout_job(job))
+}
+
+// Keep ancillary labels/help bounded while preserving both ends of identifiers.
+pub(crate) fn bounded(text: &str) -> Cow<'_, str> {
+    if text.len() <= 4096 {
+        return Cow::Borrowed(text);
+    }
+    let mut left = 2046;
+    while !text.is_char_boundary(left) {
+        left -= 1;
+    }
+    let mut right = text.len() - 2047;
+    while !text.is_char_boundary(right) {
+        right += 1;
+    }
+    Cow::Owned(format!("{}…{}", &text[..left], &text[right..]))
 }

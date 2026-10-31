@@ -160,6 +160,7 @@ pub struct RadiologyApp {
     reference_viewport: crate::ui::reference_list::ReferenceViewport,
     bookmark_list: crate::ui::bookmark_list::BookmarkList,
     outline_list: crate::ui::outline_list::OutlineList,
+    declaration_summary: crate::ui::context_inspector::DeclarationSummary,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -298,6 +299,7 @@ impl RadiologyApp {
             reference_viewport: Default::default(),
             bookmark_list: Default::default(),
             outline_list: Default::default(),
+            declaration_summary: Default::default(),
             active_pr: None,
             review: None,
             review_job: Default::default(),
@@ -454,6 +456,7 @@ impl RadiologyApp {
         self.reset_index_state();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
+        self.declaration_summary = Default::default();
         self.test_code = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
@@ -790,6 +793,7 @@ impl RadiologyApp {
                         &mut self.reference_viewport,
                         &mut self.bookmark_list,
                         &mut self.outline_list,
+                        &mut self.declaration_summary,
                     ) {
                         match action {
                             InspectorAction::Reference(action) => {

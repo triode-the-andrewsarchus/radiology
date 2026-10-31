@@ -103,3 +103,16 @@ pub(crate) fn menu_frame(
     super::context_menu::take_input(ctx, &mut input);
     painted_frame(ctx, size, input.events, paint)
 }
+
+/// Applies a paired palette and UI scale for pane acceptance fixtures.
+pub(crate) fn themed_context(dark: bool, scale: f32) -> (egui::Context, crate::theme::AppTheme) {
+    let ctx = egui::Context::default();
+    let theme = if dark {
+        crate::theme::AppTheme::dark()
+    } else {
+        crate::theme::AppTheme::light()
+    };
+    ctx.set_visuals(theme.visuals());
+    ctx.set_pixels_per_point(scale);
+    (ctx, theme)
+}

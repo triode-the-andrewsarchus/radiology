@@ -8,6 +8,8 @@ use crate::source::SourceBuffer;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{RichText, ScrollArea, Ui};
+mod declaration_summary;
+pub use declaration_summary::DeclarationSummary;
 
 /// Navigation and management events from the inspector.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,6 +121,7 @@ impl ContextInspector {
         references: &mut crate::ui::reference_list::ReferenceViewport,
         bookmarks: &mut BookmarkList,
         outline: &mut OutlineList,
+        declaration: &mut DeclarationSummary,
     ) -> Option<InspectorAction> {
         let mut action = None;
         let height = ui.available_height();
@@ -128,7 +131,8 @@ impl ContextInspector {
             .min_height(100.0)
             .max_height((height - 220.0).max(100.0))
             .show_inside(ui, |ui| {
-                action = Self::render_declaration_context(ui, theme, &content, references);
+                action =
+                    Self::render_declaration_context(ui, theme, &content, references, declaration);
             });
         egui::TopBottomPanel::bottom("bookmarks_region")
             .resizable(true)
@@ -231,24 +235,18 @@ impl ContextInspector {
         theme: &AppTheme,
         content: &InspectorContent<'_>,
         references: &mut crate::ui::reference_list::ReferenceViewport,
+        summary: &mut DeclarationSummary,
     ) -> Option<InspectorAction> {
-        let mut action = None;
         ui.heading("Declaration");
-        if content.explicit_references {
-            ui.label(RichText::new(content.reference_target.unwrap_or("Pinned symbol")).strong());
-        } else if let Some(declaration) = content.declaration {
-            ui.colored_label(theme.text_muted, declaration.kind.title());
-            if ui.link(&declaration.name).clicked() {
-                action = Some(InspectorAction::JumpToSymbol(
-                    declaration.selection_range.start,
-                ));
-            }
-            if let Some(signature) = &declaration.detail {
-                ui.monospace(signature);
-            }
-        } else {
-            ui.colored_label(theme.text_muted, "No enclosing declaration");
-        }
+        let mut action = summary.show(
+            ui,
+            theme,
+            content.declaration,
+            content.buffer,
+            content
+                .explicit_references
+                .then_some(content.reference_target.unwrap_or("Pinned symbol")),
+        );
         if let Some(next) = Self::render_reference_context(ui, theme, content, references) {
             action = Some(next);
         }
@@ -322,73 +320,139 @@ mod tests {
 
     #[test]
     fn all_three_context_regions_are_visible_in_one_frame() {
-        let ctx = egui::Context::default();
-        let bookmarks = BookmarkStore::new();
-        let output = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(320.0, 800.0),
-                )),
-                ..Default::default()
-            },
-            |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    ContextInspector::show(
-                        ui,
-                        &AppTheme::dark(),
-                        InspectorContent {
-                            under_caret: None,
-                            under_caret_loading: false,
-                            under_caret_error: None,
-                            definition_preview: &crate::source::preview::PreviewPhase::None,
-                            definition_expanded: false,
-                            declaration: None,
-                            buffer: None,
-                            reference_results: &ReferenceResults::default(),
-                            selected_reference: None,
-                            reference_disclosures: &Default::default(),
-                            reference_target: None,
-                            explicit_references: false,
-                            references_loading: false,
-                            reference_error: None,
-                            references_available: false,
-                            outline: &[],
-                            test_code: None,
-                            bookmarks: &bookmarks,
-                            scope: "Checkout",
-                            bookmarks_enabled: true,
-                            can_toggle_bookmark: false,
-                            current_bookmarked: false,
-                            outline_enabled: false,
-                        },
-                        &mut Default::default(),
-                        &mut Default::default(),
-                        &mut Default::default(),
-                    );
-                });
-            },
+        let name = format!("λ{}_TAIL", "identifier".repeat(100));
+        let buffer = SourceBuffer::from_str(
+            format!("nested/{}.rs", "long-filename-".repeat(20)),
+            &format!(
+                "{}fn {name}() {{}}{}",
+                "mod nested {".repeat(20),
+                "}".repeat(20)
+            ),
         );
-        let text = output
+        let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
+        let mut symbol = &symbols[0];
+        while let Some(child) = symbol.children.first() {
+            symbol = child;
+        }
+        let mut bookmarks = BookmarkStore::new();
+        bookmarks
+            .bookmarks
+            .push(crate::bookmarks::bookmark::SourceBookmark::new(
+                &buffer,
+                symbol.selection_range.start,
+                &name,
+            ));
+        for dark in [true, false] {
+            for scale in [1.0, 2.0] {
+                for width in [220.0, 300.0, 420.0] {
+                    let (ctx, theme) = crate::ui::test_support::themed_context(dark, scale);
+                    let mut outline = OutlineList::default();
+                    outline.sync(
+                        &buffer,
+                        &symbols,
+                        &Default::default(),
+                        symbol.selection_range.start,
+                        None,
+                    );
+                    let mut pane = egui::Rect::NOTHING;
+                    let output = crate::ui::test_support::painted_frame(
+                        &ctx,
+                        egui::vec2(1280.0, 800.0),
+                        vec![],
+                        |ui| {
+                            pane = egui::SidePanel::right("inspector-test")
+                                .default_width(width)
+                                .min_width(200.0)
+                                .show_inside(ui, |ui| {
+                                    ui.style_mut().interaction.selectable_labels = false;
+                                    ContextInspector::show(
+                                        ui,
+                                        &theme,
+                                        InspectorContent {
+                                            under_caret: None,
+                                            under_caret_loading: false,
+                                            under_caret_error: None,
+                                            definition_preview:
+                                                &crate::source::preview::PreviewPhase::None,
+                                            definition_expanded: false,
+                                            declaration: Some(symbol),
+                                            buffer: Some(&buffer),
+                                            reference_results: &ReferenceResults::default(),
+                                            selected_reference: None,
+                                            reference_disclosures: &Default::default(),
+                                            reference_target: None,
+                                            explicit_references: false,
+                                            references_loading: false,
+                                            reference_error: None,
+                                            references_available: false,
+                                            outline: &symbols,
+                                            test_code: None,
+                                            bookmarks: &bookmarks,
+                                            scope: &"Review scope with long title".repeat(200),
+                                            bookmarks_enabled: true,
+                                            can_toggle_bookmark: true,
+                                            current_bookmarked: false,
+                                            outline_enabled: true,
+                                        },
+                                        &mut Default::default(),
+                                        &mut Default::default(),
+                                        &mut outline,
+                                        &mut Default::default(),
+                                    );
+                                })
+                                .response
+                                .rect;
+                        },
+                    );
+                    assert_region_geometry(&output, pane, width);
+                }
+            }
+        }
+    }
+    fn assert_region_geometry(output: &egui::FullOutput, pane: egui::Rect, width: f32) {
+        let labels: Vec<_> = output
             .shapes
             .iter()
             .filter_map(|shape| match &shape.shape {
-                egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+                egui::Shape::Text(text) => Some(text),
                 _ => None,
             })
-            .collect::<Vec<_>>();
-        for heading in ["Declaration", "Outline", "Bookmarks", "Checkout"] {
-            assert!(text.contains(&heading), "missing {heading}: {text:?}");
+            .collect();
+        for heading in ["Declaration", "Outline", "Bookmarks", "Ctrl+0"] {
+            assert!(
+                labels.iter().any(|text| text.galley.job.text == heading),
+                "missing {heading}"
+            );
+        }
+        // egui's 200-point content minimum includes a further 16 points of panel padding.
+        assert!(
+            pane.width() <= width.max(216.0) + 1.0,
+            "{width} grew to {}",
+            pane.width()
+        );
+        assert_eq!(
+            labels
+                .iter()
+                .filter(|text| text.galley.job.text.ends_with("_TAIL"))
+                .count(),
+            3,
+            "declaration, deep outline and bookmark labels must keep suffixes"
+        );
+        for text in &labels {
+            assert!(
+                text.pos.x >= pane.left() - 0.1
+                    && text.pos.x + text.galley.size().x <= pane.right() + 0.1,
+                "label escaped {width}: {:?}",
+                text.galley.job.text
+            );
         }
         let y = |heading| {
-            output
-                .shapes
+            labels
                 .iter()
-                .find_map(|shape| match &shape.shape {
-                    egui::Shape::Text(text) if text.galley.job.text == heading => Some(text.pos.y),
-                    _ => None,
-                })
+                .find(|text| text.galley.job.text == heading)
                 .unwrap()
+                .pos
+                .y
         };
         assert!(
             y("Outline") > 250.0,
@@ -396,6 +460,7 @@ mod tests {
         );
         assert!(y("Bookmarks") > y("Outline") + 100.0);
     }
+
     #[test]
     fn fast_definition_keys_preserve_event_order_and_do_not_leak() {
         let ctx = egui::Context::default();
