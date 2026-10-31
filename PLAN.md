@@ -510,6 +510,8 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/rust-normalized-revision-retention.md](plans/rust-normalized-revision-retention.md) — bounded recognized PR semantic records, shared writer ownership, safe deferred cleanup and open-reader behavior.
+
 - [plans/rust-real-indexer-acceptance.md](plans/rust-real-indexer-acceptance.md) — actual Rust, TypeScript, Go, Python, Kotlin/Java and C/C++ tools through shared generation/navigation/reuse/reload acceptance.
 
 - [plans/rust-critical-projection-reuse.md](plans/rust-critical-projection-reuse.md) — exact-source LRU projections, scoped classification reuse, bounds and retirement.

@@ -41,14 +41,17 @@ pub(super) fn directory(request: &GenerationRequest) -> Result<PathBuf, String> 
 
 fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
     let parent = directory(request)?;
+    Ok(parent.join(key(&request.identity_root()?, request.revision())))
+}
+
+fn key(root: &std::path::Path, revision: Option<&str>) -> String {
     let mut identity = Sha256::new();
-    identity.update(request.identity_root()?.as_os_str().as_encoded_bytes());
-    if let Some(revision) = request.revision() {
+    identity.update(root.as_os_str().as_encoded_bytes());
+    if let Some(revision) = revision {
         identity.update(b"\0");
         identity.update(revision);
     }
-    let key = format!("{:x}", identity.finalize());
-    Ok(parent.join(format!("{key}.index.json")))
+    format!("{:x}.index.json", identity.finalize())
 }
 
 pub(super) fn save(
@@ -72,9 +75,14 @@ pub(super) fn save(
         report,
         source_digests,
     };
+    fs::create_dir_all(destination.parent().expect("cache parent")).map_err(|e| e.to_string())?;
+    let lease = projects::reader_lease(request, cancel)?;
     let temporary = stage(&destination, &entry, cancel)?;
     check_cancel(cancel)?;
-    temporary.persist(destination).map_err(|e| e.to_string())?;
+    temporary.persist(&destination).map_err(|e| e.to_string())?;
+    drop(lease);
+    retention::maintain(request, report, &destination, cancel)
+        .map_err(|error| format!("Normalized cache cleanup: {error}"))?;
     Ok(())
 }
 
@@ -309,3 +317,5 @@ impl<W: Write> Write for LimitedWriter<'_, W> {
 mod tests;
 
 pub(super) mod projects;
+
+mod retention;

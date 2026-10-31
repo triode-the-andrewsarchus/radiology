@@ -182,7 +182,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   restart checks. Before stays source-only. Broader corrupt-store recovery and
   owned retired-project cleanup and legacy migration are integrated with native
   cross-process/restart acceptance; see [cache maintenance](rust-project-cache-maintenance.md).
-  Broader real-tool and normalized revision retention acceptance remain open.
+  [Normalized revision retention](rust-normalized-revision-retention.md) now bounds owned current-format records with shared writer protection and cross-process tests; final native retention and broader corpus acceptance remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,
