@@ -513,7 +513,7 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
-- [plans/shared-font-fallbacks.md](plans/shared-font-fallbacks.md) — portable host-matching CJK/emoji assets, optional egui registration and standalone integration.
+- [plans/shared-font-fallbacks.md](plans/shared-font-fallbacks.md) — portable host-matching CJK/emoji assets, optional egui registration, standalone integration and native 1×/1.5×/2× selection/copy evidence.
 
 - [plans/rust-file-manager-reveal.md](plans/rust-file-manager-reveal.md) — shared file/folder context action, scoped desktop handoff, bounded RPC ownership and validation.
 

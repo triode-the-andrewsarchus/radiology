@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Native CJK/emoji font and source-copy acceptance (Codex)
+
+Portable font backend `257c434` and ordered-input fix `daf295f` are pushed.
+Native private Weston/Niri runs verify representative CJK/emoji source, filenames,
+breadcrumbs and outlines at 1×/1.5×/2×. Emoji-line copy is exact at all three scales;
+CJK-line copy is exact at 1×/2×. Local find highlights the actual matching emoji at
+1/1 in dark/light at 1×/2×. [Evidence, hashes and precise scope](plans/shared-font-fallbacks.md).
+All fixture bytes stay unchanged; app and compositors exit zero at each scale.
+Failed/capture-order trials are excluded. This evidence-only increment adds no
+production changes or repeated automated gate run. Primary font/type-role/palette
+alignment, sibling adoption, broader corpus/recovery, keyboard/accessibility and
+final Swift audit remain open. Overall completion is roughly 90%, an estimate
+rather than a weighted requirement count. Commit and push each increment.
+
 ## 2026-10-30 — Preserve rapid source keyboard event order (Codex)
 
 Native 2× font acceptance exposed a reader batching bug: Copy ran before selection,
