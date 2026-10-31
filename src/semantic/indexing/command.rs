@@ -25,6 +25,8 @@ pub struct CommandPaths<'a> {
     pub gradle: Option<&'a Path>,
     /// Prepared C/C++ compilation database, exclusively under the private run.
     pub compilation_database: Option<&'a Path>,
+    /// Explicit Cargo feature cfg overrides discovered from isolated manifests.
+    pub rust_features: &'a [String],
 }
 
 impl IndexingStrategy {
@@ -66,10 +68,17 @@ impl IndexingStrategy {
         command.arguments = match self.indexer {
             Indexer::Rust => {
                 let configuration = paths.run.join("rust-analyzer.json");
+                let mut cfgs = vec!["debug_assertions".to_owned(), "miri".to_owned()];
+                cfgs.extend(
+                    paths
+                        .rust_features
+                        .iter()
+                        .map(|name| format!("feature={name}")),
+                );
                 command.resources.push((configuration.clone(), serde_json::to_vec(&serde_json::json!({
-                    "cargo": {"buildScripts": {"enable": false}, "features": "all", "cfgs": ["debug_assertions", "miri"]},
+                    "cargo": {"buildScripts": {"enable": false}, "features": "all", "cfgs": cfgs},
                     "procMacro": {"enable": false}
-                })).expect("static rust-analyzer configuration")));
+                })).expect("serializable rust-analyzer configuration")));
                 vec![
                     "scip".into(),
                     project.into_os_string(),

@@ -510,6 +510,8 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/rust-feature-configuration.md](plans/rust-feature-configuration.md) — manifest feature cfg parity, real rust-analyzer coverage/navigation, negative control and native acceptance.
+
 - [plans/rust-project-index-reuse.md](plans/rust-project-index-reuse.md) — version-qualified whole-context project reuse, staged cache publication and origin provenance.
 
 - [plans/rust-tool-provisioning.md](plans/rust-tool-provisioning.md) — explicit pinned tool installation, staged verification/rollback, cancellation, automatic indexing and real TypeScript coordinate/cache acceptance.

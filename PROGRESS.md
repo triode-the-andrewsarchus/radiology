@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-10-30 — Rust manifest feature cfg parity and real native navigation (Codex)
+
+Rust generation now unions explicit nested Cargo feature names into cfg overrides,
+matching Swift while retaining pure command planning and private resources. Shared
+bounded reads and the already-locked TOML parser handle quoted keys/comments, sorted
+names, sibling isolation, internal links and oversized inputs. Cache format 3 rejects
+older incomplete coverage. Actual rust-analyzer 1.98.1 indexes three files and resolves
+the gated cross-file call; without overrides the negative control loses that module.
+Native F12 opens the real definition and inspector reference; Update performs only a
+version probe, and restart without the managed tool reloads the accepted index/origin.
+Viewed Git state/all bytes remain intact; no lockfile/target artifacts or private stages
+remain, and app/compositors exit zero. [Contract and hashed evidence](plans/rust-feature-configuration.md).
+Full gates pass 414 app tests (three ignored), eight shared tests, 30 doctests, fmt,
+strict Clippy, build and rustdoc. After test-helper cleanup, both opt-in real Rust/TS
+tests and strict Clippy pass again. No new architecture hotspot/cycle/clone growth;
+flagged fragments are exact baseline tests. Real toolchain setup is private under
+/tmp; normal user toolchain selection is unchanged. Full parity remains open: other
+real tools/corpora, retired-project cache maintenance, broader recovery and final
+UI/accessibility/scaling/font/sibling audit. Commit and push each increment.
+
 ## 2026-10-30 — Shared readable process completion diagnostics (Codex)
 
 The native-discovered indexer message now reads “Indexer exited with status 9”

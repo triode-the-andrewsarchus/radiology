@@ -6,6 +6,7 @@ use std::path::Path;
 
 mod real_tools;
 mod reuse;
+mod rust_features;
 
 #[test]
 fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
@@ -92,7 +93,7 @@ impl Fixture {
 if [ "${{1:-}}" = --version ]; then printf '{} fixture-1\n'; exit 0; fi
 printf '%s\n' "$@" > {}
 output=''
-while [ "$#" -gt 0 ]; do case "$1" in --output|--index-output-path) shift; output=$1;; --compdb-path) shift; database=$1;; esac; shift; done
+while [ "$#" -gt 0 ]; do case "$1" in --output|--index-output-path) shift; output=$1;; --compdb-path) shift; database=$1;; --config-path) shift; configuration=$1;; esac; shift; done
 {before_output}
 /bin/cat {} > "$output"
 "#,
@@ -420,6 +421,7 @@ fn invalid_cache_formats_ranges_paths_and_provenance_never_publish() {
     let pristine: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     for (pointer, replacement) in [
         ("/format", serde_json::json!(1)), // old coordinate normalization is unsafe
+        ("/format", serde_json::json!(2)), // old Rust feature coverage is incomplete
         ("/format", serde_json::json!(999)),
         ("/root", serde_json::json!("/different/root")),
         (

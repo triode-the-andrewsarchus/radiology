@@ -12,8 +12,8 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Version 1 could persist byte encodings as occurrence-column encodings.
-const FORMAT: u32 = 2;
+// Version 1 used byte encodings as columns; version 2 omitted Rust feature cfgs.
+const FORMAT: u32 = 3;
 const IO_CHUNK: usize = 64 * 1024;
 use crate::semantic::loader::{read_index_bytes, MAX_INDEX_BYTES as MAX_BYTES};
 
