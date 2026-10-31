@@ -193,6 +193,7 @@ pub struct RadiologyApp {
     pub scroll_to_line: Option<usize>,
     /// Most recent recoverable error shown in the reader.
     pub error: Option<String>,
+    error_notice: crate::ui::error_notice::ErrorNotice,
     /// Whether the left navigation sidebar is visible.
     pub show_sidebar: bool,
     /// Whether the right context inspector is visible.
@@ -306,6 +307,7 @@ impl RadiologyApp {
             pending_navigation: None,
             scroll_to_line: None,
             error: None,
+            error_notice: Default::default(),
             show_sidebar: true,
             show_inspector: true,
         }
@@ -671,6 +673,7 @@ impl eframe::App for RadiologyApp {
                 &self.session.source_filters,
                 self.session.wrap_lines,
                 &self.history,
+                self.change_navigation(),
             ) {
                 self.execute_command(ctx, action);
             }
@@ -694,15 +697,11 @@ impl eframe::App for RadiologyApp {
         self.show_source_loading(ctx);
         self.show_index_status(ctx);
 
-        if let Some(error) = self.error.clone() {
-            TopBottomPanel::top("reader_notice").show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(egui::Color32::from_rgb(220, 90, 60), error);
-                    if ui.small_button("Dismiss").clicked() {
-                        self.error = None;
-                    }
-                });
-            });
+        if self
+            .error_notice
+            .show(ctx, &self.theme, self.error.as_deref())
+        {
+            self.error = None;
         }
 
         if self.show_sidebar {
@@ -934,6 +933,10 @@ impl eframe::App for RadiologyApp {
                             highlight_error: self.native_highlights.error.as_deref(),
                             fold_store: &mut self.fold_store,
                             line_changes: self.line_changes.as_ref(),
+                            file_change: self
+                                .review
+                                .as_ref()
+                                .and_then(|review| review.change(&buf.path)),
                             pin_store: &self.pin_store,
                             wrap_lines: self.session.wrap_lines,
                             enclosing_symbols: &enclosing,

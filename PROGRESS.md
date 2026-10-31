@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Compact diagnostics and available PR revision/change controls (Codex)
+
+Reader errors now use one bounded row with Details/Copy/Dismiss while retaining
+complete diagnostics. Before/After buttons reuse FileChange availability and
+keyboard toggles reject unavailable sides before source loading. Header status
+reflects the actual change type. Global and source change arrows share canonical
+caret/revision targets with dispatch and disable at boundaries or without a target.
+[Contract and evidence](plans/rust-reader-notices-controls.md). Full gates pass 396
+app tests (one ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build
+and rustdoc. Tests cover actual pointer/clipboard interactions, narrow/scaled
+notices, revision availability and preservation of reader/history. Source-view
+complexity improves; no new cycle or clone growth. Two flagged clone fragments are
+unchanged baseline tests. Native acceptance follows. Full parity remains open:
+complete index lifecycle/provisioning/version-aware reuse, recovery and final
+UI/accessibility/scaling/font/sibling reuse audit. Commit and push each increment.
+
 ## 2026-10-30 — Deterministic PR cache retention acceptance (Codex)
 
 A full run during reader-notice/control work exposed a timing race in the cache

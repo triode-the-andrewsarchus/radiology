@@ -294,21 +294,7 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        render(vec![
-            egui::Event::PointerMoved(position),
-            egui::Event::PointerButton {
-                pos: position,
-                button: egui::PointerButton::Primary,
-                pressed: true,
-                modifiers: egui::Modifiers::NONE,
-            },
-            egui::Event::PointerButton {
-                pos: position,
-                button: egui::PointerButton::Primary,
-                pressed: false,
-                modifiers: egui::Modifiers::NONE,
-            },
-        ]);
+        render(crate::ui::test_support::click(position));
         assert_eq!(action, Some(ReferenceAction::CommitCaller(7, 1)));
     }
 }

@@ -54,7 +54,25 @@ pub struct FileLineChanges {
     pub is_binary: bool,
 }
 
+/// Available previous and next change targets for one canonical caret position.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ChangeNavigation {
+    /// Previous changed block, or None at the beginning.
+    pub previous: Option<usize>,
+    /// Next changed block, or None at the end.
+    pub next: Option<usize>,
+}
+
 impl FileLineChanges {
+    /// Returns the same bounded targets used by controls and command dispatch.
+    #[must_use]
+    pub fn navigation_at(&self, line: usize, revision: ReviewRevision) -> ChangeNavigation {
+        ChangeNavigation {
+            previous: self.previous_change_line(line, revision),
+            next: self.next_change_line(line, revision),
+        }
+    }
+
     /// Returns 1-based line ranges corresponding to changed lines in `revision`.
     #[must_use]
     pub fn changed_lines(&self, revision: ReviewRevision) -> Vec<Range<usize>> {

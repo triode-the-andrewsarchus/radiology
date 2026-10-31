@@ -212,3 +212,32 @@ fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_im
         "checkout only\n"
     );
 }
+
+#[test]
+fn unavailable_revision_commands_keep_the_reader_without_starting_a_failed_read() {
+    let (_owner, root, snapshot) = crate::pull_request::review::tests::fixture();
+    let (_settings, mut app) = reader();
+    app.open_repository(&root);
+    settle(&mut app);
+    app.accept_review(snapshot);
+    settle(&mut app);
+    for (path, current, unavailable) in [
+        ("added.rs", ReviewRevision::After, ReviewRevision::Before),
+        ("removed.rs", ReviewRevision::Before, ReviewRevision::After),
+    ] {
+        app.open_file(path);
+        settle(&mut app);
+        assert_eq!(app.active_revision, Some(current));
+        let buffer = app.open_buffer.clone().unwrap();
+        let history = app.history.current().cloned();
+        app.execute_command(
+            &Context::default(),
+            ToolbarAction::ToggleRevision(unavailable),
+        );
+        app.execute_command(&Context::default(), ToolbarAction::ToggleCurrentRevision);
+        assert!(!app.is_source_loading());
+        assert!(app.error.is_none());
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert_eq!(app.history.current(), history.as_ref());
+    }
+}
