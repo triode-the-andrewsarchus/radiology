@@ -45,6 +45,9 @@ impl RowHeights {
     /// Updates one measured row without rescanning the document.
     pub fn set_height(&mut self, row: usize, height: f32) {
         let delta = height as f64 - self.heights[row] as f64;
+        if delta == 0.0 {
+            return;
+        }
         self.heights[row] = height;
         let mut index = row / BLOCK_SIZE + 1;
         while index < self.sums.len() {

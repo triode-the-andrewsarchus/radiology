@@ -15,8 +15,13 @@ use egui::text::{LayoutJob, TextFormat};
 use egui::{pos2, vec2, Color32, FontId, Id, Key, Modifiers, Rect, Sense, Stroke, Ui};
 use reader_text::{
     projected_fragments, ByteSelection, ProjectedFragment as SourceFragment, RowHeights,
+    UnwrappedRows,
 };
-use std::{collections::HashSet, ops::Range, sync::Arc};
+use std::{
+    collections::{HashSet, VecDeque},
+    ops::Range,
+    sync::Arc,
+};
 
 const FRAGMENT_BYTES: usize = 4096;
 const TEXT_INSET: f32 = 12.0;
@@ -34,7 +39,12 @@ pub struct SourceViewport {
     anchor_after_reset: Option<usize>,
     selection: Option<ByteSelection>,
     dragging: bool,
-    max_bytes: usize,
+    unwrapped: UnwrappedRows,
+    layout_key: Option<(FontId, f32, f32)>,
+    measurement_priority: Option<usize>,
+    viewport_size: Option<egui::Vec2>,
+    pending_input: VecDeque<SourceInput>,
+    pending_reveal: Option<(usize, bool, bool)>,
     test_generation: u64,
     hover: crate::critical::hover::CriticalHover,
     hover_popup: crate::ui::critical_hover::HoverPopup,
@@ -89,6 +99,15 @@ struct CanvasGeometry {
     surface: Rect,
     code_rect: Rect,
     tolerance: f32,
+}
+
+/// One bounded layout's shared paint and interaction geometry.
+struct FragmentFrame {
+    part: SourceFragment,
+    galley: Arc<egui::Galley>,
+    origin: egui::Pos2,
+    row_rect: Rect,
+    hit_rect: Rect,
 }
 
 impl CanvasGeometry {
@@ -225,12 +244,6 @@ impl SourceViewport {
                 .chain(content.test_code.hidden_ranges().iter().cloned())
                 .collect();
             self.fragments = projected_fragments(&source.text, &hidden, FRAGMENT_BYTES);
-            self.max_bytes = self
-                .fragments
-                .iter()
-                .map(SourceFragment::visible_len)
-                .max()
-                .unwrap_or(0);
             self.test_generation = content.test_code.generation();
             self.visible = (0..self.fragments.len()).collect();
             self.anchor_after_reset = Some(
@@ -245,6 +258,10 @@ impl SourceViewport {
             );
             self.folded.clone_from(&content.fold_store.folded_ranges);
             self.rows = RowHeights::default();
+            self.layout_key = None;
+            self.pending_input.clear();
+            self.pending_reveal = None;
+            self.measurement_priority = None;
         }
         if changed {
             self.occurrence_clicks = None;
@@ -403,6 +420,7 @@ impl SourceViewport {
             geometry.minimum_height,
             ui.ctx().pixels_per_point(),
         );
+        self.prepare_horizontal(content, geometry, ui.ctx().pixels_per_point());
         self.measure(
             ui,
             content,
@@ -411,6 +429,32 @@ impl SourceViewport {
             geometry.minimum_height,
         );
         let mut scroll_y = self.rows.offset(anchor) + inset;
+        if self
+            .viewport_size
+            .replace(geometry.code_rect.size())
+            .is_some_and(|old| old != geometry.code_rect.size())
+            && self.pending_reveal.is_none()
+        {
+            self.pending_reveal = Some((
+                content
+                    .buffer
+                    .byte_offset(*content.caret_line, *content.caret_col),
+                true,
+                true,
+            ));
+        }
+        if ui.input(|input| {
+            input.raw_scroll_delta != egui::Vec2::ZERO || input.pointer.any_pressed()
+        }) {
+            self.pending_reveal = None;
+            self.pending_input.clear();
+        }
+        // A new host navigation supersedes source input waiting on old geometry.
+        if content.target.is_some() && !self.pending_input.is_empty() {
+            self.pending_input.clear();
+            self.pending_reveal = None;
+            self.measurement_priority = None;
+        }
         let mut keyboard_reveal = false;
         let focused = self.has_focus(ui.ctx()) || !ui.ctx().wants_keyboard_input();
         if content.keyboard_enabled
@@ -423,9 +467,31 @@ impl SourceViewport {
                 action = Some(next);
                 keyboard_reveal = true;
             }
+        } else {
+            self.pending_input.clear();
         }
-        let target = self.reveal_target(content);
-        if let Some((byte, committed)) = target {
+        scroll_y = self.apply_reveal(ui, content, geometry, scroll_y, keyboard_reveal);
+        if content.find.take_selection_request() {
+            if let Some(range) = &content.find.active_range {
+                self.select(range.clone());
+            }
+        }
+
+        (scroll_y, action)
+    }
+
+    fn apply_reveal(
+        &mut self,
+        ui: &Ui,
+        content: &mut CanvasContent<'_>,
+        geometry: &CanvasGeometry,
+        mut scroll_y: f32,
+        keyboard_reveal: bool,
+    ) -> f32 {
+        if let Some((byte, committed)) = self.reveal_target(content) {
+            self.pending_reveal = Some((byte, committed, keyboard_reveal));
+        }
+        if let Some((byte, committed, keyboard_reveal)) = self.pending_reveal {
             let rect = self.caret_rect(
                 ui,
                 content,
@@ -434,20 +500,26 @@ impl SourceViewport {
                 geometry.width,
                 geometry.minimum_height,
             );
-            scroll_y = if keyboard_reveal {
-                scroll_y.clamp(
-                    (rect.bottom() - geometry.height).max(0.0),
-                    rect.top().max(0.0),
-                )
+            if content.wrap || self.prefix_ready(byte) {
+                self.pending_reveal = None;
+                scroll_y = if keyboard_reveal {
+                    scroll_y.clamp(
+                        (rect.bottom() - geometry.height).max(0.0),
+                        rect.top().max(0.0),
+                    )
+                } else {
+                    (rect.center().y - geometry.height / 2.0).max(0.0)
+                };
+                if !content.wrap {
+                    let available =
+                        (ui.available_width() - SourceView::GUTTER_WIDTH - TEXT_INSET * 2.0)
+                            .max(1.0);
+                    self.scroll_x = self
+                        .scroll_x
+                        .clamp((rect.right() - available).max(0.0), rect.left().max(0.0));
+                }
             } else {
-                (rect.center().y - geometry.height / 2.0).max(0.0)
-            };
-            if !content.wrap {
-                let available =
-                    (ui.available_width() - SourceView::GUTTER_WIDTH - TEXT_INSET * 2.0).max(1.0);
-                self.scroll_x = self
-                    .scroll_x
-                    .clamp((rect.right() - available).max(0.0), rect.left().max(0.0));
+                ui.ctx().request_repaint();
             }
             // A navigation destination retires an unrelated selection, including a
             // stale match. Find calls select after document synchronization below.
@@ -462,13 +534,7 @@ impl SourceViewport {
                 self.selection = None;
             }
         }
-        if content.find.take_selection_request() {
-            if let Some(range) = &content.find.active_range {
-                self.select(range.clone());
-            }
-        }
-
-        (scroll_y, action)
+        scroll_y
     }
 
     fn render_rows(
@@ -501,29 +567,36 @@ impl SourceViewport {
             Stroke::new(1.0_f32, content.theme.border),
         );
         let mut row = self.rows.row_at(viewport.top() + geometry.tolerance);
+        if !content.wrap && !self.visible.is_empty() {
+            row = self.unwrapped.row(row).start;
+        }
         let mut y = self.rows.offset(row);
-        let mut full_width = ui.available_width();
         while row < self.visible.len() && y <= viewport.bottom() {
-            let fragment = self.fragments[self.visible[row]].clone();
-            let galley = layout(ui, content, &fragment, &geometry.font, geometry.width);
-            let row_height = measured_height(&galley, geometry.minimum_height, &fragment, content);
-            self.rows.set_height(row, row_height);
-            let text_origin = origin + vec2(SourceView::GUTTER_WIDTH + TEXT_INSET, y + 2.0);
-            let rect = Rect::from_min_size(
-                pos2(geometry.code_rect.left(), origin.y + y),
-                vec2(geometry.code_rect.width(), row_height),
-            );
-            let code_bottom = origin.y + y + (galley.size().y + 4.0).max(geometry.minimum_height);
-            let code_hit = Rect::from_min_max(rect.min, pos2(rect.right(), code_bottom));
+            let frame = self.layout_fragment(ui, content, geometry, row, origin);
+            let FragmentFrame {
+                part: fragment,
+                galley,
+                origin: text_origin,
+                row_rect: rect,
+                hit_rect: code_hit,
+            } = &frame;
+            let fragment_painter = painter.with_clip_rect(clip.intersect(*code_hit));
             let response = ui.interact(
-                code_hit,
+                *code_hit,
                 Id::new(("source_row", fragment.bytes.start)),
                 Sense::click_and_drag(),
             );
-            self.paint_row(&painter, &galley, text_origin, rect, &fragment, content);
+            self.paint_row(
+                &fragment_painter,
+                galley,
+                *text_origin,
+                *rect,
+                fragment,
+                content,
+            );
             if fragment.first_in_line {
                 if let Some(event) =
-                    paint_gutter(ui, &gutter, geometry.surface, rect, &fragment, content)
+                    paint_gutter(ui, &gutter, geometry.surface, *rect, fragment, content)
                 {
                     if let SourceViewAction::ToggleFold(fold) = &event {
                         content.fold_store.toggle(fold.clone());
@@ -532,70 +605,138 @@ impl SourceViewport {
                 }
             }
             if let Some(event) =
-                paint_test_label(ui, &painter, rect, text_origin, &fragment, content)
+                paint_test_label(ui, &painter, *rect, *text_origin, fragment, content)
             {
                 action = Some(event);
             }
-            if let Some(pointer) = response
-                .interact_pointer_pos()
-                .or_else(|| ui.ctx().pointer_interact_pos())
-            {
-                let target_y = pointer
-                    .y
-                    .clamp(geometry.code_rect.top(), geometry.code_rect.bottom() - 0.1);
-                if target_y >= rect.top() && target_y < code_bottom {
-                    let byte = hit_byte(
-                        &galley,
-                        pointer - text_origin,
-                        &fragment,
-                        &content.buffer.text,
-                    );
-                    self.track_hover_geometry(
-                        response.hovered().then_some((byte, pointer.x)),
-                        &galley,
-                        text_origin,
-                        &fragment,
-                        content.buffer,
-                    );
-                    if let Some(event) = self
-                        .definition_pointer(ui, &response, byte, content)
-                        .or_else(|| {
-                            self.pointer_input(
-                                ui,
-                                &response,
-                                byte,
-                                geometry.code_rect.contains(pointer),
-                                content,
-                            )
-                        })
-                    {
-                        action = Some(event);
-                    }
-                    action = self.occurrence_click(ui, &response, byte).or(action);
-                }
+            if content.wrap || self.unwrapped.prefix_measured(row) {
+                action = self
+                    .fragment_pointer(ui, &response, &frame, geometry.code_rect, content)
+                    .or(action);
+            } else {
+                self.measurement_priority = Some(row);
             }
             if let Some(event) = self.context_menu(&response, content) {
                 action = Some(event);
             }
-            full_width =
-                full_width.max(galley.size().x + SourceView::GUTTER_WIDTH + TEXT_INSET * 2.0);
-            y += row_height;
-            row += 1;
+            row = self.next_painted_fragment(row, viewport, content.wrap);
+            y = self.rows.offset(row);
         }
         let document_width = if content.wrap {
             0.0
         } else {
-            full_width.max(
-                self.max_bytes as f32 * geometry.font.size * 0.7
-                    + SourceView::GUTTER_WIDTH
-                    + TEXT_INSET * 2.0,
-            )
+            self.unwrapped.max_width() as f32 + SourceView::GUTTER_WIDTH + TEXT_INSET * 2.0
         };
         ui.expand_to_include_rect(Rect::from_min_size(
             origin,
             vec2(document_width, self.rows.total_height()),
         ));
         action
+    }
+
+    fn layout_fragment(
+        &mut self,
+        ui: &Ui,
+        content: &CanvasContent<'_>,
+        geometry: &CanvasGeometry,
+        row: usize,
+        origin: egui::Pos2,
+    ) -> FragmentFrame {
+        let part = self.fragments[self.visible[row]].clone();
+        let galley = layout(ui, content, &part, &geometry.font, geometry.width);
+        self.record_layout(row, &galley, geometry.minimum_height, content);
+        let group = if content.wrap {
+            row..row + 1
+        } else {
+            self.unwrapped.row(row)
+        };
+        let y = self.rows.offset(row);
+        let row_rect = Rect::from_min_size(
+            pos2(geometry.code_rect.left(), origin.y + y),
+            vec2(
+                geometry.code_rect.width(),
+                self.rows.offset(group.end) - self.rows.offset(group.start),
+            ),
+        );
+        let origin = origin
+            + vec2(
+                SourceView::GUTTER_WIDTH + TEXT_INSET + self.fragment_x(row, content.wrap),
+                y + 2.0,
+            );
+        let mut hit_rect = Rect::from_min_max(
+            row_rect.min,
+            pos2(
+                row_rect.right(),
+                row_rect.top() + (galley.size().y + 4.0).max(geometry.minimum_height),
+            ),
+        );
+        if !content.wrap {
+            if row != group.start {
+                hit_rect.min.x = origin.x;
+            }
+            hit_rect.max.x = origin.x + galley.size().x;
+            if row + 1 == group.end {
+                hit_rect.max.x = hit_rect.max.x.max(row_rect.right());
+            }
+        }
+        FragmentFrame {
+            part,
+            galley,
+            origin,
+            row_rect,
+            hit_rect,
+        }
+    }
+
+    fn next_painted_fragment(&self, row: usize, viewport: Rect, wrap: bool) -> usize {
+        let mut next = row + 1;
+        if wrap || next >= self.visible.len() || self.fragments[self.visible[next]].first_in_line {
+            return next;
+        }
+        let group = self.unwrapped.row(next);
+        let left = (viewport.left() - SourceView::GUTTER_WIDTH - TEXT_INSET).max(0.0);
+        next = next.max(self.unwrapped.fragment_at_x(next, f64::from(left)));
+        if self.unwrapped.offset(next) as f32 > viewport.right() {
+            group.end
+        } else {
+            next
+        }
+    }
+
+    fn fragment_pointer(
+        &mut self,
+        ui: &Ui,
+        response: &egui::Response,
+        frame: &FragmentFrame,
+        code_rect: Rect,
+        content: &mut CanvasContent<'_>,
+    ) -> Option<SourceViewAction> {
+        let pointer = response
+            .interact_pointer_pos()
+            .or_else(|| ui.ctx().pointer_interact_pos())?;
+        let target = code_rect.shrink(0.1).clamp(pointer);
+        if !frame.hit_rect.contains(target) {
+            return None;
+        }
+        let byte = hit_byte(
+            &frame.galley,
+            pointer - frame.origin,
+            &frame.part,
+            &content.buffer.text,
+        );
+        self.track_hover_geometry(
+            response.hovered().then_some((byte, pointer.x)),
+            &frame.galley,
+            frame.origin,
+            &frame.part,
+            content.buffer,
+        );
+        let action = self
+            .definition_pointer(ui, response, byte, content)
+            .or_else(|| {
+                self.pointer_input(ui, response, byte, code_rect.contains(pointer), content)
+            });
+        self.occurrence_click(ui, response, byte).or(action)
     }
 
     fn track_hover_geometry(
@@ -848,6 +989,20 @@ impl SourceViewport {
             .map(|&index| (row, &self.fragments[index]))
     }
 
+    fn shares_painted_row(&self, byte: usize, part: &SourceFragment, wrap: bool) -> bool {
+        let Some((row, owner)) = self
+            .row_for_byte(byte)
+            .filter(|(_, owner)| owner.contains_byte(byte))
+        else {
+            return false;
+        };
+        if wrap {
+            return owner == part;
+        }
+        self.row_for_byte(part.bytes.start)
+            .is_some_and(|(other, _)| self.unwrapped.row(row) == self.unwrapped.row(other))
+    }
+
     fn caret_rect(
         &mut self,
         ui: &Ui,
@@ -862,14 +1017,105 @@ impl SourceViewport {
         };
         let part = part.clone();
         let galley = layout(ui, content, &part, font, width);
-        self.rows.set_height(
-            row,
-            measured_height(&galley, minimum_height, &part, content),
-        );
+        self.record_layout(row, &galley, minimum_height, content);
+        if !content.wrap && !self.unwrapped.prefix_measured(row) {
+            self.measurement_priority = Some(row);
+        }
         let chars = part.char_index(&content.buffer.text, byte);
         galley
             .pos_from_ccursor(egui::text::CCursor::new(chars))
-            .translate(vec2(0.0, self.rows.offset(row) + 2.0))
+            .translate(vec2(
+                self.fragment_x(row, content.wrap),
+                self.rows.offset(row) + 2.0,
+            ))
+    }
+
+    fn prepare_horizontal(
+        &mut self,
+        content: &CanvasContent<'_>,
+        geometry: &CanvasGeometry,
+        scale: f32,
+    ) {
+        let key = (geometry.font.clone(), geometry.width, scale);
+        if self.layout_key.as_ref() == Some(&key) {
+            return;
+        }
+        self.unwrapped = if content.wrap {
+            UnwrappedRows::default()
+        } else {
+            UnwrappedRows::new(self.visible.iter().map(|&index| {
+                let part = &self.fragments[index];
+                (
+                    part.first_in_line,
+                    part.visible_len() as f32 * geometry.font.size * 0.7,
+                )
+            }))
+        };
+        self.measurement_priority = None;
+        self.pending_input.clear();
+        if self.layout_key.is_some() && self.pending_reveal.is_none() {
+            self.pending_reveal = Some((
+                content
+                    .buffer
+                    .byte_offset(*content.caret_line, *content.caret_col),
+                true,
+                true,
+            ));
+        }
+        self.layout_key = Some(key);
+        if !content.wrap {
+            // All fragments in a projected line share its y offset. The last
+            // fragment carries the row height so continuation offsets stay equal.
+            for row in 0..self.visible.len() {
+                let group = self.unwrapped.row(row);
+                let first = &self.fragments[self.visible[group.start]];
+                let height = if row + 1 == group.end {
+                    geometry.minimum_height
+                        + if content.test_code.header(first.line).is_some() {
+                            18.0
+                        } else {
+                            0.0
+                        }
+                } else {
+                    0.0
+                };
+                self.rows.set_height(row, height);
+            }
+        }
+    }
+
+    fn fragment_x(&self, row: usize, wrap: bool) -> f32 {
+        if wrap {
+            0.0
+        } else {
+            self.unwrapped.offset(row) as f32
+        }
+    }
+
+    fn prefix_ready(&self, byte: usize) -> bool {
+        self.row_for_byte(byte)
+            .is_none_or(|(row, _)| self.unwrapped.prefix_measured(row))
+    }
+
+    fn record_layout(
+        &mut self,
+        row: usize,
+        galley: &egui::Galley,
+        minimum: f32,
+        content: &CanvasContent<'_>,
+    ) {
+        let part = &self.fragments[self.visible[row]];
+        if content.wrap {
+            self.rows
+                .set_height(row, measured_height(galley, minimum, part, content));
+        } else {
+            self.unwrapped.set_width(row, galley.size().x);
+            let group = self.unwrapped.row(row);
+            let first = &self.fragments[self.visible[group.start]];
+            let height = measured_height(galley, minimum, first, content)
+                .max(self.rows.offset(group.end) - self.rows.offset(group.start));
+            self.rows.set_height(group.end - 1, height);
+        }
     }
 
     fn measure(
@@ -880,35 +1126,33 @@ impl SourceViewport {
         width: f32,
         height: f32,
     ) {
-        if !content.wrap {
-            if self.rows.next_measurement > 0 {
-                return;
-            }
-            for (row, &index) in self.visible.iter().enumerate() {
-                let part = &self.fragments[index];
-                if part.first_in_line && content.test_code.header(part.line).is_some() {
-                    self.rows.set_height(row, height + 18.0);
-                }
-            }
-            self.rows.next_measurement = self.visible.len();
-            return;
-        }
         let started = std::time::Instant::now();
         for _ in 0..64 {
-            let row = self.rows.next_measurement;
+            let row = if content.wrap {
+                self.rows.next_measurement
+            } else {
+                self.measurement_priority
+                    .take()
+                    .filter(|&row| !self.unwrapped.prefix_measured(row))
+                    .map_or(self.rows.next_measurement, |target| {
+                        self.measurement_priority = Some(target);
+                        self.unwrapped.measured_until(target)
+                    })
+            };
             if row >= self.visible.len() {
                 break;
             }
             let part = &self.fragments[self.visible[row]];
             let galley = layout(ui, content, part, font, width);
-            self.rows
-                .set_height(row, measured_height(&galley, height, part, content));
-            self.rows.next_measurement += 1;
+            self.record_layout(row, &galley, height, content);
+            if row == self.rows.next_measurement {
+                self.rows.next_measurement += 1;
+            }
             if started.elapsed() >= std::time::Duration::from_millis(2) {
                 break;
             }
         }
-        if self.rows.next_measurement < self.visible.len() {
+        if self.rows.next_measurement < self.visible.len() || self.measurement_priority.is_some() {
             ui.ctx().request_repaint();
         }
     }
@@ -933,8 +1177,9 @@ impl SourceViewport {
         let actions = ui.input_mut(|input| {
             crate::ui::commands::take_input_actions(&mut input.events, source_input)
         });
+        self.pending_input.extend(actions);
         let mut moved = None;
-        for action in actions {
+        while let Some(action) = self.pending_input.front().copied() {
             match action {
                 SourceInput::Copy => self.copy(ui.ctx(), content.buffer),
                 SourceInput::SelectAll => {
@@ -942,9 +1187,15 @@ impl SourceViewport {
                     ui.ctx().request_repaint();
                 }
                 SourceInput::Move(key, shift) => {
-                    moved = Some(self.move_key(ui, content, font, width, height, (key, shift)));
+                    let Some(next) = self.move_key(ui, content, font, width, height, (key, shift))
+                    else {
+                        ui.ctx().request_repaint();
+                        break;
+                    };
+                    moved = Some(next);
                 }
             }
+            self.pending_input.pop_front();
         }
         moved
     }
@@ -957,12 +1208,31 @@ impl SourceViewport {
         width: f32,
         height: f32,
         navigation: (Key, bool),
-    ) -> SourceViewAction {
+    ) -> Option<SourceViewAction> {
         let (key, shift) = navigation;
         let buffer = content.buffer;
         let byte = buffer.byte_offset(*content.caret_line, *content.caret_col);
         let target = if matches!(key, Key::ArrowUp | Key::ArrowDown) {
-            self.vertical_target(ui, content, byte, key == Key::ArrowDown, font, width)
+            if !content.wrap {
+                self.unwrapped_vertical_target(
+                    ui,
+                    content,
+                    byte,
+                    if key == Key::ArrowDown { 1 } else { -1 },
+                    font,
+                )?
+            } else {
+                self.vertical_target(ui, content, byte, key == Key::ArrowDown, font, width)
+            }
+        } else if !content.wrap && matches!(key, Key::PageUp | Key::PageDown) {
+            let page = (height / (font.size + 4.0)).max(1.0) as isize;
+            self.unwrapped_vertical_target(
+                ui,
+                content,
+                byte,
+                if key == Key::PageDown { page } else { -page },
+                font,
+            )?
         } else {
             keyboard_target(
                 key,
@@ -984,7 +1254,63 @@ impl SourceViewport {
             self.selection = None;
         }
         *content.target = Some(buffer.line_at_byte(target));
-        move_caret(content, target)
+        Some(move_caret(content, target))
+    }
+
+    fn unwrapped_vertical_target(
+        &mut self,
+        ui: &Ui,
+        content: &CanvasContent<'_>,
+        byte: usize,
+        step: isize,
+        font: &FontId,
+    ) -> Option<usize> {
+        let Some((row, part)) = self.row_for_byte(byte) else {
+            return Some(byte);
+        };
+        let part = part.clone();
+        if !self.unwrapped.prefix_measured(row) {
+            self.measurement_priority = Some(row);
+            return None;
+        }
+        let galley = layout(ui, content, &part, font, f32::INFINITY);
+        let x = self.unwrapped.offset(row)
+            + f64::from(
+                galley
+                    .pos_from_ccursor(egui::text::CCursor::new(
+                        part.char_index(&content.buffer.text, byte),
+                    ))
+                    .left(),
+            );
+        let mut adjacent = row;
+        for _ in 0..step.unsigned_abs() {
+            let group = self.unwrapped.row(adjacent);
+            let next = if step > 0 {
+                group.end
+            } else {
+                group.start.saturating_sub(1)
+            };
+            if next >= self.visible.len() || next == adjacent {
+                break;
+            }
+            adjacent = next;
+        }
+        if self.unwrapped.row(adjacent) == self.unwrapped.row(row) {
+            return Some(byte);
+        }
+        let target = self.unwrapped.fragment_at_x(adjacent, x);
+        if !self.unwrapped.prefix_measured(target) {
+            self.measurement_priority = Some(target);
+            return None;
+        }
+        let part = &self.fragments[self.visible[target]];
+        let galley = layout(ui, content, part, font, f32::INFINITY);
+        Some(hit_byte(
+            &galley,
+            vec2((x - self.unwrapped.offset(target)) as f32, 0.0),
+            part,
+            &content.buffer.text,
+        ))
     }
 
     fn vertical_target(
@@ -1047,10 +1373,7 @@ impl SourceViewport {
         let Some(frame) = self.destination_frame else {
             return;
         };
-        if !self
-            .row_for_byte(frame.byte)
-            .is_some_and(|(_, owner)| owner == part && part.contains_byte(frame.byte))
-        {
+        if !self.shares_painted_row(frame.byte, part, content.wrap) {
             return;
         }
         let chars = part.char_index(&content.buffer.text, frame.byte);
@@ -1107,10 +1430,7 @@ impl SourceViewport {
         let caret_byte = content
             .buffer
             .byte_offset(*content.caret_line, *content.caret_col);
-        if self
-            .row_for_byte(caret_byte)
-            .is_some_and(|(_, owner)| owner == part && part.contains_byte(caret_byte))
-        {
+        if self.shares_painted_row(caret_byte, part, content.wrap) {
             let chars = part.char_index(&content.buffer.text, caret_byte);
             painter.rect_filled(
                 visual_line_band(galley, origin, rect, egui::text::CCursor::new(chars)),
@@ -1189,6 +1509,7 @@ impl SourceViewport {
     }
 }
 
+#[derive(Clone, Copy)]
 enum SourceInput {
     Copy,
     SelectAll,
@@ -1378,7 +1699,19 @@ fn keyboard_target(
     match key {
         Key::ArrowLeft if chars > 0 => part.byte_at_char(&buffer.text, chars - 1),
         Key::ArrowRight if chars < total => part.byte_at_char(&buffer.text, chars + 1),
-        Key::ArrowLeft => parts[visible[position.saturating_sub(1)]].bytes.end,
+        Key::ArrowLeft if position == 0 => byte,
+        Key::ArrowLeft => {
+            let previous = &parts[visible[position.saturating_sub(1)]];
+            let end = previous.bytes.end;
+            if end == byte {
+                previous.byte_at_char(
+                    &buffer.text,
+                    previous.char_index(&buffer.text, end).saturating_sub(1),
+                )
+            } else {
+                end
+            }
+        }
         Key::ArrowRight => {
             parts[visible[(position + 1).min(visible.len() - 1)]]
                 .bytes
@@ -1861,6 +2194,209 @@ mod tests {
     }
 
     #[test]
+    fn deferred_source_input_retires_on_navigation_document_zoom_and_focus_changes() {
+        let text = format!("{}\r\nnext\r\nlast", "é🦀漢字 ".repeat(60000));
+        for change in ["navigation", "document", "zoom", "focus"] {
+            let ctx = reader_context(1.0);
+            let mut reader = Reader::new(&text);
+            reader.wrap = false;
+            reader.frame(&ctx, vec![]);
+            reader.frame(
+                &ctx,
+                vec![
+                    key(Key::End, Modifiers::NONE),
+                    key(Key::ArrowDown, Modifiers::SHIFT),
+                    egui::Event::Copy,
+                ],
+            );
+            assert!(!reader.viewport.pending_input.is_empty(), "{change}");
+            let expected_line = match change {
+                "navigation" => {
+                    reader.line = 3;
+                    reader.column = 0;
+                    reader.target = Some(3);
+                    3
+                }
+                "document" => {
+                    reader.source = SourceBuffer::from_str("fresh.rs", "fresh\nsecond");
+                    reader.line = 1;
+                    reader.column = 0;
+                    reader.target = Some(1);
+                    1
+                }
+                "zoom" => {
+                    reader.font_size = 18.0;
+                    1
+                }
+                "focus" => {
+                    ctx.memory_mut(|memory| memory.request_focus(Id::new("other_control")));
+                    1
+                }
+                _ => unreachable!(),
+            };
+            for _ in 0..4 {
+                let output = reader.frame(&ctx, vec![]);
+                assert!(output.platform_output.copied_text.is_empty(), "{change}");
+                assert!(reader.viewport.pending_input.is_empty(), "{change}");
+                assert_eq!(reader.line, expected_line, "{change}");
+            }
+        }
+    }
+
+    #[test]
+    fn unwrapped_deferred_navigation_keeps_selection_and_copy_in_event_order() {
+        let ctx = egui::Context::default();
+        // More than two frame budgets: End can resolve bytes immediately, but
+        // Down must measure its horizontal prefix before Copy can run.
+        let text = format!("{}\r\nnext é🦀\r\nlast", "é🦀漢字 ".repeat(60000));
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        reader.frame(&ctx, vec![]);
+        let output = reader.frame(
+            &ctx,
+            vec![
+                key(Key::End, Modifiers::SHIFT),
+                key(Key::ArrowDown, Modifiers::SHIFT),
+                egui::Event::Copy,
+            ],
+        );
+        assert!(output.platform_output.copied_text.is_empty());
+        assert!(!reader.viewport.pending_input.is_empty());
+        let expected = &text[..text.find("\r\nlast").unwrap()];
+        let mut copied = String::new();
+        for _ in 0..512 {
+            let output = reader.frame(&ctx, vec![]);
+            if !output.platform_output.copied_text.is_empty() {
+                copied = output.platform_output.copied_text;
+                break;
+            }
+        }
+        assert_eq!(copied, expected);
+        assert_eq!(
+            (reader.line, reader.column),
+            (2, "next é🦀".chars().count())
+        );
+        assert!(reader.viewport.pending_input.is_empty());
+        assert!(reader.viewport.pending_reveal.is_none());
+        assert!(reader
+            .viewport
+            .fragments
+            .iter()
+            .all(|part| part.visible_len() <= FRAGMENT_BYTES));
+    }
+
+    #[test]
+    fn unwrapped_horizontal_fragments_hit_copy_and_zoom_at_each_scale() {
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = reader_context(scale);
+            let text = format!("{}MARKER é🦀中 tail\r\nnext\r\nlast", "é".repeat(4096));
+            let mut reader = Reader::new(&text);
+            reader.wrap = false;
+            reader.column = 4100;
+            reader.target = Some(1);
+            reader.frame(&ctx, vec![]);
+            let mut output = reader.frame(&ctx, vec![]);
+            for _ in 0..64 {
+                if reader.viewport.pending_reveal.is_none() {
+                    break;
+                }
+                output = reader.frame(&ctx, vec![]);
+            }
+            assert!(reader.viewport.scroll_x > 1000.0);
+            let byte = text.find("MARKER").unwrap() + 4;
+            let (_, part) = reader.viewport.row_for_byte(byte).unwrap();
+            let visible: String = part
+                .spans()
+                .iter()
+                .map(|span| &text[span.clone()])
+                .collect();
+            let chars = part.char_index(&text, byte);
+            let (origin, galley) = text_shape(&output, &visible);
+            let point = origin
+                + galley
+                    .pos_from_ccursor(egui::text::CCursor::new(chars))
+                    .center()
+                    .to_vec2();
+            assert!(
+                point.x > 80.0 && point.x < 390.0,
+                "scale {scale}: {point:?}"
+            );
+            reader.frame(&ctx, pointer(point, true));
+            reader.frame(&ctx, pointer(point, false));
+            assert_eq!(reader.source.byte_offset(reader.line, reader.column), byte);
+            let output = reader.frame(
+                &ctx,
+                vec![key(Key::End, Modifiers::SHIFT), egui::Event::Copy],
+            );
+            assert_eq!(
+                output.platform_output.copied_text,
+                &text[byte..text.find('\r').unwrap()]
+            );
+            reader.column = 2048;
+            reader.viewport.selection = None;
+            let output = reader.frame(
+                &ctx,
+                vec![key(Key::ArrowLeft, Modifiers::SHIFT), egui::Event::Copy],
+            );
+            assert_eq!(reader.column, 2047);
+            assert_eq!(output.platform_output.copied_text, "é");
+            reader.font_size = 24.0;
+            reader.target = Some(1);
+            for _ in 0..64 {
+                reader.frame(&ctx, vec![]);
+                if reader.viewport.pending_reveal.is_none() {
+                    break;
+                }
+            }
+            assert!(reader.viewport.scroll_x > 1000.0);
+            let first = reader.viewport.row_for_byte(0).unwrap().0;
+            let last = reader.viewport.row_for_byte(byte).unwrap().0;
+            assert_eq!(
+                reader.viewport.rows.offset(first),
+                reader.viewport.rows.offset(last)
+            );
+            reader.wrap = true;
+            reader.frame(&ctx, vec![]);
+            assert!(reader.viewport.rows.offset(last) > reader.viewport.rows.offset(first));
+            reader.wrap = false;
+            reader.frame(&ctx, vec![]);
+            assert_eq!(
+                reader.viewport.rows.offset(first),
+                reader.viewport.rows.offset(last)
+            );
+        }
+    }
+
+    #[test]
+    fn unwrapped_long_line_fragments_share_one_row_and_down_reaches_the_next_line() {
+        let ctx = egui::Context::default();
+        let text = format!("{}\nnext line\nlast", "é😀 value ".repeat(1000));
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        reader.frame(&ctx, vec![]);
+        let first_row = reader.viewport.row_for_byte(0).unwrap().0;
+        let tail_row = reader
+            .viewport
+            .row_for_byte(text.find('\n').unwrap() - 1)
+            .unwrap()
+            .0;
+        assert_eq!(
+            reader.viewport.rows.offset(first_row),
+            reader.viewport.rows.offset(tail_row),
+            "bounded fragments must not add vertical rows with wrapping off"
+        );
+        reader.frame(&ctx, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+        assert_eq!(reader.line, 2);
+        assert_eq!(reader.column, 0);
+        reader.frame(&ctx, vec![key(Key::PageDown, Modifiers::NONE)]);
+        assert_eq!(reader.line, 3);
+        reader.frame(&ctx, vec![key(Key::PageUp, Modifiers::NONE)]);
+        assert_eq!((reader.line, reader.column), (1, 0));
+        reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
+        assert_eq!((reader.line, reader.column), (1, 0));
+    }
+
+    #[test]
     fn preview_reveals_exact_bytes_preserves_caret_selection_and_rejects_stale_source() {
         let ctx = egui::Context::default();
         let mut reader = Reader::new(&format!("origin café 😀\n{}target\n", "line\n".repeat(200)));
@@ -2028,48 +2564,51 @@ mod tests {
 
     #[test]
     fn folded_delimiters_and_unicode_tail_keep_exact_hit_arrow_and_copy_coordinates() {
-        let ctx = egui::Context::default();
-        let text = "fn café() {\r\n secret();\r\n} // 😀 tail\r\nnext();";
-        let mut reader = Reader::new(text);
-        reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
-        reader.folds.collapse_all_functions(&reader.ranges);
-        let output = reader.frame(&ctx, Vec::new());
-        let (origin, galley) = text_shape(&output, "fn café() {} // 😀 tail");
-        assert!(galley.job.text.len() < reader.source.text.len());
-        let chars = galley.job.text.find("tail").unwrap();
-        let chars = galley.job.text[..chars].chars().count();
-        let point = origin
-            + galley
-                .pos_from_ccursor(egui::text::CCursor::new(chars))
-                .center()
-                .to_vec2();
-        reader.frame(&ctx, pointer(point, true));
-        reader.frame(&ctx, pointer(point, false));
-        assert_eq!(
-            reader.source.byte_offset(reader.line, reader.column),
-            text.find("tail").unwrap()
-        );
-        reader.frame(&ctx, vec![key(Key::Home, Modifiers::NONE)]);
-        assert_eq!((reader.line, reader.column), (1, 0));
-        let opener = text.find('{').unwrap();
-        reader.column = text[..opener].chars().count();
-        reader.frame(&ctx, vec![key(Key::ArrowRight, Modifiers::NONE)]);
-        assert_eq!(
-            reader.source.byte_offset(reader.line, reader.column),
-            text.find('}').unwrap()
-        );
-        reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
-        assert_eq!(
-            reader.source.byte_offset(reader.line, reader.column),
-            opener
-        );
-        reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
-        assert_eq!(
-            reader.viewport.selection.map(ByteSelection::range),
-            Some(0..text.len())
-        );
-        let output = reader.frame(&ctx, vec![egui::Event::Copy]);
-        assert_eq!(output.platform_output.copied_text, text);
+        for wrap in [true, false] {
+            let ctx = egui::Context::default();
+            let text = "fn café() {\r\n secret();\r\n} // 😀 tail\r\nnext();";
+            let mut reader = Reader::new(text);
+            reader.wrap = wrap;
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            let output = reader.frame(&ctx, Vec::new());
+            let (origin, galley) = text_shape(&output, "fn café() {} // 😀 tail");
+            assert!(galley.job.text.len() < reader.source.text.len());
+            let chars = galley.job.text.find("tail").unwrap();
+            let chars = galley.job.text[..chars].chars().count();
+            let point = origin
+                + galley
+                    .pos_from_ccursor(egui::text::CCursor::new(chars))
+                    .center()
+                    .to_vec2();
+            reader.frame(&ctx, pointer(point, true));
+            reader.frame(&ctx, pointer(point, false));
+            assert_eq!(
+                reader.source.byte_offset(reader.line, reader.column),
+                text.find("tail").unwrap()
+            );
+            reader.frame(&ctx, vec![key(Key::Home, Modifiers::NONE)]);
+            assert_eq!((reader.line, reader.column), (1, 0));
+            let opener = text.find('{').unwrap();
+            reader.column = text[..opener].chars().count();
+            reader.frame(&ctx, vec![key(Key::ArrowRight, Modifiers::NONE)]);
+            assert_eq!(
+                reader.source.byte_offset(reader.line, reader.column),
+                text.find('}').unwrap()
+            );
+            reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
+            assert_eq!(
+                reader.source.byte_offset(reader.line, reader.column),
+                opener
+            );
+            reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
+            assert_eq!(
+                reader.viewport.selection.map(ByteSelection::range),
+                Some(0..text.len())
+            );
+            let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+            assert_eq!(output.platform_output.copied_text, text);
+        }
     }
 
     #[test]
@@ -2315,6 +2854,15 @@ mod tests {
             assert!(bands[0].height() > 0.0);
             assert_eq!((reader.line, reader.column), (1, 0));
         }
+    }
+
+    fn reader_context(scale: f32) -> egui::Context {
+        let ctx = egui::Context::default();
+        let mut definitions = egui::FontDefinitions::default();
+        reader_fonts::append_fallbacks(&mut definitions);
+        ctx.set_fonts(definitions);
+        ctx.set_pixels_per_point(scale);
+        ctx
     }
 
     fn key(key: Key, modifiers: Modifiers) -> egui::Event {
@@ -2739,11 +3287,7 @@ mod tests {
     fn coalesced_navigation_selection_and_copy_follow_input_order_at_each_scale() {
         let text = "aé中🦀🫠z\ntail\n";
         for scale in [1.0, 1.5, 2.0] {
-            let ctx = egui::Context::default();
-            let mut definitions = egui::FontDefinitions::default();
-            reader_fonts::append_fallbacks(&mut definitions);
-            ctx.set_fonts(definitions);
-            ctx.set_pixels_per_point(scale);
+            let ctx = reader_context(scale);
             for (events, initial, copied, column) in [
                 (
                     vec![
