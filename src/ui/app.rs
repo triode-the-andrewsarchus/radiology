@@ -536,6 +536,9 @@ impl RadiologyApp {
             !matches!(self.modal, ActiveModal::None),
             reader_focused,
         ) {
+            if !matches!(self.modal, ActiveModal::None) {
+                break;
+            }
             self.execute_command(ctx, command);
         }
     }

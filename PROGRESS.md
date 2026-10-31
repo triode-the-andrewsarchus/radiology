@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Native shortcut acceptance and modal-batch ownership (Codex)
+
+Pushed backend `cd4c119` passes native Ctrl+Alt+J and Search-menu definition
+navigation, exact Back caret restoration (`lpha();` copied suffix), one invocation
+from two Reindex presses, independent inspector toggling and already-open modal
+isolation. Fixtures are unchanged; app/private compositors exit zero. Durable
+[evidence and boundaries](plans/rust-keyboard-audit.md) are retained under
+~/.local/state/radiology-qa/keyboard-20261030-cd4c119 with hashes and captures.
+Inspection exposed a separate same-frame bug: later reader shortcuts could act
+behind a just-opened modal or replace it. The existing dispatcher now rechecks
+modal ownership between commands. Its regression fails before and passes after,
+retaining Go to Line and the exact source location without launching navigation.
+Workspace passes 443 app tests (seven ignored), four font tests, eight text tests
+and 33 doctests; strict Clippy/build/fmt/diff checks pass. No new architecture
+clone group/cycle/max-CCN increase; four touched-file clone warnings are unchanged
+baseline fragments. Menu traversal/focus and broader corpus/reader/PR/cache/final
+Swift acceptance remain open. Full accessibility and sibling adoption are deferred.
+Commit and push this increment before continuing.
+
 ## 2026-10-30 — Restore dedicated definition and Reindex shortcuts (Codex)
 
 Swift command comparison found missing dedicated definition/Reindex shortcuts and
