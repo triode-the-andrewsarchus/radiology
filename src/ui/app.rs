@@ -605,6 +605,7 @@ impl RadiologyApp {
                 self.session.wrap_lines,
                 &self.history,
                 self.change_navigation(),
+                |command| self.command_enabled(command),
             ) {
                 self.execute_command(ctx, action);
             }
