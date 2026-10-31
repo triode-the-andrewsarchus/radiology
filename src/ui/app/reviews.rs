@@ -1,6 +1,8 @@
 //! Review preparation and publication, separate from window rendering.
 
+mod refresh;
 use super::*;
+pub(super) use refresh::ReviewRefresh;
 
 impl RadiologyApp {
     /// Applies explicit launch intent before considering a saved session.
@@ -74,6 +76,7 @@ impl RadiologyApp {
         self.git_refresh.stop();
         self.git_error = None;
 
+        self.review_refresh = Default::default();
         self.pending_pr = Some(number);
         self.error = None;
         self.review_job.spawn(move |cancel| {
@@ -87,6 +90,7 @@ impl RadiologyApp {
     /// Cancels pending review preparation while retaining the accepted reader.
     pub fn cancel_review_preparation(&mut self) {
         self.review_job.stop();
+        self.review_refresh = Default::default();
         self.pending_pr = None;
         self.pending_open_file = None;
     }
@@ -112,10 +116,10 @@ impl RadiologyApp {
                 self.error = Some("Review preparation stopped unexpectedly".into());
             }
         }
+        self.poll_review_refresh(ctx);
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
-        self.recent_pull_requests.remember(&snapshot.summary);
         self.cancel_repository_open();
         self.git_refresh.stop();
         self.git_error = None;
@@ -131,41 +135,25 @@ impl RadiologyApp {
             {
                 self.repository_search = Default::default();
             }
+            self.recent_pull_requests.remember(&snapshot.summary);
+            self.review_refresh.notice = Some("PR is up to date.".into());
             self.active_pr = Some(snapshot.summary.clone());
             self.review = Some(Arc::new(snapshot));
+            return;
+        }
+        if self
+            .review
+            .as_ref()
+            .is_some_and(|old| old.summary.number == snapshot.summary.number)
+        {
+            self.pending_pr = Some(snapshot.summary.number);
+            self.review_refresh.queue(Arc::new(snapshot));
             return;
         }
         let location = self.open_buffer.as_ref().map(|buffer| {
             buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
         });
-        self.cancel_source_load();
-        self.repository_search = Default::default();
-        self.reset_index_state();
-        self.save_bookmarks();
-        self.active_pr = Some(snapshot.summary.clone());
-        self.session.set_active_pr(Some(snapshot.summary.number));
-        self.all_files = snapshot.files.clone();
-        self.pr_changes = snapshot.changes.clone();
-        self.inspect_index_projects();
-        self.review = Some(Arc::new(snapshot));
-        self.load_repository_index();
-        self.active_revision = Some(ReviewRevision::After);
-        self.sidebar_tab = SidebarTab::Changes;
-        self.history.clear();
-        self.pin_store.clear();
-        self.source_viewport.cancel_destination();
-        self.open_buffer = None;
-        self.selected_path = None;
-        self.reference_context = Default::default();
-        self.reset_previews();
-        self.outline_symbols.clear();
-        self.fold_ranges.clear();
-        self.fold_error = None;
-        self.fold_store = FoldStore::default();
-        self.line_changes = None;
-        self.highlighted_lines.clear();
-        self.refresh_file_tree();
-        self.load_bookmarks();
+        self.install_review(Arc::new(snapshot));
         let path = self
             .pending_open_file
             .take()
@@ -180,6 +168,39 @@ impl RadiologyApp {
             );
             self.navigate(target, true);
         }
+    }
+
+    pub(super) fn install_review(&mut self, snapshot: Arc<ReviewSnapshot>) {
+        self.recent_pull_requests.remember(&snapshot.summary);
+        self.review_refresh.notice = None;
+        self.cancel_source_load();
+        self.repository_search = Default::default();
+        self.reset_index_state();
+        self.save_bookmarks();
+        self.active_pr = Some(snapshot.summary.clone());
+        self.session.set_active_pr(Some(snapshot.summary.number));
+        self.all_files = snapshot.files.clone();
+        self.pr_changes = snapshot.changes.clone();
+        self.inspect_index_projects();
+        self.review = Some(snapshot);
+        self.load_repository_index();
+        self.active_revision = Some(ReviewRevision::After);
+        self.sidebar_tab = SidebarTab::Changes;
+        self.history.clear();
+        self.pin_store.clear();
+        self.source_viewport = Default::default();
+        self.open_buffer = None;
+        self.selected_path = None;
+        self.reference_context = Default::default();
+        self.reset_previews();
+        self.outline_symbols.clear();
+        self.fold_ranges.clear();
+        self.fold_error = None;
+        self.fold_store = FoldStore::default();
+        self.line_changes = None;
+        self.highlighted_lines.clear();
+        self.refresh_file_tree();
+        self.load_bookmarks();
     }
 
     pub(super) fn resolve_location(

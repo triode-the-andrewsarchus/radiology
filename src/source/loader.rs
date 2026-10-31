@@ -243,11 +243,23 @@ fn prepare(
 ) -> Result<PreparedSource, String> {
     let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
     let check = || check_source(cancel, deadline);
-    let cancelled = || check().is_err();
     check()?;
     let buffer = request
         .source
         .read_cancellable(&request.location, cancel, deadline)?;
+    prepare_loaded(request, buffer, highlighter, dark_mode, cancel, deadline)
+}
+
+pub(crate) fn prepare_loaded(
+    request: SourceLoadRequest,
+    buffer: Arc<SourceBuffer>,
+    highlighter: &SyntaxHighlighter,
+    dark_mode: bool,
+    cancel: &AtomicBool,
+    deadline: Instant,
+) -> Result<PreparedSource, String> {
+    let check = || check_source(cancel, deadline);
+    let cancelled = || check().is_err();
     check()?;
     let destination = request.target.resolve(&buffer)?;
     let syntax = (!matches!(request.source, SourceRead::Buffer(_)))

@@ -99,6 +99,16 @@ impl OccurrencePinStore {
         }
     }
 
+    pub(crate) fn retaining_current(&self, original: &SourceBuffer, fresh: &SourceBuffer) -> Self {
+        let mut store = Self::default();
+        store.activate(fresh);
+        if original.data == fresh.data {
+            store.groups = self.groups.clone();
+            store.next_color_slot = self.next_color_slot;
+        }
+        store
+    }
+
     /// Returns `true` if no symbols are pinned and no ephemeral highlight is active.
     #[must_use]
     pub fn is_empty(&self) -> bool {

@@ -163,6 +163,7 @@ pub struct RadiologyApp {
     pub review: Option<Arc<ReviewSnapshot>>,
     /// Review preparation currently running outside the UI thread.
     review_job: crate::background::LatestRead<Result<ReviewSnapshot, String>>,
+    review_refresh: reviews::ReviewRefresh,
     recent_pull_requests: crate::pull_request::recent::RecentPullRequests,
     /// Pull request being prepared while the current reader remains usable.
     pub pending_pr: Option<usize>,
@@ -288,6 +289,7 @@ impl RadiologyApp {
             active_pr: None,
             review: None,
             review_job: Default::default(),
+            review_refresh: Default::default(),
             recent_pull_requests: Default::default(),
             pending_pr: None,
             pending_open_file: None,
@@ -479,7 +481,12 @@ impl RadiologyApp {
     }
 
     pub(super) fn repository_interaction_ready(&self) -> bool {
-        self.repository_root.is_some() && self.pending_pr.is_none() && !self.review_job.is_running()
+        let refreshing = self
+            .pending_pr
+            .zip(self.active_pr.as_ref())
+            .is_some_and(|(number, active)| number == active.number);
+        self.repository_root.is_some()
+            && (refreshing || (self.pending_pr.is_none() && !self.review_job.is_running()))
     }
 
     pub(super) fn source_location_ready(&self) -> bool {
@@ -681,6 +688,7 @@ impl eframe::App for RadiologyApp {
             });
         }
 
+        self.show_review_notice(ctx);
         self.show_repository_status(ctx);
         self.show_git_status(ctx);
         self.show_source_loading(ctx);

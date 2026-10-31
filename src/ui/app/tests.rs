@@ -10,7 +10,8 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
-    while app.is_repository_opening()
+    while app.pending_pr.is_some()
+        || app.is_repository_opening()
         || app.is_git_refreshing()
         || app.is_source_loading()
         || app.is_index_loading()
@@ -18,6 +19,7 @@ fn settle(app: &mut RadiologyApp) {
         || app.is_marks_loading()
         || app.is_reference_loading()
     {
+        app.poll_review(&ctx);
         app.poll_repository(&ctx);
         app.poll_git_refresh(&ctx);
         app.poll_source(&ctx);
@@ -2054,3 +2056,5 @@ mod git;
 mod repository_open;
 
 mod reviews;
+
+mod review_refresh;

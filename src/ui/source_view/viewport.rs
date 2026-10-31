@@ -41,6 +41,7 @@ pub struct SourceViewport {
     hover_pointer: Option<usize>,
     hover_origin: egui::Pos2,
     preview: Option<(String, String, usize)>,
+    restore: Option<(String, String, usize)>,
     destination: super::destination::DestinationFeedback,
     destination_frame: Option<super::destination::FeedbackFrame>,
     occurrence_clicks: Option<(egui::Pos2, f64, u8)>,
@@ -138,8 +139,32 @@ impl SourceViewport {
 
     /// Retires pending and visible landing feedback at a host navigation boundary.
     pub fn cancel_destination(&mut self) {
+        self.restore = None;
         self.destination.cancel();
         self.destination_frame = None;
+    }
+
+    pub(crate) fn top_byte(&self, buffer: &SourceBuffer) -> Option<usize> {
+        if self.document.as_ref()
+            != Some(&(
+                buffer.path.clone(),
+                buffer.revision,
+                buffer.content_identity(),
+            ))
+        {
+            return None;
+        }
+        self.visible
+            .get(self.rows.row_at(self.scroll_y))
+            .map(|&index| self.fragments[index].bytes.start)
+    }
+
+    pub(crate) fn restore_top(&mut self, buffer: &SourceBuffer, byte: usize) {
+        self.restore = Some((
+            buffer.position_key(),
+            buffer.content_digest().to_owned(),
+            buffer.clamp_to_char_boundary(byte.min(buffer.data.len())),
+        ));
     }
 
     /// Replaces the selection with original-byte endpoints (for local find).
@@ -174,7 +199,11 @@ impl SourceViewport {
             .visible
             .get(self.rows.row_at(self.scroll_y))
             .map_or(0, |&index| self.fragments[index].bytes.start);
-        let projected = changed
+        let restore = self.restore.take().filter(|(key, digest, _)| {
+            key == &source.position_key() && digest == source.content_digest()
+        });
+        let projected = restore.is_some()
+            || changed
             || self.test_generation != content.test_code.generation()
             || self.folded != content.fold_store.folded_ranges;
         if projected {
@@ -197,7 +226,10 @@ impl SourceViewport {
             self.anchor_after_reset = Some(
                 self.visible
                     .partition_point(|&index| {
-                        self.fragments[index].bytes.start <= if changed { 0 } else { old_byte }
+                        self.fragments[index].bytes.start
+                            <= restore
+                                .as_ref()
+                                .map_or(if changed { 0 } else { old_byte }, |(_, _, byte)| *byte)
                     })
                     .saturating_sub(1),
             );
@@ -1717,6 +1749,29 @@ mod tests {
             reader.frame(&ctx, Vec::new());
             assert_eq!(reader.viewport.scroll_y, 0.0);
         }
+    }
+
+    #[test]
+    fn refreshed_viewport_restores_a_source_row_and_explicit_navigation_supersedes_it() {
+        let ctx = egui::Context::default();
+        let mut reader = Reader::new(&"line café 🦀\n".repeat(200));
+        reader.frame(&ctx, vec![]);
+        let byte = reader.source.byte_offset(80, 0);
+        reader.viewport.restore_top(&reader.source, byte);
+        reader.frame(&ctx, vec![]);
+        assert_eq!(reader.viewport.top_byte(&reader.source), Some(byte));
+        reader.source =
+            SourceBuffer::from_str("renamed.rs", &format!("inserted\n{}", reader.source.text));
+        let mapped = reader.source.byte_offset(81, 0);
+        reader.viewport.restore_top(&reader.source, mapped);
+        reader.frame(&ctx, vec![]);
+        assert_eq!(reader.viewport.top_byte(&reader.source), Some(mapped));
+        reader.viewport.restore_top(&reader.source, mapped);
+        reader.viewport.cancel_destination();
+        reader.line = 1;
+        reader.target = Some(1);
+        reader.frame(&ctx, vec![]);
+        assert_eq!(reader.viewport.top_byte(&reader.source), Some(0));
     }
 
     #[test]
