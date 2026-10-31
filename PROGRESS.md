@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-10-30 — Shared cooperative file leases for background writers (Codex)
+
+Moved existing no-follow/nonblocking regular-file lease primitives from the PR
+store into process/lease, preserving shared/exclusive flock and parent CLOEXEC
+behavior. PR-store and tree readers reuse them; observed subprocesses can now
+inherit an explicitly supplied writer descriptor through the same runner already
+used by Git collection. This is the common ownership mechanism for pending tool
+provisioning, avoiding a second lock implementation. Five private-store recovery
+and eleven process tests pass. Provisioning integration, complete gates and native
+acceptance follow; full parity remains open. Commit and push each increment.
+
 ## 2026-10-30 — Native bounded notices, complete Copy and PR control acceptance (Codex)
 
 Implementation `d602a49` is pushed. Native added/deleted files disable unavailable
