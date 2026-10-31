@@ -187,7 +187,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - [Files-row Reveal in File Manager](rust-file-manager-reveal.md) now provides the missing file/folder action with scoped background handoff and visible errors; native file/folder/Unicode paths, private PR routing, rejection/timeout and pending-scope retirement now pass through real gdbus and a private controlled receiver.
-- Complete menu/shortcut enabled/focus states (including the native-proven file context-menu Escape gap in [reader appearance](rust-reader-appearance.md)), runtime light/dark/scaling checks,
+- Complete menu/shortcut enabled/focus states and traversal. [Shared context-menu Escape dismissal](rust-context-menu-dismissal.md) now repairs the native-proven gap through pre-frame ownership, with component/native acceptance. Continue runtime light/dark/scaling checks,
   actual desktop visual acceptance, and requirement-by-requirement final audit.
 
 ## Commit discipline

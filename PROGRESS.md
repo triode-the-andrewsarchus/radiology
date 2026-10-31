@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Dismiss reader context menus with Escape (Codex)
+
+Appearance backend `254336c` is pushed. Its native pass exposed missing context-menu
+Escape handling in egui 0.27. Files/source/bookmark/reference menus now share one
+helper using public framework ownership queries and the existing pre-frame event
+dispatcher. Open-menu Escape closes without firing actions or clearing the focused
+reader's selection; closed/missing owners leave input alone. [Repair and evidence](plans/rust-context-menu-dismissal.md).
+The regression fails before and passes after; reopened click actions still work.
+Workspace gates pass 437 app tests (seven ignored), four font tests, eight text
+tests and 33 doctests, strict Clippy/build/fmt. Architecture adds no clone/hotspot/
+cycle; its flagged 12-line test fragment is unchanged baseline code.
+Native file/source/bookmark dismissal passes. The full reader PNG after file-menu
+Escape is byte-identical to its pre-menu capture; reopened Copy Relative Path is
+exact. Fixtures are unchanged and app/compositors exit zero. Durable evidence is
+under ~/.local/state/radiology-qa/menu-escape-20261030-254336c. Native references,
+complete menu traversal/focus states, accessibility, broader corpus/recovery,
+sibling adoption and final Swift parity audit remain open. Commit and push this
+increment before proceeding.
+
 ## 2026-10-30 — Unify reader palette and widget visuals (Codex)
 
 AppTheme now owns the egui visual mapping used at startup and theme switches.
