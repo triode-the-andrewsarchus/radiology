@@ -176,6 +176,14 @@ fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_im
         .matches_buffer(&review.read("a file.rs", ReviewRevision::After).unwrap()));
     assert!(!root.join("artifact.bin").exists());
     assert!(!review.head_root.join("artifact.bin").exists());
+    app.execute_command(&ctx, ToolbarAction::UpdateIndex);
+    settle(&mut app);
+    assert_eq!(
+        app.generation_report().unwrap().outcomes[0]
+            .reused_from
+            .as_deref(),
+        Some(review.head.as_str())
+    );
     std::fs::remove_file(executable).unwrap();
     app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
     settle(&mut app);

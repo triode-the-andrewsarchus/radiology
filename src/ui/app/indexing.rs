@@ -23,14 +23,15 @@ impl RadiologyApp {
         self.refresh_symbol_context();
     }
 
-    pub(super) fn generate_index(&mut self) {
+    pub(super) fn generate_index(&mut self, reuse: bool) {
         if self.tool_provisioner.is_running() {
             return;
         }
-        let Some(request) = self.index_request() else {
+        let Some(mut request) = self.index_request() else {
             self.error = Some("No private index cache is available for this repository".into());
             return;
         };
+        request.reuse = reuse;
         self.start_index_generation(request);
     }
 
@@ -61,7 +62,7 @@ impl RadiologyApp {
             Some(Ok(installed)) => {
                 self.tool_availability
                     .insert(installed.indexer, installed.availability);
-                self.generate_index();
+                self.generate_index(false);
             }
             Some(Err(error)) => self.error = Some(format!("Tool installation failed: {error}")),
             None => {}
@@ -459,8 +460,15 @@ impl RadiologyApp {
             .as_ref()
             .and_then(|report| report.cache_warning.as_deref())
         {
-            ui.label("Index is available for this session; saving its cache failed.")
+            ui.label("Index available · cache warning")
                 .on_hover_text(warning);
+        }
+        if let Some(warning) = self
+            .generation_report
+            .as_ref()
+            .and_then(GenerationReport::reuse_warning)
+        {
+            ui.label(warning);
         }
         if self.index_generator.is_running() {
             ui.label(self.index_generator.progress().message);
@@ -474,23 +482,35 @@ impl RadiologyApp {
                 .clicked()
                 .then_some(ToolbarAction::CancelIndexGeneration);
         }
-        if ui
-            .button(if self.review.is_some() {
-                "Generate After Index"
-            } else if self.generation_report.is_some() {
-                "Reindex"
-            } else {
-                "Generate Index"
-            })
-            .clicked()
-        {
-            return Some(ToolbarAction::GenerateIndex);
+        if let Some(action) = self.show_generation_controls(ui) {
+            return Some(action);
         }
         let command = self.show_tool_check_controls(ui);
         if self.review.is_some() {
             ui.label("Indexing uses the pinned After revision. Before remains source-only.");
         }
         command
+    }
+
+    fn show_generation_controls(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
+        let label = match (self.review.is_some(), self.generation_report.is_some()) {
+            (true, true) => "Update After Index",
+            (true, false) => "Generate After Index",
+            (false, true) => "Update Index",
+            (false, false) => "Generate Index",
+        };
+        let mut action = None;
+        ui.horizontal(|ui| {
+            if ui.button(label).on_hover_text("Reuse projects with exact inputs and matching tool versions; generate the rest.").clicked() {
+                action = Some(ToolbarAction::UpdateIndex);
+            }
+            if self.generation_report.is_some()
+                && ui.button("Reindex").on_hover_text("Regenerate every project, bypassing reuse.").clicked()
+            {
+                action = Some(ToolbarAction::GenerateIndex);
+            }
+        });
+        action
     }
     fn show_tool_check_controls(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
         if self.tool_probe_job.is_running() {
@@ -586,38 +606,51 @@ impl RadiologyApp {
             }
             let action = self.show_indexer_install(ui, strategy.indexer, outcome);
             if let Some(outcome) = outcome {
-                ui.label(format!(
-                    "Last run: {} document{} · {} source file{} missing",
-                    outcome.documents,
-                    if outcome.documents == 1 { "" } else { "s" },
-                    outcome.missing_count,
-                    if outcome.missing_count == 1 { "" } else { "s" }
-                ));
-                if let Some(version) = &outcome.version {
-                    ui.label(format!("Index tool: {version}"));
-                }
-                if let Some(failure) = &outcome.failure {
-                    ui.label(failure);
-                }
-                if !outcome.diagnostics.is_empty() || !outcome.missing_paths.is_empty() {
-                    ui.collapsing("Generation Details", |ui| {
-                        egui::ScrollArea::both().max_height(160.0).show(ui, |ui| {
-                            for path in &outcome.missing_paths {
-                                ui.label(format!("Not indexed: {path}"));
-                            }
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(&outcome.diagnostics).monospace(),
-                                )
-                                .wrap(false),
-                            );
-                        });
-                    });
-                }
+                Self::show_project_outcome(ui, outcome);
             }
             ui.separator();
             action
         })
         .inner
+    }
+    fn show_project_outcome(
+        ui: &mut egui::Ui,
+        outcome: &crate::semantic::indexing::service::StrategyOutcome,
+    ) {
+        if let Some(origin) = &outcome.reused_from {
+            ui.label(format!("Reused from {origin}"));
+        }
+        ui.label(format!(
+            "Last run: {} document{} · {} source file{} missing",
+            outcome.documents,
+            if outcome.documents == 1 { "" } else { "s" },
+            outcome.missing_count,
+            if outcome.missing_count == 1 { "" } else { "s" }
+        ));
+        if let Some(version) = &outcome.version {
+            ui.label(format!("Index tool: {version}"));
+        }
+        if let Some(failure) = &outcome.failure {
+            ui.label(failure);
+        }
+        if !outcome.diagnostics.is_empty()
+            || !outcome.missing_paths.is_empty()
+            || outcome.cache_warning.is_some()
+        {
+            ui.collapsing("Generation Details", |ui| {
+                egui::ScrollArea::both().max_height(160.0).show(ui, |ui| {
+                    if let Some(warning) = &outcome.cache_warning {
+                        ui.label(format!("Cache: {warning}"));
+                    }
+                    for path in &outcome.missing_paths {
+                        ui.label(format!("Not indexed: {path}"));
+                    }
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&outcome.diagnostics).monospace())
+                            .wrap(false),
+                    );
+                });
+            });
+        }
     }
 }

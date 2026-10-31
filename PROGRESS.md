@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-10-30 — Reader Update/Reindex controls and native reuse recovery (Codex)
+
+Backend `8317edd` is pushed. Index Projects now separates exact/version-qualified
+Generate/Update from forced Reindex, shows original reuse origins and exposes cache
+diagnostics/mixed-origin warnings. App tests verify dispatch, forced-failure reader
+retention and pinned origins. Full gates again pass 412 app tests (two ignored),
+eight shared tests, 30 doctests, fmt, strict Clippy, build and rustdoc; real TypeScript
+installation/generation/reuse/reload also passes separately. Native pointer checks
+prove unchanged reuse skips execution, version changes regenerate, force bypasses
+reuse, malformed-cache recovery warns, successful force clears warnings, and restart
+retains origins without a compiler run. Five attempts use exact dirty private inputs;
+checkout HEAD/status/bytes/manifests stay intact, stages are removed and reported
+app/compositor exits are zero. [Hashed evidence and limits](plans/rust-project-index-reuse.md).
+No new architecture hotspot/cycle/clone growth; five flagged fragments are verified
+exact baseline tests. Remaining: real tools/corpora, retired-project cache maintenance,
+broader recovery and final UI/accessibility/scaling/font/sibling audit. Generic indexer
+status wording also needs the same plain formatting already used by installation.
+Commit and push each increment.
+
 ## 2026-10-30 — Version-qualified project cache reuse backend (Codex)
 
 Incremental GenerationRequest policy now reuses the latest exact project record

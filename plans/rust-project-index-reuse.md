@@ -34,8 +34,9 @@ records trigger regeneration with a retained cache diagnostic, rather than an
 unverified semantic publication.
 
 Fresh records serialize to temporary files without copying another SCIP model.
-Source provenance is verified before publishing staged files. Failure, cancellation
-or stale source drops pending files and preserves accepted records. Each record is
+Source provenance is verified before publishing staged files. Request failure, cancellation
+or stale source drops pending files and preserves accepted records. A failed
+project retains its own previous record while successful projects may publish. Each record is
 published atomically; publishing several projects is not one filesystem transaction.
 Concurrent writers can replace a latest record, but context/version qualification
 prevents reuse of mismatching data. The projects directory cannot resolve outside
@@ -58,14 +59,54 @@ checkout-to-After reuse and same-tree new-commit reuse through production review
 preparation, plus persisted originating-commit provenance.
 
 Full workspace gates pass 412 app tests (two ignored), eight shared tests and 30
-doctests; fmt, strict Clippy, build and rustdoc pass. Final focused/real-package
-follow-up results and reader/native integration are recorded below as completed.
+doctests; fmt, strict Clippy, build and rustdoc pass. After the final test extensions, all five focused reuse tests and the opt-in real
+TypeScript package test pass, including a reuse pass before cache-only reload.
 Architecture baseline before-project-index-reuse: no new hotspot/cycle/clone growth;
 prepare_and_run is simplified by separating execution from preparation/reuse. The
 remaining reported clone fragments are unchanged baseline test setup.
 
 Logs: /tmp/radiology-project-reuse-{focused,all-tests,clippy,build,doc}.log.
 
-Reader controls and native lifecycle acceptance are pending this backend increment.
+## Reader controls and native acceptance — 2026-10-30
+
+Index Projects offers Generate/Update Index (After in a review) with exact/version
+reuse and a separate Reindex button that always bypasses it. Install and Index
+continues to force regeneration after installation. Project rows show the original
+generating checkout or full commit; mixed-origin warnings and cache diagnostics
+remain visible. Outcome rendering is shared instead of expanding row complexity.
+
+App integration tests verify Update can succeed through reuse when the indexer
+still probes correctly but any actual run fails; Reindex attempts that run and
+retains the accepted reader on failure. The pinned-review command test verifies
+After origins. Full UI gates again pass 412 app tests (two ignored), eight shared
+tests, 30 doctests, fmt, strict Clippy, build and rustdoc. Logs use the prefix
+`/tmp/radiology-project-reuse-ui-{tests,clippy,build,doc}.log`.
+
+A private Wayland session at 1280×900, scale 1, dark appearance verifies pointer
+controls: initial generation, unchanged reuse without another compiler run, actual
+version-probe change causing regeneration, forced failure retaining accepted reader,
+reuse recovery even while the compiler mode fails, malformed project-record recovery
+with a visible warning, Reindex clearing that warning, and restart retaining the
+reused checkout origin without compiler execution. Exactly five indexer attempts
+occurred. All read the dirty fixture bytes in private workspaces; HEAD/status/source/
+manifests remain unchanged. Temporary workspaces and stages are removed. Reported
+app/compositor shutdown codes are zero.
+
+Evidence: `/tmp/radiology-project-reuse-native/acceptance.json` and SHA-256
+`manifest.json`. Key captures: `updated-reused-checkout.png`,
+`changed-version-regenerated.png`, `forced-failure-reader-retained.png`,
+`corrupt-record-regenerated-with-warning.png`, `cache-recovery-details.png`,
+`reindex-clears-cache-warning.png`, and `reopened-persisted-reuse-origin.png`.
+The misnamed `forced-recovery-fresh-index.png` precedes the successful force action
+and is not evidence of warning clearance. Controlled local tooling tests lifecycle
+and UI; the separate real TypeScript test covers real compiler output. The sibling
+capture helper is QA-only; the app remains standalone. Native mixed-project and
+pinned-origin visual acceptance remain open. The generic indexer failure text still
+exposes Option-style status formatting; installer failures already use plain status.
+
+This latest-record design avoids revision/version file growth, but does not yet
+sweep records for removed/renamed project identities or qualify external build
+environments beyond the indexer version. Reindex is the recovery for external
+compiler/dependency changes. No full parity completion is claimed.
 Broader real-tool/corpus, recovery, UI/accessibility/scaling/font and sibling reuse
 acceptance remain part of the full parity goal.

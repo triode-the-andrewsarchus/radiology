@@ -119,7 +119,9 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 - Finish semantic context/cache reuse work;
   complete index lifecycle with all Swift project strategies,
-  per-project/version-aware cache reuse and pinned-snapshot provenance. Explicit
+  broader project/corpus acceptance and pinned-snapshot provenance. Per-project
+  exact-context/version reuse and origin tracking are integrated with Update/Reindex
+  controls and native recovery/restart acceptance; see [project reuse](rust-project-index-reuse.md). Explicit
   pinned provisioning and automatic regeneration are integrated with controlled
   native Cancel/failure/recovery acceptance; see [tool provisioning](rust-tool-provisioning.md). Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Nested SCIP
@@ -173,7 +175,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   [Pinned After indexing](rust-pinned-index.md) now uses isolated projects, exact
   Git inputs and commit-scoped cache identity, with native generation/failure/reload/
   restart checks. Before stays source-only. Broader corrupt-store recovery and
-  complete project/version cache lifecycle and real-tool acceptance remain open.
+  retired-project cache maintenance and broader real-tool acceptance remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,
