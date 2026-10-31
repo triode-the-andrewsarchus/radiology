@@ -1,5 +1,10 @@
 # Rust indexing parity
 
+Current additions (2026-10-30): [explicit pinned provisioning and real TypeScript
+acceptance](rust-tool-provisioning.md), [pinned After indexing](rust-pinned-index.md),
+and [project/version reuse with Update/Reindex](rust-project-index-reuse.md) supersede
+the corresponding pending work in the historical stages below. Full parity remains open.
+
 ## Current implementation (2026-10-28)
 
 `semantic::loader::IndexImporter` imports repository-provided `index.scip`, then

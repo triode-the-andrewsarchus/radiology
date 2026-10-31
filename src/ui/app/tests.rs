@@ -656,6 +656,26 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     assert_eq!(app.generation_report().unwrap().documents, 1);
     let digest = app.semantic_index.as_ref().unwrap().source_digests["a.rs"].clone();
     assert!(!root.join("artifact.bin").exists());
+    // The version still probes successfully, but any real index run now fails.
+    std::fs::write(&executable, "#!/bin/sh\nif [ \"${1:-}\" = --version ]; then printf 'rust-analyzer fixture\\n'; exit 0; fi\nexit 9\n").unwrap();
+    app.execute_command(&ctx, ToolbarAction::UpdateIndex);
+    settle(&mut app);
+    assert_eq!(
+        app.generation_report().unwrap().outcomes[0]
+            .reused_from
+            .as_deref(),
+        Some("checkout")
+    );
+    assert_eq!(app.generation_report().unwrap().documents, 1);
+    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+    settle(&mut app);
+    assert!(app.generation_report().unwrap().outcomes[0]
+        .failure
+        .is_some());
+    assert_eq!(
+        app.semantic_index.as_ref().unwrap().source_digests["a.rs"],
+        digest
+    );
     // Reopening must restore persisted data without even a usable indexer.
     std::fs::remove_file(&executable).unwrap();
     app.open_repository(&root);

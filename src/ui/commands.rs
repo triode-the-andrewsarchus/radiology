@@ -53,6 +53,8 @@ pub enum ReaderCommand {
     ReloadSource,
     /// Generates a fresh index in isolated build-input workspaces.
     GenerateIndex,
+    /// Reuses exact version-matched projects and generates missing or stale projects.
+    UpdateIndex,
     /// Cancels index generation while retaining published semantic data.
     CancelIndexGeneration,
     /// Probes executable versions for the detected indexing tools.

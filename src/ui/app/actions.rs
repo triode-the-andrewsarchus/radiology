@@ -22,7 +22,8 @@ impl RadiologyApp {
                     );
                 }
             }
-            GenerateIndex => self.generate_index(),
+            GenerateIndex => self.generate_index(false),
+            UpdateIndex => self.generate_index(true),
             CancelIndexGeneration => self.index_generator.stop(),
             CheckIndexTools => self.check_index_tools(),
             CancelIndexToolCheck => self.tool_probe_job.stop(),
