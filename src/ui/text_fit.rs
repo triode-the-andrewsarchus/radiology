@@ -37,3 +37,27 @@ pub(crate) fn middle(ui: &Ui, text: &str, font: FontId, color: Color32, width: f
     }
     fitted
 }
+
+/// Shapes a bounded prefix into a fixed number of tail-elided rows.
+pub(crate) fn lines(
+    ui: &Ui,
+    text: &str,
+    font: FontId,
+    color: Color32,
+    width: f32,
+    rows: usize,
+) -> Arc<Galley> {
+    let mut end = text.len().min(4096);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let text = if end < text.len() {
+        format!("{}…", &text[..end])
+    } else {
+        text.to_owned()
+    };
+    let mut job = LayoutJob::simple(text, font, color, width.max(0.0));
+    job.wrap.max_rows = rows;
+    job.wrap.break_anywhere = true;
+    ui.fonts(|fonts| fonts.layout_job(job))
+}

@@ -12,7 +12,7 @@ use crate::search::match_item::SearchMatch;
 use crate::search::{RepositorySearch, SearchOptions};
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
-use egui::{Color32, RichText, ScrollArea, TextEdit, Ui};
+use egui::{Color32, ScrollArea, TextEdit, Ui};
 use std::collections::HashSet;
 
 /// Active tab shown in the left [`Sidebar`].
@@ -161,7 +161,15 @@ impl Sidebar {
             || branch.unwrap_or("Working Tree").to_string(),
             |pr| format!("#{} · {}", pr.number, pr.title),
         );
-        ui.label(RichText::new(title).strong());
+        let heading = super::text_fit::lines(
+            ui,
+            &title,
+            egui::TextStyle::Body.resolve(ui.style()),
+            theme.text_primary,
+            ui.available_width(),
+            2,
+        );
+        ui.add(egui::Label::new(heading)).on_hover_text(title);
         ui.horizontal(|ui| {
             ui.colored_label(
                 Color32::from_rgb(34, 197, 94),
@@ -204,38 +212,84 @@ impl Sidebar {
             FileChangeStatus::Modified => Color32::from_rgb(234, 179, 8),
             _ => theme.accent,
         };
+        let counts = if change.is_binary {
+            "binary".into()
+        } else {
+            format!("+{} −{}", change.additions, change.deletions)
+        };
+        let detail = change
+            .old_path
+            .as_ref()
+            .filter(|old| *old != &change.path)
+            .map_or_else(
+                || {
+                    std::path::Path::new(&change.path)
+                        .parent()
+                        .filter(|path| !path.as_os_str().is_empty())
+                        .map_or_else(|| "/".into(), |path| path.display().to_string())
+                },
+                |old| format!("from {old}"),
+            );
         let response = egui::Frame::none()
             .inner_margin(6.0)
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_top(|ui| {
                     ui.colored_label(color, change.status.badge_letter());
-                    ui.label(
-                        RichText::new(
-                            std::path::Path::new(&change.path)
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        let meta = egui::TextStyle::Small.resolve(ui.style());
+                        let counts = super::text_fit::middle(
+                            ui,
+                            &counts,
+                            meta.clone(),
+                            theme.text_secondary,
+                            (ui.available_width() * 0.45).min(110.0),
+                        );
+                        ui.add(egui::Label::new(counts));
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = 2.0;
+                            let name = std::path::Path::new(&change.path)
                                 .file_name()
                                 .unwrap_or_default()
-                                .to_string_lossy(),
-                        )
-                        .strong(),
-                    );
-                    ui.colored_label(
-                        theme.text_secondary,
-                        format!("+{} −{}", change.additions, change.deletions),
-                    );
+                                .to_string_lossy();
+                            let name = super::text_fit::middle(
+                                ui,
+                                &name,
+                                egui::TextStyle::Body.resolve(ui.style()),
+                                theme.text_primary,
+                                ui.available_width(),
+                            );
+                            ui.add(egui::Label::new(name));
+                            let path = super::text_fit::middle(
+                                ui,
+                                &detail,
+                                meta,
+                                theme.text_muted,
+                                ui.available_width(),
+                            );
+                            ui.add(egui::Label::new(path));
+                        });
+                    });
                 });
-                let path = change.old_path.as_ref().map_or_else(
-                    || change.path.clone(),
-                    |old| format!("{old} → {}", change.path),
-                );
-                ui.colored_label(theme.text_muted, path);
             })
             .response;
-        let response = response.interact(egui::Sense::click());
+        let response = ui
+            .interact(
+                response.rect,
+                ui.make_persistent_id(("change_row", &change.path)),
+                egui::Sense::click(),
+            )
+            .on_hover_text(format!(
+                "{}\n{}\n{}\n{}",
+                change.status.title(),
+                change.path,
+                detail,
+                counts
+            ));
         if selected == Some(change.path.as_str()) || response.hovered() {
             ui.painter()
                 .rect_stroke(response.rect, 3.0, egui::Stroke::new(1.0_f32, theme.border));
         }
-        response.clicked()
+        Self::row_activated(&response)
     }
 
     fn search(
@@ -276,26 +330,83 @@ impl Sidebar {
             ui.label("First 5,000 matches. Narrow the query to see more.");
         }
         ui.separator();
+        let meta = egui::TextStyle::Small.resolve(ui.style());
+        let preview = egui::FontId::monospace(12.0);
+        let row_height =
+            ui.fonts(|fonts| fonts.row_height(&meta) + 2.0 * fonts.row_height(&preview)) + 8.0;
         ScrollArea::vertical()
             .id_source("repository_search")
-            .show_rows(ui, 42.0, search.matches.len(), |ui, rows| {
+            .show_rows(ui, row_height, search.matches.len(), |ui, rows| {
                 for index in rows {
                     let hit = &search.matches[index];
-                    let preview: String = hit.preview.trim().chars().take(180).collect();
-                    let label = format!("{}:{}\n{preview}", hit.path, hit.line);
-                    if ui
-                        .add_sized(
-                            [ui.available_width(), 42.0],
-                            egui::Button::new(RichText::new(label).color(theme.text_secondary))
-                                .frame(false),
-                        )
-                        .clicked()
-                    {
+                    if Self::search_row(ui, theme, hit, row_height, &meta, &preview) {
                         action = Some(SidebarAction::OpenSearchMatch(hit.clone()));
                     }
                 }
             });
         action
+    }
+
+    fn search_row(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        hit: &SearchMatch,
+        height: f32,
+        meta: &egui::FontId,
+        preview: &egui::FontId,
+    ) -> bool {
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width(), height),
+            egui::Sense::hover(),
+        );
+        let response = ui.interact(
+            rect,
+            ui.make_persistent_id(("search_match", hit.id())),
+            egui::Sense::click(),
+        );
+        if response.hovered() || response.has_focus() {
+            ui.painter()
+                .rect_filled(rect, 3.0, ui.visuals().selection.bg_fill);
+        }
+        if response.has_focus() {
+            ui.painter()
+                .rect_stroke(rect, 3.0, ui.visuals().selection.stroke);
+        }
+        let content = rect.shrink2(egui::vec2(4.0, 3.0));
+        let path = super::text_fit::middle(
+            ui,
+            &format!("{}:{}", hit.path, hit.line),
+            meta.clone(),
+            theme.text_secondary,
+            content.width(),
+        );
+        let preview = super::text_fit::lines(
+            ui,
+            hit.preview.trim(),
+            preview.clone(),
+            theme.text_primary,
+            content.width(),
+            2,
+        );
+        let preview_y = content.top() + ui.fonts(|fonts| fonts.row_height(meta)) + 2.0;
+        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+        painter.galley(content.min, path, theme.text_secondary);
+        painter.galley(
+            egui::pos2(content.left(), preview_y),
+            preview,
+            theme.text_primary,
+        );
+        let response = response.on_hover_text(format!("{}:{}:{}", hit.path, hit.line, hit.column));
+        Self::row_activated(&response)
+    }
+
+    fn row_activated(response: &egui::Response) -> bool {
+        // A result can move after egui's hit test; validate the live rectangle.
+        response.clicked()
+            && (!response.clicked_by(egui::PointerButton::Primary)
+                || response
+                    .interact_pointer_pos()
+                    .is_some_and(|position| response.interact_rect.contains(position)))
     }
 
     /// Recursively renders a single tree node (directory or file).
@@ -446,6 +557,7 @@ impl Sidebar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod results;
 
     #[test]
     fn long_and_deep_file_rows_do_not_expand_the_sidebar() {

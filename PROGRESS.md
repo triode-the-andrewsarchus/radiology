@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-10-31 — Bound Changes/Search presentation and row activation (Codex)
+
+Changes now prioritizes fitted filenames/counts with a quiet directory or rename
+origin and binary metadata. Headings have a two-row bound and full help. Search
+uses one fitted path/line plus two code-preview rows, font-derived virtual stride
+and clipped paint. The shared text fitter bounds previews to a UTF-8-safe 4 KiB
+prefix without changing stored matches or navigation targets. Explicit path/match
+IDs plus current-rectangle pointer validation retire moved/replaced press targets;
+fresh clicks and Tab/Space still work. [Contract/evidence](plans/rust-result-pane-labels.md).
+Three added regressions pass. Saved negatives show 180 → 974.10706-point Changes
+growth, 380-point Search strides and a Changes press opening another file after
+reordering. Workspace passes 486 app tests (seven ignored), two binary, four font,
+eleven text tests and 34 doctests; strict Clippy/build/fmt/diff pass. Architecture
+is neutral, with no new clone/hotspot/cycle. Native 1×/2× Git/ripgrep runs verify
+nested rename/binary rows, long previews, narrow/restored panes and dark/light
+rendering. From a peer file, both actions return the exact nested path; Search
+lands on line 5 and explicit-source selection copies exact Unicode bytes. Fresh
+clipboard hashes match, fixtures are unchanged and all final exits are zero.
+Archive: ~/.local/state/radiology-qa/result-panes-20261031-d3cd8f0. An excluded
+startup-probe trial sampled a colored diff stripe; its screenshot shows a loaded
+reader, not a diagnosed source/performance failure. The corrected probe samples
+line-number text. Broader inspector-label/cross-owner/enabled-state/reader/large-
+file/grammar/index/PR/cache/final Swift acceptance remains open. Automatic result
+focus return and working-tree rename hunks are not accepted here. Full
+accessibility and actual sibling adoption stay deferred. Commit and push this
+pane/interaction increment before continuing.
+
 ## 2026-10-31 — Align active toolbar titles and preserve global shortcuts (Codex)
 
 The popup owner now selects/colors its existing title and receives keyboard focus

@@ -171,7 +171,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   1×/2× evidence. [Toolbar keyboard ownership](rust-toolbar-keyboard.md) now
   covers all four menus, cross-menu/submenu traversal, PR scrolling and focus
   return. Active titles now track their popup while preserving global shortcuts.
-  Audit broader cross-owner/long-label surfaces, then complete wrapping/scroll/scaling,
+  [Bounded Changes/Search results](rust-result-pane-labels.md) now preserve pane
+  geometry, preview limits, canonical targets and reorder-safe row gestures.
+  Audit broader cross-owner/inspector-label surfaces, then complete wrapping/scroll/scaling,
   large-file performance and long-line Back acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
