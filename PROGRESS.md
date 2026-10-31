@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Native tool installation, retained-index recovery and diagnostics (Codex)
+
+Native controlled npm/indexer acceptance covers five install attempts: live Cancel
+and child reaping, failure, automatic indexing, failure retaining accepted semantics,
+and successful recovery/regeneration. Both index runs used exact dirty inputs in
+private workspaces; checkout HEAD/status/bytes/manifests remain unchanged and stages
+are cleaned. Installer errors now report human-readable exit status. Eight focused
+provisioning tests, strict Clippy and build pass after this small fix; full gates in
+the preceding entry passed before it. [Native evidence and limits](plans/rust-tool-provisioning.md).
+App PIDs are absent and the driver terminal; final shutdown codes were not retained.
+Real package/compiler acceptance, project/version cache reuse, broader recovery and
+final UI/accessibility/scaling/font/sibling audit remain open. Commit and push each increment.
+
 ## 2026-10-30 — Explicit pinned tool installation and automatic indexing (Codex)
 
 Missing Rust/Go/TypeScript/Python/Kotlin tools now expose Install and Index with

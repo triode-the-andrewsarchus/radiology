@@ -118,8 +118,10 @@ for simultaneous inspector regions and source keyboard exclusion.
 ## Still required before full parity acceptance
 
 - Finish semantic context/cache reuse work;
-  complete index lifecycle with all Swift project strategies, provisioning,
-  per-project/version-aware cache reuse and pinned-snapshot provenance. Basic
+  complete index lifecycle with all Swift project strategies,
+  per-project/version-aware cache reuse and pinned-snapshot provenance. Explicit
+  pinned provisioning and automatic regeneration are integrated with controlled
+  native Cancel/failure/recovery acceptance; see [tool provisioning](rust-tool-provisioning.md). Basic
   cache persistence and stale/partial/error/cancel UI are integrated. Nested SCIP
   decoding and semantic-map construction now use [cooperative cancellation](rust-scip-cancellation.md),
   with native Cancel/retention/reload acceptance. [Normalized-cache JSON](rust-cache-json-cancellation.md)
@@ -171,7 +173,7 @@ for simultaneous inspector regions and source keyboard exclusion.
   [Pinned After indexing](rust-pinned-index.md) now uses isolated projects, exact
   Git inputs and commit-scoped cache identity, with native generation/failure/reload/
   restart checks. Before stays source-only. Broader corrupt-store recovery and
-  complete project/version/provisioning cache lifecycle remain open.
+  complete project/version cache lifecycle and real-tool acceptance remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,
