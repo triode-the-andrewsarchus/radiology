@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-10-30 — Real TypeScript acceptance fixes occurrence-column parity (Codex)
+
+The actual pinned npm package exposed a coordinate bug: SCIP source-file encoding
+was overriding the adapter column contract. Generation now uses adapter defaults
+when document columns are unspecified, preserving explicit encodings as Swift does.
+Normalized cache format 2 rejects potentially incorrect format-1 coordinates. An
+opt-in real install/generate/navigation/cache-reload test passes with cross-file
+calls, CRLF and an emoji before the call; source/manifests/inventory remain intact.
+A non-network regression covers differing file/column encodings and old-cache
+rejection. [Command, results and limits](plans/rust-tool-provisioning.md). Full gates
+pass 407 app tests (two ignored), eight shared tests, 30 doctests, fmt, strict Clippy,
+build and rustdoc; the real package test passes separately. Architecture adds no
+hotspot/cycle/clone growth; flagged cache-test setup is exact baseline code. Other
+real tools/corpora, project/version cache reuse, recovery and final UI/accessibility/
+scaling/font/sibling audit remain open. Commit and push each increment.
+
 ## 2026-10-30 — Native tool installation, retained-index recovery and diagnostics (Codex)
 
 Native controlled npm/indexer acceptance covers five install attempts: live Cancel

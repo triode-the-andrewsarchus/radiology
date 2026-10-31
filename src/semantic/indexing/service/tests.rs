@@ -4,6 +4,36 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+mod real_tools;
+
+#[test]
+fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
+    let fixture = Fixture::new(&[("a.ts", "/* 🦀 */ const value = 1;\r\n")]);
+    let request = fixture.request();
+    let (inventory, baseline) = request.prepare(&AtomicBool::new(false)).unwrap();
+    let strategy = IndexingStrategy {
+        indexer: Indexer::TypeScript,
+        directory: String::new(),
+        evidence: Vec::new(),
+        source_files: 1,
+    };
+    for file_encoding in [0, 1, 2, 3] {
+        for (explicit, expected) in [(0, 2), (1, 1), (2, 2), (3, 3)] {
+            let scip = ScipIndex {
+                text_document_encoding: file_encoding,
+                documents: vec![crate::semantic::ScipDocument {
+                    relative_path: "a.ts".into(),
+                    position_encoding: explicit,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            let normalized = normalize(scip, &strategy, &inventory, &baseline).unwrap();
+            assert_eq!(normalized.documents[0].position_encoding, expected);
+        }
+    }
+}
+
 struct Fixture {
     _owner: tempfile::TempDir,
     source: PathBuf,
@@ -385,6 +415,7 @@ fn invalid_cache_formats_ranges_paths_and_provenance_never_publish() {
     let path = cache_file(&fixture);
     let pristine: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     for (pointer, replacement) in [
+        ("/format", serde_json::json!(1)), // old coordinate normalization is unsafe
         ("/format", serde_json::json!(999)),
         ("/root", serde_json::json!("/different/root")),
         (

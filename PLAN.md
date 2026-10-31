@@ -510,7 +510,7 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
-- [plans/rust-tool-provisioning.md](plans/rust-tool-provisioning.md) — explicit pinned tool installation, staged verification/rollback, cancellation and automatic indexing.
+- [plans/rust-tool-provisioning.md](plans/rust-tool-provisioning.md) — explicit pinned tool installation, staged verification/rollback, cancellation, automatic indexing and real TypeScript coordinate/cache acceptance.
 - [plans/rust-reader-notices-controls.md](plans/rust-reader-notices-controls.md) — compact error/details presentation and revision/change control availability.
 - [plans/rust-pr-refresh-restoration.md](plans/rust-pr-refresh-restoration.md) — atomic changed-commit refresh, rename/line mapping, latest reader state and acceptance.
 - [plans/rust-pinned-index.md](plans/rust-pinned-index.md) — pinned After generation, cache identity, isolated inputs and revision-scoped publication.

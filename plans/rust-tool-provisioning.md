@@ -105,6 +105,46 @@ and build pass; the full 406-app/eight-shared/30-doctest gates above preceded th
 small follow-up. Logs: `/tmp/radiology-provision-status-{tests,clippy,build}.log`.
 This proves controlled native lifecycle behavior, not real package/compiler runs.
 
+## Real pinned TypeScript package acceptance — 2026-10-30
+
+An opt-in test now exercises the production installer against the actual pinned
+npm package, then production generation, decoding, navigation and normalized-cache
+reload. Run explicitly (network access, Node.js 22+ and npm required):
+
+```sh
+cargo test --lib pinned_typescript_install_generation_navigation_and_cache_reload -- --ignored --nocapture
+```
+
+The test installs exclusively under a temporary managed root, indexes two real
+TypeScript modules with cross-file calls, and verifies the definition/reference
+locations. Its CRLF caller includes an emoji before the call, exercising UTF-16 to
+canonical-byte conversion. It then removes all executable discovery from the
+request and reloads the persisted index, checking exact definitions, unchanged
+source/manifests/inventory, source-digest rejection after changes and workspace
+cleanup. Temporary tool/package files are removed with the fixture.
+
+This exposed a genuine Swift parity bug: normalization incorrectly preferred
+SCIP metadata's source-file byte encoding over the adapter's occurrence-column
+contract. TypeScript 0.4.0 emits UTF-16 columns in UTF-8 source files while omitting
+Document.position_encoding. Normalization now uses the adapter fallback and honors
+explicit document encodings. A non-network regression checks all unspecified and
+explicit combinations against differing file encodings. Normalized cache format 2
+rejects old format-1 records, which may contain wrong coordinates; those indexes
+must be regenerated. Unknown-provenance raw imports keep their existing behavior.
+
+The real package test passes on Node v26.12.1/npm 12.2.1, reporting version 0.4.0,
+two documents, no missing sources, no partial/stale state and no cache warning.
+Full workspace gates pass 407 app tests (two ignored), eight shared tests and 30
+doctests; the opt-in real test passes separately. Formatting, strict Clippy, build
+and rustdoc pass, and rendered field documentation was inspected for the corrected
+encoding distinction. Logs: `/tmp/radiology-real-typescript{,-workspace,-clippy,-build,-doc}.log`.
+Architecture adds no hotspot/cycle/clone growth. The reported six-line cache-test
+fragment is byte-identical to baseline `before-real-typescript-acceptance`.
+
+This covers one real TypeScript package with a small dependency-free project.
+Other real indexers, dependency-heavy/mixed-language corpora and native rendering
+of the final coordinate fix still require acceptance.
+
 Full parity remains open: complete project/version-aware cache reuse, real-tool/corpus acceptance,
 broader corrupt-store recovery and final visual/accessibility/scaling/font/sibling
 reuse audit.
