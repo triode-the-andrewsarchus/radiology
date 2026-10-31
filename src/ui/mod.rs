@@ -12,6 +12,7 @@ mod reference_callers;
 mod source_preview;
 #[cfg(test)]
 mod test_support;
+mod text_fit;
 mod under_caret;
 
 pub mod app;

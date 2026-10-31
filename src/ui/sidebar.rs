@@ -324,16 +324,25 @@ impl Sidebar {
                 .rounding(3.0)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.add_space(indent);
+                        ui.add_space(indent.min((ui.available_width() - 62.0).max(0.0)));
                         chevron.ui(ui, 10.0, theme.text_muted);
                         Icon::Folder.ui(ui, 12.0, theme.accent);
                         ui.add_space(2.0);
-                        ui.label(RichText::new(&node.name).strong());
+                        let label = super::text_fit::middle(
+                            ui,
+                            &node.name,
+                            egui::TextStyle::Body.resolve(ui.style()),
+                            theme.text_primary,
+                            ui.available_width(),
+                        );
+                        ui.add(egui::Label::new(label)).on_hover_text(&node.path);
                     });
                 })
                 .response;
 
-            let response = resp.interact(egui::Sense::click());
+            let response = resp
+                .interact(egui::Sense::click())
+                .on_hover_text(&node.path);
             action = Self::row_menu(&response, &node.path);
             if response.clicked() {
                 if is_expanded {
@@ -373,10 +382,19 @@ impl Sidebar {
                 .rounding(3.0)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.add_space(indent + 12.0);
+                        ui.add_space((indent + 12.0).min((ui.available_width() - 54.0).max(0.0)));
                         Icon::Code.ui(ui, 11.0, theme.text_muted);
                         ui.add_space(2.0);
-                        ui.label(RichText::new(&node.name).monospace());
+                        let width =
+                            (ui.available_width() - 6.0 - ui.spacing().item_spacing.x).max(0.0);
+                        let label = super::text_fit::middle(
+                            ui,
+                            &node.name,
+                            egui::TextStyle::Monospace.resolve(ui.style()),
+                            theme.text_primary,
+                            width,
+                        );
+                        ui.add(egui::Label::new(label)).on_hover_text(&node.path);
                         let (name_rect, _) =
                             ui.allocate_exact_size(egui::vec2(6.0, 6.0), egui::Sense::hover());
                         if is_changed {
@@ -387,7 +405,9 @@ impl Sidebar {
                 })
                 .response;
 
-            let interact_resp = resp.interact(egui::Sense::click());
+            let interact_resp = resp
+                .interact(egui::Sense::click())
+                .on_hover_text(&node.path);
             action = Self::row_menu(&interact_resp, &node.path);
 
             if interact_resp.clicked() {
@@ -421,5 +441,120 @@ impl Sidebar {
             }
             None => None,
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn long_and_deep_file_rows_do_not_expand_the_sidebar() {
+        use crate::repository::file_node::RepositoryFile;
+        let path = format!(
+            "{}/a-very-long-source-filename-🦀-café-and-minified-long-lines.rs",
+            "deep-directory-name".repeat(4)
+        );
+        let deep = format!("{}/tail.rs", vec!["nested"; 25].join("/"));
+        let tree = FileNode::build_tree(&[RepositoryFile::new(&path), RepositoryFile::new(&deep)]);
+        let mut expanded: HashSet<String> = [&path, &deep]
+            .into_iter()
+            .flat_map(|path| path.match_indices('/').map(|(at, _)| path[..at].to_owned()))
+            .collect();
+        for width in [180.0, 260.0, 420.0] {
+            let measure = |nodes: &[FileNode], expanded: &mut HashSet<String>| {
+                let ctx = egui::Context::default();
+                let mut measured = 0.0;
+                let _ = ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(1280.0, 900.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        measured = egui::SidePanel::left("files")
+                            .default_width(width)
+                            .min_width(180.0)
+                            .max_width(500.0)
+                            .show(ctx, |ui| {
+                                for node in nodes {
+                                    Sidebar::render_tree_node(
+                                        ui,
+                                        &AppTheme::dark(),
+                                        node,
+                                        expanded,
+                                        Some(&path),
+                                        &HashSet::new(),
+                                        0,
+                                    );
+                                }
+                            })
+                            .response
+                            .rect
+                            .width();
+                    },
+                );
+                measured
+            };
+            // egui's panel minimum includes its frame margins. Compare to the
+            // configured width or empty-panel minimum, whichever is larger.
+            let expected = width.max(measure(&[], &mut HashSet::new()));
+            let actual = measure(&tree, &mut expanded);
+            assert!(
+                actual <= expected + 1.0,
+                "file labels expanded {expected} to {actual}"
+            );
+        }
+    }
+    #[test]
+    fn elided_file_rows_keep_full_open_and_context_copy_targets() {
+        use crate::repository::file_node::RepositoryFile;
+        use crate::ui::test_support::{click, painted_frame, secondary_click};
+        let ctx = egui::Context::default();
+        let path = format!(
+            "a-very-long-🦀-café-source-filename-{}.rs",
+            "more-context-".repeat(6)
+        );
+        let tree = FileNode::build_tree(&[RepositoryFile::new(&path)]);
+        let frame = |events| {
+            let mut action = None;
+            let output = painted_frame(&ctx, egui::vec2(220.0, 300.0), events, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
+                action = Sidebar::render_tree_node(
+                    ui,
+                    &AppTheme::dark(),
+                    &tree[0],
+                    &mut HashSet::new(),
+                    Some(&path),
+                    &HashSet::new(),
+                    0,
+                );
+            });
+            (output, action)
+        };
+        let (output, _) = frame(vec![]);
+        let point = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text.contains('…') => {
+                    assert!(text.galley.job.text.ends_with(".rs"));
+                    Some(text.pos + text.galley.size() / 2.0)
+                }
+                _ => None,
+            })
+            .expect("middle-elided file label");
+        assert_eq!(
+            frame(click(point)).1,
+            Some(SidebarAction::OpenFile(path.clone()))
+        );
+        frame(secondary_click(point));
+        let (output, action) = frame(vec![
+            crate::ui::commands::test_key(egui::Key::End),
+            crate::ui::commands::test_key(egui::Key::Enter),
+        ]);
+        assert_eq!(action, None);
+        assert_eq!(output.platform_output.copied_text, path);
     }
 }

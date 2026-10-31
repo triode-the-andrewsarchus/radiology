@@ -13,6 +13,7 @@ use crate::syntax::highlighter::HighlightedSpan;
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
+mod breadcrumbs;
 mod destination;
 mod viewport;
 use egui::{pos2, Color32, Rect, RichText, Ui};
@@ -171,92 +172,20 @@ impl SourceView {
         ui.vertical(|ui| {
             // Header / Breadcrumbs Bar
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.add_space(10.0);
-                ui.spacing_mut().item_spacing.x = 6.0;
-
-                // Path breadcrumbs
-                let parts: Vec<&str> = buffer.path.split('/').collect();
-                for (i, part) in parts.iter().enumerate() {
-                    if i > 0 {
-                        Icon::ChevronRight.ui(ui, 10.0, theme.text_muted);
-                    }
-                    if i == parts.len() - 1 {
-                        ui.label(RichText::new(*part).strong());
-                    } else {
-                        ui.colored_label(theme.text_secondary, *part);
-                    }
-                }
-
-                // Enclosing symbol breadcrumbs (interactive links)
-                for sym in enclosing_symbols {
-                    Icon::ChevronRight.ui(ui, 10.0, theme.text_muted);
-                    let btn = ui.add(
-                        egui::Button::new(RichText::new(&sym.name).strong().color(theme.accent))
-                            .frame(false),
-                    );
-                    if btn.on_hover_text(format!("Jump to {}", sym.name)).clicked() {
-                        action = Some(SourceViewAction::JumpToSymbol(sym.selection_range.start));
-                    }
-                }
-
-                // PR Diff block jump controls if in review
-                if let Some(diff) = line_changes {
-                    if !diff.hunks.is_empty() {
-                        ui.separator();
-                        let navigation = diff.navigation_at(
-                            *caret_line,
-                            buffer.revision.unwrap_or(ReviewRevision::After),
-                        );
-                        ui.add_enabled_ui(navigation.previous.is_some(), |ui| {
-                            if Icon::ArrowUp
-                                .button(ui, 11.0, theme.text_primary)
-                                .on_hover_text("Previous change block (Alt+↑)")
-                                .clicked()
-                            {
-                                action = Some(SourceViewAction::PrevChangeBlock);
-                            }
-                        });
-                        ui.add_enabled_ui(navigation.next.is_some(), |ui| {
-                            if Icon::ArrowDown
-                                .button(ui, 11.0, theme.text_primary)
-                                .on_hover_text("Next change block (Alt+↓)")
-                                .clicked()
-                            {
-                                action = Some(SourceViewAction::NextChangeBlock);
-                            }
-                        });
-                    }
-                }
-
-                // Collapse functions button (matching macOS Swift SourceBreadcrumbs)
-                ui.separator();
-                if Icon::Wrap
-                    .button(ui, 11.0, theme.text_secondary)
-                    .on_hover_text("Collapse all function bodies")
-                    .clicked()
-                {
-                    action = Some(SourceViewAction::CollapseFunctions);
-                }
-
-                // Right side: Modified status + Revision [ Before | After ] segmented pill
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(rev) = buffer.revision {
-                        ui.horizontal(|ui| {
-                            if let Some(revision) = revision_buttons(ui, rev, file_change) {
-                                action = Some(SourceViewAction::ToggleRevision(revision));
-                            }
-                            ui.colored_label(theme.text_secondary, "Revision");
-                            if line_changes.is_some() {
-                                ui.colored_label(
-                                    Color32::from_rgb(234, 179, 8),
-                                    file_change.map_or("Modified", |change| change.status.title()),
-                                );
-                            }
-                        });
-                    }
-                });
-            });
+            action = breadcrumbs::show(
+                ui,
+                theme,
+                breadcrumbs::Header {
+                    buffer,
+                    symbols: enclosing_symbols,
+                    line: *caret_line,
+                    changes: line_changes,
+                    change: file_change,
+                    can_collapse: fold_ranges
+                        .iter()
+                        .any(|fold| fold.kind == crate::syntax::folds::FoldKind::Callable),
+                },
+            );
 
             ui.separator();
             action = show_pin_groups(ui, theme, pin_store).or(action.take());
@@ -348,7 +277,7 @@ impl SourceView {
                         )
                         .frame(false),
                     );
-                    if line_btn.on_hover_text("Go to Line (⌘L)").clicked() {
+                    if line_btn.on_hover_text("Go to Line (Ctrl+L)").clicked() {
                         action = Some(SourceViewAction::OpenGoToLine);
                     }
 
@@ -481,6 +410,10 @@ fn revision_buttons(
             egui::SelectableLabel::new(current == revision, revision.title()),
         );
         if response
+            .on_hover_text(change.map_or_else(
+                || format!("View {}", revision.title()),
+                |change| format!("{} · {}", revision.title(), change.status.title()),
+            ))
             .on_disabled_hover_text(format!("This file is unavailable in {}", revision.title()))
             .clicked()
             && current != revision

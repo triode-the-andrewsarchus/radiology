@@ -73,10 +73,10 @@ silently counted as final acceptance.
 
 ## Findings still requiring work
 
-- A long Unicode filename expands the Files sidebar and the source header can
-  overlap the inspector. The native long-name PNGs show the defect. Constrain and
-  elide these labels within their actual panes, preserving full-path discovery.
-  Relevant views are src/ui/sidebar.rs and src/ui/source_view.rs.
+- The long-name Files/source-header defect is now repaired by
+  [bounded labels and source breadcrumbs](rust-pane-labels.md), with exact-path
+  copy/jump and native 1×/2× evidence. Other long-label surfaces remain in the
+  broader UI audit.
 - Bare source keys after Go To Line or toolbar interactions do not consistently
   regain ownership without an explicit source click/frame. Keep toolbar traversal,
   modal return focus and rapid cross-owner batches open. The final explicit-focus
