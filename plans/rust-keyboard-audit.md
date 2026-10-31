@@ -76,11 +76,46 @@ linked from the [implementation queue](rust-parity-implementation.md).
   warnings exactly match retained baseline fragments (152/1702, 247/1273,
   982/1074 and 1767/1805). They are not introduced by this change.
 
+## Native acceptance and same-frame modal repair
+
+A private 1280×900 Wayland run of pushed `cd4c119` verifies the dedicated
+Ctrl+Alt+J binding and Search-menu action against a controlled two-document SCIP
+import. Both navigate b.rs's alpha call to a.rs's definition. Back restores b.rs
+line 2, column 5: Shift+End/Copy returns exactly `lpha();`. This is explicit
+unverified-import fixture coverage, not an additional real-indexer claim.
+
+Two rapid Ctrl+Shift+I presses invoke the controlled indexer once and publish two
+documents from one project. Ctrl+Alt+I hides/restores the inspector independently.
+With Go to Line already shown, Ctrl+Alt+J does not navigate behind it. Source,
+manifest and imported index hashes stay unchanged; app, Niri and Weston exit zero.
+Captures, driver, fixture hashes, binary hash, invocation record, copied text and
+exit statuses are retained with SHA256SUMS at:
+`~/.local/state/radiology-qa/keyboard-20261030-cd4c119`.
+The driver reuses sibling QA compositor helpers; application builds and runtime
+remain standalone. The screenshots are 1× dark appearance evidence.
+
+Inspection during this pass found a separate batching defect: take_shortcuts
+resolves the whole frame before commands run. If Ctrl+L, Ctrl+Alt+J and Ctrl+T
+arrive together, the first opens Go to Line, but the next navigates behind it and
+the last replaces it with Go to Symbol. The application now rechecks modal state
+before each command and stops the batch when a modal opens. Already-consumed
+reader commands are discarded; later ordinary text events remain in egui's input
+stream. No new command resolver or queue is introduced.
+
+The actual-frame regression fails before the guard and passes after: Go to Line
+remains active, source loading stays idle and b.rs line 2/column 5 is unchanged.
+This deterministic regression covers same-frame ownership; the native captures
+above cover separate-frame ownership. The repaired workspace passes 443 app tests
+(seven ignored), four font tests, eight text tests, 33 doctests, strict Clippy,
+build, fmt and diff checks. Architecture comparison against
+`before-modal-batch-guard` adds no clone group/cycle/max-CCN increase; the same four
+flagged baseline fragments remain unchanged.
+
 ## Still open
 
-Native acceptance of the new shortcuts, complete toolbar/context-menu traversal
-and focus restoration remain in the final keyboard pass. Existing context-menu
-Escape evidence is recorded [separately](rust-context-menu-dismissal.md). Broader
-indexing/grammar corpora, reader wrapping/scroll/scaling, PR/cache recovery and the
-final Swift requirement audit remain required. Full accessibility and actual
-little-screen-clip adoption remain deferred.
+Complete toolbar/context-menu traversal and focus restoration remain in the final
+keyboard pass. Existing context-menu Escape evidence is recorded
+[separately](rust-context-menu-dismissal.md). Broader indexing/grammar corpora,
+reader wrapping/scroll/scaling, PR/cache recovery and the final Swift requirement
+audit remain required. Full accessibility and actual little-screen-clip adoption
+remain deferred.

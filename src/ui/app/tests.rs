@@ -2252,3 +2252,39 @@ fn repeated_reindex_shortcut_keeps_the_running_generation() {
     assert_eq!(app.generation_report().unwrap().documents, 1);
     assert!(app.semantic_index.is_some());
 }
+
+#[test]
+fn opening_a_modal_blocks_later_reader_shortcuts_in_the_same_frame() {
+    let (_dir, mut app) = reader_with_reference_index();
+    app.jump_to_location("b.rs", 2, "fn beta() {\n    ".len() + 1);
+    settle(&mut app);
+    let ctx = Context::default();
+    let events = [
+        (egui::Key::L, egui::Modifiers::CTRL),
+        (egui::Key::J, egui::Modifiers::CTRL | egui::Modifiers::ALT),
+        (egui::Key::T, egui::Modifiers::CTRL),
+    ]
+    .into_iter()
+    .map(|(key, modifiers)| {
+        let mut event = crate::ui::commands::test_key(key);
+        if let egui::Event::Key {
+            modifiers: actual, ..
+        } = &mut event
+        {
+            *actual = modifiers;
+        }
+        event
+    })
+    .collect();
+    let _ = ctx.run(
+        egui::RawInput {
+            events,
+            ..Default::default()
+        },
+        |ctx| app.handle_shortcuts(ctx),
+    );
+    assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
+    assert!(!app.is_source_loading());
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (2, 5));
+}

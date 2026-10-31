@@ -23,7 +23,8 @@ unified widget visuals, contrast checks, native 1×/2× evidence and the origina
 [Context-menu dismissal](plans/rust-context-menu-dismissal.md) records its shared repair,
 pre-frame Escape ownership and native/component regression evidence.
 [Keyboard command audit](plans/rust-keyboard-audit.md) records Linux mappings,
-dedicated definition/Reindex bindings, shared menu dispatch and repeat-job guards.
+dedicated definition/Reindex bindings, shared menu dispatch, repeat-job guards,
+native acceptance and same-frame modal ownership.
 
 [Ordered source input](plans/rust-source-input-order.md) records coalesced navigation,
 selection and copy ordering, all-scale regression coverage and native 2× acceptance.
