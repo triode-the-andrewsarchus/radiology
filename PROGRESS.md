@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Early full-JDK check for Kotlin tool installation (Codex)
+
+Real Kotlin installation with a runtime-only JAVA_HOME reached Gradle before
+failing for lack of a compiler. The shared installer now checks javac before any
+downloads/writes, honors JAVA_HOME over unrelated PATH compilers, and explains the
+full JDK 17+ prerequisite. Both failure paths pass a non-network regression.
+[Contract](plans/rust-tool-provisioning.md). Workspace gates pass 425 app tests
+(six ignored), eight shared tests and 30 doctests; strict Clippy and shell syntax
+pass. Architecture is neutral with no new hotspot/cycle/clone growth. Real pinned
+installation succeeds under the full local JDK 27; generation/navigation acceptance
+is still running and is not claimed by this fix. Full parity remains open.
+
 ## 2026-10-30 — Real Go/Python installation and shared four-indexer acceptance (Codex)
 
 Actual pinned scip-go 0.2.7 and scip-python 0.6.6 pass production installation,

@@ -155,3 +155,14 @@ reuse audit.
 Go/Python installation, cross-file navigation, Unicode coordinates, Update reuse
 and cache-only reload alongside Rust and TypeScript. Viewed inputs remain intact.
 Kotlin/Clang and broader real projects remain unverified.
+
+## Runtime-only Java prerequisite — 2026-10-30
+
+A real installation attempt with the local Java 17 runtime failed in Gradle because
+it lacked javac. The shared Swift/Rust installer now rejects a runtime-only
+JAVA_HOME, or a missing PATH compiler when JAVA_HOME is unset, before creating the
+tool root or downloading Gradle/source archives. The message requests a full JDK
+17+ and explains JAVA_HOME. A PATH compiler cannot mask a runtime-only JAVA_HOME
+because Gradle selects JAVA_HOME first. A regression exercises both rejection paths
+without network access. Strict Clippy, shell syntax and the focused regression pass;
+architecture comparison against before-real-kotlin-acceptance is neutral.

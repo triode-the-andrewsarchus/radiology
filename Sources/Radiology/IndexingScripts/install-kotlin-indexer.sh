@@ -6,6 +6,17 @@ source_commit=$2
 tool_version=$3
 gradle_cli=$4
 gradle_version=$5
+# Gradle selects JAVA_HOME ahead of PATH. A runtime-only JAVA_HOME must not
+# pass this check merely because an unrelated javac happens to be on PATH.
+if [ -n "${JAVA_HOME:-}" ]; then
+    java_compiler="$JAVA_HOME/bin/javac"
+else
+    java_compiler=$(command -v javac || true)
+fi
+if [ ! -x "$java_compiler" ]; then
+    echo 'Kotlin indexer installation requires a full JDK 17 or newer, including javac. Set JAVA_HOME to a JDK, not a runtime-only installation.' >&2
+    exit 1
+fi
 mkdir -p "$tool_root"
 
 if [ -z "$gradle_cli" ] || [ ! -x "$gradle_cli" ]; then
