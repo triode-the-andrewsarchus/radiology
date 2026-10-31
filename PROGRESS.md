@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-10-30 — Native legacy cache migration and live-reader maintenance acceptance (Codex)
+
+Backend `5dad3ca` is pushed. A copied real Rust cache loads without tools, then native
+Update migrates/reuses its flat record with one version probe and no compiler run.
+An abandoned owned stage is removed and unknown notes remain. Restart retains three
+documents and provenance. A separate live shared-lease holder prevents removal of
+a QA stage stand-in during Update; the next idle Update removes it after release.
+All three Updates execute only --version. Original dirty checkout HEAD/status/all
+bytes remain intact, with no lockfile/target artifacts; app/compositors/holder exit
+zero. [Hashed evidence and scope](plans/rust-project-cache-maintenance.md). No further
+production changes or automated rerun in this evidence increment. Full parity stays
+open: other real tools/corpora, broader recovery, normalized revision retention and
+final UI/accessibility/scaling/font/sibling audit. Commit and push each increment.
+
 ## 2026-10-30 — Scoped project cache maintenance and migration (Codex)
 
 Project records now use repository-owned namespaces with flat-layout read fallback

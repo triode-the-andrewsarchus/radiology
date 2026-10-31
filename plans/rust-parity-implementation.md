@@ -177,7 +177,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   [Pinned After indexing](rust-pinned-index.md) now uses isolated projects, exact
   Git inputs and commit-scoped cache identity, with native generation/failure/reload/
   restart checks. Before stays source-only. Broader corrupt-store recovery and
-  retired-project cache maintenance and broader real-tool acceptance remain open.
+  owned retired-project cleanup and legacy migration are integrated with native
+  cross-process/restart acceptance; see [cache maintenance](rust-project-cache-maintenance.md).
+  Broader real-tool and normalized revision retention acceptance remain open.
 - Shared lightweight palette/font/chrome/text mechanisms from little-screen-clip;
   no unconditional heavyweight workbench or sibling checkout dependency.
 - Complete menu/shortcut enabled/focus states, runtime light/dark/scaling checks,

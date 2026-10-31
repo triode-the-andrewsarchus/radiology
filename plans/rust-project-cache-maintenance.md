@@ -67,6 +67,30 @@ selecting the new lock file. Architecture adds no hotspot/cycle/clone growth; fi
 flagged test fragments are byte-identical to baseline before-project-cache-maintenance.
 
 Logs: /tmp/radiology-cache-maintenance-{focused,tests,all-tests,clippy,final-clippy,build,doc,real-tools}.log.
-Native migration/restart evidence follows. Other real tools/corpora, broader store
+## Native acceptance — 2026-10-30
+
+A new private Wayland session used a copy of the previous real Rust format-3 cache
+against its unchanged dirty Git fixture. Cache-only opening made no tool calls.
+Update reused and migrated the flat project record into its repository namespace,
+removed a QA-owned abandoned stage, retained an unknown notes file and performed
+exactly one real rust-analyzer version probe, with no SCIP generation. Restart
+loaded the migrated three-document index and checkout reuse origin.
+
+A separate Python process then held a shared lease while native Update reused the
+index. The QA stage stand-in remained present. After releasing that process, the
+next Update removed it. All three Update invocations performed only --version;
+accepted index coverage/provenance stayed intact. The original fixture verifier
+confirms unchanged HEAD/status/all source and manifest bytes, with no Cargo.lock or
+target artifacts. App, reopened app, compositors and the lease-holder exit zero.
+
+Evidence: /tmp/radiology-project-maintenance-native/acceptance.json and SHA-256
+manifest.json. Captures include legacy-cache-loaded.png,
+legacy-record-migrated-and-reused.png, reopened-scoped-cache.png,
+update-with-external-reader-lease.png and idle-update-cleans-retired-stage.png.
+The capture driver reuses the sibling compositor helper for QA only. The app
+remains standalone. Scope is dark 1280×900 at scale 1, using real prior Rust data;
+no broader UI/scaling/corpus claim is implied.
+
+ Other real tools/corpora, broader store
 recovery, normalized revision retention and final UI/accessibility/scaling/font/
 sibling acceptance remain part of full parity.
