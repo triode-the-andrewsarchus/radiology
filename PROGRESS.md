@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-10-31 — Retain wrapped reveal through painting and final scroll clamping (Codex)
+
+A short-tail Unicode test reproduces the missing wrapped destination. GDB shows
+that painting alone is insufficient: ScrollArea later clamps y=103481 to
+103205.6, invalidating a prematurely completed reveal. Rendering now reports
+actual clipped caret visibility; completion also requires the final offset to
+match the request within half a physical pixel. A shared bounded cursor helper
+serves preparation, completion, caret and destination paint. Real scrollbar
+presses retire pending input/reveal. No dependency, renderer, cache, public API
+or measurement-budget change. Short/medium/tall tails, End, zoom up/down, wrap
+both ways, stable paints, original selection and scrollbar override pass at
+1×/2×. Original, paint-only completion and prior scrollbar paths each fail their
+corresponding checks. Workspace passes 516 app tests (seven ignored), two binary,
+four font, 13 text and 36 doctests; strict Clippy/check/build/fmt/diff and warning-
+denied rustdoc pass. Architecture is NEUTRAL (+123 NLOC including tests), with 91
+unchanged clone groups and no new hotspot/cycle/max-CCN increase.
+Final native 1×/2× runs show the wrapped selected tail at stable positions,
+exact `_END` pointer hits, zoom/reset/wrap-return byte preservation and a
+thirty-second 2× settling capture. Full original copy, End/Back, fixture hashes,
+matching final binary hashes and zero exits pass. Early large-source font-reset
+captures can still miss the tail; a later delayed capture verifies settling, and
+GDB confirms the reveal remains pending. Cold/revisited loading and reflow latency
+remain performance work. Broader reader, grammar/index, PR/cache and final Swift/
+reuse acceptance remain open; full accessibility and actual sibling adoption
+stay deferred. [Contract, evidence and limits](plans/rust-reader-performance.md#wrapped-reveal-survives-painting-and-final-scroll-clamping--2026-10-31).
+Evidence: ~/.local/state/radiology-qa/wrapped-reveal-20261031-595f688.
+
 ## 2026-10-31 — Reveal distant unwrapped destinations before prefix measurement (Codex)
 
 The prior binary still shows LONG_START three seconds after End. Pending reveal

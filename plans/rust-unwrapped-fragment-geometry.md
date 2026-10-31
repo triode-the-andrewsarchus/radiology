@@ -118,8 +118,9 @@ Required follow-up, before calling the whole source interaction audit complete:
 3. [Fresh 6 MB runtime checks](rust-reader-performance.md) now establish exact
    cross-file Back/wrap-selection bytes and immediate anchored unwrapped reveal
    with pointer hits at 1×/2×. Complete broader large-file/long-name/scroll/zoom
-   acceptance and wrapped visual reveal; the wrapped tail is not visible in the
-   latest capture despite exact selected bytes.
+   acceptance. Wrapped reveal now survives painting and final scroll clamping,
+   with native zoom/toggle/selection evidence at both scales. Large-source reflow
+   latency and broader scroll/zoom corpora remain open.
 
 Full Swift requirement acceptance, broader grammar/index/PR/cache corpus and the
 final standalone/reuse boundary audit remain active. Full accessibility and actual

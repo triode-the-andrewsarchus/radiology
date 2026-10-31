@@ -40,7 +40,7 @@ struct InputFrame {
 }
 
 impl PointerCapture {
-    fn interrupted(&self, ui: &Ui, code_rect: Rect) -> bool {
+    fn interrupted(&self, ui: &Ui, code_rect: Rect, scrollbars: &[Rect]) -> bool {
         let owner_gap = self
             .seen
             .is_some_and(|frame| frame.saturating_add(1) < ui.ctx().frame_nr());
@@ -50,10 +50,10 @@ impl PointerCapture {
                     || !input.raw.focused
                     || input.raw_scroll_delta != Vec2::ZERO
                     || (input.pointer.any_pressed()
-                        && input
-                            .pointer
-                            .interact_pos()
-                            .is_none_or(|point| !code_rect.contains(point)))
+                        && input.pointer.interact_pos().is_none_or(|point| {
+                            !code_rect.contains(point)
+                                || scrollbars.iter().any(|rect| rect.contains(point))
+                        }))
             })
     }
 }
@@ -74,7 +74,9 @@ impl SourceViewport {
         content: &CanvasContent<'_>,
         geometry: &CanvasGeometry,
     ) {
-        let interrupted = self.pointer.interrupted(ui, geometry.code_rect);
+        let interrupted = self
+            .pointer
+            .interrupted(ui, geometry.code_rect, &self.scrollbars);
         let lost_focus = !self.has_focus(ui.ctx()) && ui.ctx().wants_keyboard_input();
         let manual_override = ui.input(|input| input.pointer.any_pressed())
             && !self.pending_input.is_empty()

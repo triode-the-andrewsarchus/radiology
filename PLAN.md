@@ -8,8 +8,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 exact-byte 6 MB/Back acceptance, profiling, lazy per-grammar query initialization
 and shared sparse Unicode coordinates. Unwrapped destinations now reveal before
 complete prefix measurement and stay anchored while it refines, with exact
-provisional pointer hits and native 1×/2× evidence. Slow loading and wrapped reveal
-remain open.
+provisional pointer hits and native 1×/2× evidence. Wrapped reveal now survives
+painting and final scroll clamping, with zoom/toggle/selection acceptance at both
+scales. Slow loading and large-source reflow latency remain open.
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
 the integrated horizontal placement and deferred keyboard/reveal geometry for
 bounded source fragments, with native 1×/2× copy/layout evidence.
