@@ -15,6 +15,7 @@ long-name pane growth and add Swift-style compaction/full-location menus.
 and the prior control on cancellation, with real-app and native 1×/2× evidence.
 [Toolbar keyboard ownership](plans/rust-toolbar-keyboard.md) now shares traversal,
 PR scrolling and focus return across all four menu groups, with native 1×/2× evidence.
+Active titles now follow their popup, and focused menus preserve global reader shortcuts.
 Broader cross-owner/long-label and final parity acceptance remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses

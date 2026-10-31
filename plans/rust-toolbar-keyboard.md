@@ -89,10 +89,49 @@ positive tests, architecture reports, source patch and SHA256SUMS. The initial
 mapping-only 1× trial is excluded. Capture helpers borrow the sibling's QA scripts
 only; the standalone product has no sibling checkout/runtime dependency.
 
+## Active titles and global shortcuts (2026-10-31 follow-up)
+
+The native-proven title mismatch is repaired. The popup owner's existing ID now
+selects its title and applies the existing theme accent to its caption. Keyboard
+focus follows that live anchor after menu routing, while the stored return focus
+remains unchanged. Pointer hover may still show the ordinary hover wash on a
+neighbor; only the active title has the accent caption. Existing rich labels,
+type size/weight and command lists are retained. No additional owner state or
+keyboard dispatcher is introduced.
+
+Focusing the menu exposed the old shortcut guard treating its button as text
+entry. The existing shortcut dispatcher now uses the shared menu event classifier:
+menu-owned activation keys remain available to the popup, and global reader
+shortcuts remain available through the focused menu. This applies both to the
+native raw-input path and hosts passing prepared egui frames. Text fields outside
+an open menu and exclusive modal input retain their existing guards.
+
+Three added regressions cover caption/background/focus tracking in both themes
+and 1×/2× scales, prepared-frame Enter ownership/global commands, and real-app
+indexed definition navigation from an open toolbar menu. The existing four-key
+opening test also switches menus and checks return to the original toolbar
+button. The title regression fails against the pre-fix implementation; a second
+saved negative confirms the focused-menu shortcut guard failure. The two indexed
+shortcut tests share the existing semantic fixture at the same exact departure;
+the original Back-history regression remains intact.
+
+Workspace passes 483 app tests (seven ignored), two binary, four font, eleven text
+tests and 34 doctests; strict Clippy/build/fmt/diff pass. The architecture tool
+flags four unchanged clones in the touched app test file. The complete multiset
+audit retains all 92 groups with zero additions/removals; no new hotspot/cycle or
+maximum-CCN increase. Its raw REGRESSION classification is preserved in evidence.
+
+Native 1×/2× runs repeat the complete keyboard/copy sequence above against this
+build. The active Search title, PR dialog and repository submenu are visually checked,
+with dark and light final captures, four fresh exact text offers per scale, unchanged
+fixtures and zero application/compositor exits. Actual indexed definition
+navigation is full-app headless coverage; the native fixture has no SCIP index.
+Archive: `~/.local/state/radiology-qa/menu-title-20261031-ed35b9e` contains the
+negative/positive gates, inputs/captures/copies, provenance, architecture audit,
+source patch and SHA256SUMS. QA capture helpers alone use sibling scripts.
+
 ## Remaining acceptance
 
-Active menu-title styling still needs polish: the native Search handoff retains
-the original View button focus ring while Search owns the popup.
 Broader rapid transitions among search/inspector/reader owners and source-bound
 menu enabled states still need the final audit. Other long-label surfaces,
 large-file/Back/scroll/wrap acceptance, broader grammar/index and PR/cache cases,
