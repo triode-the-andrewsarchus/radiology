@@ -2306,3 +2306,5 @@ fn opening_a_modal_blocks_later_reader_shortcuts_in_the_same_frame() {
 }
 
 mod focus;
+
+mod outline_status;

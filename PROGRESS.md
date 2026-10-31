@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Explain outline loading, degradation and empty states (Codex)
+
+The outline now distinguishes preparation, missing source, parser failure,
+unsupported formats, empty native-language files and hidden test declarations.
+Unsupported README/code examples no longer become invented outline rows. Native
+parser failure retains source and labels approximate fallback rows; recoverable
+trees keep usable declarations. Parser diagnostics publish with the source,
+survive recoloring/failed reads and clear on success or scope reset. Registry
+metadata supplies the supported-language list; bounded three-line Small text and
+hover explanations reuse shared fitting. [Contract/evidence](plans/rust-outline-status.md).
+Two new real-app regressions fail against the old renderer; an additional saved
+negative proves phantom README declarations. Parser outcome and bounded-layout
+tests cover unsupported/cancelled/recoverable trees and 200/300-point panes in both
+themes/scales. A native-proven prose word split now uses word-boundary wrapping;
+code/path previews retain their original fitting. Workspace passes 511 app tests
+(seven ignored), two binary, four font, eleven text and 35 doctests; strict Clippy/
+check/build/fmt/diff and warning-denied rustdoc pass. Rendered public docs were
+inspected. Full clone multiset is unchanged (91 groups), with no new hotspot/cycle
+or max-CCN increase. Final native 1×/2× runs show Rust/Kotlin empty states,
+unsupported README examples, hidden/restored tests and intact prose/shortcut in
+narrow dark/light panes. Source copy and fixture hashes match; final binary and
+zero exits are recorded. Full objective acceptance remains open: broader grammar and review
+corpora, input ownership, large-file/reader performance, index/PR/cache and final
+Swift/reuse audit. Full accessibility and actual sibling adoption stay deferred.
+Evidence archive: ~/.local/state/radiology-qa/outline-status-20261031-85d3404.
+
 ## 2026-10-31 — Bind outline/bookmark pointer gestures to row identities (Codex)
 
 Outline IDs now include the exact document identity and declaration range;

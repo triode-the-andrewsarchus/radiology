@@ -390,6 +390,14 @@ impl SymbolExtractor {
         buffer: &SourceBuffer,
         control: &super::AnalysisControl<'_>,
     ) -> Vec<DocumentSymbol> {
+        // Plain-text examples are not declarations. Only a failed registered parser
+        // may provide approximate rows, accompanied by DocumentSyntax::parse_error.
+        if super::LanguageRegistry::for_path(&buffer.path)
+            .grammar
+            .is_none()
+        {
+            return Vec::new();
+        }
         let mut symbols = Vec::new();
         for line_num in 1..=buffer.line_count() {
             if control.is_cancelled() {

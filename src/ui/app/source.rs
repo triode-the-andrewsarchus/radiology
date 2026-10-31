@@ -289,6 +289,7 @@ impl RadiologyApp {
         self.syntactic_occurrences = syntax.occurrences;
         self.native_highlights = syntax.native_highlights;
         self.outline_symbols = syntax.symbols;
+        self.syntax_error = syntax.parse_error;
         self.fold_ranges = syntax.folds;
         self.fold_error = syntax.fold_error;
         self.fold_store

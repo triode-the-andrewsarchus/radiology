@@ -96,6 +96,24 @@ pub struct LanguageInfo {
 pub struct LanguageRegistry;
 
 impl LanguageRegistry {
+    /// Lists native structural languages using the same metadata as path detection.
+    ///
+    /// Syntax coloring may support additional formats without a structural parser.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use radiology::syntax::LanguageRegistry;
+    /// assert!(LanguageRegistry::parsed_languages().all(|info| info.grammar.is_some()));
+    /// ```
+    pub fn parsed_languages() -> impl Iterator<Item = LanguageInfo> {
+        [
+            "rs", "py", "go", "js", "ts", "tsx", "swift", "kt", "c", "cpp",
+        ]
+        .into_iter()
+        .map(|extension| Self::for_path(&format!("source.{extension}")))
+    }
+
     /// Returns the [`LanguageInfo`] corresponding to the given file path.
     #[must_use]
     pub fn for_path(path: &str) -> LanguageInfo {

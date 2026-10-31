@@ -77,6 +77,10 @@ pub struct InspectorContent<'a> {
     pub references_available: bool,
     /// Original structural symbols in source order.
     pub outline: &'a [DocumentSymbol],
+    /// Source and structure are being prepared; previously accepted content may remain.
+    pub outline_loading: bool,
+    /// Native parser failure for the displayed source, independent of folding errors.
+    pub outline_error: Option<&'a str>,
     /// Current test-region projection for outline visibility.
     pub test_code: Option<&'a crate::source::test_code::TestCodePresentation>,
     /// Bookmarks in the active checkout or PR scope.
@@ -217,10 +221,26 @@ impl ContextInspector {
         let heading = if has_details { "Definition" } else { "Outline" };
         ui.label(RichText::new(heading).strong());
         if !has_details {
+            if content.outline_loading {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Reading structure…");
+                });
+            }
+            if let Some(error) = content.outline_error {
+                super::text_fit::explanation(ui, error, theme.text_secondary);
+                if content.outline.is_empty() {
+                    return None;
+                }
+            }
+            if content.buffer.is_none() && content.outline_loading {
+                return None;
+            }
             if content.buffer.is_none() {
-                ui.colored_label(
-                    theme.text_muted,
+                super::text_fit::explanation(
+                    ui,
                     "Open a source file to see its declarations.",
+                    theme.text_secondary,
                 );
                 return None;
             }
@@ -353,6 +373,118 @@ fn region(
 mod tests {
     use super::*;
 
+    fn assert_explanation_layout(galley: &egui::Galley, description: &str) {
+        assert!(galley.job.text.len() <= 4100);
+        assert!(galley.rows.len() <= 3);
+        if description.is_ascii() {
+            for row in galley.rows.iter().take(galley.rows.len().saturating_sub(1)) {
+                for word in row.text().split_whitespace() {
+                    assert!(
+                        description.split_whitespace().any(|whole| whole == word),
+                        "prose word was split: {word}"
+                    );
+                }
+            }
+        }
+        if description.contains("Ctrl+Alt+H") {
+            assert!(
+                galley.job.text.contains("Ctrl+Alt+H"),
+                "hide-tests recovery shortcut was elided"
+            );
+        }
+    }
+
+    #[test]
+    fn outline_loading_and_failure_messages_stay_bounded_in_each_theme_and_scale() {
+        let failure = format!(
+            "Structure unavailable: {}",
+            "失敗😀 long diagnostic ".repeat(1000)
+        );
+        let results = ReferenceResults::default();
+        let bookmarks = BookmarkStore::default();
+        let preview = crate::source::preview::PreviewPhase::None;
+        let disclosures = Default::default();
+        for dark in [true, false] {
+            for scale in [1.0, 2.0] {
+                for width in [200.0, 300.0] {
+                    for (loading, error, expected) in [
+                        (true, None, "Reading structure…"),
+                        (false, None, "Open a source file"),
+                        (false, Some(failure.as_str()), "Structure unavailable:"),
+                        (false, Some("No structural parser is available for this file. Source text remains available."), "No structural parser"),
+                        (false, Some("Every declaration in this file is hidden test code. Turn off Hide Tests (Ctrl+Alt+H) to list them."), "Every declaration"),
+                    ] {
+                        let (ctx, theme) = crate::ui::test_support::themed_context(dark, scale);
+                        crate::ui::test_support::painted_frame(
+                            &ctx,
+                            egui::vec2(width, 180.0),
+                            vec![],
+                            |_| {},
+                        );
+                        let content = InspectorContent {
+                            under_caret: None,
+                            under_caret_loading: false,
+                            under_caret_error: None,
+                            definition_preview: &preview,
+                            definition_expanded: false,
+                            declaration: None,
+                            buffer: None,
+                            reference_results: &results,
+                            selected_reference: None,
+                            reference_disclosures: &disclosures,
+                            reference_target: None,
+                            reference_kind: 0,
+                            explicit_references: false,
+                            references_loading: false,
+                            reference_error: None,
+                            references_available: false,
+                            outline: &[],
+                            outline_loading: loading,
+                            outline_error: error,
+                            test_code: None,
+                            bookmarks: &bookmarks,
+                            scope: "Checkout",
+                            bookmarks_enabled: false,
+                            can_toggle_bookmark: false,
+                            current_bookmarked: false,
+                            outline_enabled: false,
+                        };
+                        let mut outline = OutlineList::default();
+                        let mut render = || {
+                            crate::ui::test_support::painted_frame(
+                                &ctx,
+                                egui::vec2(width, 180.0),
+                                vec![],
+                                |ui| {
+                                    ContextInspector::render_under_caret_context(
+                                        ui,
+                                        &theme,
+                                        &content,
+                                        &mut outline,
+                                    );
+                                    assert!(ui.min_rect().width() <= width, "width={width} scale={scale} loading={loading} error={} rect={:?}", error.is_some(), ui.min_rect());
+                                },
+                            )
+                        };
+                        render();
+                        let output = render();
+                        let text = crate::ui::test_support::text_shapes(&output)
+                            .find(|text| text.galley.job.text.starts_with(expected))
+                            .unwrap();
+                        assert!(text.galley.size().x <= width - 16.0);
+                        if let Some(error) = error {
+                            assert_explanation_layout(&text.galley, error);
+                        }
+                        if loading {
+                            assert!(!crate::ui::test_support::text_shapes(&output)
+                                .any(|text| text.galley.job.text.contains("Open a source file")));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn all_three_context_regions_are_visible_in_one_frame() {
         let name = format!("λ{}_TAIL", "identifier".repeat(100));
@@ -429,6 +561,8 @@ mod tests {
                                                 reference_error: None,
                                                 references_available: false,
                                                 outline: &symbols,
+                                                outline_loading: false,
+                                                outline_error: None,
                                                 test_code: None,
                                                 bookmarks: &bookmarks,
                                                 scope: &"Review scope with long title".repeat(200),

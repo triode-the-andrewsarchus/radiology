@@ -30,6 +30,8 @@ within one batch, with real-app entry/exit/history and native navigation evidenc
 preserves modal/query handoff order and opening text through window registration.
 [Inspector row identities](plans/rust-inspector-row-identity.md) now reject stale
 bookmark/outline pointer releases after target replacement or movement.
+[Outline status explanations](plans/rust-outline-status.md) now distinguish
+loading, parser failure, unsupported files, empty languages and hidden tests.
 Broader mixed-owner, mixed-language/pinned-review visual and final parity acceptance
 remain open.
 

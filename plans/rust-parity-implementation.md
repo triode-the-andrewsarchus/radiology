@@ -188,8 +188,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 - Broader Swift/Kotlin declaration/scope/grammar acceptance and grammar/fixture
   coverage beyond the implemented rules. Native Swift/Kotlin/JavaScript/TypeScript/TSX colors are integrated with shared dialect overlays and representative native TSX dark/light/copy acceptance;
   see [capture/recolor contract](rust-native-highlights.md).
-- Remaining outline presentation and broader bookmark interaction parity,
-  mixed-language and long-name corpus, pinned-review and light/dark/scaling acceptance.
+- [Outline status explanations](rust-outline-status.md) now distinguish preparation,
+  parser failure, unsupported files, empty languages and hidden tests. Unsupported
+  code examples no longer create phantom declarations. [Outline/bookmark row identities](rust-inspector-row-identity.md)
+  now retire stale pointer presses. Broader outline/bookmark interaction parity,
+  mixed-language and long-name corpus, pinned-review and light/dark/scaling acceptance remain open.
   Background metadata, local/package explanations and impl/extension type links
   are integrated; see [metadata acceptance](rust-inspector-metadata.md).
   Source excerpts, validated caller trees and reference selection/disclosure/commit
