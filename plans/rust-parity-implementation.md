@@ -119,7 +119,9 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 - Finish semantic context/cache reuse work;
   complete index lifecycle with all Swift project strategies,
-  broader project/corpus acceptance and pinned-snapshot provenance. Per-project
+  broader project/corpus acceptance and pinned-snapshot provenance. Rust manifest
+  feature cfg overrides and real-tool/native gated navigation are integrated; see
+  [Rust feature acceptance](rust-feature-configuration.md). Per-project
   exact-context/version reuse and origin tracking are integrated with Update/Reindex
   controls and native recovery/restart acceptance; see [project reuse](rust-project-index-reuse.md). Explicit
   pinned provisioning and automatic regeneration are integrated with controlled

@@ -608,6 +608,8 @@ fn execute_strategy(
         cancel,
     )?;
     let gradle = request.tools.gradle();
+    let rust_features =
+        super::rust_features::collect(&outcome.strategy, inventory, workspace.root(), cancel)?;
     let mut command = outcome.strategy.command(CommandPaths {
         workspace: workspace.root(),
         source_root: &request.attached_root,
@@ -616,6 +618,7 @@ fn execute_strategy(
         run: run.path(),
         gradle: gradle.as_deref(),
         compilation_database: compilation_database.as_deref(),
+        rust_features: &rust_features,
     })?;
     command
         .environment

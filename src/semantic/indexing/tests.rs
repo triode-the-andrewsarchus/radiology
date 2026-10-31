@@ -164,6 +164,7 @@ fn structured_commands_retain_literal_paths_and_language_specific_options() {
                 output,
                 run,
                 gradle: None,
+                rust_features: &[],
                 compilation_database: Some(&run.join("compile_commands.json")),
             })
             .unwrap();
@@ -204,6 +205,7 @@ fn command_rejects_escaping_strategy_inputs() {
             run: Path::new("/run"),
             gradle: None,
             compilation_database: None,
+            rust_features: &[],
         })
         .is_err());
 }
@@ -232,6 +234,7 @@ fn clang_command_requires_a_prepared_absolute_database_in_the_private_run() {
             run: &run,
             gradle: None,
             compilation_database: database,
+            rust_features: &[],
         });
         if database == Some(prepared.as_path()) {
             let command = command.unwrap();

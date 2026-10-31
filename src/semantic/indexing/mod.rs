@@ -9,6 +9,7 @@ pub mod compilation_database;
 pub mod inventory;
 pub mod process;
 pub mod provisioning;
+mod rust_features;
 pub mod service;
 pub mod tools;
 pub mod workspace;

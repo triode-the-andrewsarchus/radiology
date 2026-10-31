@@ -1,6 +1,7 @@
 # Rust indexing parity
 
-Current additions (2026-10-30): [explicit pinned provisioning and real TypeScript
+Current additions (2026-10-30): [Rust manifest feature cfgs and real native
+navigation](rust-feature-configuration.md), [explicit pinned provisioning and real TypeScript
 acceptance](rust-tool-provisioning.md), [pinned After indexing](rust-pinned-index.md),
 and [project/version reuse with Update/Reindex](rust-project-index-reuse.md) supersede
 the corresponding pending work in the historical stages below. Full parity remains open.
@@ -52,7 +53,8 @@ Kotlin command embeds the existing Swift shell/Gradle compiler integration as
 per-run resources, avoiding a second implementation. Resource files are returned
 as data; this planning stage writes nothing and launches no tools. Rust disables
 build scripts/proc macros and requests all features, with debug/miri cfgs. Explicit
-per-manifest feature cfg injection remains to be ported. Kotlin provisioning also
+per-manifest feature cfg injection is now integrated; see the current acceptance
+linked above. Kotlin provisioning also
 requires replacing the Swift installer's macOS-only `ditto` copy operation.
 
 An isolated workspace, validated tool executable, private run directory and output
