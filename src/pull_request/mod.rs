@@ -17,3 +17,5 @@ pub use github::{GitHubClient, PullRequestSummary};
 
 #[cfg(all(test, unix))]
 pub(crate) mod test_support;
+
+pub(crate) mod refresh;

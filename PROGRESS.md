@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-10-30 — Atomic active-PR refresh and current-reader restoration (Codex)
+
+Changed head/base reviews stage source/syntax/fold preparation before publication,
+reconcile navigation/appearance changes and use latest caret/viewport/pins at commit.
+Exact Git renames and blob hunks map paths/lines; matching bytes preserve columns
+and current-file pin colors. Fresh folds replace manual state; obsolete history,
+other-file pins, selection and search retire. Before/After choice survives with
+honest fallback/missing-file notices. Failure/Cancel preserve the accepted reader;
+metadata-only refresh preserves it and reports up-to-date. Shared source preparation,
+LatestRead, line mapping and pin/viewport mechanisms are reused.
+[Contract and evidence](plans/rust-pr-refresh-restoration.md). Full gates pass 392
+app tests (one ignored), eight shared tests, 30 doctests, fmt, strict Clippy, build
+and rustdoc. Final fixture consolidation passes seven focused tests and strict
+Clippy. No new architecture hotspot/cycle/clone growth; reported fragments are
+unchanged baseline app tests. Native acceptance follows. Full parity remains open,
+including complete index lifecycle, recovery and final UI/sibling reuse audit.
+Commit and push each increment.
+
 ## 2026-10-30 — Native pinned index acceptance and accurate partial-index warnings (Codex)
 
 Implementation `509d0c2` is pushed. Native Generate After Index used exact committed

@@ -13,8 +13,8 @@ pub(super) struct NavigationIntent {
 
 #[derive(Clone)]
 pub(super) struct PendingNavigation {
-    request: SourceLoadRequest,
-    intent: NavigationIntent,
+    pub(super) request: SourceLoadRequest,
+    pub(super) intent: NavigationIntent,
 }
 
 impl RadiologyApp {
@@ -268,7 +268,7 @@ impl RadiologyApp {
         }
     }
 
-    fn publish_source(&mut self, prepared: PreparedSource) {
+    pub(super) fn publish_source(&mut self, prepared: PreparedSource) {
         let Some(pending) = self.pending_navigation.take() else {
             if self
                 .open_buffer
