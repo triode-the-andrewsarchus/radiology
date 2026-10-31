@@ -449,6 +449,15 @@ impl SourceViewport {
             ui.ctx().pixels_per_point(),
         );
         self.prepare_horizontal(content, geometry, ui.ctx().pixels_per_point());
+        // A provisional reveal is anchored to source, not to the estimated
+        // document width. Rebase before capturing pointer input as prefixes refine.
+        let reveal_origin =
+            self.pending_reveal
+                .filter(|_| !content.wrap)
+                .and_then(|(byte, _, _)| {
+                    self.row_for_byte(byte)
+                        .map(|(row, _)| (row, self.fragment_x(row, false)))
+                });
         self.measure(
             ui,
             content,
@@ -456,6 +465,9 @@ impl SourceViewport {
             geometry.width,
             geometry.minimum_height,
         );
+        if let Some((row, old_x)) = reveal_origin {
+            self.scroll_x = (self.scroll_x + (self.fragment_x(row, false) - old_x)).max(0.0);
+        }
         let mut scroll_y = self.rows.offset(anchor) + inset;
         if self
             .viewport_size
@@ -504,24 +516,23 @@ impl SourceViewport {
                 geometry.width,
                 geometry.minimum_height,
             );
+            scroll_y = if keyboard_reveal {
+                scroll_y.clamp(
+                    (rect.bottom() - geometry.height).max(0.0),
+                    rect.top().max(0.0),
+                )
+            } else {
+                (rect.center().y - geometry.height / 2.0).max(0.0)
+            };
+            if !content.wrap {
+                let available =
+                    (ui.available_width() - SourceView::GUTTER_WIDTH - TEXT_INSET * 2.0).max(1.0);
+                self.scroll_x = self
+                    .scroll_x
+                    .clamp((rect.right() - available).max(0.0), rect.left().max(0.0));
+            }
             if content.wrap || self.prefix_ready(byte) {
                 self.pending_reveal = None;
-                scroll_y = if keyboard_reveal {
-                    scroll_y.clamp(
-                        (rect.bottom() - geometry.height).max(0.0),
-                        rect.top().max(0.0),
-                    )
-                } else {
-                    (rect.center().y - geometry.height / 2.0).max(0.0)
-                };
-                if !content.wrap {
-                    let available =
-                        (ui.available_width() - SourceView::GUTTER_WIDTH - TEXT_INSET * 2.0)
-                            .max(1.0);
-                    self.scroll_x = self
-                        .scroll_x
-                        .clamp((rect.right() - available).max(0.0), rect.left().max(0.0));
-                }
             } else {
                 ui.ctx().request_repaint();
             }
@@ -2528,6 +2539,74 @@ mod tests {
             .fragments
             .iter()
             .all(|part| part.visible_len() <= FRAGMENT_BYTES));
+    }
+
+    #[test]
+    fn distant_reveal_paints_caret_before_prefix_measurement_and_keeps_it_anchored() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let text = format!("// {} LONG_END\r\nnext", "abcdé🦀漢字 ".repeat(100_000));
+            let mut reader = Reader::new(&text);
+            reader.wrap = false;
+            reader.frame(&ctx, vec![]);
+            let mut output = reader.frame(&ctx, vec![key(Key::End, Modifiers::NONE)]);
+            assert!(reader.viewport.pending_reveal.is_some());
+            let end = reader.source.line_byte_range(1).end;
+            assert!(!reader.viewport.prefix_ready(end));
+            let mut previous_x: Option<f32> = None;
+            for frame in 0..12 {
+                let tail = output
+                    .shapes
+                    .iter()
+                    .find_map(|shape| match &shape.shape {
+                        egui::Shape::Text(text) if text.galley.job.text.ends_with("LONG_END") => {
+                            let caret = text.galley.pos_from_ccursor(egui::text::CCursor::new(
+                                text.galley.job.text.chars().count(),
+                            ));
+                            let hit = text.galley.pos_from_ccursor(egui::text::CCursor::new(
+                                text.galley.job.text.chars().count() - 4,
+                            ));
+                            Some((
+                                text.pos + caret.center().to_vec2(),
+                                shape.clip_rect,
+                                text.pos + hit.center().to_vec2(),
+                            ))
+                        }
+                        _ => None,
+                    })
+                    .expect("End destination must be painted without waiting for its prefix");
+                assert!(tail.1.contains(tail.0), "scale {scale}: {tail:?}");
+                if let Some(previous) = previous_x {
+                    assert!(
+                        (tail.0.x - previous).abs() <= 2.0,
+                        "caret moved while its prefix refined at scale {scale}"
+                    );
+                }
+                previous_x = Some(tail.0.x);
+                if frame == 0 {
+                    // A visible provisional fragment must retain the clicked
+                    // scalar as the unmeasured prefix changes beneath it.
+                    reader.frame(&ctx, pointer(tail.2, true));
+                    reader.frame(&ctx, pointer(tail.2, false));
+                    assert_eq!(
+                        reader.source.byte_offset(reader.line, reader.column),
+                        end - 4
+                    );
+                    assert!(reader.viewport.pending_input.is_empty());
+                    let copied = reader.frame(
+                        &ctx,
+                        vec![key(Key::End, Modifiers::SHIFT), egui::Event::Copy],
+                    );
+                    assert_eq!(copied.platform_output.copied_text, "_END");
+                }
+                output = reader.frame(&ctx, vec![]);
+            }
+            let output = reader.frame(
+                &ctx,
+                vec![key(Key::ArrowLeft, Modifiers::SHIFT), egui::Event::Copy],
+            );
+            assert_eq!(output.platform_output.copied_text, "_EN");
+        }
     }
 
     #[test]

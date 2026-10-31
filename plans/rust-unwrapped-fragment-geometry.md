@@ -112,14 +112,14 @@ Required follow-up, before calling the whole source interaction audit complete:
    drag/Copy, Ctrl-click and delayed menu keys use exact shaped geometry and
    ownership retirement. See that document for current native evidence and the
    remaining long-name/focus findings.
-2. Repair toolbar menu traversal/focus restoration. In the 2× trial, bare source
-   keys stop responding after toolbar use, even after a pointer caret change.
-   Go To Line restores keyboard ownership; light-end-via-modal.png confirms End
-   thereafter. This is distinct from the repaired reader context menus.
+2. [Toolbar traversal/focus restoration](rust-toolbar-keyboard.md) and
+   [modal return](rust-modal-focus.md) now repair the reported source-key gaps,
+   with native 1×/2× evidence. Broader cross-owner transitions remain in the final audit.
 3. [Fresh 6 MB runtime checks](rust-reader-performance.md) now establish exact
-   cross-file Back bytes and wrap-selection copy at 1×. Complete broader large-file/
-   long-name/wrap/scroll/scaling performance and visual destination acceptance;
-   correct copy alone does not establish completed horizontal reveal.
+   cross-file Back/wrap-selection bytes and immediate anchored unwrapped reveal
+   with pointer hits at 1×/2×. Complete broader large-file/long-name/scroll/zoom
+   acceptance and wrapped visual reveal; the wrapped tail is not visible in the
+   latest capture despite exact selected bytes.
 
 Full Swift requirement acceptance, broader grammar/index/PR/cache corpus and the
 final standalone/reuse boundary audit remain active. Full accessibility and actual

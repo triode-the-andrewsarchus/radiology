@@ -15,6 +15,9 @@ enum PointerKind {
 pub(super) struct PointerEvent {
     kind: PointerKind,
     row: usize,
+    // A provisional reveal paints this exact fragment before its prefix is ready.
+    // Retain fragment-local coordinates so refinement cannot change the hit byte.
+    fragment: Option<usize>,
     local: Vec2,
     screen: Pos2,
     modifiers: Modifiers,
@@ -82,7 +85,6 @@ impl SourceViewport {
         let menu_retired = self.pointer.menu_waiting
             && !crate::ui::context_menu::owns_opening(ui.ctx(), Self::focus_id());
         if interrupted
-            || manual_override
             || menu_retired
             || !content.keyboard_enabled
             || lost_focus
@@ -90,6 +92,10 @@ impl SourceViewport {
         {
             self.cancel_source_input(ui.ctx());
             self.pending_reveal = None;
+        } else if manual_override {
+            // Retire queued keys, retaining the visible source anchor until the
+            // overriding pointer has captured its fragment-local coordinates.
+            self.cancel_source_input(ui.ctx());
         }
         if !self.pointer.menu_waiting {
             crate::ui::context_menu::cancel_opening(ui.ctx(), Self::focus_id());
@@ -272,13 +278,19 @@ impl SourceViewport {
         if row >= self.visible.len() {
             return None;
         }
-        let local = vec2(
+        let mut local = vec2(
             point.x - frame.code_rect.left() - TEXT_INSET + frame.scroll.x,
             y - self.rows.offset(row) - 2.0,
         );
+        let fragment = (!content.wrap && self.pending_reveal.is_some())
+            .then(|| self.unwrapped.fragment_at_x(row, f64::from(local.x)));
+        if let Some(fragment) = fragment {
+            local.x -= self.fragment_x(fragment, false);
+        }
         Some(SourceInput::Pointer(PointerEvent {
             kind,
             row,
+            fragment,
             local,
             screen,
             modifiers,
@@ -357,7 +369,13 @@ impl SourceViewport {
                     let Some(byte) = self.pointer_byte(ui, content, geometry, pointer) else {
                         break;
                     };
-                    self.apply_pointer(ui, content, pointer, byte)
+                    let next = self.apply_pointer(ui, content, pointer, byte);
+                    if pointer.fragment.is_some()
+                        && !matches!(next, Some(SourceViewAction::NavigateToDefinition(_)))
+                    {
+                        self.pending_reveal = Some((byte, false, true));
+                    }
+                    next
                 }
             };
             self.pending_input.pop_front();
@@ -381,13 +399,15 @@ impl SourceViewport {
         geometry: &CanvasGeometry,
         pointer: PointerEvent,
     ) -> Option<usize> {
-        let row = if content.wrap {
-            pointer.row
-        } else {
-            self.unwrapped
-                .fragment_at_x(pointer.row, f64::from(pointer.local.x))
-        };
-        if !content.wrap && !self.unwrapped.prefix_measured(row) {
+        let row = pointer.fragment.unwrap_or_else(|| {
+            if content.wrap {
+                pointer.row
+            } else {
+                self.unwrapped
+                    .fragment_at_x(pointer.row, f64::from(pointer.local.x))
+            }
+        });
+        if pointer.fragment.is_none() && !content.wrap && !self.unwrapped.prefix_measured(row) {
             self.measurement_priority = Some(row);
             return None;
         }
@@ -395,7 +415,15 @@ impl SourceViewport {
         let galley = layout(ui, content, part, &geometry.font, geometry.width);
         Some(hit_byte(
             &galley,
-            pointer.local - vec2(self.fragment_x(row, content.wrap), 0.0),
+            pointer.local
+                - vec2(
+                    if pointer.fragment.is_some() {
+                        0.0
+                    } else {
+                        self.fragment_x(row, content.wrap)
+                    },
+                    0.0,
+                ),
             part,
             &content.buffer.text,
         ))
