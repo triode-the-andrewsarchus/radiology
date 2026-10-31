@@ -81,8 +81,10 @@ silently counted as final acceptance.
   regain ownership without an explicit source click/frame. Keep toolbar traversal,
   modal return focus and rapid cross-owner batches open. The final explicit-focus
   passes do not close those requirements.
-- Broader large-file performance and long-line Back acceptance remain unproven.
-  The roughly 6 MB trials render, but their initial loading/CPU and clipboard
+- [New marker/hash-gated 6 MB checks](rust-reader-performance.md) now establish
+  exact full-source, End suffix and cross-file Back bytes, and preserve selection
+  across a wrap toggle at 1×. Completed horizontal reveal, broader performance,
+  many-line, scroll and scale acceptance remain open. The earlier roughly 6 MB trials render, but their initial loading/CPU and clipboard
   observations do not establish a specific performance defect: some probes ran
   before source readiness, and the old clipboard reader accepted stale offers.
   The corrected driver waits for the expected payload hash. Do not treat those

@@ -116,9 +116,10 @@ Required follow-up, before calling the whole source interaction audit complete:
    keys stop responding after toolbar use, even after a pointer caret change.
    Go To Line restores keyboard ownership; light-end-via-modal.png confirms End
    thereafter. This is distinct from the repaired reader context menus.
-3. Complete broader large-file/long-name/wrap/scroll/scaling acceptance and exact
-   cross-file Back restoration on long unwrapped lines. Existing short/ordinary
-   navigation tests do not prove every long-line case.
+3. [Fresh 6 MB runtime checks](rust-reader-performance.md) now establish exact
+   cross-file Back bytes and wrap-selection copy at 1×. Complete broader large-file/
+   long-name/wrap/scroll/scaling performance and visual destination acceptance;
+   correct copy alone does not establish completed horizontal reveal.
 
 Full Swift requirement acceptance, broader grammar/index/PR/cache corpus and the
 final standalone/reuse boundary audit remain active. Full accessibility and actual

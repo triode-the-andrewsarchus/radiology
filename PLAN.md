@@ -4,6 +4,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Large-source reader performance](plans/rust-reader-performance.md) now records
+exact-byte 6 MB/Back acceptance, profiling and lazy per-grammar query initialization.
+The confirmed long-column scan and broader reader acceptance remain open.
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
 the integrated horizontal placement and deferred keyboard/reveal geometry for
 bounded source fragments, with native 1×/2× copy/layout evidence.

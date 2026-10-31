@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-10-31 — Initialize syntax queries only for the requested language (Codex)
+
+A fresh 6 MB Unicode/CRLF fixture verifies original full copy, End suffix, exact
+cross-file Back and wrap selection using private clipboard markers and hashes.
+GDB sampling finds Rust loading compiling Swift queries and separately catches
+UI-thread full-line column scans. Existing role caches now use independent
+per-grammar OnceLock cells; unrelated languages do not compile and concurrent
+requests reuse one query. No public API, dependency or query-resource change.
+Two focused tests pass; equivalent eager construction fails on Swift initialization.
+Workspace passes 513 app tests (seven ignored), two binary, four font, eleven text
+and 35 doctests; strict Clippy/check/build/fmt/diff pass. The native binary matches
+the final build. Architecture is NEUTRAL (+60 NLOC, no new clone/hotspot/cycle/max-CCN increase).
+[Observations, limits and remaining work](plans/rust-reader-performance.md).
+The identical native script preserves exact source/Back/wrap bytes, fixture hashes
+and zero exits. Observed debug-build initial copy wait is ~8.5 s versus ~10 s;
+this single pair is not a general performance guarantee. Long-column End/Back
+remains slow and is the next confirmed correction. Broader source, grammar/index,
+PR/cache and final Swift/reuse acceptance remain open; full accessibility and
+actual sibling adoption remain deferred. Evidence:
+~/.local/state/radiology-qa/query-lazy-20261031-50d0493.
+
 ## 2026-10-31 — Explain outline loading, degradation and empty states (Codex)
 
 The outline now distinguishes preparation, missing source, parser failure,
