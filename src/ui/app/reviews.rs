@@ -195,6 +195,7 @@ impl RadiologyApp {
         self.reference_context = Default::default();
         self.reset_previews();
         self.outline_symbols.clear();
+        self.syntax_error = None;
         self.fold_ranges.clear();
         self.fold_error = None;
         self.fold_store = FoldStore::default();

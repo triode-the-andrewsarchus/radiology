@@ -128,7 +128,8 @@ fn cancellation_at_derived_fact_stages_never_publishes_a_fallback_document() {
     }
     let plain = SourceBuffer::from_str("a.txt", "fn fallback() {}\n");
     assert!(DocumentSyntax::analyze_cancellable(&plain, || true).is_err());
-    assert_eq!(DocumentSyntax::analyze(&plain).symbols[0].name, "fallback");
+    assert!(DocumentSyntax::analyze(&plain).symbols.is_empty());
+    assert!(SymbolExtractor::extract(&plain).is_empty());
 }
 
 #[test]
@@ -157,4 +158,34 @@ fn outline_and_test_walkers_stop_between_parsed_nodes() {
         assert!(control.check().is_err());
         assert_eq!(checks.get(), 3);
     }
+}
+
+#[test]
+fn missing_native_tree_reports_failure_without_mislabeling_unsupported_or_recoverable_source() {
+    let control = AnalysisControl::new(&|| false);
+    let rust = SourceBuffer::from_str("a.rs", "fn approximate() {}\n");
+    let degraded = DocumentSyntax::without_tree(&rust, &control).unwrap();
+    assert!(degraded
+        .parse_error
+        .as_ref()
+        .unwrap()
+        .contains("Could not read Rust structure"));
+    assert_eq!(degraded.symbols[0].name, "approximate");
+    let plain = SourceBuffer::from_str("notes.txt", "fn example() {}\ndef example():\n");
+    let unsupported = DocumentSyntax::without_tree(&plain, &control).unwrap();
+    assert!(unsupported.parse_error.is_none());
+    assert!(unsupported.symbols.is_empty());
+    let partial = SourceBuffer::from_str("partial.rs", "fn complete() {}\nfn broken( {\n");
+    assert!(SupportedGrammar::Rust
+        .parse(&partial.data)
+        .unwrap()
+        .root_node()
+        .has_error());
+    let parsed = DocumentSyntax::analyze(&partial);
+    assert!(parsed.parse_error.is_none());
+    assert!(parsed
+        .symbols
+        .iter()
+        .any(|symbol| symbol.name == "complete"));
+    assert!(DocumentSyntax::without_tree(&rust, &AnalysisControl::new(&|| true)).is_err());
 }

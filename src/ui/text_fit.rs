@@ -1,7 +1,22 @@
-//! Measured single-row labels shared by constrained panes and breadcrumbs.
+//! Measured labels and bounded explanations for constrained panes and breadcrumbs.
 
 use egui::{text::LayoutJob, Color32, FontId, Galley, Ui};
 use std::{borrow::Cow, sync::Arc};
+
+/// Shows up to three metadata rows with a bounded full explanation on hover.
+pub(crate) fn explanation(ui: &mut Ui, text: &str, color: Color32) {
+    let text_layout = layout_lines(
+        ui,
+        text,
+        egui::TextStyle::Small.resolve(ui.style()),
+        color,
+        ui.available_width(),
+        3,
+        false,
+    );
+    ui.add(egui::Label::new(text_layout))
+        .on_hover_text(bounded(text));
+}
 
 pub(crate) fn middle(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<Galley> {
     fit(ui, text, font, color, width, false)
@@ -58,6 +73,18 @@ pub(crate) fn lines(
     width: f32,
     rows: usize,
 ) -> Arc<Galley> {
+    layout_lines(ui, text, font, color, width, rows, true)
+}
+
+fn layout_lines(
+    ui: &Ui,
+    text: &str,
+    font: FontId,
+    color: Color32,
+    width: f32,
+    rows: usize,
+    break_anywhere: bool,
+) -> Arc<Galley> {
     let mut end = text.len().min(4096);
     while !text.is_char_boundary(end) {
         end -= 1;
@@ -69,7 +96,7 @@ pub(crate) fn lines(
     };
     let mut job = LayoutJob::simple(text, font, color, width.max(0.0));
     job.wrap.max_rows = rows;
-    job.wrap.break_anywhere = true;
+    job.wrap.break_anywhere = break_anywhere;
     ui.fonts(|fonts| fonts.layout_job(job))
 }
 

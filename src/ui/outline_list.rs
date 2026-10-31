@@ -52,6 +52,7 @@ pub struct OutlineList {
     test_generation: Option<u64>,
     changes: Option<FileLineChanges>,
     reveal: bool,
+    empty_description: String,
 }
 
 impl OutlineList {
@@ -87,6 +88,19 @@ impl OutlineList {
             *self = Self {
                 document: Some(document),
                 ..Self::default()
+            };
+            let language = crate::syntax::LanguageRegistry::for_path(&buffer.path);
+            self.empty_description = if language.grammar.is_some() {
+                format!(
+                    "No declarations were found in this {} file.",
+                    language.display_name
+                )
+            } else {
+                let languages = crate::syntax::LanguageRegistry::parsed_languages()
+                    .map(|language| language.display_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("No structural parser is available for this file. Source text remains available. Radiology reads structure in {languages}.")
             };
             self.entries = outline_rows(symbols, buffer)
                 .into_iter()
@@ -285,11 +299,14 @@ impl OutlineList {
         super::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
         if self.visible.is_empty() {
             ui.colored_label(theme.text_muted, "No Outline");
-            ui.label(if self.entries.is_empty() {
-                "No declarations were found in this file."
+            let description = if self.document.is_none() {
+                "Open a source file to see its declarations."
+            } else if self.entries.is_empty() {
+                &self.empty_description
             } else {
-                "Declarations are hidden by Hide Tests."
-            });
+                "Every declaration in this file is hidden test code. Turn off Hide Tests (Ctrl+Alt+H) to list them."
+            };
+            super::text_fit::explanation(ui, description, theme.text_secondary);
             return None;
         }
         let heading = self

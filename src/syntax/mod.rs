@@ -73,6 +73,11 @@ impl<'a> AnalysisControl<'a> {
 pub struct DocumentSyntax {
     /// Full outline, unaffected by source presentation filters.
     pub symbols: Vec<DocumentSymbol>,
+    /// Native parser failure for a registered language; fallback rows may remain.
+    ///
+    /// Unsupported formats and recoverable errors inside a returned syntax tree
+    /// do not set this field. Hosts should retain source and explain degraded structure.
+    pub parse_error: Option<String>,
     /// Manual fold candidates from declarations and comments.
     pub folds: Vec<FoldRange>,
     /// True when structural query facts are complete for this exact parse.
@@ -104,12 +109,7 @@ impl DocumentSyntax {
         control.check()?;
         let parsed = control.parse(buffer)?;
         let Some((grammar, tree)) = parsed else {
-            let symbols = SymbolExtractor::extract_fallback(buffer, &control);
-            control.check()?;
-            return Ok(Self {
-                symbols,
-                ..Self::default()
-            });
+            return Self::without_tree(buffer, &control);
         };
         let root = tree.root_node();
         let (folds, fold_error) = match FoldDetector::from_tree(buffer, grammar, root, &control) {
@@ -139,6 +139,22 @@ impl DocumentSyntax {
             fold_error,
             occurrences,
             native_highlights,
+            parse_error: None,
+        })
+    }
+
+    fn without_tree(
+        buffer: &crate::source::SourceBuffer,
+        control: &AnalysisControl<'_>,
+    ) -> Result<Self, String> {
+        let language = LanguageRegistry::for_path(&buffer.path);
+        let parse_error = language.grammar.map(|_| format!("Could not read {} structure. Source remains available; any outline rows are approximate.", language.display_name));
+        let symbols = SymbolExtractor::extract_fallback(buffer, control);
+        control.check()?;
+        Ok(Self {
+            symbols,
+            parse_error,
+            ..Self::default()
         })
     }
 }

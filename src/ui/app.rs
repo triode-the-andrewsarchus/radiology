@@ -116,6 +116,8 @@ pub struct RadiologyApp {
     pub fold_store: FoldStore,
     /// Tree-sitter document outline symbols.
     pub outline_symbols: Vec<DocumentSymbol>,
+    /// Native parser failure belonging to the displayed immutable source.
+    pub syntax_error: Option<String>,
     /// Inline-test visibility independent of manual folds.
     pub test_code: crate::source::test_code::TestCodePresentation,
     /// Pinned token occurrence groups.
@@ -270,6 +272,7 @@ impl RadiologyApp {
             fold_error: None,
             fold_store: FoldStore::new(),
             outline_symbols: Vec::new(),
+            syntax_error: None,
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
@@ -484,6 +487,7 @@ impl RadiologyApp {
         self.fold_ranges.clear();
         self.fold_error = None;
         self.outline_symbols.clear();
+        self.syntax_error = None;
         self.highlighted_lines.clear();
         self.reference_context = Default::default();
         self.reset_previews();
@@ -768,6 +772,8 @@ impl RadiologyApp {
                             reference_error: self.reference_context.error.as_deref(),
                             references_available: self.reference_context.available(),
                             outline: &self.outline_symbols,
+                            outline_loading: self.is_source_loading(),
+                            outline_error: self.syntax_error.as_deref(),
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
                             scope: &scope,
