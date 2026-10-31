@@ -38,8 +38,8 @@ egui entry in its normal Cargo dependency tree.
 
 Bundling increases executable assets by about 16.6 MiB. It does not cover every
 script/ideograph, replace the host's primary font choice, add color emoji or provide
-complex text/emoji composition. No screenshot or source-selection/scaling acceptance
-is inferred from the layout tests; integrated native verification remains open.
+complex text/emoji composition. Layout tests alone do not establish native acceptance; the separate native run
+below checks integrated rendering and exact source copying.
 The existing measured source viewport continues to own geometry and byte mapping.
 
 ## Validation — 2026-10-30
@@ -60,5 +60,51 @@ Architecture baseline `before-shared-font-fallbacks`: no new code hotspot/cycle 
 code clone. The reported new 89-line clone is the OFL license text in the two
 original third-party notices. Both complete notices are retained rather than
 rewritten to improve metrics. Duplication rises by 0.08 percentage points solely
-for these required license files (90 to 91 groups). Native glyph/selection/font
-acceptance and broader palette/type-role/sibling integration remain open.
+for these required license files (90 to 91 groups). Native glyph/selection acceptance is recorded below. Broader palette/type-role
+and sibling integration remain open.
+
+
+## Native acceptance — 2026-10-30
+
+The standalone debug app ran in private Weston/Niri sessions at 1280×900 logical
+size with output scales 1×, 1.5× and 2× (1280×900, 1920×1350 and 2560×1800 physical
+captures). The fixture includes a Japanese/emoji filename and declaration, mixed
+Japanese/Chinese/Korean/kana comments, and crab/melting-face/heart-hands/pink-heart/
+shaking-face emoji. The source, filename, breadcrumb and outline render their
+fallback glyphs; source glyphs remain aligned with selection and local find.
+Monochrome emoji are expected. The sibling capture helper is a QA-only tool; the
+app has no sibling runtime or build dependency.
+
+Evidence is stored in `/tmp/radiology-fonts-native-{1.0,1.5,2.0}`. Each accepted
+directory has `acceptance.json`, `SHA256SUMS`, clipboard bytes, captures and
+`exit-statuses.json`. App, Weston and Niri exit zero at every scale. Fixture hashes
+are identical before/after all accepted runs. The Japanese file SHA-256 is
+`87b0afd62920a13a5e58503c005621474271a6d60f015c83934951df2c27b3c3`;
+the Latin file is `960b7ddc8ead20ef925e0e6ceedba3fcc8a872cf3e7c6b354620455014dd487a`.
+
+- 1×: CJK comment and emoji line select/copy exact original bytes, including
+  indentation; local find highlights the melting-face glyph at 1/1 in dark and
+  light appearance. See `cjk-comment-revealed.png`, `cjk-line-selected.png`,
+  `emoji-local-find.png` and `unicode-reader-light-find.png`.
+- 1.5×: source/filename/outline fallback rendering and exact emoji-line copy pass.
+  See `unicode-source-scaled.png` and `emoji-selection-scaled.png`. Light appearance
+  and CJK clipboard copying were not separately exercised at this scale.
+- 2×: rapid Home/Shift-End/Copy preserves exact CJK and emoji line bytes after
+  [the ordered-input fix](rust-source-input-order.md) in `daf295f`. Find reports
+  1/1 with the matching glyph highlighted in both appearances. See
+  `cjk-selection-scaled.png`, `emoji-selection-scaled.png`,
+  `unicode-find-scaled.png` and `unicode-light-find-scaled.png`.
+
+The first capture/copy experiment was invalid because Niri screenshots replace
+clipboard text with PNG data. Accepted runs read clipboard bytes before capture.
+Subsequent sequential 2× checks exposed a genuine coalesced-input bug, reproduced
+by a regression test and fixed separately. Archived directories ending in
+`-failed` or `-before-key-fix` are not accepted evidence. At 2×, the app closes
+normally through Niri; interrupting the idle QA stdin loop triggers its cleanup
+block and reaps owned children.
+
+These checks establish representative fallback rendering, source byte fidelity
+and the exercised selection/find paths. They do not complete every script,
+wrapping/scrolling scenario, accessibility, host primary-font/type-role/palette
+alignment, sibling adoption or the final Swift requirement audit. No additional
+production change or automated rerun is part of this evidence-only increment.
