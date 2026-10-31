@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-10-30 — Deterministic PR cache retention acceptance (Codex)
+
+A full run during reader-notice/control work exposed a timing race in the cache
+retention test: it required drop-time cleanup to converge without another cache
+operation, although the documented maintenance contract defers when a writer is
+busy. The test now exercises the guaranteed next-preparation sweep after releases.
+It still proves active snapshots/clones survive pressure, reuse keeps the same
+path, the managed set returns to three and the least-recent idle tree is evicted.
+No production retention behavior changed. All six tree-cache tests pass. Reader
+notice/control work is still in progress and its full gates will be rerun.
+Commit and push each increment.
+
 ## 2026-10-30 — Native PR refresh rename, caret, pin and viewport acceptance (Codex)
 
 Implementation `275d8db` is pushed. A native long-file review retained line 100,
