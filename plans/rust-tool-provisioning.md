@@ -166,3 +166,12 @@ tool root or downloading Gradle/source archives. The message requests a full JDK
 because Gradle selects JAVA_HOME first. A regression exercises both rejection paths
 without network access. Strict Clippy, shell syntax and the focused regression pass;
 architecture comparison against before-real-kotlin-acceptance is neutral.
+
+## Real pinned Kotlin/Java lifecycle — 2026-10-30
+
+The [mixed-language acceptance](rust-real-indexer-acceptance.md) now passes actual
+pinned installation, both Kotlin/Java compiler plugins, Unicode navigation,
+Kotlin-to-Java definitions, Update reuse and cache-only reload under a private
+full JDK 17. The current system JDK 27 installs the tool successfully but fails
+Gradle script analysis during generation; prefer the verified JDK 17 environment.
+Android/AGP, broader dependency-heavy Gradle projects and actual Clang remain open.

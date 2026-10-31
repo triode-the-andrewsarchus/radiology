@@ -117,7 +117,7 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
-- [Real Rust/TypeScript/Go/Python lifecycle acceptance](rust-real-indexer-acceptance.md) now passes through shared production-path checks. Actual Kotlin/Clang and broader corpora remain open.
+- [Real Rust/TypeScript/Go/Python/Kotlin/Java lifecycle acceptance](rust-real-indexer-acceptance.md) now passes through shared production-path checks, including Kotlin-to-Java navigation. Actual Clang, Android/AGP and broader corpora remain open.
 - Finish semantic context/cache reuse work;
   complete index lifecycle with all Swift project strategies,
   broader project/corpus acceptance and pinned-snapshot provenance. Rust manifest

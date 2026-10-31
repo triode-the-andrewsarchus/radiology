@@ -5,6 +5,59 @@ use crate::semantic::indexing::provisioning::{ProvisioningRequest, ToolProvision
 use crate::source::ColumnEncoding;
 
 #[test]
+#[ignore = "builds pinned scip-java and downloads Kotlin/Gradle; requires JDK 17+ and network access"]
+fn pinned_kotlin_java_install_navigation_unicode_reuse_and_reload() {
+    let files = [
+        ("settings.gradle.kts", "rootProject.name = \"radiology-acceptance\"\n"),
+        ("build.gradle.kts", "plugins { kotlin(\"jvm\") version \"2.4.20\" }\nrepositories { mavenCentral() }\ngroup = \"radiology.fixture\"\nversion = \"1.0.0\"\n"),
+        ("src/main/kotlin/Helper.kt", "package fixture\n\nfun twice(value: Int): Int = JavaHelper.twice(value)\n"),
+        ("src/main/java/fixture/JavaHelper.java", "package fixture;\n\npublic class JavaHelper {\n    public static int twice(int value) { return value * 2; }\n}\n"),
+        ("src/main/kotlin/Caller.kt", "package fixture\n\nfun caller(): Int { /* 🦀 */ return twice(21) }\n"),
+    ];
+    let index = installed_case(
+        Indexer::Kotlin,
+        "0.13.1-radiology-9f288dd339c7",
+        &files,
+        Navigation {
+            caller: "src/main/kotlin/Caller.kt",
+            callee: "twice",
+            target: "src/main/kotlin/Helper.kt",
+            span: (2, 4, 9),
+            encoding: ColumnEncoding::Utf16,
+            documents: 3,
+        },
+        &[
+            ".gradle",
+            ".kotlin",
+            "build",
+            ".radiology-scip",
+            ".radiology-index-tools",
+        ],
+    );
+    let (path, text) = files
+        .iter()
+        .find(|(path, _)| path.ends_with("Helper.kt"))
+        .unwrap();
+    let buffer = SourceBuffer::from_str(*path, text);
+    let byte = text.rfind("twice").unwrap();
+    let call = index
+        .occurrence_at_byte(&buffer, byte)
+        .expect("Java call from Kotlin");
+    let (path, range) = index
+        .find_definition(&call.symbol)
+        .expect("Java definition");
+    assert_eq!(path, "src/main/java/fixture/JavaHelper.java");
+    assert_eq!(
+        (range.start_line, range.start_col, range.end_col),
+        (3, 22, 27)
+    );
+    assert_eq!(
+        index.byte_range(&buffer, call.range.as_ref().unwrap()),
+        Some(byte..byte + 5)
+    );
+}
+
+#[test]
 #[ignore = "downloads pinned scip-python; requires Node/npm and Python 3.10+ with pip"]
 fn pinned_python_install_cross_module_navigation_unicode_reuse_and_reload() {
     let files = [
@@ -151,11 +204,11 @@ fn installed_case(
     files: &[(&str, &str)],
     navigation: Navigation<'_>,
     artifacts: &[&str],
-) {
+) -> SemanticIndex {
     let fixture = Fixture::new(files);
     let mut request = fixture.request();
     request.tools = ToolDirectory::from_environment(Some(fixture.bin.clone()));
-    request.timeout = Duration::from_secs(120);
+    request.timeout = Duration::from_secs(if indexer == Indexer::Kotlin { 600 } else { 120 });
     let ToolAvailability::Available {
         executable,
         version: actual,
@@ -165,7 +218,7 @@ fn installed_case(
     };
     assert!(executable.starts_with(&fixture.bin));
     assert!(actual.contains(version), "expected {version}, got {actual}");
-    verify_lifecycle(&fixture, request, files, navigation, artifacts);
+    verify_lifecycle(&fixture, request, files, navigation, artifacts)
 }
 
 fn verify_lifecycle(
@@ -174,7 +227,7 @@ fn verify_lifecycle(
     files: &[(&str, &str)],
     expected: Navigation<'_>,
     artifacts: &[&str],
-) {
+) -> SemanticIndex {
     let generated = run(request.clone());
     eprintln!("Real generation: {:#?}", generated.report);
     assert!(!generated.report.is_partial(), "{:#?}", generated.report);
@@ -251,6 +304,7 @@ fn verify_lifecycle(
             !name.starts_with("radiology-build-inputs-")
                 && !name.starts_with(".radiology-index-stage-")
         }));
+    restored
 }
 
 fn assert_viewed_inputs_unchanged(fixture: &Fixture, files: &[(&str, &str)]) {
@@ -272,13 +326,18 @@ fn assert_viewed_inputs_unchanged(fixture: &Fixture, files: &[(&str, &str)]) {
 
 fn install_pinned(request: &GenerationRequest, indexer: Indexer) -> ToolAvailability {
     let mut installer = ToolProvisioner::default();
+    let timeout = Duration::from_secs(if indexer == Indexer::Kotlin {
+        1800
+    } else {
+        600
+    });
     installer.start(ProvisioningRequest {
         indexer,
         tools: request.tools.clone(),
         protected_roots: vec![request.root.clone()],
-        timeout: Duration::from_secs(600),
+        timeout,
     });
-    let deadline = Instant::now() + Duration::from_secs(610);
+    let deadline = Instant::now() + timeout + Duration::from_secs(10);
     let mut previous = String::new();
     loop {
         if let Some(result) = installer.poll() {
