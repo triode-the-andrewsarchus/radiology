@@ -543,6 +543,7 @@ impl RadiologyApp {
 
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+        super::commands::take_context_menu_escape(ctx, input);
         if matches!(self.modal, ActiveModal::None) && self.show_inspector {
             self.handle_bookmark_keys(ctx, input);
             self.handle_outline_keys(ctx, input);

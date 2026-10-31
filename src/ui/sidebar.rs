@@ -399,7 +399,7 @@ impl Sidebar {
     }
     fn row_menu(response: &egui::Response, path: &str) -> Option<SidebarAction> {
         let mut action = None;
-        response.context_menu(|ui| {
+        crate::ui::commands::context_menu(response, |ui| {
             if ui.button("Reveal in File Manager").clicked() {
                 action = Some(SidebarAction::RevealInFileManager(path.to_owned()));
                 ui.close_menu();

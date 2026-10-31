@@ -437,7 +437,7 @@ fn render_row(
     } else {
         None
     };
-    response.context_menu(|ui| {
+    crate::ui::commands::context_menu(&response, |ui| {
         if ui.button("Go to Reference").clicked() {
             action = Some(ReferenceAction::Commit(Some(index)));
             ui.close_menu();

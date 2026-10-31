@@ -93,8 +93,9 @@ excluded from accepted evidence. The final native run uses accent focus borders.
 The native pass also proves a remaining keyboard gap: the file context menu stays
 open after standalone Escape and a 400 ms wait at either scale. Outside click
 closes it. See `file-menu-after-escape-light.png`. Earlier combined Escape/Go to
-Line also left the menu behind the dialog. This belongs to the pending keyboard
-and context-menu audit; the palette increment does not claim to repair it.
+Line also left the menu behind the dialog. The follow-up [context-menu dismissal](rust-context-menu-dismissal.md) increment
+now repairs this gap with shared pre-frame Escape ownership and native/component
+regression evidence. Broader menu traversal/focus audit remains open.
 
 Broader project/corpus/recovery, all widths/scales, complete menu/focus states,
 accessibility, sibling component adoption and the final Swift requirement audit

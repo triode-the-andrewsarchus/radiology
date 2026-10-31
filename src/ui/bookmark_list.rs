@@ -229,16 +229,15 @@ impl BookmarkList {
                 }
             }
         }
-        response
-            .on_hover_text(format!(
-                "{}:{}, column {}\nDrag to reorder bookmarks.",
-                bookmark.path,
-                bookmark.line,
-                bookmark.column + 1
-            ))
-            .context_menu(|ui| {
-                action = bookmark_menu(ui, store, index).or(action.take());
-            });
+        let response = response.on_hover_text(format!(
+            "{}:{}, column {}\nDrag to reorder bookmarks.",
+            bookmark.path,
+            bookmark.line,
+            bookmark.column + 1
+        ));
+        super::commands::context_menu(&response, |ui| {
+            action = bookmark_menu(ui, store, index).or(action.take());
+        });
         action
     }
 

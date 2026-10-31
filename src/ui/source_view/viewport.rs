@@ -624,7 +624,7 @@ impl SourceViewport {
         content: &CanvasContent<'_>,
     ) -> Option<SourceViewAction> {
         let mut action = None;
-        response.context_menu(|ui| {
+        crate::ui::commands::context_menu(response, |ui| {
             if ui.button("Copy Selection").clicked() {
                 self.copy(ui.ctx(), content.buffer);
                 ui.close_menu();

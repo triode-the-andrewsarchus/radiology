@@ -107,6 +107,63 @@ pub enum ReaderCommand {
     ToggleWrapLines,
 }
 
+#[derive(Clone, Copy)]
+struct ContextMenuState {
+    owner: egui::Id,
+    dismiss: bool,
+}
+
+const CONTEXT_MENU: &str = "reader_context_menu";
+
+/// Reserves Escape for the open context menu before focused lists handle input.
+pub(crate) fn take_context_menu_escape(ctx: &Context, input: &mut egui::RawInput) {
+    let state_id = egui::Id::new(CONTEXT_MENU);
+    let state = ctx.data(|data| data.get_temp::<ContextMenuState>(state_id));
+    if let Some(mut state) = state.filter(|state| {
+        ctx.read_response(state.owner)
+            .is_some_and(|response| response.context_menu_opened())
+    }) {
+        let dismissed = take_event_actions(&mut input.events, |key, modifiers| {
+            (key == Key::Escape && modifiers == Modifiers::NONE).then_some(())
+        });
+        if !dismissed.is_empty() {
+            state.dismiss = true;
+            ctx.data_mut(|data| data.insert_temp(state_id, state));
+        }
+    }
+}
+
+/// Shows a context menu with Escape dismissal shared by every reader menu owner.
+pub(crate) fn context_menu(response: &egui::Response, contents: impl FnOnce(&mut egui::Ui)) {
+    let state_id = egui::Id::new(CONTEXT_MENU);
+    let ctx = &response.ctx;
+    let state = ctx
+        .data(|data| data.get_temp::<ContextMenuState>(state_id))
+        .filter(|state| state.owner == response.id);
+    response.context_menu(|ui| {
+        if state.is_some_and(|state| state.dismiss)
+            || ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape))
+        {
+            ui.close_menu();
+        } else {
+            contents(ui);
+        }
+    });
+    if response.context_menu_opened() {
+        ctx.data_mut(|data| {
+            data.insert_temp(
+                state_id,
+                ContextMenuState {
+                    owner: response.id,
+                    dismiss: false,
+                },
+            )
+        });
+    } else if state.is_some() {
+        ctx.data_mut(|data| data.remove::<ContextMenuState>(state_id));
+    }
+}
+
 /// Takes reader shortcuts from the input stream with exact modifier matching.
 ///
 /// Bare keys belong to the focused control. While a sheet is open its input is
@@ -337,6 +394,99 @@ mod tests {
             },
         );
         result
+    }
+
+    #[test]
+    fn context_menu_escape_closes_without_action_and_leaves_closed_menu_input_unowned() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        use std::cell::Cell;
+        let ctx = Context::default();
+        let owner = egui::Id::new("reader_owner");
+        let paints = Cell::new(0);
+        let invoked = Cell::new(false);
+        let frame = |events| {
+            let (mut open, mut escape_left) = (false, false);
+            let output = painted_frame(&ctx, egui::vec2(500.0, 300.0), events, |ui| {
+                ui.interact(
+                    ui.max_rect(),
+                    owner,
+                    egui::Sense::focusable_noninteractive(),
+                );
+                let row = ui.button("Reader row");
+                context_menu(&row, |ui| {
+                    paints.set(paints.get() + 1);
+                    if ui.button("Menu action").clicked() {
+                        invoked.set(true);
+                        ui.close_menu();
+                    }
+                });
+                open = row.context_menu_opened();
+                escape_left = ui.input(|input| input.key_pressed(Key::Escape));
+            });
+            (output, open, escape_left)
+        };
+        let (output, _, _) = frame(vec![]);
+        let row = text_center(&output, "Reader row");
+        ctx.memory_mut(|memory| memory.request_focus(owner));
+        let secondary = || {
+            click(row)
+                .into_iter()
+                .map(|event| match event {
+                    Event::PointerButton {
+                        pos,
+                        pressed,
+                        modifiers,
+                        ..
+                    } => Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Secondary,
+                        pressed,
+                        modifiers,
+                    },
+                    other => other,
+                })
+                .collect()
+        };
+        assert!(frame(secondary()).1);
+        frame(vec![]);
+        let before = paints.get();
+        ctx.memory_mut(|memory| memory.request_focus(owner));
+        let focus_before_escape = ctx.memory(|memory| memory.focused());
+        let mut input = test_input(&[Key::Escape]);
+        take_context_menu_escape(&ctx, &mut input);
+        assert!(
+            input.events.is_empty(),
+            "menu owns Escape before list dispatch"
+        );
+        assert!(take_focused_keys(&ctx, &mut input, owner, &[Key::Escape]).is_empty());
+        let (_, open, escape_left) = frame(input.events);
+        assert!(!open, "Escape must retire the open context menu");
+        assert!(!escape_left, "the open menu owns Escape");
+        assert_eq!(
+            paints.get(),
+            before,
+            "dismissal must not invoke menu contents"
+        );
+        assert!(!invoked.get());
+        assert_eq!(ctx.memory(|memory| memory.focused()), focus_before_escape);
+        let mut input = test_input(&[Key::Escape]);
+        take_context_menu_escape(&ctx, &mut input);
+        assert_eq!(input.events.len(), 1, "closed menus leave raw input alone");
+        let (_, open, escape_left) = frame(vec![test_key(Key::Escape)]);
+        assert!(!open);
+        assert!(
+            escape_left,
+            "a closed menu must leave Escape for its focused owner"
+        );
+        frame(secondary());
+        let (output, open, _) = frame(vec![]);
+        assert!(open);
+        let (_, open, _) = frame(click(text_center(&output, "Menu action")));
+        assert!(
+            invoked.get(),
+            "reopened menus must keep their ordinary actions"
+        );
+        assert!(!open);
     }
 
     #[test]
