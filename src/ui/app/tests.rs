@@ -1007,6 +1007,7 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
     settle(&mut app);
     assert!(app.critical_projection().is_none());
     assert!(!app.is_critical_loading());
+    assert_eq!(app.critical_lens.cache_counts(), (0, 0));
 }
 
 fn write_critical_index(root: &Path, text: &str) {

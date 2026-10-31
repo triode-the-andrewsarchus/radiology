@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-10-30 — Native Critical Lens revisit and scope invalidation acceptance (Codex)
+
+Backend `f1ca00f` is pushed. Eight measured native cache events prove initial build,
+Normal/Critical reuse, F12 destination build, Back reuse, manual Non-Critical rebuild,
+reuse under the new policy, restored Built-In rebuild and semantic-index replacement
+rebuild. The real Rust call visibly dims/restores as expected. Manual decisions save
+and clear, while source HEAD/status/all bytes stay unchanged and no indexer runs.
+App/compositors exit zero. [Hashed evidence and scope](plans/rust-critical-projection-reuse.md).
+A final test-only assertion proves repository teardown clears the memo owner; the
+focused reader integration passes afterward. No production changes in this evidence
+increment. Full parity remains open: broader corpus/runtime, other real indexers,
+recovery and final UI/accessibility/scaling/font/sibling audit. Commit and push each increment.
+
 ## 2026-10-30 — Bounded Critical Lens projection and classification reuse (Codex)
 
 CriticalLens now reuses eight exact-source projections within a 16 MiB estimated

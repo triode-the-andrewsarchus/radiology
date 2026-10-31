@@ -56,5 +56,30 @@ adds no hotspot/cycle/clone growth. Four reported app-test fragments are byte-id
 to baseline before-critical-projection-reuse. Test cases share request/setup helpers.
 
 Logs: /tmp/radiology-critical-cache-{tests,app-tests,all-tests,clippy,build,doc}.log.
-Native revisit/policy evidence follows. Broader graph/corpus/runtime, UI/scaling/
+## Native acceptance — 2026-10-30
+
+A private Wayland session used the previous real Rust index and unchanged dirty
+checkout. Eight debug events prove the sequence: initial lib.rs build; mode-toggle
+hit; F12 to gated.rs build; Back to lib.rs hit; Non-Critical symbol override build;
+mode-toggle hit under that new policy; restored Built-In policy build; and semantic
+index reload build. The menu decision was saved, then its empty override file was
+removed on clearing. Source presentation visibly dimmed the manually ordinary call
+and restored its prominence under Built-In/reloaded-index policy.
+
+No indexer executable was invoked. Original HEAD/status/all source and manifest
+bytes remain unchanged, with no Cargo.lock/target artifacts. The app and both
+compositors exit zero. A final reader assertion also verifies repository teardown
+resets the cache owner; the focused reader test passes after that test-only addition.
+No production change followed backend commit f1ca00f.
+
+Evidence: /tmp/radiology-critical-cache-native/acceptance.json and SHA-256 manifest.json.
+Key captures: critical-call-selected.png, critical-file-return-reused.png,
+policy-change-rebuilds.png, new-policy-result-reused.png, builtin-policy-rebuilt.png
+and index-replacement-rebuilds.png. cache-events.json/reuse-checkpoint.json and the
+policy snapshots retain the measured transitions. The misnamed critical-first-build.png
+shows View before activation and is excluded from first-build evidence. The sibling
+compositor helper is QA-only; the application remains independently buildable.
+Scope is one real Rust fixture, dark appearance, 1280×900 at scale 1.
+
+ Broader graph/corpus/runtime, UI/scaling/
 accessibility/font and sibling acceptance remain open within the parity objective.
