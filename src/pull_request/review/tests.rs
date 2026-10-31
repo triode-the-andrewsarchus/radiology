@@ -1,6 +1,6 @@
 use super::*;
 
-fn git(root: &Path, args: &[&str]) -> String {
+pub(crate) fn git(root: &Path, args: &[&str]) -> String {
     String::from_utf8(
         ReviewControl::new(&AtomicBool::new(false))
             .git(root)
