@@ -14,6 +14,9 @@ rebasing, unlimited content-bound pins and background call-focused Critical Lens
 The full parity objective remains open; the review below describes the pre-fix
 snapshot. The user requests incremental commits and pushing after every commit.
 
+[Ordered source input](plans/rust-source-input-order.md) records coalesced navigation,
+selection and copy ordering, all-scale regression coverage and native 2× acceptance.
+
 [Private PR-store recovery](plans/rust-pr-store-recovery.md) records child-held
 writer leases, staged initialization, isolated fetches and native crash/retry evidence.
 
