@@ -78,10 +78,53 @@ helpers only; the app remains independently buildable with no product dependency
 
 ## Remaining scope
 
-Check reference-to-caller focus handoff with Right/Down/Return in one raw-input
-batch; the accepted native runs separate the initial Right registration. Pinned
-summary kind/icon metadata still differs from Swift's `InspectorSymbolSummary`.
+The follow-up below covers reference-to-caller handoff with Right/Down/Return in
+one raw-input batch. Pinned summary kind/icon metadata still differs from Swift's
+`InspectorSymbolSummary`.
 Broader pinned-review/mixed-language/error/Trace More visual and lifecycle cases,
 reader/large-file/performance/grammar/index/PR/cache acceptance and the final Swift
 requirement/reuse audit remain open. Full assistive accessibility and actual
 sibling adoption remain deferred; keyboard behavior stays required.
+
+## Ordered reference/caller keyboard handoff — 2026-10-31
+
+Reference keys now resolve and apply one at a time through the existing ordered
+command parser. Right/Down/Return on a loaded disclosure enters callers, moves to
+the next caller and commits that caller, rather than moving reference selection.
+Caller Escape/Left immediately returns the remaining batch to the list. Collapsing
+and reopening checks the actual live disclosure, so cached caller controls cannot
+focus a retired tree. Moving across caller groups selects the new parent reference.
+
+The viewport uses one pending-focus ID in place of separate list/caller pending
+state. The raw hook and prepared `handle_shortcuts` path share application dispatch.
+Prepared input is temporarily removed from the context before routing, avoiding
+nested context locks while focus/model state changes. When egui has already
+surrendered focus for Escape, only a known response that lost focus can recover
+ownership, and only if there is no live external focus. Menus and modals retain
+precedence; modified keys remain for global commands. No second dispatcher or
+persistent navigation model was introduced.
+
+Four new real-app tests cover exact same-frame entry, exit, collapse/reopen and a
+live source Find query. Both raw and prepared paths cover entry and exit. Enter
+commits line 5, and Back restores the original a.rs line 1, column 4. The three
+transition tests fail on ba469aa: entry commits line 2, exit commits line 5 and
+collapse/reopen leaves the disclosure closed. The existing component case now
+crosses caller groups while preserving focus and action order.
+
+Workspace passes 497 app tests (seven ignored), two binary, four font, eleven text
+and 34 doctests; final component tests, strict Clippy/check/build/fmt/diff pass.
+Architecture retains 89 clone groups, 24 high-complexity functions and max CCN 100,
+with no new hotspot/cycle. Its diff-aware warning is one unchanged test clone;
+the complete normalized clone multiset has zero additions/removals.
+
+Final native 1×/2× runs send Right/Down/Return in one wtype invocation without an
+intervening capture, commit the entry caller at line 5, copy the same exact
+473-byte Unicode source line, and return with Back. Exact event grouping is proved
+by the real-app RawInput regressions; the native harness does not log compositor
+frame grouping. Narrow dark/light captures retain the repaired region layout.
+Fixtures are unchanged and all final exits zero. Archive:
+`~/.local/state/radiology-qa/reference-handoff-20261031-ba469aa`.
+
+Pinned-reference kind/category metadata and broader modal/global-command ordering,
+review/mixed-language/lifecycle/large-file/grammar/index/PR/cache/final Swift/reuse
+acceptance remain open. Full accessibility and actual sibling adoption are deferred.
