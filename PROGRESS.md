@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Bound inspector labels and restore declaration disclosure (Codex)
+
+The enclosing declaration now has Swift's initially closed signature disclosure,
+with exact source/revision/declaration ownership and repository reset. Name and
+location links preserve original bytes; the owned Copy Signature menu preserves
+the entire signature beyond its eight-row/4 KiB display. Long declaration,
+under-caret, outline and bookmark labels reuse bounded middle fitting. Deep
+outline indentation leaves space for names; definition signature/prose/facts have
+row limits. [Contract and evidence](plans/rust-inspector-labels.md).
+Three new regressions pass; the expanded existing three-region case covers both
+themes/scales and narrow panes. The old indexed renderer fails the new bound test.
+Workspace passes 489 app tests (seven ignored), two binary, four font, eleven text
+and 34 doctests. Final focused tests, strict Clippy/check/fmt/build/diff and
+warning-denied rustdoc pass; rendered ownership docs were inspected. Architecture
+is IMPROVED (92 → 89 clone groups), with no new hotspot/cycle/max-CCN increase.
+Final native 1×/2× runs copy the exact 500-byte Unicode signature, exercise long
+labels, bookmarks, themes, pane resizing and peer/Back disclosure retirement.
+Fixtures are unchanged and all exits zero. The 2× narrow-light disclosure attempt
+hit the resize edge; only its collapsed geometry is accepted. Indexed details
+have headless coverage. Archive: ~/.local/state/radiology-qa/inspector-labels-20261031-29a178d.
+Broader reference/pinned-review/mixed-language visuals, cross-owner keyboard/
+enabled-state, reader/large-file/grammar/index/PR/cache and final Swift/reuse
+acceptance remain open. Full accessibility remains outside scope as the user
+reconfirmed; keyboard behavior stays required. Actual sibling adoption is deferred.
+Commit and push this inspector increment before continuing.
+
 ## 2026-10-31 — Bound Changes/Search presentation and row activation (Codex)
 
 Changes now prioritizes fitted filenames/counts with a quiet directory or rename

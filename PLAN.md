@@ -18,7 +18,10 @@ PR scrolling and focus return across all four menu groups, with native 1×/2× e
 Active titles now follow their popup, and focused menus preserve global reader shortcuts.
 [Bounded Changes and Search results](plans/rust-result-pane-labels.md) now retain
 pane widths, Swift-style preview limits and exact navigation/interaction targets.
-Broader cross-owner/inspector-label and final parity acceptance remain open.
+[Inspector labels and signature disclosure](plans/rust-inspector-labels.md) now
+bound long names and restore Swift's source-bound declaration disclosure, with
+keyboard/copy tests and native 1×/2× evidence. Broader cross-owner, mixed-language/
+pinned-review visual and final parity acceptance remain open.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.

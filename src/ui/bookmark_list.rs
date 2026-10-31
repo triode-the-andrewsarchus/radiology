@@ -94,7 +94,15 @@ impl BookmarkList {
         let mut action = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Bookmarks").strong());
-            ui.colored_label(theme.text_muted, scope);
+            let scope_text = super::text_fit::middle(
+                ui,
+                scope,
+                egui::TextStyle::Small.resolve(ui.style()),
+                theme.text_muted,
+                (ui.available_width() - ui.spacing().interact_size.y - 8.0).max(0.0),
+            );
+            ui.add(egui::Label::new(scope_text))
+                .on_hover_text(super::text_fit::bounded(scope).as_ref());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let label = if current_bookmarked == Some(true) {
                     "−"
@@ -270,21 +278,28 @@ impl BookmarkList {
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.set_min_width(label_width);
-                    ui.add(egui::Label::new(&bookmark.label).truncate(true));
+                    let label = super::text_fit::middle(
+                        ui,
+                        &bookmark.label,
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        theme.text_primary,
+                        label_width,
+                    );
+                    ui.add(egui::Label::new(label));
                 },
             );
             if let Some(shortcut) = shortcut {
                 ui.label(RichText::new(shortcut).small().color(theme.text_muted));
             }
         });
-        row.add(
-            egui::Label::new(
-                RichText::new(format!("{}:{}", bookmark.path, bookmark.line))
-                    .small()
-                    .color(theme.text_secondary),
-            )
-            .truncate(true),
+        let path = super::text_fit::middle(
+            &row,
+            &format!("{}:{}", bookmark.path, bookmark.line),
+            egui::TextStyle::Small.resolve(row.style()),
+            theme.text_secondary,
+            row.available_width(),
         );
+        row.add(egui::Label::new(path));
         if let Some(revision) = bookmark.revision {
             row.label(
                 RichText::new(revision.title())

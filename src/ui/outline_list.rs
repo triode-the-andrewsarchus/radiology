@@ -372,7 +372,7 @@ impl OutlineList {
                 },
             );
         }
-        let x = rect.left() + 6.0 + entry.depth as f32 * 14.0;
+        let x = rect.left() + 6.0 + (entry.depth as f32 * 14.0).min(rect.width() * 0.35);
         if entry.has_children {
             let icon = if self.collapsed.contains(&entry.selection.start) {
                 super::icons::Icon::ChevronRight
@@ -419,14 +419,13 @@ impl OutlineList {
         } else {
             right
         };
-        let mut job = egui::text::LayoutJob::simple(
-            entry.name.clone(),
+        let label = super::text_fit::middle(
+            ui,
+            &entry.name,
             egui::TextStyle::Body.resolve(ui.style()),
             theme.text_primary,
             (label_right - x - 24.0).max(0.0),
         );
-        job.wrap.max_rows = 1;
-        let label = ui.fonts(|fonts| fonts.layout_job(job));
         ui.painter()
             .with_clip_rect(rect.intersect(ui.clip_rect()))
             .galley(
@@ -466,7 +465,7 @@ impl OutlineList {
             "{} · {} lines\nGo to {}{}",
             entry.kind.title(),
             entry.lines,
-            entry.name,
+            super::text_fit::bounded(&entry.name),
             if entry.changed {
                 "\nContains lines changed by the pull request"
             } else {
