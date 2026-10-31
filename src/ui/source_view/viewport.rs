@@ -322,6 +322,7 @@ impl SourceViewport {
         let (scroll_y, mut action) = self.prepare(ui, &mut content, &geometry);
         let canvas = self.focus_surface(ui, geometry.code_rect);
         crate::ui::commands::retain_navigation_keys(ui.ctx(), Self::focus_id());
+        let requested_offset = vec2(if content.wrap { 0.0 } else { self.scroll_x }, scroll_y);
         let output = egui::ScrollArea::new([!content.wrap, true])
             .id_source((
                 "source_scroll",
@@ -330,14 +331,23 @@ impl SourceViewport {
             ))
             .auto_shrink([false, false])
             .max_height(geometry.height)
-            .vertical_scroll_offset(scroll_y)
-            .horizontal_scroll_offset(if content.wrap { 0.0 } else { self.scroll_x })
+            .scroll_offset(requested_offset)
             .drag_to_scroll(false)
             .show_viewport(ui, |ui, viewport| {
-                if let Some(event) = self.render_rows(ui, viewport, &geometry, &mut content) {
+                let (event, reveal_visible) =
+                    self.render_rows(ui, viewport, &geometry, &mut content);
+                if let Some(event) = event {
                     action = Some(event);
                 }
+                reveal_visible
             });
+        // Content growth can clamp the scroll offset after the target was painted.
+        // Keep retrying until visibility and the accepted offset agree.
+        if output.inner
+            && (output.state.offset - requested_offset).length_sq() <= geometry.tolerance.powi(2)
+        {
+            self.pending_reveal = None;
+        }
         // egui 0.27 registers its horizontal/vertical scrollbar responses under
         // these axis IDs. Keep their real hit rectangles out of source capture.
         self.scrollbars = (0_usize..2)
@@ -531,11 +541,9 @@ impl SourceViewport {
                     .scroll_x
                     .clamp((rect.right() - available).max(0.0), rect.left().max(0.0));
             }
-            if content.wrap || self.prefix_ready(byte) {
-                self.pending_reveal = None;
-            } else {
-                ui.ctx().request_repaint();
-            }
+            // Visible-row layouts may still change heights before this byte.
+            // Completion requires visible painting and an accepted final offset.
+            ui.ctx().request_repaint();
             // A navigation destination retires an unrelated selection, including a
             // stale match. Find calls select after document synchronization below.
             let caret = content
@@ -558,8 +566,9 @@ impl SourceViewport {
         viewport: Rect,
         geometry: &CanvasGeometry,
         content: &mut CanvasContent<'_>,
-    ) -> Option<SourceViewAction> {
+    ) -> (Option<SourceViewAction>, bool) {
         let mut action = None;
+        let mut reveal_visible = false;
         let origin = ui.max_rect().min;
         let clip = ui.clip_rect().intersect(geometry.code_rect);
         let painter = ui.painter().with_clip_rect(clip);
@@ -588,6 +597,8 @@ impl SourceViewport {
         let mut y = self.rows.offset(row);
         while row < self.visible.len() && y <= viewport.bottom() {
             let frame = self.layout_fragment(ui, content, geometry, row, origin);
+            reveal_visible |=
+                self.reveal_is_visible(&frame, clip.intersect(frame.hit_rect), content);
             let FragmentFrame {
                 part: fragment,
                 galley,
@@ -644,7 +655,27 @@ impl SourceViewport {
             origin,
             vec2(document_width, self.rows.total_height()),
         ));
-        action
+        (action, reveal_visible)
+    }
+
+    fn reveal_is_visible(
+        &self,
+        frame: &FragmentFrame,
+        clip: Rect,
+        content: &CanvasContent<'_>,
+    ) -> bool {
+        let Some((byte, _, _)) = self.pending_reveal else {
+            return false;
+        };
+        if self
+            .row_for_byte(byte)
+            .is_none_or(|(_, owner)| owner != &frame.part)
+        {
+            return false;
+        }
+        let caret = fragment_cursor(&frame.galley, &frame.part, &content.buffer.text, byte)
+            .translate(frame.origin.to_vec2());
+        clip.contains_rect(caret) && (content.wrap || self.prefix_ready(byte))
     }
 
     fn layout_fragment(
@@ -960,13 +991,10 @@ impl SourceViewport {
         if !content.wrap && !self.unwrapped.prefix_measured(row) {
             self.measurement_priority = Some(row);
         }
-        let chars = part.char_index(&content.buffer.text, byte);
-        galley
-            .pos_from_ccursor(egui::text::CCursor::new(chars))
-            .translate(vec2(
-                self.fragment_x(row, content.wrap),
-                self.rows.offset(row) + 2.0,
-            ))
+        fragment_cursor(&galley, &part, &content.buffer.text, byte).translate(vec2(
+            self.fragment_x(row, content.wrap),
+            self.rows.offset(row) + 2.0,
+        ))
     }
 
     fn prepare_horizontal(
@@ -1284,9 +1312,7 @@ impl SourceViewport {
         if !self.shares_painted_row(frame.byte, part, content.wrap) {
             return;
         }
-        let chars = part.char_index(&content.buffer.text, frame.byte);
-        let cursor = galley
-            .pos_from_ccursor(egui::text::CCursor::new(chars))
+        let cursor = fragment_cursor(galley, part, &content.buffer.text, frame.byte)
             .translate(origin.to_vec2());
         let band = if cursor.height() > 0.0 {
             Rect::from_min_max(
@@ -1406,9 +1432,8 @@ impl SourceViewport {
             .row_for_byte(byte)
             .is_some_and(|(_, owner)| owner == part && part.contains_byte(byte))
         {
-            let chars = part.char_index(&content.buffer.text, byte);
-            let cursor = galley.from_ccursor(egui::text::CCursor::new(chars));
-            let caret = galley.pos_from_cursor(&cursor).translate(origin.to_vec2());
+            let caret = fragment_cursor(galley, part, &content.buffer.text, byte)
+                .translate(origin.to_vec2());
             painter.line_segment(
                 [caret.left_top(), caret.left_bottom()],
                 Stroke::new(1.5_f32, theme.accent),
@@ -1651,6 +1676,15 @@ fn keyboard_target(
             parts[visible[next]].byte_at_char(&buffer.text, chars)
         }
     }
+}
+
+fn fragment_cursor(
+    galley: &egui::Galley,
+    part: &SourceFragment,
+    source: &str,
+    byte: usize,
+) -> Rect {
+    galley.pos_from_ccursor(egui::text::CCursor::new(part.char_index(source, byte)))
 }
 
 fn layout(
@@ -2539,6 +2573,104 @@ mod tests {
             .fragments
             .iter()
             .all(|part| part.visible_len() <= FRAGMENT_BYTES));
+    }
+
+    #[test]
+    fn wrapped_reflow_keeps_a_short_tail_visible_while_prefix_heights_change() {
+        // Exact Unicode blocks allow controlled short, medium and tall tails.
+        // Painting an estimated preceding row must not push the caret offscreen.
+        let block = format!("{}{}", "abcdé🦀漢字 ".repeat(240), "x".repeat(16));
+        assert_eq!(block.len(), FRAGMENT_BYTES);
+        for (scale, tail_repeats) in [
+            (1.0, 0),
+            (2.0, 0),
+            (1.0, 40),
+            (2.0, 40),
+            (1.0, 200),
+            (2.0, 200),
+        ] {
+            let text = format!(
+                "{}{}LONG_END\r\nnext",
+                block.repeat(256),
+                "abcdé🦀漢字 ".repeat(tail_repeats)
+            );
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(&text);
+            reader.frame(&ctx, vec![]);
+            reader.frame(&ctx, vec![key(Key::End, Modifiers::NONE)]);
+            let end = reader.source.line_byte_range(1).end;
+            reader.viewport.select(end - 8..end);
+            for (wrap, size) in [
+                (true, 14.0),
+                (true, 24.0),
+                (true, 14.0),
+                (false, 24.0),
+                (true, 14.0),
+            ] {
+                reader.wrap = wrap;
+                reader.font_size = size;
+                reader.frame(&ctx, vec![]);
+                let mut visible_frames = 0;
+                // The measurement budget is time-based, so wait for consecutive
+                // visible paints rather than depending on machine load per frame.
+                for _ in 0..512 {
+                    let output = reader.frame(&ctx, vec![]);
+                    let visible = output.shapes.iter().any(|shape| {
+                        let egui::Shape::Text(text) = &shape.shape else {
+                            return false;
+                        };
+                        let point = text.pos
+                            + text
+                                .galley
+                                .pos_from_ccursor(egui::text::CCursor::new(
+                                    text.galley.job.text.chars().count(),
+                                ))
+                                .center()
+                                .to_vec2();
+                        text.galley.job.text.ends_with("LONG_END")
+                            && shape.clip_rect.contains(point)
+                    });
+                    if visible {
+                        visible_frames += 1;
+                    } else {
+                        visible_frames = 0;
+                        assert!(
+                            reader.viewport.pending_reveal.is_some(),
+                            "lost reveal: scale={scale} wrap={wrap} size={size}"
+                        );
+                    }
+                    assert_eq!(reader.source.byte_offset(reader.line, reader.column), end);
+                    assert_eq!(
+                        reader.viewport.selection.unwrap().text(&reader.source.text),
+                        Some("LONG_END")
+                    );
+                    if visible_frames == 3 {
+                        break;
+                    }
+                }
+                assert!(
+                    visible_frames == 3,
+                    "reflow did not settle: scale={scale} wrap={wrap} size={size}"
+                );
+            }
+            reader.wrap = false;
+            reader.frame(&ctx, vec![]);
+            reader.frame(&ctx, vec![]);
+            assert!(reader.viewport.pending_reveal.is_some());
+            let scrollbar = reader
+                .viewport
+                .scrollbars
+                .iter()
+                .find(|rect| rect.width() > rect.height())
+                .expect("horizontal scrollbar")
+                .center();
+            reader.frame(&ctx, pointer(scrollbar, true));
+            assert!(
+                reader.viewport.pending_reveal.is_none(),
+                "manual scrollbar use must retire reveal"
+            );
+            reader.frame(&ctx, pointer(scrollbar, false));
+        }
     }
 
     #[test]

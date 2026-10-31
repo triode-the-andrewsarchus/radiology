@@ -183,3 +183,70 @@ scroll/reveal and many-line/zoom/scroll/Back acceptance remain open. This correc
 removes the visual wait for the prefix; it does not remove that measurement work.
 
 Evidence: `~/.local/state/radiology-qa/long-line-reveal-20261031-0bbff5d`.
+
+
+## Wrapped reveal survives painting and final scroll clamping — 2026-10-31
+
+The 595f688 native captures retain exact selection bytes after wrapping but omit
+the selected tail. A controlled Unicode regression reproduces missing destination
+painting. The old preparation path retires reveal before visible-row layouts can
+increase heights above its target. Checking painting alone is insufficient:
+GDB on the transitional fix sees the caret at y=10..26 inside the clip, followed
+by ScrollArea clamping the requested y=103481 to y=103205.6 after layout. The next
+frame loses the tail with no pending request.
+
+Rendering now reports whether the measured destination caret rectangle lies
+inside its actual text clip. The viewport retires reveal only when that is true
+and ScrollArea's final offset agrees with the request within half a physical
+pixel. Otherwise it retains the source-bound request and repaints. Unwrapped
+completion still requires an exact measured prefix. No new cache, renderer,
+dependency, public API or measurement budget is introduced. The same bounded
+fragment cursor conversion now serves preparation, completion, caret painting and
+destination feedback. A real scrollbar press retires pending source input and
+reveal, using the existing scrollbar response rectangles.
+
+The test covers short, medium and tall final fragments after exact 4 KB Unicode
+blocks, End, zoom up/down and both wrap directions at 1×/2×, preserving caret and
+LONG_END selection bytes. Missing/clipped targets must retain their reveal;
+completion requires consecutive visible paints, with a bounded frame retry rather
+than a machine-load-dependent fixed deadline. It also verifies manual scrollbar
+interruption. The original code fails to paint the target; removing the accepted-
+offset check separately fails with a lost reveal; the prior scrollbar path fails
+the interruption check. Initial eight-frame assumptions fail under workspace
+load and are replaced by those consecutive-paint assertions.
+
+Workspace passes 516 app tests (seven ignored), two binary, four font, 13
+reader-text and 36 doctests. Strict Clippy/all-target check/build/fmt/diff and
+warning-denied rustdoc pass. Architecture baseline `before-wrapped-reveal` at
+595f688 compares NEUTRAL: +123 NLOC including tests, 91 unchanged clone groups,
+no new hotspot/cycle/max-CCN increase.
+
+Fresh 1×/2× native runs of the same 6,291,502-byte Unicode/CRLF fixture now
+show the selected wrapped LONG_END tail. Marker position is unchanged between
+first and three-second captures: y=831 physical pixels at 1× and y=1398 at 2×.
+Wrapped pointer hits copy exactly `_END`; zoom up, reset and both wrap directions
+retain original selection bytes. The thirty-second 2× settling capture still
+shows the tail. Captures are inspected; source-crop OCR verifies LONG_END or its
+same-line LONG/END tokens separated by one character advance. Fresh clipboard
+sentinels independently verify exact source and selection hashes. Partial-color
+selection OCR trials are retained as excluded validation failures, not product
+failures or silently counted passes. The final controller records selected views
+before any caret change and uses a separate unselected view where raw OCR needs it.
+
+Original full copy, unwrapped End/pointer hits, cross-file Back, wrapped copy,
+zoomed/final copy, unchanged fixture hashes, final binary hashes and zero child
+exits pass. Observed initial copy waits remain approximately 8.6/9.1 seconds and
+Back copy 9.4/9.9 seconds at 1×/2× respectively. The two-second delayed reset and
+wrap-return captures validate settling, not an immediate response guarantee.
+
+A private-child native GDB trace during font reset confirms the reveal remains
+pending while rows measure, with the caret byte and scalar column intact. Early
+font-reset captures can still omit the tail; later captures after an additional
+two-second delay show it. This is remaining large-source reflow latency, not a
+claim of immediate font-reset performance. Cold/revisited source preparation,
+total measurement cost, broader many-line/zoom/scroll/input and final Swift/reuse
+acceptance remain open. Debug software-rendered observations are not release or
+statistical latency guarantees. Full accessibility and actual sibling adoption
+remain deferred.
+
+Evidence: `~/.local/state/radiology-qa/wrapped-reveal-20261031-595f688`.

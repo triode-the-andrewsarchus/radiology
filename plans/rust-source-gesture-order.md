@@ -87,8 +87,9 @@ silently counted as final acceptance.
 - [New marker/hash-gated 6 MB checks](rust-reader-performance.md) now establish
   exact full-source, End suffix and cross-file Back bytes, and preserve selection
   across a wrap toggle at 1×/2×. Immediate anchored unwrapped reveal now has
-  native visual and exact pointer-hit evidence at both scales. Wrapped reveal,
-  broader performance, many-line, scroll and zoom acceptance remain open. The earlier roughly 6 MB trials render, but their initial loading/CPU and clipboard
+  native visual and exact pointer-hit evidence at both scales. Wrapped reveal now
+  survives painting/final scroll clamping with zoom/toggle/selection evidence.
+  Broader performance, many-line, scroll and zoom acceptance remain open. The earlier roughly 6 MB trials render, but their initial loading/CPU and clipboard
   observations do not establish a specific performance defect: some probes ran
   before source readiness, and the old clipboard reader accepted stale offers.
   The corrected driver waits for the expected payload hash. Do not treat those
