@@ -6,8 +6,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 [Large-source reader performance](plans/rust-reader-performance.md) now records
 exact-byte 6 MB/Back acceptance, profiling, lazy per-grammar query initialization
-and shared sparse Unicode coordinates. Full-line coordinate scans are corrected;
-slow loading and horizontal/wrapped reveal acceptance remain open.
+and shared sparse Unicode coordinates. Unwrapped destinations now reveal before
+complete prefix measurement and stay anchored while it refines, with exact
+provisional pointer hits and native 1×/2× evidence. Slow loading and wrapped reveal
+remain open.
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
 the integrated horizontal placement and deferred keyboard/reveal geometry for
 bounded source fragments, with native 1×/2× copy/layout evidence.

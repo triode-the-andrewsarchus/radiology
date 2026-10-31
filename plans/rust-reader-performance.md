@@ -120,3 +120,66 @@ scaling/Back acceptance also remain open. Do not treat exact clipboard bytes as
 proof of completed viewport reveal.
 
 Evidence: `~/.local/state/radiology-qa/coordinate-index-20261031-01f8519`.
+
+
+## Reveal before complete prefix measurement — 2026-10-31
+
+The 0bbff5d binary reproduces the remaining reveal delay independently of copy:
+a native End-only request still shows LONG_START in the first and three-second
+captures. A new viewport regression likewise cannot find a painted End destination
+while its prefix is unmeasured. The earlier combined End/Shift-Left probe placed
+the moving focus before LONG_END; partial visibility of that selection alone did
+not establish caret clipping. End-only captures now test the actual destination.
+
+The existing pending reveal now scrolls using the measured destination fragment
+and provisional prefix placement immediately. Before each measurement batch, the
+viewport retains that fragment's origin and rebases horizontal scroll by its
+measured change before capturing input. The destination stays anchored on screen
+as estimates become exact; the pending reveal retires once its prefix is ready.
+The existing 64-fragment/2 ms measurement budget is unchanged. No unbounded line
+layout, new cache, dependency, renderer or public API is added.
+
+Pointer gestures over a provisional reveal retain the displayed fragment and its
+local coordinates. The existing per-event dispatcher resolves the bounded galley
+and carries the reveal anchor through press/drag/release; Ctrl-click navigation
+retires it at the document boundary. Other unmeasured absolute-position gestures
+retain their existing ordered measurement guard. Manual clicks cancel old queued
+keyboard commands while retaining the displayed anchor through pointer capture;
+external focus/navigation/document/scroll boundaries still retire it.
+
+The new test covers immediate caret painting within its clip at 1×/2×, stable
+position over refinement frames, exact pointer/Shift-End copy of `_END`, and
+subsequent selection contraction. It fails on the original reveal code. Restoring
+the old pointer path separately fails with the caret four bytes beyond the clicked
+position. The existing queued-input retirement test catches and verifies the
+manual-click ordering case. Workspace passes 515 app tests (seven ignored), two
+binary, four font, 13 reader-text and 36 doctests. Strict Clippy, all-target check,
+build, warning-denied rustdoc, fmt and diff pass. Architecture baseline
+`before-long-line-reveal` at 0bbff5d compares NEUTRAL: +98 NLOC including tests,
+91 unchanged clone groups, no new hotspot/cycle/max-CCN increase.
+
+Fresh native 1×/2× runs of the same 6,291,502-byte fixture show LONG_END in the
+first End-only capture (requested with a 0.1-second delay). OCR plus inspected
+images confirm the complete marker lies inside the source pane. Its physical
+left coordinate is unchanged between that capture and the three-second capture:
+905 px at 1× and 1293 px at 2×. A separate thirty-second 2× capture retains the
+same visible selected tail; these observations do not promise a general latency.
+A pointer hit derived from the displayed marker copies exactly `_END` at both
+scales. End/Shift-Left, cross-file Back/Shift-End and wrapped copy retain the exact
+LONG_END bytes. Full original copy, fixture hashes, final binary hashes and all
+child exits are verified. Direct Back captures show the unwrapped tail; a further
+unselected End capture makes its word legible to OCR without relying on selection
+color recognition. Native selected-color OCR is not used as an acceptance gate.
+
+Cold copy readiness remains about 8.8/9.0 seconds and Back copy about 9.5/10.3
+seconds in these single debug runs. The wrapped capture does not show the selected
+tail even though its clipboard bytes match; wrapped visual reveal is the next
+reader investigation. Earlier excluded trials stopped on missing default OCR
+language data and selected-text OCR misrecognition. The final script uses existing
+local English language data and checks unselected words; no product dependency
+or installed package changes.
+Cold/revisited source preparation, total background measurement cost, wrapped
+scroll/reveal and many-line/zoom/scroll/Back acceptance remain open. This correction
+removes the visual wait for the prefix; it does not remove that measurement work.
+
+Evidence: `~/.local/state/radiology-qa/long-line-reveal-20261031-0bbff5d`.

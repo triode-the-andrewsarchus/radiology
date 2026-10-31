@@ -174,7 +174,10 @@ for simultaneous inspector regions and source keyboard exclusion.
   [Bounded Changes/Search results](rust-result-pane-labels.md) now preserve pane
   geometry, preview limits, canonical targets and reorder-safe row gestures.
   Audit broader cross-owner/inspector-label surfaces, then complete wrapping/scroll/scaling,
-  large-file performance and long-line Back acceptance.
+  large-file performance and long-line Back acceptance. Shared sparse Unicode
+  coordinates and immediate anchored unwrapped reveal now pass exact-byte/native
+  1×/2× checks; [reader performance](rust-reader-performance.md) records remaining
+  loading delays and the wrapped visual reveal finding.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
   exact current-file pins and applies new fold defaults, with native acceptance.

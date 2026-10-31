@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-10-31 — Reveal distant unwrapped destinations before prefix measurement (Codex)
+
+The prior binary still shows LONG_START three seconds after End. Pending reveal
+now uses the measured target with provisional prefix placement immediately;
+measurement rebases scroll before input so the destination stays anchored.
+Provisional pointer gestures retain fragment-local coordinates through the
+existing ordered dispatcher. Manual clicks retire queued keys while preserving
+that mapping; external ownership/document/scroll retirement stays intact.
+The new 1×/2× caret/anchor/click/Copy regression fails on the original reveal and
+separately with the old pointer path. The existing retirement test catches a
+manual-click ordering case, now corrected. Workspace passes 515 app tests (seven
+ignored), two binary, four font, 13 text and 36 doctests; strict Clippy/check/build/
+fmt/diff and warning-denied rustdoc pass. Architecture is NEUTRAL (+98 NLOC
+including tests), with 91 unchanged clone groups and no new hotspot/cycle/max-CCN
+increase. No dependency, cache, renderer, public API or frame-budget change.
+Native 1×/2× first/three-second captures show the full End marker at identical
+positions; the thirty-second 2× capture retains the tail. Exact provisional
+pointer `_END`, End/Back/wrap bytes, original full copy, unchanged fixture hashes,
+matching final binary hashes and zero exits pass. Cold/revisited loading remains
+slow. Wrapped copy is exact but its selected tail is not visible in the capture;
+wrapped reveal is the next reader investigation. Broader source, grammar/index,
+PR/cache and final Swift/reuse acceptance remain open. Full accessibility and
+actual sibling adoption stay deferred.
+[Contract, validation and limits](plans/rust-reader-performance.md#reveal-before-complete-prefix-measurement--2026-10-31).
+Evidence: ~/.local/state/radiology-qa/long-line-reveal-20261031-0bbff5d.
+
 ## 2026-10-31 — Bound Unicode coordinate conversion for long source lines (Codex)
 
 Shared reader-text CoordinateIndex stores sparse absolute byte/UTF-16/scalar
