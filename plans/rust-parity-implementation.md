@@ -160,7 +160,9 @@ for simultaneous inspector regions and source keyboard exclusion.
   propagate their owning flags and budgets; [runtime checks](rust-analysis-source-cancellation.md).
   Source loading and checkout refresh use bounded process-group cancellation/deadlines;
   see [source process acceptance](rust-source-process-cancellation.md).
-- Remaining source presentation: broader wrapping/scroll/scaling acceptance.
+- Remaining source presentation: fix the confirmed unwrapped >4 KiB fragment
+  stacking/Down defect using the tested [width model](rust-unwrapped-fragment-geometry.md),
+  then complete broader wrapping/scroll/scaling acceptance.
   [PR refresh restoration](rust-pr-refresh-restoration.md) now stages atomic source
   publication, maps Git renames/lines and latest caret/viewport state, retains only
   exact current-file pins and applies new fold defaults, with native acceptance.
