@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-10-31 — Integrate horizontal source fragments and ordered measured navigation (Codex)
+
+The native-proven unwrapped stacking/Down regression now passes in the actual
+viewport. Unwrapped fragments share one vertical row, measured horizontal prefixes,
+clipped paint/hit intervals and whole-row caret/destination bands. Gutter/fold/test
+controls stay with the first fragment. The 4 KiB shaping bound and 64-fragment /
+2 ms measurement budget remain. Up/Down/Page keys use projected rows and shaped x;
+queued selection/copy waits for exact geometry. Source/font/projection/focus and
+new navigation retire stale queued input. Pending reveal respects manual input and
+viewport/font/scale changes. Shared FragmentFrame geometry and existing input
+classification avoid a second renderer or keyboard resolver. [Contract/evidence](plans/rust-unwrapped-fragment-geometry.md).
+Tests cover deferred CRLF copy, cancellation, Unicode horizontal hits at 1×/1.5×/2×,
+wrap/zoom, fragment-boundary Left and folded projection in both modes. Final native
+1×/2× checks cover layout/Down/End and exact line/long-line/Copy All bytes; an earlier
+2× trial covers wrap toggling/light rendering and exact far-right `_END` pointer
+copy. Fixtures remain unchanged; processes exit zero. Durable archive:
+~/.local/state/radiology-qa/unwrapped-viewport-20261031-47766a5. Workspace passes 457
+app tests (seven ignored), two binary tests, four font tests, eleven text tests and
+34 doctests; strict Clippy/build/fmt/diff pass. Architecture is neutral with no new
+clone/hotspot/cycle. An external failing regression confirms that clicks during
+unmeasured distant prefixes can be lost: retain gestures next, without guessed hit
+bytes or unbounded shaping. Native toolbar use also exposes focus restoration;
+Go To Line restores it, so do not count toolbar keyboard acceptance complete.
+Broader reader/grammar/index/PR/cache/final Swift acceptance remains active. Full
+accessibility and actual sibling adoption stay deferred. Commit and push this
+viewport increment before the next interaction repair.
+
 ## 2026-10-31 — Confirm long-line defect and add reusable width bookkeeping (Codex)
 
 The source acceptance audit found a real open defect: Wrap Lines off still stacks

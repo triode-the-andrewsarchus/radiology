@@ -14,10 +14,11 @@ Down from the line start to reach line 2. Native 1280×900 evidence shows the sa
 continuations and a Line 1 footer after Down. Original CRLF fixture bytes remain
 unchanged; app, Weston and Niri exit zero.
 
-The failing regression is retained as ui-regression.rs in the durable evidence
-folder below. It has not been committed as a failing or ignored application test.
-The UI defect remains open; the backend increment in this document is preparation
-for its repair.
+The original failing regression is retained as ui-regression.rs in the before
+archive. It is now restored as a passing application test. The initial backend
+increment at 47766a5 did not repair the UI; the viewport integration below does
+repair the stacked-fragment and Down behavior. Remaining interaction acceptance
+is listed explicitly below.
 
 ## Reusable measurement model
 
@@ -44,26 +45,82 @@ rustdoc pass; the generated UnwrappedRows page is inspected. An initial Clippy
 single-range fixture lint is corrected with a borrowed range slice. Architecture
 comparison is neutral with no new clone group, hotspot or dependency cycle.
 
-## Required viewport integration
+## Viewport integration — 2026-10-31
 
-1. Keep source fragments bounded. Use one vertical row for their whole projected
-   line when wrapping is disabled; keep wrapped-row behavior separate.
-2. Apply the measured horizontal prefix to painting, caret reveal, hover and hit
-   testing. Only the first fragment owns the gutter/fold/test controls. Shape only
-   relevant bounded fragments and schedule remaining measurements with a budget.
-3. Route Up/Down between projected logical rows in unwrapped mode, preserving the
-   shaped horizontal position. Preserve event/copy order if geometry needs more
-   frames; do not substitute a scalar-column guess for a shaped position.
-4. Retain a pending destination until its prefix is measured, respect manual
-   scrolling, and invalidate measurements/queued input on document or geometry
-   changes. Keep byte selections, folds, find and history in canonical coordinates.
-5. Restore the recorded regression and verify long Unicode/CRLF lines across
-   fragment boundaries, horizontal scrolling, wrap/zoom transitions, hit testing,
-   copy and exact cross-file Back restoration. Run native 1×/2× checks, including
-   the broader large-file/long-name acceptance cases.
+The viewport now uses UnwrappedRows for bounded-fragment placement, measured
+content width and caret translation. All fragments in a projected line share the
+same y offset; only the last owns the vertical RowHeights weight. Grouping follows
+first_in_line, including folds that join surviving canonical lines. Wrapped
+layout retains its existing visual rows and does not allocate the horizontal
+model. Gutter, fold and test-label controls remain owned by the first fragment.
 
-Evidence, regression source, fixture/binary hashes and captures are retained under
-`~/.local/state/radiology-qa/unwrapped-before-20261031-9fc02dc` with SHA256SUMS.
-This increment does not claim the application uses UnwrappedRows yet. Full parity,
-the remaining keyboard/reader/index/PR/cache audit and the final Swift checklist
-remain active. Accessibility and actual sibling integration stay deferred.
+FragmentFrame carries one bounded galley and shared paint/hit geometry. Horizontal
+clipping skips offscreen continuation layouts; adjacent fragments have disjoint
+hit intervals so later fragments cannot overwrite a pointer selection. Hover,
+find/pin/selection painting and caret use the translated origin. Current-line and
+destination bands share the whole projected row while text remains bounded.
+Repeated unchanged width/height records avoid scanning their suffix/Fenwick tree.
+
+Background measurement retains the existing 64-fragment / 2 ms frame budget.
+A priority frontier measures the prefix needed by navigation or reveal before
+unrelated document rows. Up/Down and PageUp/PageDown move between projected rows,
+using shaped horizontal positions rather than scalar-column guesses. The existing
+source event classifier feeds a queue: movement awaiting geometry holds later
+selection/copy events in order. Source/projection/font changes, focus loss, manual
+pointer/scroll input and new host navigation retire stale queued input. Pending
+reveal survives measurement and recalculates after viewport/font/scale changes;
+manual input supersedes it. Left crosses a continuation boundary by one scalar
+and stays at byte zero at the document start.
+
+The original failing y/Down regression now passes. Additional tests cover:
+
+- Deferred End/Shift-Down/Copy on a line exceeding two frame budgets, preserving
+  original Unicode/CRLF bytes and ordered selection.
+- Deferred-input retirement on new host navigation, document, zoom and focus.
+- Horizontal Unicode hits and exact Copy at 1×/1.5×/2×, continuation-boundary Left,
+  wrap/zoom transitions and logical PageUp/PageDown.
+- The existing folded Unicode/hidden-newline hit/arrow/copy case in both modes.
+
+Workspace gates pass 457 app tests (seven ignored), two binary checker tests,
+four font tests, eleven text tests and 34 doctests. Strict Clippy, build, fmt and
+diff checks pass. Architecture comparison against before-unwrapped-viewport is
+neutral: no new clone, hotspot, dependency cycle or maximum-CCN increase. An early
+implementation increased render/prepare complexity and duplicated font setup;
+shared FragmentFrame geometry, reveal handling and test setup remove those flags.
+
+## Native evidence and remaining acceptance
+
+Before evidence is retained under
+`~/.local/state/radiology-qa/unwrapped-before-20261031-9fc02dc`.
+Current evidence is under
+`~/.local/state/radiology-qa/unwrapped-viewport-20261031-47766a5`, with SHA256SUMS,
+fixture/binary/source hashes, logs and process exits. Final 1×/2× checks exercise
+Down to line 2, End reveal and exact current-line/long-line/Copy All CRLF payloads.
+The earlier 2× trial additionally records light/dark rendering, wrap toggling and
+an exact `_END` suffix copied after a far-right pointer hit. Modal-opening batches
+that had not yet accepted the typed line are excluded from navigation acceptance;
+the final runs separate modal entry and submission. Reused screenshot paths in
+the trial can return old size metadata before the new image is written; final
+runs use unique capture paths. The PNGs themselves are retained and inspected.
+Fixtures remain unchanged and app/compositors exit zero.
+
+Required follow-up, before calling the whole source interaction audit complete:
+
+1. Retain pointer gestures while a distant horizontal prefix is unmeasured.
+   Current hit testing guards against guessed bytes, but can lose that click.
+   The external distant_unmeasured_pointer_click regression fails with “click
+   must not disappear while its prefix is measuring”; its source and log are
+   preserved in the current archive. It is not committed as failing/ignored.
+   Cover primary selection/drag, Ctrl-click and context-menu ownership through
+   the same measured geometry, preserving input order and cancellation boundaries.
+2. Repair toolbar menu traversal/focus restoration. In the 2× trial, bare source
+   keys stop responding after toolbar use, even after a pointer caret change.
+   Go To Line restores keyboard ownership; light-end-via-modal.png confirms End
+   thereafter. This is distinct from the repaired reader context menus.
+3. Complete broader large-file/long-name/wrap/scroll/scaling acceptance and exact
+   cross-file Back restoration on long unwrapped lines. Existing short/ordinary
+   navigation tests do not prove every long-line case.
+
+Full Swift requirement acceptance, broader grammar/index/PR/cache corpus and the
+final standalone/reuse boundary audit remain active. Full accessibility and actual
+sibling integration remain deferred.

@@ -5,8 +5,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 ## Current accepted state
 
 [Unwrapped fragment geometry](plans/rust-unwrapped-fragment-geometry.md) records
-a native-proven long-line layout defect and the reusable measurement model. The
-model is tested; its viewport integration remains required next.
+the integrated horizontal placement and deferred keyboard/reveal geometry for
+bounded source fragments, with native 1×/2× copy/layout evidence. Retaining clicks
+while a distant prefix measures and toolbar focus restoration remain required.
 
 [Source Ctrl-click navigation](plans/rust-source-pointer-navigation.md) reuses
 exact indexed targets, preserves departure history and gates source menu actions.

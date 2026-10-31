@@ -158,9 +158,11 @@ impl UnwrappedRows {
         let changed = delta != 0.0 || !self.measured[fragment];
         self.widths[fragment] = f64::from(width);
         self.measured[fragment] = true;
-        row.width += delta;
-        for offset in &mut self.offsets[fragment + 1..row.fragments.end] {
-            *offset += delta;
+        if delta != 0.0 {
+            row.width += delta;
+            for offset in &mut self.offsets[fragment + 1..row.fragments.end] {
+                *offset += delta;
+            }
         }
         while row.measured_until < row.fragments.end && self.measured[row.measured_until] {
             row.measured_until += 1;
