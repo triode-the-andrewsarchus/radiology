@@ -150,6 +150,18 @@ pub(crate) fn shortcut_event(
     }
 }
 
+/// Resolves commands that must observe preceding source caret/selection input.
+pub(crate) fn source_command(event: &Event) -> Option<ReaderCommand> {
+    shortcut_event(event, false, false).filter(|command| {
+        matches!(
+            command,
+            ReaderCommand::ToggleBookmark
+                | ReaderCommand::GoToDefinition
+                | ReaderCommand::FindReferences
+        )
+    })
+}
+
 pub(crate) fn keyboard_event(event: &Event) -> bool {
     matches!(
         event,

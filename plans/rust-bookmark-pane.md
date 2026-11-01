@@ -175,3 +175,14 @@ Broader bookmark anchor bounds/cancellation, region-specific navigation errors,
 review/long-name/large-list corpora, remaining command ownership and final Swift/
 standalone/reuse acceptance remain open. Full accessibility and actual sibling
 integration remain deferred.
+
+
+## Mixed source/bookmark command follow-up — 2026-11-01
+
+The confirmed batch defect above is now repaired: source pre-frame capture and
+the existing ordered queue retain Bookmark/Right/Bookmark, including deferred
+movement and explicit/implicit focus. Native 1×/2× rapid sequences and real-app
+1×/1.5×/2× checks pass. Definition and References use the same caret-sensitive
+command boundary; explicit navigation retires later source commands.
+[Implementation, command boundaries, validation and limits](rust-source-input-order.md#caret-sensitive-reader-commands-share-source-order--2026-11-01).
+Other mixed-owner/pointer/command corpus and full parity acceptance remain open.

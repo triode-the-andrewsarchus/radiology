@@ -162,6 +162,7 @@ impl RadiologyApp {
                 return;
             }
         };
+        self.source_viewport.cancel_deferred_input();
         if !intent.force_read {
             if let Some(buffer) = self.open_buffer.as_ref().filter(|buffer| {
                 buffer.path == location.path

@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-01 — Preserve caret-sensitive commands in the source input queue (Codex)
+
+Bookmark, Definition and References now observe preceding source movement and
+selection through the existing document-bound input queue. It yields each shared
+ReaderCommand to normal app dispatch, then resumes remaining input on repaint.
+The existing inspector pre-frame capture now also protects source keys from egui
+focus movement; its one private event buffer is renamed reader_input. Explicit
+navigation reuses immediate pending-input retirement. Modal/menu ownership and
+closing isolation remain intact. No new raw queue, worker, dependency or separate
+command execution pipeline. App tests cover 1×/1.5×/2× explicit/implicit focus,
+Unicode bookmarks and later Copy, references after movement, and navigation's
+retirement of later commands. Deferred geometry and owner/document/zoom/pointer
+retirement include queued commands. Removing deferral or source capture fails
+separately. Full workspace passes 530 app tests (seven ignored), two binary,
+four font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture adds 173 NLOC including fixtures/tests, with no new hotspot/cycle;
+shared fixtures remove new test clones, and all 91 baseline groups are unchanged.
+Native 1×/2× rapid source sequences now retain both Unicode bookmark columns,
+restart/recover and remove independently. Controlled imported-index native checks
+pin References after movement, navigate to exact definition bytes, retire a later
+bookmark and restore Back's departure caret. Fixed-length/full-source copy,
+inspected captures, final binary/fixture hashes and zero exits pass. Excluded
+indexed QA trials expected header-only Shift+End despite a collapsed declaration;
+final validation uses fixed-length selection and complete bytes. No folded-End
+behavior change. Final post-interruption build matches all accepted native runs.
+Broader mixed-owner/pointer/command, reader/corpus, grammar/index/PR/cache and
+final Swift UI/standalone/reuse acceptance remain open. Full accessibility and
+actual sibling integration stay deferred.
+[Contract/evidence](plans/rust-source-input-order.md#caret-sensitive-reader-commands-share-source-order--2026-11-01).
+Archive: ~/.local/state/radiology-qa/source-global-input-20261101-5cc24d2.
+
 ## 2026-10-31 — Preserve exact bookmark locations and recover valid identities (Codex)
 
 Bookmarks now match canonical bytes/path/revision instead of resolving whole lines

@@ -244,3 +244,101 @@ fn focused_toolbar_menu_keeps_global_definition_shortcuts_available() {
     assert_eq!((app.caret_line, app.caret_col), (1, 3));
     assert!(app.source_viewport.has_focus(&ctx));
 }
+
+#[test]
+fn source_commands_preserve_coalesced_bookmark_move_and_copy_order() {
+    for scale in [1.0, 1.5, 2.0] {
+        for focused in [false, true] {
+            let (dir, mut app) = reader();
+            std::fs::write(dir.path().join("a.rs"), "// é🦀漢字 SAME_LINE\r\n").unwrap();
+            app.open_repository(dir.path());
+            settle(&mut app);
+            app.jump_to_location("a.rs", 1, 3);
+            settle(&mut app);
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            frame(&mut app, &ctx, vec![]);
+            if focused {
+                app.source_viewport.request_focus(&ctx);
+            } else if let Some(id) = ctx.memory(|memory| memory.focused()) {
+                ctx.memory_mut(|memory| memory.surrender_focus(id));
+            }
+            frame(
+                &mut app,
+                &ctx,
+                vec![
+                    key(Key::D, Modifiers::CTRL),
+                    key(Key::ArrowRight, Modifiers::NONE),
+                    key(Key::D, Modifiers::CTRL),
+                    key(Key::End, Modifiers::SHIFT),
+                    Event::Copy,
+                ],
+            );
+            assert_eq!(app.bookmarks.bookmarks.len(), 1);
+            frame(&mut app, &ctx, vec![]);
+            assert_eq!(
+                app.bookmarks
+                    .bookmarks
+                    .iter()
+                    .map(|entry| entry.byte_offset)
+                    .collect::<Vec<_>>(),
+                vec![3, 5],
+                "scale={scale}, focused={focused}"
+            );
+            let output = frame(&mut app, &ctx, vec![]);
+            assert_eq!(output.platform_output.copied_text, "🦀漢字 SAME_LINE");
+            assert!(
+                !app.current_bookmarked(),
+                "selection ends beyond both saved columns"
+            );
+        }
+    }
+}
+
+fn source_at_indexed_gap() -> (tempfile::TempDir, RadiologyApp, Context) {
+    let (dir, mut app) = reader_at_indexed_call();
+    let ctx = Context::default();
+    app.caret_line = 2;
+    app.caret_col = 3;
+    frame(&mut app, &ctx, vec![]);
+    app.source_viewport.request_focus(&ctx);
+    (dir, app, ctx)
+}
+
+#[test]
+fn source_commands_resolve_references_after_preceding_movement() {
+    let (_dir, mut app, ctx) = source_at_indexed_gap();
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            key(Key::ArrowRight, Modifiers::NONE),
+            key(Key::R, Modifiers::CTRL | Modifiers::ALT),
+        ],
+    );
+    assert_eq!((app.caret_line, app.caret_col), (2, 4));
+    assert_eq!(app.reference_context.target().unwrap().name, "alpha");
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+}
+
+#[test]
+fn source_command_navigation_retires_the_remaining_source_batch() {
+    let (_dir, mut app, ctx) = source_at_indexed_gap();
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            key(Key::ArrowRight, Modifiers::NONE),
+            key(Key::J, Modifiers::CTRL | Modifiers::ALT),
+            key(Key::D, Modifiers::CTRL),
+        ],
+    );
+    settle(&mut app);
+    frame(&mut app, &ctx, vec![]);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert_eq!((app.caret_line, app.caret_col), (1, 3));
+    assert!(
+        app.bookmarks.bookmarks.is_empty(),
+        "navigation must retire later source commands"
+    );
+}

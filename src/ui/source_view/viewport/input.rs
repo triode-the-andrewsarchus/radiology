@@ -59,12 +59,16 @@ impl PointerCapture {
 }
 
 impl SourceViewport {
-    fn cancel_source_input(&mut self, ctx: &egui::Context) {
+    pub(crate) fn cancel_deferred_input(&mut self) {
         self.pending_input.clear();
         self.pointer = PointerCapture::default();
         self.dragging = false;
         self.occurrence_clicks = None;
         self.menu_request = None;
+    }
+
+    fn cancel_source_input(&mut self, ctx: &egui::Context) {
+        self.cancel_deferred_input();
         crate::ui::context_menu::cancel_opening(ctx, Self::focus_id());
     }
 
@@ -335,8 +339,9 @@ impl SourceViewport {
         geometry: &CanvasGeometry,
     ) -> (Option<SourceViewAction>, bool) {
         let (mut action, mut keyboard_reveal) = (None, false);
-        while let Some(event) = self.pending_input.front().copied() {
+        while let Some(event) = self.pending_input.front().cloned() {
             let next = match event {
+                SourceInput::Command(command) => Some(SourceViewAction::ReaderCommand(command)),
                 SourceInput::Copy => {
                     self.copy(ui.ctx(), content.buffer);
                     None
@@ -386,7 +391,11 @@ impl SourceViewport {
                 action = next;
                 break;
             }
+            let command = matches!(next, Some(SourceViewAction::ReaderCommand(_)));
             action = next.or(action);
+            if command {
+                break;
+            }
         }
         if !self.pending_input.is_empty() {
             ui.ctx().request_repaint();

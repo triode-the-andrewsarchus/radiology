@@ -166,6 +166,11 @@ impl SourceViewport {
         ctx.memory(|memory| memory.has_focus(Self::focus_id()))
     }
 
+    pub(crate) fn accepts_keyboard(&self, ctx: &egui::Context) -> bool {
+        self.has_focus(ctx)
+            || (!ctx.wants_keyboard_input() && ctx.read_response(Self::focus_id()).is_some())
+    }
+
     pub(crate) fn request_focus(&self, ctx: &egui::Context) {
         ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
     }
@@ -1450,8 +1455,9 @@ impl SourceViewport {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum SourceInput {
+    Command(crate::ui::commands::ReaderCommand),
     Copy,
     SelectAll,
     Move(Key, bool),
@@ -1460,6 +1466,9 @@ enum SourceInput {
 }
 
 fn source_input(event: &egui::Event) -> Option<SourceInput> {
+    if let Some(command) = crate::ui::commands::source_command(event) {
+        return Some(SourceInput::Command(command));
+    }
     if matches!(event, egui::Event::Copy) {
         return Some(SourceInput::Copy);
     }
@@ -2485,23 +2494,34 @@ mod tests {
         );
     }
 
+    fn deferred_unicode_reader(ctx: &egui::Context, next_line: &str) -> Reader {
+        let text = format!("{}\r\n{next_line}\r\nlast", "é🦀漢字 ".repeat(60000));
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        reader.frame(ctx, vec![]);
+        reader
+    }
+
+    fn deferred_bookmark_reader(ctx: &egui::Context) -> Reader {
+        let mut reader = deferred_unicode_reader(ctx, "next é🦀");
+        reader.frame(
+            ctx,
+            vec![
+                key(Key::End, Modifiers::NONE),
+                key(Key::ArrowDown, Modifiers::SHIFT),
+                key(Key::D, Modifiers::CTRL),
+                egui::Event::Copy,
+            ],
+        );
+        assert!(!reader.viewport.pending_input.is_empty());
+        reader
+    }
+
     #[test]
     fn deferred_source_input_retires_on_navigation_document_zoom_and_focus_changes() {
-        let text = format!("{}\r\nnext\r\nlast", "é🦀漢字 ".repeat(60000));
         for change in ["navigation", "document", "zoom", "focus", "source_click"] {
             let ctx = reader_context(1.0);
-            let mut reader = Reader::new(&text);
-            reader.wrap = false;
-            reader.frame(&ctx, vec![]);
-            reader.frame(
-                &ctx,
-                vec![
-                    key(Key::End, Modifiers::NONE),
-                    key(Key::ArrowDown, Modifiers::SHIFT),
-                    egui::Event::Copy,
-                ],
-            );
-            assert!(!reader.viewport.pending_input.is_empty(), "{change}");
+            let mut reader = deferred_bookmark_reader(&ctx);
             let expected_line = match change {
                 "navigation" => {
                     reader.line = 3;
@@ -2536,8 +2556,43 @@ mod tests {
                 let output = reader.frame(&ctx, events);
                 assert!(output.platform_output.copied_text.is_empty(), "{change}");
                 assert!(reader.viewport.pending_input.is_empty(), "{change}");
+                assert!(
+                    !matches!(reader.last_action, Some(SourceViewAction::ReaderCommand(_))),
+                    "{change}"
+                );
                 assert_eq!(reader.line, expected_line, "{change}");
             }
+        }
+    }
+
+    #[test]
+    fn caret_command_waits_for_deferred_source_geometry_and_yields_before_copy() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = deferred_bookmark_reader(&ctx);
+            assert!(!matches!(
+                reader.last_action,
+                Some(SourceViewAction::ReaderCommand(_))
+            ));
+            for _ in 0..1024 {
+                let output = reader.frame(&ctx, vec![]);
+                assert!(output.platform_output.copied_text.is_empty());
+                if matches!(reader.last_action, Some(SourceViewAction::ReaderCommand(_))) {
+                    break;
+                }
+            }
+            assert_eq!(
+                reader.last_action,
+                Some(SourceViewAction::ReaderCommand(
+                    crate::ui::commands::ReaderCommand::ToggleBookmark
+                ))
+            );
+            assert_eq!(
+                (reader.line, reader.column),
+                (2, "next é🦀".chars().count())
+            );
+            let output = reader.frame(&ctx, vec![]);
+            assert_eq!(output.platform_output.copied_text, "\r\nnext é🦀");
         }
     }
 
@@ -2546,10 +2601,7 @@ mod tests {
         let ctx = egui::Context::default();
         // More than two frame budgets: End can resolve bytes immediately, but
         // Down must measure its horizontal prefix before Copy can run.
-        let text = format!("{}\r\nnext é🦀\r\nlast", "é🦀漢字 ".repeat(60000));
-        let mut reader = Reader::new(&text);
-        reader.wrap = false;
-        reader.frame(&ctx, vec![]);
+        let mut reader = deferred_unicode_reader(&ctx, "next é🦀");
         let output = reader.frame(
             &ctx,
             vec![
@@ -2560,7 +2612,8 @@ mod tests {
         );
         assert!(output.platform_output.copied_text.is_empty());
         assert!(!reader.viewport.pending_input.is_empty());
-        let expected = &text[..text.find("\r\nlast").unwrap()];
+        let expected =
+            reader.source.text[..reader.source.text.find("\r\nlast").unwrap()].to_owned();
         let mut copied = String::new();
         for _ in 0..512 {
             let output = reader.frame(&ctx, vec![]);

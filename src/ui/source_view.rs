@@ -23,6 +23,8 @@ pub use viewport::SourceViewport;
 /// User interactions and navigation events produced within the [`SourceView`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceViewAction {
+    /// Dispatches a caret-sensitive command after preceding source input is applied.
+    ReaderCommand(crate::ui::commands::ReaderCommand),
     /// Caret position moved to a new line and column.
     CaretMoved {
         /// 1-based line number.

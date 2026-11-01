@@ -1,4 +1,4 @@
-//! Ordered keyboard ownership across inspector controls and global commands.
+//! Ordered keyboard ownership across source, inspector controls and global commands.
 use super::*;
 use egui::{Event, Key, Modifiers};
 
@@ -11,14 +11,14 @@ impl RadiologyApp {
                 || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id())))
     }
 
-    pub(super) fn capture_inspector_input(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+    pub(super) fn capture_reader_input(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         if !matches!(self.modal, ActiveModal::None)
             || crate::ui::commands::context_menu_is_open(ctx)
-            || !self.inspector_has_focus(ctx)
+            || !(self.inspector_has_focus(ctx) || self.source_viewport.accepts_keyboard(ctx))
         {
             return;
         }
-        self.inspector_input
+        self.reader_input
             .extend(crate::ui::commands::take_input_actions(
                 &mut input.events,
                 |event| {
@@ -53,6 +53,13 @@ impl RadiologyApp {
                 self.source_viewport.has_focus(ctx) || self.inspector_has_focus(ctx);
             let typing = ctx.wants_keyboard_input() && !reader_focused && !menu_open;
             let command = crate::ui::commands::shortcut_event(event, typing, menu_open)?;
+            if !menu_open
+                && self.open_buffer.is_some()
+                && self.source_viewport.accepts_keyboard(ctx)
+                && crate::ui::commands::source_command(event).is_some()
+            {
+                return None;
+            }
             crate::ui::commands::close_context_menu(ctx);
             let previous_focus = ctx.memory(|memory| memory.focused());
             self.execute_command(ctx, command);

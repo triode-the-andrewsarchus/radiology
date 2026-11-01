@@ -164,7 +164,7 @@ pub struct RadiologyApp {
     bookmark_list: crate::ui::bookmark_list::BookmarkList,
     outline_list: crate::ui::outline_list::OutlineList,
     declaration_summary: crate::ui::context_inspector::DeclarationSummary,
-    inspector_input: Vec<egui::Event>,
+    reader_input: Vec<egui::Event>,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -305,7 +305,7 @@ impl RadiologyApp {
             bookmark_list: Default::default(),
             outline_list: Default::default(),
             declaration_summary: Default::default(),
-            inspector_input: Vec::new(),
+            reader_input: Vec::new(),
             active_pr: None,
             review: None,
             review_job: Default::default(),
@@ -463,7 +463,7 @@ impl RadiologyApp {
         self.source_find = Default::default();
         self.source_viewport = Default::default();
         self.declaration_summary = Default::default();
-        self.inspector_input.clear();
+        self.reader_input.clear();
         self.test_code = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
@@ -525,7 +525,7 @@ impl RadiologyApp {
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
-        let mut events = std::mem::take(&mut self.inspector_input);
+        let mut events = std::mem::take(&mut self.reader_input);
         events.extend(ctx.input_mut(|input| std::mem::take(&mut input.events)));
         self.dispatch_key_events(ctx, &mut events);
         ctx.input_mut(|input| input.events = events);
@@ -536,7 +536,7 @@ impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         super::commands::take_context_menu_input(ctx, input);
         self.take_modal_input(ctx, input);
-        self.capture_inspector_input(ctx, input);
+        self.capture_reader_input(ctx, input);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -563,7 +563,7 @@ impl eframe::App for RadiologyApp {
 
 impl RadiologyApp {
     fn render(&mut self, ctx: &Context) {
-        let captured = !self.inspector_input.is_empty();
+        let captured = !self.reader_input.is_empty();
         if captured {
             self.handle_shortcuts(ctx);
         }
@@ -875,6 +875,9 @@ impl RadiologyApp {
                         &mut self.source_viewport,
                     ) {
                         match action {
+                            SourceViewAction::ReaderCommand(command) => {
+                                self.execute_command(ctx, command)
+                            }
                             SourceViewAction::CaretMoved { line, column, .. } => {
                                 self.caret_line = line;
                                 self.caret_col = column;
