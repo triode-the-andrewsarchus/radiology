@@ -8,8 +8,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 names, overload headers, conditional alternatives, assembly labels/macros and recovered
 C/C++ function heads from actual source. The reference seL4 trace resolves91/91 steps.
 The reader uses a proper C++ grammar and shared declaration queries. [Format/storage](plans/rust-code-paths.md)
-is accepted too; app request/history binding and the left-sidebar import/list UI remain
-required before Code Paths is available in the app.
+is accepted too. [App navigation](plans/rust-code-path-app.md) now guards asynchronous
+publication, reuses prepared structure and passes91-step/93-destination exact Back
+acceptance. The left-sidebar import/list/persistence workflow remains required before
+standalone users can follow a Code Path.
 
 [Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
 trait/member/impl context to compact source-sorted rows, stable selection, ordinary

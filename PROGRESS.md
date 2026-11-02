@@ -1,5 +1,46 @@
 # Progress
 
+## 2026-11-02 — Guarded Code Paths app navigation and exact Back (Codex)
+
+Connected selected-trace resolution to the actual app model through the existing
+LatestRead workers and PendingNavigation/source publication transaction. Captured
+root/review/trace/source/caret ownership rejects retired success and error. New
+navigation, cancellation and same-ID trace replacement retire immediately. The source
+widget retains any caret movement in an ordered batch, so Right/Left returning to its
+start still retires the step. Public host selection/navigation/observation methods
+prepare later standalone UI and sibling reuse; no sidebar/import/persistence UI claim.
+
+The existing prepare_loaded accepts the resolver's already-computed structure alongside
+its exact source, avoiding a second parse and a separate source-loading implementation.
+Existing highlight/diff/default-fold preparation, source publication, function-body
+reveal and history remain shared. Theme changes recolor the accepted buffer. Step
+selection/conditional alternatives publish only after successful source preparation;
+errors preserve source/caret/history. Before departures resolve pinned After and Back
+restores the exact original Before byte/revision.
+
+Nine new app tests pass, including queued completion/error ownership and a real app
+keyboard-batch test at1×/2×. Full workspace:706 app tests pass, seven existing ignored;
+two binary/13 font/21 text tests and54 doctests pass. Strict gates and rendered host
+API review pass. Initial test-only Back/helper visibility and trailing-empty-line color
+assumptions were corrected to test the actual command and native highlight colors.
+The reproducible code_path_app_probe opens91/91 seL4 steps and all93 destinations in22
+files, checks exact source identity and sends Back for91 exact departure restorations.
+Independent comparison matches every destination to the earlier resolver and Git blobs;
+reference checkout d419a119a61a9b42edf61fb79ad08de45248daa7 stays clean. This is app-model
+and shortcut routing acceptance; native trace sidebar/import acceptance remains pending.
+
+Architecture: +652 NLOC/29 functions/three files, avg/max CCN3.39/132,33 hotspots,
+126 clone groups and one cycle unchanged. An initially duplicated preparation block
+was removed by extending the existing operation; the26-CCN probe main was separated
+into CLI/step/variant responsibilities (new maximum11). Raw comparison still flags
+pre-existing touched test clones and shifting untouched Python chokepoints; normalized
+baseline audit proves zero added/removed clone identities. No new pool/dependency.
+[Contract and next feature work](plans/rust-code-path-app.md).
+Evidence: ~/.local/state/radiology-qa/code-path-app-20261102-c1c3f07.
+Next: serialized background saved-collection load/import/delete, left-sidebar trace/
+steps/variants, Copy/Delete, paste/file import, shortcuts/help and native/relaunch QA.
+Full Swift parity remains active; accessibility expansion and sibling adoption deferred.
+
 ## 2026-11-02 — Code Paths resolution and native C++ grammar (Codex)
 
 Implemented owned-source Code Paths resolution with bare/qualified/header selectors,

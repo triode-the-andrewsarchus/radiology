@@ -362,6 +362,7 @@ impl SourceViewport {
     ) -> (Option<SourceViewAction>, bool) {
         let (mut action, mut keyboard_reveal) = (None, false);
         while let Some(event) = self.pending_input.front().cloned() {
+            let caret = (*content.caret_line, *content.caret_col);
             let next = match event {
                 SourceInput::Command(command) => Some(SourceViewAction::ReaderCommand(command)),
                 SourceInput::Copy => {
@@ -424,6 +425,7 @@ impl SourceViewport {
                     next
                 }
             };
+            self.caret_moved |= caret != (*content.caret_line, *content.caret_col);
             self.pending_input.pop_front();
             if matches!(next, Some(SourceViewAction::NavigateToDefinition(_))) {
                 self.cancel_source_input(ui.ctx());

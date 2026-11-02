@@ -45,6 +45,7 @@ pub struct SourceViewport {
     selection: Option<ByteSelection>,
     dragging: bool,
     composing: bool,
+    caret_moved: bool,
     unwrapped: UnwrappedRows,
     layout_key: Option<(FontId, f32, f32)>,
     measurement_priority: Option<usize>,
@@ -163,6 +164,12 @@ impl CanvasGeometry {
 }
 
 impl SourceViewport {
+    /// Reports any caret movement since the host last finished source interaction.
+    /// A batch can move away and back to its starting coordinates.
+    pub(crate) fn take_caret_movement(&mut self) -> bool {
+        std::mem::take(&mut self.caret_moved)
+    }
+
     pub(crate) fn focus_id() -> Id {
         Id::new("radiology_source_canvas")
     }

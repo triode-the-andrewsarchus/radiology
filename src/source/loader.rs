@@ -306,12 +306,23 @@ fn prepare(
             .source
             .read_cancellable(&request.location, cancel, deadline)
     }?;
-    prepare_loaded(request, buffer, highlighter, dark_mode, cancel, deadline)
+    prepare_loaded(
+        request,
+        buffer,
+        None,
+        highlighter,
+        dark_mode,
+        cancel,
+        deadline,
+    )
 }
 
+/// Completes a source transaction, reusing optional structure from these exact bytes.
+/// Callers supplying structure must retain the original buffer/analysis pair.
 pub(crate) fn prepare_loaded(
     request: SourceLoadRequest,
     buffer: Arc<SourceBuffer>,
+    syntax: Option<DocumentSyntax>,
     highlighter: &SyntaxHighlighter,
     dark_mode: bool,
     cancel: &AtomicBool,
@@ -323,10 +334,14 @@ pub(crate) fn prepare_loaded(
     let destination = request.target.resolve_cancellable(&buffer, cancelled);
     check()?;
     let destination = destination?;
-    let syntax = (!matches!(request.source, SourceRead::Buffer(_)))
-        .then(|| DocumentSyntax::analyze_cancellable(&buffer, cancelled));
+    let syntax = match syntax {
+        Some(syntax) => Some(syntax),
+        None if !matches!(request.source, SourceRead::Buffer(_)) => {
+            Some(DocumentSyntax::analyze_cancellable(&buffer, cancelled)?)
+        }
+        None => None,
+    };
     check()?;
-    let syntax = syntax.transpose()?;
     let native = syntax
         .as_ref()
         .map(|syntax| syntax.native_highlights.as_ref())

@@ -78,6 +78,7 @@ impl RadiologyApp {
                     crate::source::loader::prepare_loaded(
                         request,
                         mapped.buffer.clone(),
+                        None,
                         &highlighter,
                         dark_mode,
                         cancel,

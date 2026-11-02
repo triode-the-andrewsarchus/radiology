@@ -25,7 +25,7 @@ fn advance(
     ReviewSnapshot::prepare(root, summary, &owner.join("cache")).unwrap()
 }
 
-pub(super) fn open_review(
+pub(in crate::ui::app) fn open_review(
     root: &Path,
     review: ReviewSnapshot,
     revision: ReviewRevision,

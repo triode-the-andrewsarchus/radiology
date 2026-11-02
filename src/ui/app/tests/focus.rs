@@ -7,7 +7,7 @@ mod references;
 mod traits;
 use egui::{Event, Key, Modifiers};
 
-fn key(key: Key, modifiers: Modifiers) -> Event {
+pub(in crate::ui::app) fn key(key: Key, modifiers: Modifiers) -> Event {
     let mut event = crate::ui::commands::test_key(key);
     if let Event::Key {
         modifiers: actual, ..
@@ -18,7 +18,11 @@ fn key(key: Key, modifiers: Modifiers) -> Event {
     event
 }
 
-fn frame(app: &mut RadiologyApp, ctx: &Context, events: Vec<Event>) -> egui::FullOutput {
+pub(in crate::ui::app) fn frame(
+    app: &mut RadiologyApp,
+    ctx: &Context,
+    events: Vec<Event>,
+) -> egui::FullOutput {
     frame_with_overlay(app, ctx, events, |_| {})
 }
 

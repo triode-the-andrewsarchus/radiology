@@ -2,8 +2,9 @@
 
 Current checkpoint: the reusable text-format and private-storage foundation is
 implemented. [Source resolution](rust-code-path-resolution.md) is now implemented too,
-with real91-step seL4 acceptance. There is no Code Paths sidebar/import UI or app step
-navigation yet.
+with real91-step seL4 acceptance. [App step navigation](rust-code-path-app.md) now
+passes the real91-step/93-destination source/history probe with ownership guards.
+There is no standalone Code Paths sidebar/import/persistence workflow yet.
 The full feature remains required by the upstream parity ledger. The behavioral
 reference is [code-paths.md](code-paths.md) and the current Swift CodePaths source,
 not the earlier line-number-based proposal.
@@ -78,10 +79,12 @@ Evidence: ~/.local/state/radiology-qa/code-paths-data-20261102-d0da261.
    macros and navigation-only C/C++ body-head recovery. The reader now has a proper
    C++ grammar and shares native declaration extraction with C.
 2. The real reference seL4 corpus resolves91/91 steps with93 Git-verified destinations.
-   App-level navigation/conditional-menu/history acceptance is still required.
-3. Bind cancellable resolution to root/review/navigation/caret/trace ownership.
-   Reuse authoritative open buffers, canonical checkout containment and pinned After
-   reads. Preserve exact Before/After departure history and reject late success/error.
+   App model navigation/history also passes91/91 steps and all93 destinations;
+   conditional-menu/native sidebar acceptance is still required.
+3. [Implemented guarded app navigation](rust-code-path-app.md): root/review/source/
+   caret/trace ownership, authoritative buffers, prepared-structure reuse and exact
+   Before/After Back. Queued stale success/error and same-batch caret round trips retire.
+   Saved collection load/import/delete still need serialized background app binding.
 4. Add the left-sidebar peer tab, saved-trace picker, numbered wrapping steps,
    conditional-destination menu, Copy/Delete/import controls and trace-count footer.
    Preserve step state when switching tabs; import/show reveals only the left sidebar.

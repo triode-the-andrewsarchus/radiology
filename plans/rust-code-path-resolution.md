@@ -3,8 +3,9 @@
 The Code Paths library now resolves declarations and conditional/assembly variants
 against owned source snapshots. All91 authored seL4 steps resolve at the reference
 commit. The app's C++ reader also uses real C++ syntax. Code Paths import/sidebar
-presentation and app request/history guards remain required; this is not a completed
-Code Paths UI or a completed indexing-personality feature.
+presentation remains required. [App request/history guards](rust-code-path-app.md)
+are now implemented and tested separately; this is not a completed Code Paths UI
+or a completed indexing-personality feature.
 
 ## Source and selector contract
 
@@ -110,6 +111,7 @@ outline/app-test files and untouched Python chokepoints change ranking. Normaliz
 full path/fragment/token audit proves zero added/removed clone identities. No new
 hotspot or cycle remains. No new worker pool or source-navigation subsystem was added.
 
-Next: bind asynchronous resolution to app root/review/navigation/caret/trace ownership;
-reuse returned source/structure; add the left-sidebar trace picker/steps/conditional
-menu and import/copy/delete/shortcuts, then run app-level91-step navigation acceptance.
+[App navigation now reuses returned structure and guards publication](rust-code-path-app.md),
+with91-step/93-destination exact Back acceptance. Next: bind saved collection mutations
+and add the left-sidebar trace picker/steps/conditional menu, import/copy/delete,
+shortcuts and native/persistence acceptance.

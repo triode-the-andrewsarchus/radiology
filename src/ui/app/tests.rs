@@ -1,7 +1,7 @@
 use super::*;
 use crate::semantic::scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
 
-fn reader() -> (tempfile::TempDir, RadiologyApp) {
+pub(super) fn reader() -> (tempfile::TempDir, RadiologyApp) {
     let dir = tempfile::tempdir().unwrap();
     let session = SessionStore::load_from(dir.path().join("settings/session.json"));
     (dir, RadiologyApp::from_session(session))
@@ -20,7 +20,7 @@ fn rendered_frame(app: &mut RadiologyApp, ctx: &Context) -> egui::FullOutput {
     )
 }
 
-fn settle(app: &mut RadiologyApp) {
+pub(super) fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
     while app.pending_pr.is_some()
@@ -77,7 +77,7 @@ fn open_empty_repository(app: &mut RadiologyApp, root: &Path) {
     settle(app);
 }
 
-fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
+pub(super) fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
     repository(dir.path());
     app.open_repository(dir.path());
@@ -2370,7 +2370,7 @@ mod repository_open;
 
 mod reviews;
 
-mod review_refresh;
+pub(super) mod review_refresh;
 
 mod provisioning;
 
@@ -2533,7 +2533,7 @@ fn opening_a_modal_blocks_later_reader_shortcuts_in_the_same_frame() {
     assert_eq!((app.caret_line, app.caret_col), (2, 5));
 }
 
-mod focus;
+pub(super) mod focus;
 
 mod outline_status;
 

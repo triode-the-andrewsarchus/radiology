@@ -21,7 +21,9 @@ pub(super) struct PendingNavigation {
 impl RadiologyApp {
     /// Publishes actual caret movement even when another source action wins the frame.
     pub(super) fn finish_source_interaction(&mut self, previous: (usize, usize)) {
-        if previous != (self.caret_line, self.caret_col) {
+        let moved = self.source_viewport.take_caret_movement();
+        if moved || previous != (self.caret_line, self.caret_col) {
+            self.cancel_code_path_navigation();
             if let Some(buffer) = &self.open_buffer {
                 self.history.update_current(
                     buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col)),
@@ -170,6 +172,7 @@ impl RadiologyApp {
         target: SourceTarget,
         intent: NavigationIntent,
     ) {
+        self.cancel_code_path_navigation();
         let location = match self.resolve_location(location) {
             Ok(location) => location,
             Err(error) => {
@@ -226,6 +229,7 @@ impl RadiologyApp {
 
     /// Cancels pending source work while preserving the current document/history.
     pub fn cancel_source_load(&mut self) {
+        self.cancel_code_path_navigation();
         self.source_loader.stop();
         self.pending_navigation = None;
     }
@@ -233,7 +237,7 @@ impl RadiologyApp {
     /// Returns whether source loading or appearance work is still pending.
     #[must_use]
     pub fn is_source_loading(&self) -> bool {
-        self.source_loader.is_running()
+        self.source_loader.is_running() || self.is_code_path_loading()
     }
 
     /// Publishes ready source work and schedules repaint while a request is pending.
@@ -286,6 +290,7 @@ impl RadiologyApp {
             }
             ctx.request_repaint();
         }
+        self.poll_code_path_navigation(ctx);
         if self.source_loader.is_running() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
@@ -428,14 +433,20 @@ impl RadiologyApp {
     }
 
     pub(super) fn show_source_loading(&mut self, ctx: &Context) {
-        if !self.source_loader.is_running() {
+        if !self.is_source_loading() {
             return;
         }
         TopBottomPanel::top("source_loading").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(self.pending_navigation.as_ref().map_or_else(
-                    || "Updating source colors…".into(),
+                    || {
+                        if self.is_code_path_loading() {
+                            "Resolving code path step…".into()
+                        } else {
+                            "Updating source colors…".into()
+                        }
+                    },
                     |pending| format!("Opening {}…", pending.request.location.path),
                 ));
                 if ui.small_button("Cancel").clicked() {

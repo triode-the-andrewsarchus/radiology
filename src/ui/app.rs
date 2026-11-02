@@ -2,6 +2,7 @@
 
 mod actions;
 mod bookmarks;
+mod code_paths;
 mod critical_marks;
 mod desktop;
 mod git;
@@ -205,6 +206,7 @@ pub struct RadiologyApp {
     /// Active modal dialog sheet.
     pub modal: ActiveModal,
     modal_focus: Option<modal::ModalFocus>,
+    code_paths: code_paths::CodePaths,
     source_loader: crate::source::loader::SourceLoader,
     pending_navigation: Option<source::PendingNavigation>,
     /// Target line to scroll and center into view in the code editor.
@@ -359,6 +361,7 @@ impl RadiologyApp {
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
             modal_focus: None,
+            code_paths: Default::default(),
             source_loader: Default::default(),
             pending_navigation: None,
             scroll_to_line: None,
@@ -526,6 +529,7 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.code_paths = Default::default();
         self.reveal_job.stop();
         self.cancel_repository_open();
         self.git_refresh.stop();
