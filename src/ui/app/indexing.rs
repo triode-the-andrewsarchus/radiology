@@ -432,7 +432,12 @@ impl RadiologyApp {
             return None;
         }
         if self.index_plan.selected.is_empty() {
-            ui.label("Generate Index to check for supported build projects.");
+            ui.label(if self.index_plan_job.is_running() {
+                "Inspecting build projects…"
+            } else {
+                "No build projects detected in the current inventory."
+            });
+            ui.label("Generate Index checks complete build inputs.");
         }
         let mut install = None;
         egui::ScrollArea::vertical()
@@ -440,6 +445,16 @@ impl RadiologyApp {
             .show(ui, |ui| {
                 for strategy in &self.index_plan.selected {
                     install = self.show_index_project(ui, strategy).or(install.take());
+                }
+                if !self.index_plan.uncovered_languages.is_empty() {
+                    crate::ui::text_fit::explanation(
+                        ui,
+                        &format!(
+                            "Languages without a selected indexing project: {}",
+                            self.index_plan.uncovered_languages.join(", ")
+                        ),
+                        self.theme.text_secondary,
+                    );
                 }
                 if !self.index_plan.skipped.is_empty() {
                     ui.label(format!(

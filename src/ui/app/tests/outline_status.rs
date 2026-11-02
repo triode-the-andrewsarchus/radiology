@@ -1,18 +1,5 @@
 use super::*;
 
-fn frame(app: &mut RadiologyApp, ctx: &Context) -> egui::FullOutput {
-    ctx.run(
-        egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1100.0, 800.0),
-            )),
-            ..Default::default()
-        },
-        |ctx| app.render(ctx),
-    )
-}
-
 #[test]
 fn outline_explanations_follow_the_current_language_and_test_projection() {
     let (dir, mut app) = opened_repository();
@@ -43,8 +30,8 @@ fn outline_explanations_follow_the_current_language_and_test_projection() {
         app.session.source_filters.hides_tests = true;
         app.open_file(path);
         settle(&mut app);
-        frame(&mut app, &ctx);
-        let output = frame(&mut app, &ctx);
+        rendered_frame(&mut app, &ctx);
+        let output = rendered_frame(&mut app, &ctx);
         let painted = crate::ui::test_support::text_shapes(&output)
             .map(|t| t.galley.job.text.as_str())
             .collect::<Vec<_>>()
@@ -67,7 +54,7 @@ fn outline_explanations_follow_the_current_language_and_test_projection() {
         if path == "hidden.rs" {
             assert!(painted.contains("Ctrl+Alt+H"));
             app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
-            let output = frame(&mut app, &ctx);
+            let output = rendered_frame(&mut app, &ctx);
             assert!(crate::ui::test_support::text_shapes(&output)
                 .any(|t| t.galley.job.text == "hidden"));
             assert!(!crate::ui::test_support::text_shapes(&output).any(|t| t
@@ -102,8 +89,8 @@ fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(app.syntax_error.as_deref(), Some(message));
     let ctx = Context::default();
-    frame(&mut app, &ctx);
-    let output = frame(&mut app, &ctx);
+    rendered_frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
     assert!(crate::ui::test_support::text_shapes(&output).any(|t| t.galley.job.text == message));
     assert!(!crate::ui::test_support::text_shapes(&output).any(|t| t
         .galley
@@ -127,7 +114,7 @@ fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_
     app.syntax_error = Some(message.into());
     app.reset_repository_state();
     assert!(app.syntax_error.is_none());
-    let output = frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
     crate::ui::test_support::text_center(&output, "No File");
     assert!(
         !crate::ui::test_support::text_shapes(&output).any(|text| text
@@ -145,8 +132,8 @@ fn semantic_explanations_follow_index_coverage_source_identity_and_revision() {
     app.show_inspector = true;
     let original = app.semantic_index.clone().unwrap();
     let rendered_text = |app: &mut RadiologyApp| {
-        frame(app, &ctx);
-        let output = frame(app, &ctx);
+        rendered_frame(app, &ctx);
+        let output = rendered_frame(app, &ctx);
         crate::ui::test_support::text_shapes(&output)
             .map(|t| t.galley.job.text.clone())
             .collect::<Vec<_>>()
@@ -245,8 +232,8 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
             app.call_sites.parse_errors,
             "missing recovered-error fact for {path}"
         );
-        frame(&mut app, &ctx);
-        let output = frame(&mut app, &ctx);
+        rendered_frame(&mut app, &ctx);
+        let output = rendered_frame(&mut app, &ctx);
         crate::ui::test_support::assert_visible_text(&output, "Partial structure");
         assert!(!crate::ui::test_support::text_shapes(&output)
             .any(|text| text.galley.job.text == "Structure unavailable"));
@@ -261,7 +248,7 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
     let assert_retained_warning = |app: &mut RadiologyApp| {
         settle(app);
         assert!(Arc::ptr_eq(&calls, &app.call_sites));
-        let output = frame(app, &ctx);
+        let output = rendered_frame(app, &ctx);
         crate::ui::test_support::assert_visible_text(&output, "Partial structure");
     };
     app.execute_command(&ctx, ToolbarAction::ToggleTheme);
@@ -269,7 +256,7 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
     app.open_file("missing.rs");
     assert_retained_warning(&mut app);
     app.syntax_error = Some("The outline query could not complete.".into());
-    let output = frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
     crate::ui::test_support::assert_visible_text(&output, "Structure unavailable");
     assert!(!crate::ui::test_support::text_shapes(&output)
         .any(|text| text.galley.job.text == "Partial structure"));
@@ -277,7 +264,7 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
     app.execute_command(&ctx, ToolbarAction::ReloadSource);
     settle(&mut app);
     assert!(!app.call_sites.parse_errors && app.syntax_error.is_none());
-    let output = frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
     assert!(!crate::ui::test_support::text_shapes(&output).any(|text| [
         "Partial structure",
         "Structure unavailable"

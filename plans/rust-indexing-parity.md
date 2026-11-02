@@ -1,5 +1,9 @@
 # Rust indexing parity
 
+Current addition (2026-11-02): [language-family coverage diagnostics](rust-index-language-coverage.md)
+now match the Swift project diagnostic with current-inventory cache restoration.
+This does not change per-file coverage or partial-index status.
+
 Current additions (2026-10-30): [Rust manifest feature cfgs and real native
 navigation](rust-feature-configuration.md), [explicit pinned provisioning and real TypeScript
 acceptance](rust-tool-provisioning.md), [pinned After indexing](rust-pinned-index.md),

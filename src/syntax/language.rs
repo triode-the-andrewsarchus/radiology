@@ -194,6 +194,11 @@ impl LanguageRegistry {
                     grammar: Some(SupportedGrammar::C),
                 }
             }
+            "m" | "mm" => LanguageInfo {
+                id: "objc",
+                display_name: "Objective-C",
+                grammar: None,
+            },
             "swift" => LanguageInfo {
                 id: "swift",
                 display_name: "Swift",

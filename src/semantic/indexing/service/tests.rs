@@ -343,17 +343,31 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
         ("Cargo.toml", "[package]\nname='fixture'"),
         ("lib.rs", "a"),
         ("orphan.rs", "b"),
+        ("Scan.swift", "struct Scan {}"),
+        ("Bridge.m", "@interface Bridge\n@end"),
     ]);
     fixture.tool(Indexer::Rust, &["lib.rs"], "printf compiler-note >&2");
     let generated = run(fixture.request());
     assert!(generated.report.cache_warning.is_none());
+    assert_eq!(
+        generated.report.plan.uncovered_languages,
+        ["Objective-C", "Swift"]
+    );
     let original_bytes = fs::read(cache_file(&fixture)).unwrap();
+    let stored: serde_json::Value = serde_json::from_slice(&original_bytes).unwrap();
+    assert!(stored["report"]["plan"]
+        .get("uncovered_languages")
+        .is_none());
     fs::remove_dir_all(&fixture.bin).unwrap();
     let mut generator = IndexGenerator::default();
     generator.start_cached(fixture.request());
     let cached = settle(&mut generator);
     assert_eq!(generator.cache_status(), &CacheLoadStatus::Loaded);
     assert!(cached.report.cached);
+    assert_eq!(
+        cached.report.plan.uncovered_languages,
+        ["Objective-C", "Swift"]
+    );
     assert!(cached.report.is_partial());
     assert!(cached.report.summary().starts_with("Partial cached index"));
     assert_eq!(cached.report.fingerprint, generated.report.fingerprint);
@@ -370,6 +384,17 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
     assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
     assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 3);
+
+    fs::write(fixture.source.join("new.rb"), "puts 'hello'\n").unwrap();
+    let updated = super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(updated.report.stale_reason.is_some());
+    assert_eq!(
+        updated.report.plan.uncovered_languages,
+        ["Objective-C", "Ruby", "Swift"]
+    );
+    assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
 
     // A different root sharing the same cache never borrows another repository's data.
     let other = Fixture::new(&[("Cargo.toml", "[package]\nname='fixture'"), ("lib.rs", "a")]);

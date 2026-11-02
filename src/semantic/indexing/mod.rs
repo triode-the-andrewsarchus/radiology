@@ -130,6 +130,12 @@ pub struct IndexPlan {
     pub selected: Vec<IndexingStrategy>,
     /// Projects omitted because the plan reached its run limit.
     pub skipped: Vec<IndexingStrategy>,
+    /// Language families in the inspection inventory without a selected adapter.
+    ///
+    /// This is not per-file coverage. Derived display metadata is rebuilt on cache
+    /// publication and is omitted from serialized plans.
+    #[serde(skip)]
+    pub uncovered_languages: Vec<String>,
 }
 
 impl IndexPlan {
@@ -216,8 +222,50 @@ impl IndexPlan {
             ))
         });
         let skipped = selected.split_off(limit.min(selected.len()));
-        Self { selected, skipped }
+        let uncovered_languages = uncovered_languages(inventory.iter().copied(), &selected);
+        Self {
+            selected,
+            skipped,
+            uncovered_languages,
+        }
     }
+}
+
+fn uncovered_languages<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    selected: &[IndexingStrategy],
+) -> Vec<String> {
+    let indexers: BTreeSet<_> = selected.iter().map(|strategy| strategy.indexer).collect();
+    let covered: BTreeSet<_> = indexers
+        .iter()
+        .flat_map(|indexer| indexer.languages().iter().copied())
+        .collect();
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let language = crate::syntax::LanguageRegistry::for_path(path);
+            (![
+                "text",
+                "markdown",
+                "json",
+                "yaml",
+                "toml",
+                "html",
+                "css",
+                "shell",
+                "sql",
+                "dockerfile",
+                "makefile",
+                "cmake",
+            ]
+            .contains(&language.id)
+                && !covered.contains(language.display_name)
+                && !indexers.iter().any(|indexer| indexer.covers_path(path)))
+            .then(|| language.display_name.to_owned())
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn name(path: &str) -> &str {

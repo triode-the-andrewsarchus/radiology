@@ -246,3 +246,53 @@ fn clang_command_requires_a_prepared_absolute_database_in_the_private_run() {
         }
     }
 }
+
+#[test]
+fn language_gaps_follow_selected_adapters_and_exclude_non_source_formats() {
+    let paths = [
+        "Cargo.toml",
+        "src/lib.rs",
+        "Scan.swift",
+        "Bridge.m",
+        "Bridge.mm",
+        "loose.py",
+        "view.tsx",
+        "view.jsx",
+        "README.md",
+        "data.json",
+        "style.css",
+        "script.sh",
+        "Dockerfile",
+        "Makefile",
+        "CMakeLists.txt",
+    ];
+    let plan = IndexPlan::inspect(paths);
+    assert_eq!(
+        plan.uncovered_languages,
+        ["Objective-C", "Python", "Swift", "TSX"]
+    );
+    let value = serde_json::to_value(&plan).unwrap();
+    assert!(value.get("uncovered_languages").is_none());
+    let decoded: IndexPlan = serde_json::from_value(value).unwrap();
+    assert!(decoded.uncovered_languages.is_empty());
+    assert_eq!(decoded.selected, plan.selected);
+    let all = paths.into_iter().chain([
+        "pyproject.toml",
+        "tsconfig.json",
+        "build.gradle.kts",
+        "src/Reader.kt",
+        "src/Reader.java",
+        "script.kts",
+    ]);
+    assert_eq!(
+        IndexPlan::inspect(all).uncovered_languages,
+        ["Objective-C", "Swift"]
+    );
+    assert_eq!(
+        IndexPlan::with_limit(["Cargo.toml", "lib.rs", "go.mod", "main.go"], 1).uncovered_languages,
+        ["Go"]
+    );
+    assert!(IndexPlan::inspect(["README.md", "data.json", "Dockerfile"])
+        .uncovered_languages
+        .is_empty());
+}

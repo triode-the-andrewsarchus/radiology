@@ -7,6 +7,19 @@ fn reader() -> (tempfile::TempDir, RadiologyApp) {
     (dir, RadiologyApp::from_session(session))
 }
 
+fn rendered_frame(app: &mut RadiologyApp, ctx: &Context) -> egui::FullOutput {
+    ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1100.0, 800.0),
+            )),
+            ..Default::default()
+        },
+        |ctx| app.render(ctx),
+    )
+}
+
 fn settle(app: &mut RadiologyApp) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     let ctx = Context::default();
@@ -640,9 +653,20 @@ fn index_planning_uses_unfiltered_inventory_and_retires_previous_repository() {
     std::fs::create_dir(&second).unwrap();
     std::fs::write(second.join("go.mod"), "module fixture\n").unwrap();
     std::fs::write(second.join("main.go"), "package main\n").unwrap();
+    std::fs::write(first.join("Scan.swift"), "struct Scan {}\n").unwrap();
+    std::fs::write(first.join("Bridge.m"), "@interface Bridge\n@end\n").unwrap();
     app.open_repository(&first);
     settle(&mut app);
+    let ctx = Context::default();
+    app.index_projects_open = true;
+    rendered_frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
+    assert!(
+        crate::ui::test_support::text_shapes(&output).any(|text| text.galley.job.text
+            == "Languages without a selected indexing project: Objective-C, Swift")
+    );
     let plan = app.index_plan().clone();
+    assert_eq!(plan.uncovered_languages, ["Objective-C", "Swift"]);
     assert_eq!(plan.selected[0].source_files, 3);
     app.execute_command(&Context::default(), ToolbarAction::ToggleHideTests);
     assert_eq!(app.index_plan(), &plan);
@@ -652,6 +676,7 @@ fn index_planning_uses_unfiltered_inventory_and_retires_previous_repository() {
     assert_eq!(app.index_plan().selected.len(), 1);
     assert_eq!(app.index_plan().selected[0].id(), "scip-go");
     assert_eq!(app.index_plan().selected[0].source_files, 1);
+    assert!(app.index_plan().uncovered_languages.is_empty());
 }
 
 #[cfg(unix)]

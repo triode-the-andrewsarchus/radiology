@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-02 — Report languages without selected indexing projects (Codex)
+
+Index Projects now shows sorted source families without selected adapters and
+distinguishes inspection from no detected build projects. Reuses registry/adapter
+metadata, excludes ancillary formats and recognizes Objective-C metadata. Coarse
+language diagnostics remain separate from per-file coverage and partial-index
+status. Derived metadata is omitted from serialization and refreshed on current
+inventory cache publication; selected/skipped provenance and format 3 stay intact.
+Plan, cache-without-tools, stale inventory, filter/root transition and real-window
+regressions pass; removing the UI row fails the expected assertion. Workspace:
+574 app tests, seven ignored, two binary, four font, 13 text and 37 doctests; all
+strict gates pass. Four native mixed/no-project 1×/2× flows pass visible rows,
+generation, theme, exact source/hash/exit checks; mixed runs restore cache after
+restart with one fixture tool invocation and unchanged cache bytes. Initial OCR
+selector ambiguity fixed in QA only. Architecture +153 NLOC/two functions; helper
+CCN 4, no new hotspot/cycle, all 91 clones unchanged by full audit. Existing test
+clones trigger automated regression classification; health approximately -0.01.
+Broader parity remains open; full accessibility and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-index-language-coverage.md).
+Archive: ~/.local/state/radiology-qa/index-language-coverage-20261102-0b223e8.
+
 ## 2026-11-01 — Use shared native colors for Go/Python and accept Swift fixtures (Codex)
 
 Go and Python now enter NativeHighlights using already bundled Swift queries,

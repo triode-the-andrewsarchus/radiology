@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Indexing language coverage](rust-index-language-coverage.md) now exposes source
+  families without selected projects, accurate empty-plan feedback and derived
+  cache metadata refreshed from current inventory. Plan/cache/app and four native
+  mixed/no-project checks pass; this is separate from per-file index coverage.
+
 - [Go/Python native source colors](rust-native-highlights.md#go-and-python-native-colors--2026-11-01)
   close the remaining Swift-language coloring whitelist gap. The original ten
   Swift fixtures pass LF/CRLF fact/range/color checks; retained captures, four

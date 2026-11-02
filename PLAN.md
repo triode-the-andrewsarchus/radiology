@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Indexing language coverage](plans/rust-index-language-coverage.md) now reports
+source families without a selected project, with accurate empty-plan feedback and
+current-inventory cache restoration. Plan/cache/app regressions and four native
+1×/2× mixed/no-project flows pass. This is coarse family metadata; per-file
+coverage and broader parity remain separate and open.
+
 [Go/Python native colors](plans/rust-native-highlights.md#go-and-python-native-colors--2026-11-01)
 now reuse bundled Swift queries and retained capture/recoloring. All ten Swift
 fixtures pass native fact/range/color checks with LF/CRLF; four Go/Python 1×/2×

@@ -147,6 +147,10 @@ fn restore(
         return Err("Index cache belongs to another revision".into());
     }
     let inventory = request.inventory(cancel)?;
+    entry.report.plan.uncovered_languages = super::uncovered_languages(
+        inventory.paths.iter().map(String::as_str),
+        &entry.report.plan.selected,
+    );
     let fingerprint =
         IndexingWorkspace::fingerprint_source(&root, &inventory, request.limits, cancel)?;
     if inventory != entry.inventory || fingerprint != entry.report.fingerprint {
@@ -240,9 +244,10 @@ fn validate_inventory(
         return Err("Unsupported or inconsistent index cache provenance".into());
     }
     let inventory = InputInventory::from_paths(entry.inventory.paths.clone())?;
+    let plan = super::IndexPlan::inspect(inventory.paths.iter().map(String::as_str));
     if inventory.paths != entry.inventory.paths
-        || entry.report.plan
-            != super::IndexPlan::inspect(inventory.paths.iter().map(String::as_str))
+        || entry.report.plan.selected != plan.selected
+        || entry.report.plan.skipped != plan.skipped
         || entry.scip.documents.is_empty()
         || entry.report.documents != entry.scip.documents.len()
         || entry.source_digests.len() != entry.scip.documents.len()
