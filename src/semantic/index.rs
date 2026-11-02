@@ -1,5 +1,10 @@
 //! Repository semantic symbol index, definition lookup, and reference discovery.
 
+use icu_properties::{
+    props::{GeneralCategory, NumericType},
+    CodePointMapData,
+};
+use unicode_normalization::UnicodeNormalization;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::semantic::scip_proto::{
@@ -278,6 +283,18 @@ pub struct SymbolSearchMatch {
 /// 4-tier ranking engine for workspace symbol lookup.
 pub struct SymbolSearch;
 
+struct RankedSymbol<'a> {
+    entry: &'a SymbolSearchEntry,
+    key: (usize, usize, String, String),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ComponentBoundary {
+    Separators,
+    Capitals,
+    Humps,
+}
+
 impl SymbolSearch {
     /// Maximum workspace results shown by the Swift-compatible symbol picker.
     pub const VISIBLE_LIMIT: usize = 200;
@@ -304,27 +321,34 @@ impl SymbolSearch {
         if limit == 0 {
             return Some(Vec::new());
         }
-        let needle = query.trim().to_lowercase();
-        let mut best: Vec<(&SymbolSearchEntry, usize, usize)> =
-            Vec::with_capacity(limit.min(entries.len()));
+        let needle = Self::lowercase_nfc(Self::trim_query(query));
+        let mut best: Vec<RankedSymbol<'_>> = Vec::with_capacity(limit.min(entries.len()));
         for (index, entry) in entries.iter().enumerate() {
             if index % 128 == 0 && cancelled() {
                 return None;
             }
             if needle.is_empty() {
-                best.push((entry, 4, 0));
+                best.push(RankedSymbol {
+                    entry,
+                    key: (4, 0, String::new(), String::new()),
+                });
                 if best.len() == limit {
                     break;
                 }
             } else if let Some(tier) = Self::tier(&entry.name, &needle) {
                 // Insertion after equal keys preserves the old stable-sort order.
-                let length = entry.name.graphemes(true).count();
-                let at = best.partition_point(|(other, rank, other_length)| {
-                    (*rank, *other_length, &other.name, &other.path)
-                        <= (tier, length, &entry.name, &entry.path)
-                });
+                let candidate = RankedSymbol {
+                    entry,
+                    key: (
+                        tier,
+                        entry.name.graphemes(true).count(),
+                        entry.name.nfc().collect(),
+                        entry.path.nfc().collect(),
+                    ),
+                };
+                let at = best.partition_point(|other| other.key <= candidate.key);
                 if at < limit {
-                    best.insert(at, (entry, tier, length));
+                    best.insert(at, candidate);
                     best.truncate(limit);
                 }
             }
@@ -334,28 +358,29 @@ impl SymbolSearch {
         }
         Some(
             best.into_iter()
-                .map(|(entry, tier, _)| SymbolSearchMatch {
-                    id: entry.id.clone(),
-                    name: entry.name.clone(),
-                    kind: entry.kind,
-                    path: entry.path.clone(),
-                    line: entry.line,
-                    definition_count: entry.definition_count,
-                    tier,
+                .map(|candidate| SymbolSearchMatch {
+                    id: candidate.entry.id.clone(),
+                    name: candidate.entry.name.clone(),
+                    kind: candidate.entry.kind,
+                    path: candidate.entry.path.clone(),
+                    line: candidate.entry.line,
+                    definition_count: candidate.entry.definition_count,
+                    tier: candidate.key.0,
                 })
                 .collect(),
         )
     }
 
     fn tier(name: &str, needle: &str) -> Option<usize> {
-        let lowered = name.to_lowercase();
+        let lowered = Self::lowercase_nfc(name);
         if lowered == needle {
             return Some(0);
         }
-        if lowered.starts_with(needle) {
+        if Self::prefix(&lowered, needle) {
             return Some(1);
         }
-        if Self::initials(name).starts_with(needle) || Self::component_prefix_match(name, needle) {
+        if Self::prefix(&Self::initials(name), needle) || Self::component_prefix_match(name, needle)
+        {
             return Some(2);
         }
         if Self::is_subsequence(needle, &lowered) {
@@ -364,40 +389,66 @@ impl SymbolSearch {
         None
     }
 
-    /// Computes component initials from camelCase, snake_case, and kebab-case identifiers.
+    // Foundation's .whitespaces is Zs plus TAB, rather than Rust's whitespace set.
+    pub(crate) fn trim_query(query: &str) -> &str {
+        query.trim_matches(|c| {
+            c == '\t'
+                || CodePointMapData::<GeneralCategory>::new().get(c)
+                    == GeneralCategory::SpaceSeparator
+        })
+    }
+
+    fn lowercase_nfc(value: &str) -> String {
+        value.to_lowercase().nfc().collect()
+    }
+
+    fn prefix(value: &str, needle: &str) -> bool {
+        let mut characters = value.graphemes(true);
+        needle
+            .graphemes(true)
+            .all(|character| characters.next() == Some(character))
+    }
+
+    fn uppercase(character: &str) -> bool {
+        if character.chars().count() == 1 {
+            return character.chars().next().is_some_and(char::is_uppercase);
+        }
+        character.nfc().eq(character.to_uppercase().nfc())
+            && !character.nfc().eq(character.to_lowercase().nfc())
+    }
+
+    fn number(character: &str) -> bool {
+        character
+            .chars()
+            .next()
+            .is_some_and(|c| CodePointMapData::<NumericType>::new().get(c) != NumericType::None)
+    }
+
+    /// Computes canonical component initials from whole Unicode characters.
     #[must_use]
     pub fn initials(name: &str) -> String {
         let mut result = String::new();
-        let mut prev = '_';
-        for ch in name.chars() {
-            if "_-./:".contains(ch) {
-                prev = ch;
+        let mut previous = "_";
+        for character in name.graphemes(true) {
+            if matches!(character, "_" | "-" | "." | "/" | ":") {
+                previous = character;
                 continue;
             }
-            if "_-./:".contains(prev)
-                || (ch.is_uppercase() && !prev.is_uppercase())
-                || (ch.is_numeric() && !prev.is_numeric())
+            if matches!(previous, "_" | "-" | "." | "/" | ":")
+                || (Self::uppercase(character) && !Self::uppercase(previous))
+                || (Self::number(character) && !Self::number(previous))
             {
-                for l in ch.to_lowercase() {
-                    result.push(l);
-                }
+                result.push_str(&character.to_lowercase());
             }
-            prev = ch;
+            previous = character;
         }
-        result
+        result.nfc().collect()
     }
 
     fn component_prefix_match(name: &str, needle: &str) -> bool {
-        let components: Vec<String> = name
-            .split(|c: char| "_-./:".contains(c) || c.is_uppercase())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_lowercase())
-            .collect();
-        let humps = Self::hump_components(name);
-        let pieces: Vec<&str> = needle
-            .split(|c: char| "_-./:".contains(c))
-            .filter(|s| !s.is_empty())
-            .collect();
+        let components = Self::components(name, ComponentBoundary::Capitals);
+        let humps = Self::components(name, ComponentBoundary::Humps);
+        let pieces = Self::components(needle, ComponentBoundary::Separators);
         if pieces.len() <= 1 {
             return false;
         }
@@ -406,7 +457,7 @@ impl SymbolSearch {
             let mut idx = 0;
             let mut matched = 0;
             for piece in &pieces {
-                while idx < candidates.len() && !candidates[idx].starts_with(piece) {
+                while idx < candidates.len() && !Self::prefix(&candidates[idx], piece) {
                     idx += 1;
                 }
                 if idx >= candidates.len() {
@@ -422,32 +473,35 @@ impl SymbolSearch {
         false
     }
 
-    fn hump_components(name: &str) -> Vec<String> {
+    fn components(name: &str, boundary: ComponentBoundary) -> Vec<String> {
         let mut components = Vec::new();
         let mut current = String::new();
-        let mut prev = 'a';
-        for ch in name.chars() {
-            if "_-./:".contains(ch) {
-                if !current.is_empty() {
-                    components.push(std::mem::take(&mut current).to_lowercase());
-                }
-            } else if ch.is_uppercase() && !prev.is_uppercase() && !current.is_empty() {
-                components.push(std::mem::take(&mut current).to_lowercase());
-                current.push(ch);
-            } else {
-                current.push(ch);
+        let mut previous = "a";
+        for character in name.graphemes(true) {
+            let separator = matches!(character, "_" | "-" | "." | "/" | ":");
+            let capital = Self::uppercase(character)
+                && match boundary {
+                    ComponentBoundary::Separators => false,
+                    ComponentBoundary::Capitals => true,
+                    ComponentBoundary::Humps => !Self::uppercase(previous),
+                };
+            if (separator || capital) && !current.is_empty() {
+                components.push(Self::lowercase_nfc(&std::mem::take(&mut current)));
             }
-            prev = ch;
+            if !separator && !(capital && boundary == ComponentBoundary::Capitals) {
+                current.push_str(character);
+            }
+            previous = character;
         }
         if !current.is_empty() {
-            components.push(current.to_lowercase());
+            components.push(Self::lowercase_nfc(&current));
         }
         components
     }
 
     fn is_subsequence(needle: &str, haystack: &str) -> bool {
-        let mut hay_chars = haystack.chars();
-        for n in needle.chars() {
+        let mut hay_chars = haystack.graphemes(true);
+        for n in needle.graphemes(true) {
             if !hay_chars.any(|h| h == n) {
                 return false;
             }
@@ -1115,8 +1169,8 @@ mod tests {
                     (
                         *tier,
                         entry.name.graphemes(true).count(),
-                        &entry.name,
-                        &entry.path,
+                        entry.name.nfc().collect::<String>(),
+                        entry.path.nfc().collect::<String>(),
                     )
                 });
             }
@@ -1168,6 +1222,175 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(SymbolSearch::rank("a", &entries, 1)[0].name, name);
         }
+    }
+
+    #[test]
+    fn symbol_matching_uses_canonical_whole_characters_for_all_ranking_tiers() {
+        for (name, query, expected) in [
+            ("Cafe\u{301}", "café", Some(0)),
+            ("CAFÉ", "cafe\u{301}", Some(0)),
+            ("Cafe\u{301}Factory", "café", Some(1)),
+            ("CaféFactory", "cafe\u{301}", Some(1)),
+            ("Cafe\u{301}View", "café_vi", Some(2)),
+            ("Cafe\u{301}View", "cafe_vi", None),
+            ("Foo四Bar", "f四b", Some(2)),
+            ("Foo1\u{fe0f}\u{20e3}Bar", "f1\u{fe0f}\u{20e3}b", Some(2)),
+            ("prefix👍🏽Factory", "👍🏽y", Some(3)),
+            ("prefix👍🏽Factory", "👍y", None),
+            ("abE\u{301}tail", "aét", Some(3)),
+            ("Café", "cafe", None),
+            ("👩‍👩‍👦Builder", "👩", None),
+            ("👩‍👩‍👦Builder", "👩‍👩‍👦", Some(1)),
+            ("🇺🇸Factory", "🇺", None),
+            ("🇺🇸Factory", "🇺🇸", Some(1)),
+            ("👍🏽Factory", "👍", None),
+            ("✈\u{fe0f}Flight", "✈", None),
+            ("각", "각", Some(0)),
+            ("가Factory", "ᄀ", None),
+            ("가Factory", "가", Some(1)),
+            ("Ａ", "a", None),
+            ("ﬀFactory", "ff", None),
+            ("ßFactory", "ss", None),
+        ] {
+            let entry = SymbolSearchEntry {
+                id: SemanticSymbolID::new(name, ""),
+                name: name.into(),
+                kind: 17,
+                path: "src/cafe\u{301}.rs".into(),
+                line: 7,
+                definition_count: 3,
+            };
+            let actual = SymbolSearch::rank(query, std::slice::from_ref(&entry), 200);
+            assert_eq!(
+                actual.first().map(|entry| entry.tier),
+                expected,
+                "name={name:?}, query={query:?}"
+            );
+            if let Some(actual) = actual.first() {
+                assert_eq!(
+                    (
+                        &actual.id,
+                        &actual.name,
+                        &actual.path,
+                        actual.line,
+                        actual.definition_count
+                    ),
+                    (&entry.id, &entry.name, &entry.path, 7, 3),
+                    "navigation data must remain byte exact"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn initials_preserve_character_clusters_and_swift_number_and_case_boundaries() {
+        for (name, expected) in [
+            ("SnapshotBootstrapGlobals", "sbg"),
+            ("total_area", "ta"),
+            ("ÉclairView", "év"),
+            ("E\u{301}clairView", "év"),
+            ("🇺🇸Factory", "🇺🇸f"),
+            ("👩‍👩‍👦BuilderNode", "👩‍👩‍👦bn"),
+            ("Foo四Bar", "f四b"),
+            ("Foo1\u{fe0f}\u{20e3}Bar", "f1\u{fe0f}\u{20e3}b"),
+            ("_\u{301}Bar", "_\u{301}b"),
+            ("fooA\u{345}tail", "f"),
+        ] {
+            assert_eq!(SymbolSearch::initials(name), expected, "{name:?}");
+        }
+    }
+
+    #[test]
+    fn canonical_name_and_path_ties_keep_raw_navigation_and_stable_input_order() {
+        let entry = |id: &str, name: &str, path: &str| SymbolSearchEntry {
+            id: SemanticSymbolID::new(id, ""),
+            name: name.into(),
+            path: path.into(),
+            kind: 17,
+            line: 1,
+            definition_count: 1,
+        };
+        for (query, entries, ids) in [
+            (
+                "caf",
+                vec![
+                    entry("nfd", "Cafe\u{301}", "z.rs"),
+                    entry("nfc", "Café", "a.rs"),
+                ],
+                vec!["nfc", "nfd"],
+            ),
+            (
+                "a",
+                vec![
+                    entry("nfd", "ae\u{301}z", "a.rs"),
+                    entry("ascii", "azz", "z.rs"),
+                ],
+                vec!["ascii", "nfd"],
+            ),
+            (
+                "a",
+                vec![
+                    entry("first", "Alpha", "café.rs"),
+                    entry("second", "Alpha", "cafe\u{301}.rs"),
+                ],
+                vec!["first", "second"],
+            ),
+            (
+                "á",
+                vec![
+                    entry("first", "A\u{301}", "café.rs"),
+                    entry("second", "Á", "cafe\u{301}.rs"),
+                ],
+                vec!["first", "second"],
+            ),
+        ] {
+            assert_eq!(
+                SymbolSearch::rank(query, &entries, 200)
+                    .iter()
+                    .map(|entry| entry.id.symbol.as_str())
+                    .collect::<Vec<_>>(),
+                ids
+            );
+        }
+    }
+
+    #[test]
+    fn symbol_queries_trim_foundation_spaces_without_discarding_newlines() {
+        let entry = SymbolSearchEntry {
+            id: SemanticSymbolID::new("alpha", ""),
+            name: "Alpha".into(),
+            path: "a.rs".into(),
+            kind: 17,
+            line: 1,
+            definition_count: 1,
+        };
+        for query in [
+            " alpha ",
+            "\talpha\t",
+            "\u{a0}alpha\u{a0}",
+            "\u{2003}alpha\u{2003}",
+            "\u{3000}alpha\u{3000}",
+        ] {
+            assert_eq!(
+                SymbolSearch::rank(query, std::slice::from_ref(&entry), 1)[0].tier,
+                0,
+                "{query:?}"
+            );
+        }
+        for query in [
+            "\nalpha",
+            "alpha\r",
+            "\u{85}alpha",
+            "\u{2028}alpha",
+            "\u{2029}alpha",
+            "\u{200b}alpha",
+        ] {
+            assert!(
+                SymbolSearch::rank(query, std::slice::from_ref(&entry), 1).is_empty(),
+                "{query:?}"
+            );
+        }
+        assert_eq!(SymbolSearch::rank("\t\u{a0} ", &[entry], 1)[0].tier, 4);
     }
     #[test]
     fn generated_coordinates_require_exact_buffer_and_destination_bytes() {

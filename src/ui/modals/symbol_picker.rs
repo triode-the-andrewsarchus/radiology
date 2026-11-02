@@ -198,18 +198,20 @@ impl GoToSymbolModal {
             picker::body(ui, |ui| {
                 if let Some(choices) = &self.choices {
                     if choices.is_empty() {
-                        ui.label(if self.query.trim().is_empty() {
+                        ui.label(if SymbolSearch::trim_query(&self.query).is_empty() {
                             "No Symbols"
                         } else {
                             "No Matches"
                         });
-                        ui.label(if workspace && self.query.trim().is_empty() {
-                            "The index has no repository symbols."
-                        } else if workspace {
-                            "Try a shorter name, initials, or another spelling."
-                        } else {
-                            "No matching declarations in this document."
-                        });
+                        ui.label(
+                            if workspace && SymbolSearch::trim_query(&self.query).is_empty() {
+                                "The index has no repository symbols."
+                            } else if workspace {
+                                "Try a shorter name, initials, or another spelling."
+                            } else {
+                                "No matching declarations in this document."
+                            },
+                        );
                     } else if let Some(clicked) = self.rows(ui, theme) {
                         action = Some(clicked);
                     }
@@ -617,6 +619,9 @@ mod tests {
             let (output, _) = settled(&ctx, &mut modal, Some(&index), &empty);
             assert!(text_shapes(&output).any(|text| text.galley.job.text == "No Matches"));
             assert!(modal.selected().is_none());
+            modal.query = "\n".into();
+            let (output, _) = settled(&ctx, &mut modal, Some(&index), &empty);
+            assert!(text_shapes(&output).any(|text| text.galley.job.text == "No Matches"));
         }
     }
 

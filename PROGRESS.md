@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-02 — Canonical workspace symbol matching and whole-character boundaries (Codex)
+
+Workspace search now normalizes computed keys to NFC, compares whole graphemes for
+prefixes/subsequences, uses complete-character initials and Swift numeric/case
+boundaries, and orders canonical name/path ties stably. Original IDs/names/paths/
+coordinates/counts remain byte exact. Both component strategies share one walker;
+Foundation-space trimming also drives picker empty-state labels. Existing locked
+ICU4X properties become direct; no versions or worker pools change. Four new
+backend matrices plus the picker newline-state assertion pass. Fresh workspace:
+600 app tests, seven ignored, two binary, four font, 13 text and 37 doctests;
+strict gates and copied standalone verifier pass. Native old control 1× reproduces
+canonical/partial-cluster defects; final 1×/2× runs fix both with five exact line
+copies each, NFD/CRLF preservation, whole emoji/keycaps, light pointer Go, unchanged
+hashes and zero exits. Captures inspected. Architecture default REGRESSION flags
+shifted old clones; all 109 unchanged by normalized audit, +213 NLOC/11 functions,
+new core max CCN 11, no new hotspot/cycle. [Contract/evidence](plans/rust-symbol-unicode.md).
+Archive: ~/.local/state/radiology-qa/symbol-unicode-20261102-2eb85f4.
+Document fallback filtering and source emoji shaping remain open: native keycaps
+show a separate digit/enclosing glyph despite font coverage. Broader application
+parity stays open; full accessibility and actual sibling adoption deferred.
+
 ## 2026-11-02 — Background symbol picker and shared navigation popup components (Codex)
 
 Workspace/document searches now retain immutable inputs on the existing read pool,
