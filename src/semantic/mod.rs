@@ -18,6 +18,7 @@ pub mod reference_results;
 pub(crate) mod references;
 pub mod scip_proto;
 pub(crate) mod symbol_kind;
+pub mod trait_context;
 pub mod trait_impls;
 
 pub use caller_tree::{

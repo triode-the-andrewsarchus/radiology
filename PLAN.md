@@ -10,6 +10,10 @@ cache. Generation, semantic-cache restore and imports now enrich on their existi
 workers before publication. Compiler-fixture/encoding/freshness and worker tests
 pass. The actual trait inspector/context/navigation feature remains pending.
 
+[Trait context identity](plans/rust-trait-context.md) now follows exact trait names,
+enclosing declarations/members and explicit impl bodies using accepted parsed facts.
+Its reusable resolver is tested; app lifecycle/selection and pane wiring remain next.
+
 [Inspector pane preferences](plans/rust-inspector-panes.md) now persist app-wide,
 share checked Panes/View menus, reclaim layout space and recover from all-hidden
 state. Stable region IDs preserve scrolling, selections and source state. Native

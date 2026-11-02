@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-11-02 — Reusable exact Rust trait context resolution (Codex)
+
+Added semantic::trait_context::trait_at_byte using the accepted source's parsed
+outline/impl facts and canonical SCIP byte mapping. Exact kind42/53 trait at caret
+wins over enclosing trait/member/default body, then explicit alias/qualified/blanket/
+negative impl headers. Same-spelling traits never join. Zero-row traits remain valid
+context; duplicate identity is harmless, ambiguity cannot select arbitrary results.
+Declaration identity may be document-local; impl header joins must be nonlocal.
+Before/stale/non-Rust inputs clear context. No source reads, parsing or added workers.
+Real compiler fixture and adversarial tests cover these rules and cancellation.
+Full workspace:667 app tests pass, seven existing ignored; two binary/13 font/21
+text tests. Final local-declaration refinement passes the three context regressions;
+49 doctests and strict gates pass. Rendered public API/example inspected.
+Architecture NEUTRAL: +261 NLOC/seven functions/two files; avg/max CCN3.38/132,
+33 high-complexity functions,125 clones and one cycle unchanged. Raw evidence at
+~/.local/state/radiology-qa/trait-context-20261102-b40280d.
+[Contract](plans/rust-trait-context.md). This reusable resolver still needs app
+source/index lifecycle binding, stable row selection, compact inspector rendering,
+ordinary keys and guarded navigation. Full parity remains active.
+
 ## 2026-11-02 — Trait catalogs prepared before index publication (Codex)
 
 Generation and semantic-cache restore now share request-owned semantic preparation,
