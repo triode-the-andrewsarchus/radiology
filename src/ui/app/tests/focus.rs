@@ -28,6 +28,95 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn long_toolbar_identity_keeps_controls_visible_and_repository_copy_canonical() {
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    let (_owner, root, review) = crate::pull_request::review::tests::fixture();
+    for scale in [1.0, 2.0] {
+        for width in [800.0, 1100.0, 1400.0] {
+            for (dark, reviewing) in [(false, false), (true, false), (false, true), (true, true)] {
+                let (_settings, mut app) = reader();
+                app.open_repository(&root);
+                settle(&mut app);
+                if reviewing {
+                    app.accept_review(review.clone());
+                    settle(&mut app);
+                }
+                let ctx = Context::default();
+                ctx.set_pixels_per_point(scale);
+                if app.theme.is_dark != dark {
+                    app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+                }
+                app.repository_name = Some(format!("repository-{}-tail", "長いcafé\n".repeat(600)));
+                app.branch_name = Some(format!("feature/{}-done", "branch\n".repeat(800)));
+                let size = egui::vec2(width, 800.0);
+                frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                let output = frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                for label in [
+                    "Sidebar",
+                    "Normal",
+                    "Critical",
+                    "View",
+                    "Search",
+                    "Inspector",
+                ] {
+                    let text = text_shapes(&output)
+                        .find(|text| text.galley.job.text == label)
+                        .unwrap_or_else(|| panic!("missing {label} at {width}/{scale}/{dark}"));
+                    let rect = egui::Rect::from_min_size(text.pos, text.galley.size());
+                    assert!(
+                        rect.min.x >= 0.0 && rect.max.x <= width && rect.max.y < 40.0,
+                        "{label} outside toolbar: {rect:?} at {width}/{scale}/{dark}"
+                    );
+                }
+                let review_title = if reviewing {
+                    format!("#{}", review.summary.number)
+                } else {
+                    "Pull Request".into()
+                };
+                let review_point = text_center(&output, &review_title);
+                assert!(review_point.x < width && review_point.y < 40.0);
+                if reviewing {
+                    assert!(text_center(&output, "Exit PR").x < width);
+                }
+                let title = text_shapes(&output)
+                    .find(|text| text.galley.job.text.starts_with("repository-"))
+                    .unwrap();
+                assert!(title.galley.size().x <= 140.0);
+                assert_eq!(title.galley.rows.len(), 1);
+                assert!(title.galley.job.text.ends_with("-tail"));
+                let branch = text_shapes(&output)
+                    .find(|text| text.galley.job.text.starts_with("feat"))
+                    .unwrap();
+                assert!(branch.galley.size().x <= 80.0);
+                assert_eq!(branch.galley.rows.len(), 1);
+                assert!(branch.galley.job.text.ends_with("-done"));
+                let position = title.pos + title.galley.size() / 2.0;
+                frame_sized(&mut app, &ctx, click(position), size, |_| {});
+                let output = frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                let active_title = text_shapes(&output)
+                    .find(|text| text.galley.job.text.starts_with("repository-"))
+                    .unwrap();
+                assert_eq!(
+                    active_title.galley.job.sections[0].format.color,
+                    ctx.style().visuals.selection.stroke.color
+                );
+                let output = frame_sized(
+                    &mut app,
+                    &ctx,
+                    click(text_center(&output, "Copy Repository Path")),
+                    size,
+                    |_| {},
+                );
+                assert_eq!(
+                    output.platform_output.copied_text,
+                    app.repository_root.as_ref().unwrap().display().to_string()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn repository_menu_refresh_is_contextual_and_pending_review_cannot_restart() {
     use crate::ui::test_support::{click, text_center, text_shapes};
     for scale in [1.0, 2.0] {
@@ -543,14 +632,21 @@ fn frame_with_overlay(
     app: &mut RadiologyApp,
     ctx: &Context,
     events: Vec<Event>,
+    overlay: impl FnMut(&Context),
+) -> egui::FullOutput {
+    frame_sized(app, ctx, events, egui::vec2(1100.0, 800.0), overlay)
+}
+
+fn frame_sized(
+    app: &mut RadiologyApp,
+    ctx: &Context,
+    events: Vec<Event>,
+    size: egui::Vec2,
     mut overlay: impl FnMut(&Context),
 ) -> egui::FullOutput {
     use eframe::App;
     let mut input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(1100.0, 800.0),
-        )),
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
         events,
         ..Default::default()
     };

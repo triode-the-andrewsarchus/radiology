@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-02 — Bounded repository/branch toolbar labels (Codex)
+
+Reused text_fit middle elision for the repository button (Swift's 140 points with
+padding) and branch (80 points), existing 13/10.5-point roles and bounded hover
+explanations. Display-only newlines become spaces; original menu scope/commands
+remain canonical. RichText preserves MenuBar selected-owner color. No new menu/
+font/dependency/worker or sibling changes. Requested design skills remain absent.
+RED actual-app regression loses Pull Request before the fix. Final matrix covers
+1×/2×, 800/1100/1400 points, light/dark and checkout/pinned review, bounded single
+rows, visible controls, selected color and exact path Copy. Existing sized frame
+path is factored for reuse. Strengthened branch prefix expectation corrected to
+fit width. Workspace: 629 app tests, seven ignored; two binary, 13 font, 19 text
+and 40 doctests pass. Initial docs linking exhausted /tmp; final TMPDIR under home
+cache passes. Strict Clippy/check/build/rustdoc/fmt/diff and copied resources pass.
+Native v3 old/new 1×/2× confirms old control loss, new dark/light toolbar and exact
+repository-path clipboard checks. Source/Git/binary hashes unchanged; all final
+app/compositor exits zero. Captures inspected. Native v1 stdin closure and v2
+plain-text/JSON harness failure retained; owned orphan groups stopped.
+Architecture NEUTRAL: +115 NLOC/two functions including tests, max/average unchanged,
+109 clones unchanged, no new hotspot/cycle, health -0.01.
+[Contract/evidence](plans/rust-toolbar-identity.md).
+Archive: ~/.local/state/radiology-qa/toolbar-identity-20261102-23ea206.
+Native captures identify source-footer overlap in a narrow center pane as the next
+concrete UI issue. Broader command/owner, type/layout, language/indexer corpora and
+final Swift audit remain open. Accessibility/adoption remain deferred.
+
 ## 2026-11-02 — Contextual Reload/Refresh menu and pending-work guards (Codex)
 
 Swift command audit found checkout Reload absent from the repository menu and

@@ -98,39 +98,60 @@ impl Toolbar {
 
             // Repository Menu (macOS Swift RepositoryMenu parity)
             if let Some(name) = repo_name {
-                menus.button(
+                let title = super::text_fit::middle(
                     ui,
-                    RichText::new(name).strong().size(13.0),
-                    ("repository", name, recent_repos),
-                    vec![
-                        Item::action(
-                            "Open Repository… (Ctrl+O)",
-                            ToolbarAction::OpenRepositoryDialog,
-                        ),
-                        Item::action("Copy Repository Path", ToolbarAction::CopyRepoPath),
-                        Item::action(
-                            if review_menu.active.is_some() {
-                                "Refresh PR (Ctrl+R)"
-                            } else {
-                                "Reload Repository (Ctrl+R)"
-                            },
-                            ToolbarAction::Refresh,
-                        )
-                        .enabled(command_enabled(&ToolbarAction::Refresh)),
-                        Item::separator(),
-                        Item::submenu(
-                            "Open Recent",
-                            recent_repos
-                                .iter()
-                                .map(|path| {
-                                    Item::action(path, ToolbarAction::OpenRecentRepo(path.clone()))
-                                })
-                                .collect(),
-                        ),
-                    ],
+                    &super::text_fit::bounded(name).replace(['\r', '\n'], " "),
+                    egui::FontId::proportional(13.0),
+                    theme.text_primary,
+                    140.0 - 2.0 * ui.spacing().button_padding.x,
                 );
+                menus
+                    .button(
+                        ui,
+                        RichText::new(title.job.text.clone()).strong().size(13.0),
+                        ("repository", name, recent_repos),
+                        vec![
+                            Item::action(
+                                "Open Repository… (Ctrl+O)",
+                                ToolbarAction::OpenRepositoryDialog,
+                            ),
+                            Item::action("Copy Repository Path", ToolbarAction::CopyRepoPath),
+                            Item::action(
+                                if review_menu.active.is_some() {
+                                    "Refresh PR (Ctrl+R)"
+                                } else {
+                                    "Reload Repository (Ctrl+R)"
+                                },
+                                ToolbarAction::Refresh,
+                            )
+                            .enabled(command_enabled(&ToolbarAction::Refresh)),
+                            Item::separator(),
+                            Item::submenu(
+                                "Open Recent",
+                                recent_repos
+                                    .iter()
+                                    .map(|path| {
+                                        Item::action(
+                                            path,
+                                            ToolbarAction::OpenRecentRepo(path.clone()),
+                                        )
+                                    })
+                                    .collect(),
+                            ),
+                        ],
+                    )
+                    .on_hover_ui(|ui| super::text_fit::explanation(ui, name, theme.text_secondary));
                 if let Some(branch) = branch_name {
-                    ui.colored_label(theme.text_secondary, RichText::new(branch).size(10.5));
+                    let label = super::text_fit::middle(
+                        ui,
+                        &super::text_fit::bounded(branch).replace(['\r', '\n'], " "),
+                        egui::FontId::proportional(10.5),
+                        theme.text_secondary,
+                        80.0,
+                    );
+                    ui.label(label).on_hover_ui(|ui| {
+                        super::text_fit::explanation(ui, branch, theme.text_secondary)
+                    });
                 }
             } else if ui.button("Open Repository… (Ctrl+O)").clicked() {
                 action = Some(ToolbarAction::OpenRepositoryDialog);

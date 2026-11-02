@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Bounded toolbar identity](rust-toolbar-identity.md): repository/branch labels now
+  reuse measured elision with canonical menu/Copy targets and retained owner color.
+  App width/scale/appearance/review matrices and native old/new 1×/2× checks pass;
+  narrow source-footer label overlap remains a concrete follow-up.
+
 - [Contextual refresh](rust-contextual-refresh.md): the repository menu now exposes
   Reload/Refresh PR through the same contextual command as Ctrl+R. Existing host
   spelling remains compatible; readiness prevents replacing pending work. Actual

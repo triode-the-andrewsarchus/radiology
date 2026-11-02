@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Bounded toolbar identity](plans/rust-toolbar-identity.md) now middle-elides long
+repository/branch names while retaining all controls and canonical commands.
+Actual app checkout/review matrices and native old/new 1×/2× dark/light checks
+pass. Captures identify narrow source-footer overlap as the next UI follow-up.
+
 [Contextual refresh](plans/rust-contextual-refresh.md) now exposes checkout Reload
 in the repository menu, switches to Refresh PR during review, and prevents repeated
 menu/keyboard refresh from replacing pending repository/review work. Actual app
