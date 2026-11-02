@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-01 — Expose recovered versus unavailable source structure (Codex)
+
+The source footer now matches Swift's Partial structure/Structure unavailable
+states, with fatal diagnostic precedence and existing hover/type roles. Reuses the
+shared CallSites recovered-tree flag, now retained even if call queries fail;
+no duplicate parser, worker or app health state. SourceViewContent adds borrowed
+structure_error and partial_structure inputs for hosts. The old real-app case
+fails on the missing label. Ten Swift malformed-language/dialect examples verify
+recovered facts and source, retained/recolored source, fatal precedence, repair
+and reset. An interrupted call-query case preserves the root-error fact without
+claiming complete calls. Workspace passes 572 app tests (seven ignored), two
+binary, four font, 13 text and 37 doctests; strict Clippy/check/build/rustdoc/fmt/
+diff pass. Two final native 1×/2× flows pass visible status, theme/inspector toggles,
+exact malformed/repaired UTF-8 copies, valid-file/Back restoration and controlled
+repair/reload. Only the private fixture is deliberately repaired; its hashes and
+all unchanged bytes/binary are checked, with zero exits and dark/light inspection.
+An initial harness used unsupported Alt+Left; final Ctrl+[ checks pass. Architecture
++103 NLOC including tests, two test functions, source show CCN 9, no new hotspot/
+max-CCN/cycle; all 91 clones unchanged after full audit, health effectively unchanged.
+The automated regression warning only touches an existing modal/source test clone.
+Broader grammar/corpus, reader/index/PR/cache/UI and final Swift/standalone/reuse
+acceptance remain open; accessibility and actual sibling adoption remain deferred.
+[Contract and evidence](plans/rust-structure-quality.md).
+Archive: ~/.local/state/radiology-qa/structure-quality-20261101-9f3a8f5.
+
 ## 2026-11-01 — Keep compact inspector regions usable when resized (Codex)
 
 Declaration summaries now put the name first and kind/location together, matching

@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Source structure quality](rust-structure-quality.md) now exposes Swift's partial
+  versus unavailable structure states in the footer, preserving recovered facts
+  and exact source. Ten malformed dialects, retained/recolored-source lifecycle,
+  fatal precedence and native 1×/2× Back/repair/copy transitions are checked.
+
 - [Compact inspector region sizing](rust-inspector-region-sizing.md) now follows
   Swift's name/metadata summary and bounds signature/coverage scrolling. The
   declaration minimum is 160 points; heading, first reference, Load More, exact

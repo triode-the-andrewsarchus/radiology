@@ -216,3 +216,73 @@ fn semantic_explanations_follow_index_coverage_source_identity_and_revision() {
     );
     assert!(app.reference_context.target().is_some());
 }
+
+#[test]
+fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repair() {
+    let (dir, mut app) = opened_repository();
+    let ctx = Context::default();
+    for (path, text) in [
+        ("Broken.swift", "struct Broken { func run( { return 1 }"),
+        ("broken.rs", "fn preserved() {}\nfn broken( { let x = ; }"),
+        ("broken.go", "package main\nfunc main( { x := }"),
+        ("broken.py", "def broken(:\n    return ["),
+        ("broken.js", "function broken( { const x = ; }"),
+        ("broken.jsx", "const A = () => <div className=;"),
+        ("broken.ts", "interface Broken { name: ; }\nfunction f( {"),
+        ("broken.tsx", "const A: FC = () => <div className=;"),
+        ("broken.kt", "fun broken( { val x = }"),
+        ("broken.kts", "val x = ; class {"),
+    ] {
+        std::fs::write(dir.path().join(path), text).unwrap();
+        app.open_file(path);
+        settle(&mut app);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, text);
+        assert!(
+            app.syntax_error.is_none(),
+            "recoverable parse is not a failed analysis: {path}"
+        );
+        assert!(
+            app.call_sites.parse_errors,
+            "missing recovered-error fact for {path}"
+        );
+        frame(&mut app, &ctx);
+        let output = frame(&mut app, &ctx);
+        crate::ui::test_support::assert_visible_text(&output, "Partial structure");
+        assert!(!crate::ui::test_support::text_shapes(&output)
+            .any(|text| text.galley.job.text == "Structure unavailable"));
+        if path == "broken.rs" {
+            assert!(app
+                .outline_symbols
+                .iter()
+                .any(|symbol| symbol.name == "preserved"));
+        }
+    }
+    let calls = app.call_sites.clone();
+    let assert_retained_warning = |app: &mut RadiologyApp| {
+        settle(app);
+        assert!(Arc::ptr_eq(&calls, &app.call_sites));
+        let output = frame(app, &ctx);
+        crate::ui::test_support::assert_visible_text(&output, "Partial structure");
+    };
+    app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+    assert_retained_warning(&mut app);
+    app.open_file("missing.rs");
+    assert_retained_warning(&mut app);
+    app.syntax_error = Some("The outline query could not complete.".into());
+    let output = frame(&mut app, &ctx);
+    crate::ui::test_support::assert_visible_text(&output, "Structure unavailable");
+    assert!(!crate::ui::test_support::text_shapes(&output)
+        .any(|text| text.galley.job.text == "Partial structure"));
+    std::fs::write(dir.path().join("broken.kts"), "fun repaired() {}\n").unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadSource);
+    settle(&mut app);
+    assert!(!app.call_sites.parse_errors && app.syntax_error.is_none());
+    let output = frame(&mut app, &ctx);
+    assert!(!crate::ui::test_support::text_shapes(&output).any(|text| [
+        "Partial structure",
+        "Structure unavailable"
+    ]
+    .contains(&text.galley.job.text.as_str())));
+    app.reset_repository_state();
+    assert!(!app.call_sites.parse_errors && app.syntax_error.is_none());
+}

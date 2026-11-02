@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source structure quality](plans/rust-structure-quality.md) now distinguishes
+recovered Partial structure from Structure unavailable in the source footer.
+Existing shared parse facts survive unavailable call queries; retained/recolored
+source keeps its warning and repaired reloads clear it. Ten malformed-language
+fixtures and native 1×/2× exact-copy/Back/repair flows pass. Grammar acceptance
+itself and broader parity remain open.
+
 [Compact inspector sizing](plans/rust-inspector-region-sizing.md) now keeps
 name-first summaries, metadata and signatures above usable reference controls.
 Bounded summary/coverage scrolling and a 160-point declaration minimum repair the

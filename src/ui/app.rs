@@ -867,6 +867,8 @@ impl RadiologyApp {
                             caret_line: &mut self.caret_line,
                             caret_col: &mut self.caret_col,
                             fold_ranges: &self.fold_ranges,
+                            structure_error: self.syntax_error.as_deref(),
+                            partial_structure: self.call_sites.parse_errors,
                             fold_error: self.fold_error.as_deref(),
                             occurrence_error: self.syntactic_occurrences.error.as_deref(),
                             highlight_error: self.native_highlights.error.as_deref(),

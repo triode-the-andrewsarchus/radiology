@@ -91,7 +91,7 @@ pub struct CallSites {
     pub sites: Vec<CallSite>,
     /// Lexical scopes in source order, with outer scopes before inner scopes.
     pub scopes: Vec<CallableScope>,
-    /// True when the tree contains syntax errors or missing nodes.
+    /// True when the tree contains syntax errors or missing nodes, even if call queries fail.
     pub parse_errors: bool,
     /// False for unsupported grammar/query or a bounded query failure.
     pub supported: bool,
@@ -132,6 +132,7 @@ impl CallSites {
                 identity: Some(crate::source::buffer::SourceIdentity::new(buffer)),
             },
             Err(error) => Self {
+                parse_errors: root.has_error(),
                 error: Some(error),
                 ..Default::default()
             },
@@ -266,6 +267,7 @@ fn assign_owners(
 
 #[cfg(test)]
 mod tests {
+    use super::{CallSites, SupportedGrammar};
     use crate::source::SourceBuffer;
     use crate::syntax::DocumentSyntax;
 
@@ -363,5 +365,23 @@ mod tests {
                 .calls
                 .supported
         );
+    }
+    #[test]
+    fn recovered_error_fact_survives_unavailable_call_query_results() {
+        let buffer = SourceBuffer::from_str(
+            "broken.rs",
+            "fn preserved() {}\nfn broken( { let value = ; }",
+        );
+        let tree = SupportedGrammar::Rust.parse(&buffer.data).unwrap();
+        assert!(tree.root_node().has_error());
+        let calls = CallSites::from_tree_cancellable(
+            SupportedGrammar::Rust,
+            tree.root_node(),
+            &buffer,
+            &super::super::AnalysisControl::new(&|| true),
+        );
+        assert!(calls.parse_errors && calls.error.is_some());
+        assert!(!calls.supported && calls.sites.is_empty() && calls.scopes.is_empty());
+        assert!(!calls.matches(&buffer));
     }
 }

@@ -94,6 +94,12 @@ pub struct SourceViewContent<'a> {
     pub caret_col: &'a mut usize,
     /// Detected fold ranges.
     pub fold_ranges: &'a [FoldRange],
+    /// Native parser or outline-query failure for this exact source.
+    pub structure_error: Option<&'a str>,
+    /// Whether the shared syntax tree recovered from errors or missing nodes.
+    ///
+    /// Retain recovered source facts; [`Self::structure_error`] takes display precedence.
+    pub partial_structure: bool,
     /// Recoverable fold-query failure; source and other semantic features remain usable.
     pub fold_error: Option<&'a str>,
     /// Recoverable parsed occurrence preparation failure.
@@ -153,6 +159,8 @@ impl SourceView {
             caret_line,
             caret_col,
             fold_ranges,
+            structure_error,
+            partial_structure,
             fold_error,
             occurrence_error,
             highlight_error,
@@ -241,15 +249,21 @@ impl SourceView {
                     theme.text_secondary,
                     format!("{} lines", buffer.line_count()),
                 );
-                for (label, error) in [
+                let structure_status = structure_error
+                    .map(|error| ("Structure unavailable", error))
+                    .or_else(|| partial_structure.then_some((
+                        "Partial structure",
+                        "This file does not fully parse, so highlighting, the outline and other structural results may be incomplete. Source remains available.",
+                    )));
+                let errors = [
                     ("Mark settings unavailable", mark_error),
                     ("Folding unavailable", fold_error),
                     ("Occurrence highlighting unavailable", occurrence_error),
                     ("Basic syntax colors", highlight_error),
                 ]
                 .into_iter()
-                .filter_map(|(label, error)| error.map(|error| (label, error)))
-                {
+                .filter_map(|(label, error)| error.map(|error| (label, error)));
+                for (label, error) in structure_status.into_iter().chain(errors) {
                     ui.colored_label(theme.text_secondary, label)
                         .on_hover_text(error);
                 }
@@ -537,6 +551,8 @@ mod tests {
                             caret_line: &mut line,
                             caret_col: &mut column,
                             fold_ranges: &[],
+                            structure_error: None,
+                            partial_structure: false,
                             fold_error: None,
                             occurrence_error: None,
                             highlight_error: None,
