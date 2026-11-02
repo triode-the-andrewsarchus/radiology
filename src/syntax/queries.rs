@@ -37,7 +37,7 @@ fn cached_query(
     cache
         .get_or_init(|| {
             [
-                Rust, Python, Go, JavaScript, TypeScript, Tsx, Swift, Kotlin, C,
+                Rust, Python, Go, JavaScript, TypeScript, Tsx, Swift, Kotlin, C, Cpp,
             ]
             .into_iter()
             .map(|grammar| (grammar, OnceLock::new()))
@@ -67,9 +67,14 @@ fn call_source(grammar: SupportedGrammar) -> String {
         JavaScript | TypeScript | Tsx => include_str!("../../Sources/Radiology/Queries/ecmascript/calls.scm"),
         Swift => include_str!("../../Sources/Radiology/Queries/swift/calls.scm"),
         Kotlin => "(call_expression . (identifier) @call.name) @call\n(call_expression (navigation_expression (identifier) @call.name .)) @call\n(call_expression) @call.any",
-        C => "(call_expression function: (identifier) @call.name) @call\n(call_expression function: (field_expression field: (field_identifier) @call.name)) @call\n(call_expression) @call.any",
+        C | Cpp => include_str!("../../Sources/Radiology/Queries/c/calls.scm"),
     };
-    format!("{source}\n{}", scope_source(grammar))
+    let overlay = if grammar == Cpp {
+        include_str!("../../Sources/Radiology/Queries/cpp/calls.scm")
+    } else {
+        ""
+    };
+    format!("{source}\n{overlay}\n{}", scope_source(grammar))
 }
 
 fn scope_source(grammar: SupportedGrammar) -> String {
@@ -83,8 +88,14 @@ fn scope_source(grammar: SupportedGrammar) -> String {
         }
         Swift => include_str!("../../Sources/Radiology/Queries/swift/scopes.scm"),
         Kotlin => include_str!("../../Sources/Radiology/Queries/kotlin/scopes.scm"),
-        C => "(function_definition) @scope.function",
+        C | Cpp => include_str!("../../Sources/Radiology/Queries/c/scopes.scm"),
     };
+    let overlay = if grammar == Cpp {
+        include_str!("../../Sources/Radiology/Queries/cpp/scopes.scm")
+    } else {
+        ""
+    };
+    let scopes = format!("{scopes}\n{overlay}");
     let scopes = scopes
         .lines()
         .filter(|line| line.contains("@scope.function") || line.contains("@scope.closure"))
@@ -101,16 +112,42 @@ fn scope_source(grammar: SupportedGrammar) -> String {
 fn fold_source(grammar: SupportedGrammar) -> String {
     use SupportedGrammar::*;
     let (folds, symbols) = match grammar {
-        Rust => (include_str!("../../Sources/Radiology/Queries/rust/folds.scm"), include_str!("../../Sources/Radiology/Queries/rust/symbols.scm")),
-        Python => (include_str!("../../Sources/Radiology/Queries/python/folds.scm"), include_str!("../../Sources/Radiology/Queries/python/symbols.scm")),
-        Go => (include_str!("../../Sources/Radiology/Queries/go/folds.scm"), include_str!("../../Sources/Radiology/Queries/go/symbols.scm")),
-        JavaScript | TypeScript | Tsx => (include_str!("../../Sources/Radiology/Queries/ecmascript/folds.scm"), include_str!("../../Sources/Radiology/Queries/ecmascript/symbols.scm")),
-        Swift => (include_str!("../../Sources/Radiology/Queries/swift/folds.scm"), include_str!("../../Sources/Radiology/Queries/swift/symbols.scm")),
-        Kotlin => (include_str!("../../Sources/Radiology/Queries/kotlin/folds.scm"), include_str!("../../Sources/Radiology/Queries/kotlin/symbols.scm")),
-        C => ("(compound_statement) @fold.block\n(function_definition body: (compound_statement) @fold.function)\n(field_declaration_list) @fold.type\n(enumerator_list) @fold.type\n(initializer_list) @fold.block\n(comment) @fold.comment",
-            "(function_definition declarator: (_) @name) @symbol.function\n(struct_specifier name: (type_identifier) @name) @symbol.type\n(enum_specifier name: (type_identifier) @name) @symbol.enum\n(enumerator name: (identifier) @name) @symbol.case\n(type_definition declarator: (_) @name) @symbol.typealias\n(translation_unit (declaration declarator: (_) @name) @symbol.variable)"),
+        Rust => (
+            include_str!("../../Sources/Radiology/Queries/rust/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/rust/symbols.scm"),
+        ),
+        Python => (
+            include_str!("../../Sources/Radiology/Queries/python/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/python/symbols.scm"),
+        ),
+        Go => (
+            include_str!("../../Sources/Radiology/Queries/go/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/go/symbols.scm"),
+        ),
+        JavaScript | TypeScript | Tsx => (
+            include_str!("../../Sources/Radiology/Queries/ecmascript/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/ecmascript/symbols.scm"),
+        ),
+        Swift => (
+            include_str!("../../Sources/Radiology/Queries/swift/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/swift/symbols.scm"),
+        ),
+        Kotlin => (
+            include_str!("../../Sources/Radiology/Queries/kotlin/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/kotlin/symbols.scm"),
+        ),
+        C | Cpp => (
+            include_str!("../../Sources/Radiology/Queries/c/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/c/symbols.scm"),
+        ),
     };
-    if grammar == Kotlin {
+    if grammar == Cpp {
+        format!(
+            "{folds}\n{symbols}\n{}\n{}",
+            include_str!("../../Sources/Radiology/Queries/cpp/folds.scm"),
+            include_str!("../../Sources/Radiology/Queries/cpp/symbols.scm")
+        )
+    } else if grammar == Kotlin {
         // kotlin-ng uses different identifiers, blocks, imports and comment names.
         let folds = folds
             .replace("(statements)", "(block)")
@@ -154,7 +191,7 @@ fn highlight_source(grammar: SupportedGrammar) -> String {
         // Native grammar names differ from Swift's fwcd Kotlin grammar. These
         // captures preserve the same exclusion classes, not semantic bindings.
         Kotlin => "[(line_comment) (block_comment) (shebang)] @comment\n[(string_literal) (multiline_string_literal) (character_literal)] @string\n[(number_literal) (float_literal)] @number\n[\"fun\" \"return\" \"return@\" \"import\" \"if\" \"else\" \"when\" \"for\" \"do\" \"while\" \"try\" \"catch\" \"throw\" \"finally\" \"val\" \"var\" \"class\" \"object\" \"interface\" \"enum\" \"typealias\" \"is\" \"in\" \"as\" \"as?\"] @keyword\n[(class_modifier) (member_modifier) (function_modifier) (property_modifier) (platform_modifier) (variance_modifier) (parameter_modifier) (visibility_modifier) (reification_modifier) (inheritance_modifier)] @keyword.modifier",
-        C => "(comment) @comment\n[(string_literal) (char_literal)] @string\n(number_literal) @number\n[\"if\" \"else\" \"for\" \"while\" \"do\" \"return\" \"break\" \"continue\" \"switch\" \"case\" \"default\" \"struct\" \"union\" \"enum\" \"typedef\" \"const\" \"static\" \"extern\" \"volatile\" \"sizeof\" \"goto\"] @keyword",
+        C | Cpp => include_str!("../../Sources/Radiology/Queries/c/highlights.scm"),
     };
     let kotlin_roles = if grammar == Kotlin {
         include_str!("queries/kotlin-highlights.scm")
@@ -167,6 +204,7 @@ fn highlight_source(grammar: SupportedGrammar) -> String {
         highlights.to_owned()
     };
     let overlay = match grammar {
+        Cpp => include_str!("../../Sources/Radiology/Queries/cpp/highlights.scm"),
         JavaScript => include_str!("../../Sources/Radiology/Queries/javascript/highlights.scm"),
         TypeScript | Tsx => {
             include_str!("../../Sources/Radiology/Queries/typescript/highlights.scm")

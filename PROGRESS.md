@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-02 — Code Paths resolution and native C++ grammar (Codex)
+
+Implemented owned-source Code Paths resolution with bare/qualified/header selectors,
+definition-over-prototype preference, opposing conditional alternatives, explicit
+assembly labels/entry macros and navigation-only recovery for malformed C/C++ bodies.
+Displayed source remains authoritative; checkout reads enforce containment and reviews
+use pinned After blobs. Cancellation, ambiguity and unsupported source fail explicitly.
+ResolvedStep retains the exact buffer and parsed structure for later app reuse.
+
+C++ now uses tree-sitter-cpp0.23.4 with the bundled shared C queries and C++ overlays.
+C/C++ declaration extraction shares the native query path and declarator-spine names;
+removed the obsolete C collector. The actual reader/picker handles namespace/class/
+method/lambda structure and exact destination-byte navigation without a semantic index.
+
+Validation:697 app tests pass, seven existing ignored; two binary/13 font/21 text tests
+and54 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff gates pass. The external
+probe resolves91/91 authored seL4 steps to93 destinations in22 files at clean reference
+commit d419a119a61a9b42edf61fb79ad08de45248daa7. Independent Git-blob digest/byte/line
+verification passes. This proves resolution, not app trace navigation or history.
+Native C++1×/2× dark/light captures inspected: keyboard navigation selects exactly
+four bytes spelling main, full Copy preserves all360 UTF-8 fixture bytes, light-source
+pixels are238/238/238, hashes stay unchanged and owned processes exit zero.
+Earlier driver timing/socket/OCR failures are retained separately from accepted v5 runs.
+
+Architecture baseline before-code-path-resolution: +938 NLOC/24 functions/seven files;
+average/max CCN3.39/132,33 hotspots,126 clone groups and one cycle. Raw comparison says
+REGRESSION for existing touched clones and unstable untouched chokepoint rankings;
+normalized clone audit finds zero added/removed identities. An initial16-CCN matcher
+and duplicated definition checks were simplified. No new worker pool or navigation
+subsystem. Required design skills remain unavailable; this unit adds no typography.
+[Contract, architecture audit and remaining work](plans/rust-code-path-resolution.md).
+Evidence: ~/.local/state/radiology-qa/code-path-resolution-20261102-3f43ee9.
+Next: guarded asynchronous app resolution, reuse prepared syntax, left-sidebar trace
+selection/steps/variants and import/copy/delete/shortcuts, then app-level seL4 acceptance.
+Overall Swift parity remains incomplete and active.
+
 ## 2026-11-02 — Code Paths format and private storage foundation (Codex)
 
 Added egui-independent CodePath/CodePathStep records and typed import/store errors.

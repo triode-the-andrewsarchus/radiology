@@ -4,11 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[Code Paths foundation](plans/rust-code-paths.md) now imports/exports the current
-escaped title/file:function:description format and persists stable ordered records
-outside source, with corruption protection and canonical checkout scopes. The91-step
-upstream trace round-trips. Resolution, guarded app navigation and left-sidebar UI
-remain required next; this is not a completed Code Paths feature.
+[Code Paths resolution](plans/rust-code-path-resolution.md) now resolves qualified
+names, overload headers, conditional alternatives, assembly labels/macros and recovered
+C/C++ function heads from actual source. The reference seL4 trace resolves91/91 steps.
+The reader uses a proper C++ grammar and shared declaration queries. [Format/storage](plans/rust-code-paths.md)
+is accepted too; app request/history binding and the left-sidebar import/list UI remain
+required before Code Paths is available in the app.
 
 [Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
 trait/member/impl context to compact source-sorted rows, stable selection, ordinary

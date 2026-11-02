@@ -4,6 +4,7 @@
 //! language identification ([`LanguageRegistry`]), Tree-sitter AST queries for hierarchical
 //! document symbols ([`SymbolExtractor`]), and foldable block detection ([`FoldDetector`]).
 
+mod c_declarations;
 pub mod calls;
 pub(crate) mod fold_queries;
 pub mod folds;
@@ -74,6 +75,8 @@ impl<'a> AnalysisControl<'a> {
 pub struct DocumentSyntax {
     /// Full outline, unaffected by source presentation filters.
     pub symbols: Vec<DocumentSymbol>,
+    /// Recognized C/C++ function heads recovered only for named navigation, not extents.
+    pub recovered_declarations: Vec<DocumentSymbol>,
     /// Explicit Rust trait impls from the same parse, independent of semantic availability.
     pub rust_trait_impls: rust_impls::RustTraitImpls,
     /// Native parser or outline-query failure for a registered language; fallback rows may remain.
@@ -115,13 +118,14 @@ impl DocumentSyntax {
             return Self::without_tree(buffer, &control);
         };
         let root = tree.root_node();
+        let recovered_declarations = c_declarations::recover(buffer, grammar, root, &control)?;
         let (folds, fold_error) = match FoldDetector::from_tree(buffer, grammar, root, &control) {
             Ok(folds) => (folds, None),
             Err(error) => (Vec::new(), Some(error)),
         };
         control.check()?;
         let (symbols, parse_error) =
-            match SymbolExtractor::from_tree(buffer, grammar, root, &control) {
+            match outline::symbols_from_tree(buffer, grammar, root, &control) {
                 Ok(symbols) => (symbols, None),
                 Err(error) => (Vec::new(), Some(error)),
             };
@@ -141,6 +145,7 @@ impl DocumentSyntax {
         control.check()?;
         Ok(Self {
             symbols,
+            recovered_declarations,
             rust_trait_impls,
             tests,
             calls,

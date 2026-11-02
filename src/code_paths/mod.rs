@@ -5,6 +5,8 @@
 //! separate from the format and app-owned storage APIs here.
 
 mod parser;
+pub mod resolver;
+mod source_text;
 pub mod store;
 pub use parser::{ImportError, MAX_IMPORT_BYTES};
 use serde::{Deserialize, Serialize};

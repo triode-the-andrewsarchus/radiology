@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use tree_sitter::Node;
 mod native;
+pub(super) use native::extract as symbols_from_tree;
 
 /// Enumerates kinds of declarations extracted into the document outline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -265,88 +266,12 @@ impl SymbolExtractor {
     ) -> Result<Vec<DocumentSymbol>, String> {
         let control = super::AnalysisControl::new(&cancelled);
         let symbols = if let Some((grammar, tree)) = control.parse(buffer)? {
-            Self::from_tree(buffer, grammar, tree.root_node(), &control)?
+            symbols_from_tree(buffer, grammar, tree.root_node(), &control)?
         } else {
             Self::extract_fallback(buffer, &control)
         };
         control.check()?;
         Ok(symbols)
-    }
-
-    pub(super) fn from_tree(
-        buffer: &SourceBuffer,
-        grammar: SupportedGrammar,
-        root: Node<'_>,
-        control: &super::AnalysisControl<'_>,
-    ) -> Result<Vec<DocumentSymbol>, String> {
-        if grammar != SupportedGrammar::C {
-            return native::extract(buffer, grammar, root, control);
-        }
-        let mut symbols = Vec::new();
-        Self::collect_symbols(root, buffer, grammar, &mut symbols, control);
-        Ok(symbols)
-    }
-
-    fn collect_symbols(
-        node: Node,
-        buffer: &SourceBuffer,
-        grammar: SupportedGrammar,
-        out: &mut Vec<DocumentSymbol>,
-        control: &super::AnalysisControl<'_>,
-    ) {
-        if control.is_cancelled() {
-            return;
-        }
-        if let Some(symbol) = Self::parse_node(node, buffer, grammar, control) {
-            out.push(symbol);
-        } else {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                Self::collect_symbols(child, buffer, grammar, out, control);
-            }
-        }
-    }
-
-    fn parse_node(
-        node: Node,
-        buffer: &SourceBuffer,
-        grammar: SupportedGrammar,
-        control: &super::AnalysisControl<'_>,
-    ) -> Option<DocumentSymbol> {
-        let kind_str = node.kind();
-        let (kind, name_field) = match (grammar, kind_str) {
-            (SupportedGrammar::C, "function_definition") => (SymbolKind::Function, "declarator"),
-            (SupportedGrammar::C, "struct_specifier") => (SymbolKind::Struct, "name"),
-            (SupportedGrammar::C, "enum_specifier") => (SymbolKind::Enum, "name"),
-
-            _ => return None,
-        };
-
-        let name_node = node.child_by_field_name(name_field).unwrap_or(node);
-        let name = node_text(name_node, buffer);
-        if name.is_empty() {
-            return None;
-        }
-
-        let range = node.start_byte()..node.end_byte();
-        let selection_range = name_node.start_byte()..name_node.end_byte();
-        let line = buffer.line_at_byte(range.start);
-
-        let mut children = Vec::new();
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            Self::collect_symbols(child, buffer, grammar, &mut children, control);
-        }
-
-        Some(DocumentSymbol {
-            name,
-            kind,
-            range,
-            selection_range,
-            line,
-            children,
-            detail: declaration_header(node, buffer),
-        })
     }
 
     pub(super) fn extract_fallback(

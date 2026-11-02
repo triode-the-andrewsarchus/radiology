@@ -21,8 +21,10 @@ pub enum SupportedGrammar {
     Swift,
     /// Kotlin language grammar.
     Kotlin,
-    /// C and C++ language grammar.
+    /// C language grammar.
     C,
+    /// C++ language grammar, including namespaces, methods and templates.
+    Cpp,
 }
 
 impl SupportedGrammar {
@@ -37,6 +39,7 @@ impl SupportedGrammar {
             Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
             Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             Self::C => tree_sitter_c::LANGUAGE.into(),
+            Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
             Self::Swift => tree_sitter_swift::LANGUAGE.into(),
             Self::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
         }
@@ -191,7 +194,7 @@ impl LanguageRegistry {
                 LanguageInfo {
                     id: "cpp",
                     display_name: "C++",
-                    grammar: Some(SupportedGrammar::C),
+                    grammar: Some(SupportedGrammar::Cpp),
                 }
             }
             "m" | "mm" => LanguageInfo {

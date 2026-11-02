@@ -148,7 +148,7 @@ fn outline_and_test_walkers_stop_between_parsed_nodes() {
                 &control,
             );
         } else {
-            let _ = SymbolExtractor::from_tree(
+            let _ = outline::symbols_from_tree(
                 &buffer,
                 SupportedGrammar::Rust,
                 tree.root_node(),

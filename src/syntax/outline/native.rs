@@ -4,7 +4,7 @@ use super::*;
 use crate::syntax::{queries, AnalysisControl};
 use std::{cmp::Reverse, collections::BTreeMap, iter::Peekable, vec::IntoIter};
 
-pub(super) fn extract(
+pub(in crate::syntax) fn extract(
     buffer: &SourceBuffer,
     grammar: SupportedGrammar,
     root: Node<'_>,
@@ -51,11 +51,24 @@ pub(super) fn extract(
                 "symbol.case" => SymbolKind::EnumMember,
                 _ => return Ok(()),
             };
+            let name = if matches!(grammar, SupportedGrammar::C | SupportedGrammar::Cpp) {
+                let prototype = matches!(node.kind(), "declaration" | "field_declaration");
+                let Some(name) = crate::syntax::c_declarations::name(
+                    name.node,
+                    prototype,
+                    kind == SymbolKind::TypeAlias,
+                ) else {
+                    return Ok(());
+                };
+                name
+            } else {
+                name.node
+            };
             let symbol = DocumentSymbol {
-                name: buffer.text[name.node.byte_range()].to_owned(),
+                name: buffer.text[name.byte_range()].to_owned(),
                 kind,
                 range: node.byte_range(),
-                selection_range: name.node.byte_range(),
+                selection_range: name.byte_range(),
                 line: buffer.line_at_byte(node.start_byte()),
                 children: Vec::new(),
                 detail: declaration_header(node, buffer).or_else(|| {
@@ -104,7 +117,8 @@ fn symbol_rank(kind: SymbolKind) -> u8 {
 
 fn type_kind(node: Node<'_>, buffer: &SourceBuffer) -> SymbolKind {
     match node.kind() {
-        "struct_item" => return SymbolKind::Struct,
+        "struct_item" | "struct_specifier" => return SymbolKind::Struct,
+        "union_specifier" => return SymbolKind::Union,
         "union_item" => return SymbolKind::Union,
         "type_spec" => {
             return match node.child_by_field_name("type").map(|node| node.kind()) {

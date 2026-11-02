@@ -1,7 +1,9 @@
 # Rust Code Paths parity
 
 Current checkpoint: the reusable text-format and private-storage foundation is
-implemented. There is no Code Paths sidebar/import UI or symbol navigation yet.
+implemented. [Source resolution](rust-code-path-resolution.md) is now implemented too,
+with real91-step seL4 acceptance. There is no Code Paths sidebar/import UI or app step
+navigation yet.
 The full feature remains required by the upstream parity ledger. The behavioral
 reference is [code-paths.md](code-paths.md) and the current Swift CodePaths source,
 not the earlier line-number-based proposal.
@@ -71,16 +73,12 @@ Evidence: ~/.local/state/radiology-qa/code-paths-data-20261102-d0da261.
 
 ## Required remaining work
 
-1. Resolve names, enclosing ::/dot paths and exact normalized declaration headers
-   against actual parsed source without an index. Prefer real definitions to
-   prototypes, report ordinary overload ambiguity, and preserve byte destinations
-   after inserted/deleted lines. The current Rust C++ registry uses the C grammar;
-   verify proper C++ declaration/scope fidelity against Swift fixtures and repair
-   that foundation where needed rather than reducing qualified-name support.
-2. Recognize assembly labels and the five documented entry macros while excluding
-   comments/strings/calls/END_FUNC. Port opposing-preprocessor-branch classification
-   and selectable conditional variants. Recover recognized C/C++ declarator heads
-   before bodies with conditional braces without inventing outline/fold/call extents.
+1. [Implemented source resolution](rust-code-path-resolution.md): qualified declarations,
+   exact headers, definition preference, conditional alternatives, assembly labels/
+   macros and navigation-only C/C++ body-head recovery. The reader now has a proper
+   C++ grammar and shares native declaration extraction with C.
+2. The real reference seL4 corpus resolves91/91 steps with93 Git-verified destinations.
+   App-level navigation/conditional-menu/history acceptance is still required.
 3. Bind cancellable resolution to root/review/navigation/caret/trace ownership.
    Reuse authoritative open buffers, canonical checkout containment and pinned After
    reads. Preserve exact Before/After departure history and reject late success/error.

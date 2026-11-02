@@ -2838,3 +2838,5 @@ fn invalid_bookmark_target_reports_the_synchronous_error_in_its_region() {
     assert!(app.error.is_none());
     assert_eq!(app.bookmark_list.navigation_error.as_ref().unwrap().0, id);
 }
+
+mod cpp;
