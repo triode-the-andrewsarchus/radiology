@@ -35,6 +35,8 @@ impl NativeHighlights {
         if !matches!(
             grammar,
             SupportedGrammar::Rust
+                | SupportedGrammar::Go
+                | SupportedGrammar::Python
                 | SupportedGrammar::Swift
                 | SupportedGrammar::Kotlin
                 | SupportedGrammar::JavaScript

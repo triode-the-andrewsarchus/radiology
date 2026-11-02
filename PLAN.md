@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Go/Python native colors](plans/rust-native-highlights.md#go-and-python-native-colors--2026-11-01)
+now reuse bundled Swift queries and retained capture/recoloring. All ten Swift
+fixtures pass native fact/range/color checks with LF/CRLF; four Go/Python 1×/2×
+flows pass dark/light roles and exact copies while source paths are temporarily
+unavailable. A copied standalone executable passes resource verification. Broader
+corpus and whole-app parity remain open.
+
 [Source structure quality](plans/rust-structure-quality.md) now distinguishes
 recovered Partial structure from Structure unavailable in the source footer.
 Existing shared parse facts survive unavailable call queries; retained/recolored

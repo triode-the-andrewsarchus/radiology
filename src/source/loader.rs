@@ -356,6 +356,11 @@ mod tests {
     #[test]
     fn native_theme_recolor_reuses_exact_captures_and_rejects_foreign_snapshots() {
         for (path, text) in [
+            (
+                "missing.go",
+                "package reader\r\nfunc run() string { return \"café 😀\" }\r\n",
+            ),
+            ("missing.py", "def run():\r\n return \"café 😀\"\r\n"),
             ("missing.rs", "fn run() { let text = \"café 😀\"; }\r\n"),
             ("missing.kt", "fun run() { val text = \"café 😀\" }\r\n"),
             ("missing.ts", "interface User { name: string; }\r\n"),

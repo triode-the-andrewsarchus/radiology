@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-01 — Use shared native colors for Go/Python and accept Swift fixtures (Codex)
+
+Go and Python now enter NativeHighlights using already bundled Swift queries,
+shared palette and the existing bounded capture/recolor path. No dependency,
+parser, worker, setting or UI state; C fallback stays unchanged. The role and
+retained-loader matrices now cover both languages; old-whitelist negatives fail
+on missing native Go captures. One new corpus case accepts all ten Swift sample
+fixtures in LF/CRLF: clean parses, native facts, canonical full/selection/call/
+fold/highlight ranges and exact dark/light source-span reconstruction. Workspace
+passes 573 app tests (seven ignored), two binary, four font, 13 text and 37 doctests;
+strengthened range assertions pass a final focused rerun. Strict Clippy/check/
+build/rustdoc/fmt/diff pass. The verifier now requires Go/Python native ownership;
+a copied standalone executable passes outside the checkout. Four final native
+Go/Python 1×/2× flows pass dark/light role pixels, exact CRLF/CJK copies, retained
+recoloring while the private source path is held aside, restored fixture/binary
+hashes and zero exits; representative captures inspected. Initial Go 2× OCR TSV
+quotes swallowed rows; final QUOTE_NONE parsing fixes the harness. Architecture
+NEUTRAL: +147 NLOC including tests, one test function, native preparation CCN 3,
+no new hotspot/max-CCN/cycle; all 91 clones unchanged by full audit, health -0.01.
+Broader corpus/grammar, reader/index/PR/cache/UI and final Swift/standalone/reuse
+acceptance remain open; accessibility and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-native-highlights.md#go-and-python-native-colors--2026-11-01).
+Archive: ~/.local/state/radiology-qa/go-python-native-colors-20261101-381204a.
+
 ## 2026-11-01 — Expose recovered versus unavailable source structure (Codex)
 
 The source footer now matches Swift's Partial structure/Structure unavailable

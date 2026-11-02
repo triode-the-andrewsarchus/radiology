@@ -4,6 +4,8 @@ use crate::source::ReviewRevision;
 fn native_highlight_queries_compile() {
     for grammar in [
         SupportedGrammar::Rust,
+        SupportedGrammar::Go,
+        SupportedGrammar::Python,
         SupportedGrammar::Swift,
         SupportedGrammar::Kotlin,
         SupportedGrammar::JavaScript,
@@ -60,6 +62,8 @@ fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
         "// café 😀\r\nexport function greet(value) {\r\n  return value + \"hi\";\r\n}\r\n";
     for (path, text, expected) in [
         ("a.rs", "// café 😀\r\n#[derive(Debug)]\r\nstruct Record<'borrow> { field: &'borrow str }\r\nfn run<'borrow>(value: &'borrow str) -> Record<'borrow> {\r\n let text = \"hi\\n\"; let raw = r#\"raw\"#; let count = 42; let yes = true;\r\n println!(\"{}\", text); Record { field: value }\r\n}\r\n", vec![("derive", "attribute"), ("struct", "keyword"), ("Record", "type"), ("borrow", "label"), ("field:", "property"), ("str }", "type"), ("run", "function"), ("hi", "string"), ("\\n\"", "string.escape"), ("raw\"#", "string"), ("42", "number"), ("true", "constant"), ("println", "function")]),
+        ("a.go", "// café 😀\r\npackage reader\r\ntype Record struct { Field string }\r\nfunc run(value string) string {\r\n text := \"hi\\n\"; count := 42; _ = count; println(text)\r\n return value\r\n}\r\n", vec![("package", "keyword"), ("reader", "namespace"), ("Record", "type"), ("Field", "property"), ("run", "function"), ("string", "type"), ("println", "function.builtin"), ("hi", "string"), ("\\n\"", "string.escape"), ("42", "number")]),
+        ("a.py", "# café 😀\r\n@decorator\r\nclass Record:\r\n def run(self, value: str):\r\n  text = \"hi\\n\"; COUNT = 42\r\n  print(self.field)\r\n  return value\r\n", vec![("decorator", "attribute"), ("class", "keyword"), ("Record", "type"), ("run", "function"), ("self", "variable.builtin"), ("str", "type"), ("print", "function.builtin"), ("field", "property"), ("COUNT", "constant"), ("42", "number"), ("hi", "string"), ("\\n\"", "string.escape")]),
         ("a.swift", "// café 😀\r\nfunc run(value: Int) {\r\n let text = \"hi\\n\"\r\n print(text)\r\n}\r\n", vec![("run", "function"), ("func", "keyword"), ("hi", "string"), ("\\n\"", "primary")]),
         ("a.kt", "// café 😀\r\nfun run(value: Int) {\r\n val text = \"hi\\n\"\r\n println(text)\r\n}\r\n", vec![("run", "function"), ("fun", "keyword"), ("hi", "string"), ("\\n\"", "string.escape")]),
         (
@@ -255,4 +259,141 @@ fn rust_native_long_comment_preserves_full_unicode_crlf_and_recolors_without_a_p
         );
     }
     assert!(facts.recolor(&buffer, true, || true).is_none());
+}
+
+#[test]
+fn swift_corpus_fixtures_preserve_native_facts_and_colors_in_both_line_endings() {
+    let fixtures = [
+        (
+            "sample.swift",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.swift"),
+        ),
+        (
+            "sample.rs",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.rs"),
+        ),
+        (
+            "sample.go",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.go"),
+        ),
+        (
+            "sample.py",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.py"),
+        ),
+        (
+            "sample.js",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.js"),
+        ),
+        (
+            "sample.jsx",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.jsx"),
+        ),
+        (
+            "sample.ts",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.ts"),
+        ),
+        (
+            "sample.tsx",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.tsx"),
+        ),
+        (
+            "sample.kt",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.kt"),
+        ),
+        (
+            "sample.kts",
+            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.kts"),
+        ),
+    ];
+    for crlf in [false, true] {
+        let snapshots = fixtures
+            .iter()
+            .map(|&(path, text)| {
+                let text = if crlf {
+                    text.replace('\n', "\r\n")
+                } else {
+                    text.to_string()
+                };
+                let buffer = SourceBuffer::from_str(path, &text);
+                let facts = super::super::DocumentSyntax::analyze(&buffer);
+                (buffer, facts)
+            })
+            .collect::<Vec<_>>();
+        let parse_errors = snapshots
+            .iter()
+            .filter(|(_, facts)| facts.calls.parse_errors)
+            .map(|(buffer, _)| buffer.path.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            parse_errors.is_empty(),
+            "unexpected corpus parse errors (CRLF={crlf}): {parse_errors:?}"
+        );
+        for (buffer, facts) in snapshots {
+            assert!(
+                facts.parse_error.is_none() && facts.fold_error.is_none(),
+                "{}: {:?} {:?}",
+                buffer.path,
+                facts.parse_error,
+                facts.fold_error
+            );
+            assert!(
+                facts.calls.supported && facts.occurrences.error.is_none(),
+                "{}",
+                buffer.path
+            );
+            assert!(
+                facts.native_highlights.matches(&buffer),
+                "{} must retain native colors",
+                buffer.path
+            );
+            for row in crate::syntax::outline::outline_rows(&facts.symbols, &buffer) {
+                let symbol = row.symbol;
+                assert!(buffer.text.get(symbol.range.clone()).is_some());
+                assert_eq!(
+                    buffer.text.get(symbol.selection_range.clone()),
+                    Some(symbol.name.as_str())
+                );
+                assert!(
+                    symbol.range.start <= symbol.selection_range.start
+                        && symbol.selection_range.end <= symbol.range.end
+                );
+            }
+            for range in facts
+                .folds
+                .iter()
+                .map(|fold| &fold.byte_range)
+                .chain(facts.calls.scopes.iter().map(|scope| &scope.range))
+                .chain(facts.calls.sites.iter().map(|site| &site.range))
+                .chain(
+                    facts
+                        .calls
+                        .sites
+                        .iter()
+                        .filter_map(|site| site.name.as_ref()),
+                )
+                .chain(
+                    facts
+                        .native_highlights
+                        .captures
+                        .iter()
+                        .map(|capture| &capture.bytes),
+                )
+            {
+                assert!(
+                    buffer.text.get(range.clone()).is_some(),
+                    "{}: {range:?}",
+                    buffer.path
+                );
+            }
+            for dark in [false, true] {
+                assert_original_bytes(
+                    &facts
+                        .native_highlights
+                        .recolor(&buffer, dark, || false)
+                        .unwrap(),
+                    &buffer,
+                );
+            }
+        }
+    }
 }

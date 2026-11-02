@@ -1,9 +1,9 @@
 # Native source colors
 
-Rust, Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native Tree-sitter highlight
-captures for source colors.
+Rust, Go, Python, Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native
+Tree-sitter highlight captures for source colors.
 The existing shared parse produces the immutable capture snapshot; no parser runs
-in painting or theme recoloring. Other languages retain their Syntect appearance.
+in painting or theme recoloring. C and other formats retain their Syntect appearance.
 Missing/failed native facts fall back to basic Syntect/plain colors, with a
 recoverable Basic syntax colors status and error detail when extraction failed.
 
@@ -172,3 +172,61 @@ until their color/query/corpus audit. Full accessibility and actual sibling
 adoption remain deferred.
 
 Evidence: `~/.local/state/radiology-qa/rust-native-colors-20261031-5a4d2e7`.
+
+
+## Go and Python native colors — 2026-11-01
+
+The audit found Go/Python queries already bundled and compiled for occurrence
+exclusions, but excluded from NativeHighlights. They now enter the same bounded
+capture/sweep/recolor path as the other Swift-supported grammars. Go package/type/
+field/method/builtin roles and Python decorators/types/self/properties/builtins/
+constants follow the shipped queries and existing palette. Source remains regular
+monospace; no new parser, dependency, query role, worker, UI state or setting.
+Syntect/plain fallback remains available for failed captures. C's existing
+fallback policy is unchanged.
+
+The resource verifier now requires native capture ownership for Go and Python,
+rather than accepting fallback colors. An executable copied alone to an unrelated
+temporary directory passes `--verify-resources`, including those two native probes.
+It has the same SHA-256 as the tested app and does not need a source checkout or
+sibling runtime.
+
+The role matrix and asynchronous recolor test now include Go/Python. They check
+specific roles, Unicode/CRLF contiguous byte coverage, regular source weight,
+retirement, foreign path/content/revision rejection and retained source/capture
+reuse without a new syntax result or file read. Both new role/corpus checks fail
+against the old whitelist with missing Go native captures. The initial corpus
+iterator needed a reference-pattern correction before that behavioral negative.
+
+One corpus test loads all ten original Swift sample fixtures (Swift, Rust, Go,
+Python, JS/JSX, TS/TSX, Kotlin/script) in LF and CRLF forms. All twenty snapshots
+parse cleanly and retain independent query facts. Outline full/selection ranges,
+folds, callable scopes, call/site-name ranges and highlight captures stay within
+canonical UTF-8 text; both themes reconstruct every original source byte. This is
+representative fixture acceptance, not a complete language-corpus claim.
+
+Workspace checks pass 573 app tests (seven ignored), two binary, four font,
+13 text and 37 doctests. Final strengthened corpus range assertions also pass a
+focused rerun. Strict Clippy, all-target check, binary build, rustdoc with warnings
+denied, formatting and diff checks pass. Architecture against
+`before-go-python-native-colors` at `381204a` is NEUTRAL: +147 NLOC including tests,
+one test function, no new code files/hotspots/max-CCN/cycles, health about -0.01.
+Native capture preparation remains CCN 3. Complete normalized clone comparison
+confirms all 91 groups unchanged, zero added/removed.
+
+Four final native Go/Python 1×/2× flows pass dark/light string/keyword pixel checks
+(and Python decorator pixels), exact original CRLF/CJK source copies, unchanged
+fixture/binary hashes and zero exits. The private source file is temporarily moved
+aside during recoloring, proving the UI can retain and recolor its displayed
+source while the path is unavailable; it is restored with exact bytes afterward.
+Representative dark/light captures were inspected. Go 2× initially failed because
+CSV quote interpretation swallowed later raw OCR TSV rows; final TSV decoding
+uses QUOTE_NONE. Pillow's old pixel-access warning is harness-only.
+
+Archive: `~/.local/state/radiology-qa/go-python-native-colors-20261101-381204a`.
+`accepted.json` selects `native-v1-1.0-go`, `native-v2-2.0-go`,
+`native-v1-1.0-python`, `native-v1-2.0-python`. Controllers, role counts, exact
+clipboard bytes, fixture/hash/capture/action evidence, standalone resource report,
+workspace/gate logs, negative/corpus checks, architecture/full clone audit and
+source diff are retained. Broader grammar/corpus, indexing/PR/cache/reader/UI and
+final whole-app acceptance remain open; accessibility and sibling adoption deferred.

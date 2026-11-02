@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Go/Python native source colors](rust-native-highlights.md#go-and-python-native-colors--2026-11-01)
+  close the remaining Swift-language coloring whitelist gap. The original ten
+  Swift fixtures pass LF/CRLF fact/range/color checks; retained captures, four
+  native role/copy/theme flows and a copied executable resource check pass.
+
 - [Source structure quality](rust-structure-quality.md) now exposes Swift's partial
   versus unavailable structure states in the footer, preserving recovered facts
   and exact source. Ten malformed dialects, retained/recolored-source lifecycle,
@@ -233,7 +238,7 @@ status, diagnostic presentation and corpus acceptance remain part of the audit.
   [acceptance](rust-fold-restoration.md). Typed structural folds and
   Fold to Definitions are integrated; see [query/command acceptance](rust-structural-folds.md).
 - Broader Swift/Kotlin declaration/scope/grammar acceptance and grammar/fixture
-  coverage beyond the implemented rules. Native Rust/Swift/Kotlin/JavaScript/TypeScript/TSX colors are integrated with shared dialect overlays and representative native TSX dark/light/copy acceptance;
+  coverage beyond the implemented rules. Native Rust/Go/Python/Swift/Kotlin/JavaScript/TypeScript/TSX colors are integrated with shared dialect overlays and representative native TSX dark/light/copy acceptance;
   see [capture/recolor contract](rust-native-highlights.md).
 - [Outline status explanations](rust-outline-status.md) now distinguish preparation,
   parser failure, unsupported files, empty languages and hidden tests. Unsupported
