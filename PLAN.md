@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source fragment boundaries](plans/rust-source-emoji-shaping.md#grapheme-preserving-fragment-boundaries)
+now keep fitting graphemes together in ordinary and folded source, with bounded
+work for oversized sequences and unchanged copy coordinates. This prepares source
+composition; shaped glyph painting and native acceptance remain pending.
+
 [Emoji shaping groundwork](plans/rust-source-emoji-shaping.md) adds optional
 CPU composition/rasterization to the shared font crate. Independent HarfBuzz,
 scale/coverage and isolated-host checks pass. App layout/caret integration and

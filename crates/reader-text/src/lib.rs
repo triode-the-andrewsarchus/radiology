@@ -14,6 +14,7 @@ pub use find::{FindOptions, MatchSpool};
 pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
 pub use rows::RowHeights;
 use std::ops::Range;
+use unicode_segmentation::UnicodeSegmentation;
 pub use unwrapped::UnwrappedRows;
 
 /// One bounded display fragment of a canonical source line.
@@ -30,6 +31,8 @@ pub struct SourceFragment {
 /// Splits source into UTF-8-safe fragments without normalizing the original bytes.
 ///
 /// The bound is clamped to at least four bytes so a complete scalar always fits.
+/// Graphemes that fit within the bound are kept together. Larger graphemes are
+/// split at scalar boundaries to retain bounded layout work.
 /// CRLF and LF remain in the original source for copy; neither is painted.
 #[must_use]
 pub fn source_fragments(text: &str, max_bytes: usize) -> Vec<SourceFragment> {
@@ -40,10 +43,7 @@ pub fn source_fragments(text: &str, max_bytes: usize) -> Vec<SourceFragment> {
         let line_end = offset + chunk.strip_suffix('\r').unwrap_or(chunk).len();
         let mut start = offset;
         loop {
-            let mut end = (start + max_bytes).min(line_end);
-            while !text.is_char_boundary(end) {
-                end -= 1;
-            }
+            let end = start + fragment_prefix_len(&text[start..line_end], max_bytes, max_bytes);
             fragments.push(SourceFragment {
                 bytes: start..end,
                 line: index + 1,
@@ -57,6 +57,39 @@ pub fn source_fragments(text: &str, max_bytes: usize) -> Vec<SourceFragment> {
         offset += chunk.len() + 1;
     }
     fragments
+}
+
+// Scan only a bounded window: a source line may contain millions of scalars in
+// one grapheme. A partial fragment may return zero so its caller can flush it.
+fn fragment_prefix_len(text: &str, budget: usize, limit: usize) -> usize {
+    let mut cut = budget.min(text.len());
+    while !text.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    if cut == text.len() {
+        return cut;
+    }
+    // Four extra bytes ensure a truncated grapheme crossing `cut` is known to
+    // exceed `limit`, even after backing up to a UTF-8 boundary.
+    let mut end = budget
+        .saturating_add(limit)
+        .saturating_add(4)
+        .min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if text[..end].is_ascii() {
+        return cut;
+    }
+    for (start, grapheme) in text[..end].grapheme_indices(true) {
+        if start >= cut {
+            break;
+        }
+        if start + grapheme.len() > cut {
+            return if grapheme.len() <= limit { start } else { cut };
+        }
+    }
+    cut
 }
 
 /// A selection whose endpoints remain canonical bytes when rows scroll or fold.
@@ -105,6 +138,50 @@ mod tests {
             focus: text.len(),
         };
         assert_eq!(selection.text(text), Some(text));
+    }
+
+    #[test]
+    fn fragment_edges_keep_fitting_graphemes_and_bound_oversized_sequences() {
+        for cluster in ["e\u{301}", "1\u{fe0f}\u{20e3}", "👨‍👩‍👧‍👦", "👍🏽", "🇺🇸"]
+        {
+            for limit in [4, 7, 8, 25, 32, 4096] {
+                for prefix in [0, 1, limit - 1, limit, limit + 1] {
+                    let source = format!("{}{} tail\r\nnext", "x".repeat(prefix), cluster);
+                    let parts = source_fragments(&source, limit);
+                    let projected = projected_fragments(&source, &[], limit);
+                    assert_eq!(parts.len(), projected.len());
+                    for (part, projected) in parts.iter().zip(&projected) {
+                        assert!(part.bytes.len() <= limit);
+                        assert_eq!(part.bytes, projected.bytes);
+                    }
+                    if cluster.len() <= limit {
+                        assert!(
+                            parts.iter().any(|part| part.bytes.start <= prefix
+                                && part.bytes.end >= prefix + cluster.len()),
+                            "{cluster:?}, {limit}, {prefix}"
+                        );
+                    }
+                    let visible: String = parts
+                        .iter()
+                        .map(|part| &source[part.bytes.clone()])
+                        .collect();
+                    assert_eq!(visible, source.replace("\r\n", ""));
+                }
+            }
+        }
+        let source = format!("a{}z", "\u{301}".repeat(100_000));
+        let parts = source_fragments(&source, 32);
+        assert!(parts
+            .iter()
+            .all(|part| !part.bytes.is_empty() && part.bytes.len() <= 32));
+        assert_eq!(
+            parts
+                .iter()
+                .map(|part| &source[part.bytes.clone()])
+                .collect::<String>(),
+            source
+        );
+        assert_eq!(fragment_prefix_len("a\u{301}b", 1, 4), 0);
     }
 
     #[test]

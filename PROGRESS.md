@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-02 — Grapheme-preserving bounded source fragments (Codex)
+
+Ordinary/folded reader-text fragment builders share a bounded grapheme boundary
+calculation. Fitting clusters move intact to the next fragment; oversized clusters
+retain scalar-safe splitting and finite progress. Hidden gaps remain hard
+boundaries. Existing Unicode segmentation 1.13.3 is reused without version changes.
+Matrices cover accents/keycaps/families/tones/flags, six byte limits, partial folded
+suffix budgets, CRLF, canonical scalar mappings and 100,000 combining marks. The
+app harness checks wrap on/off at the real 4,096-byte boundary with exact copy.
+Workspace: 602 app tests passed, seven ignored; two binary, eight font, 15 text
+and 38 doctests passed. Strict Clippy/check/rustdoc, build/fmt/diff and copied
+standalone resource checks pass. Architecture NEUTRAL: +118 NLOC/three functions,
+no new hotspot/cycle/clone group, 109 groups retained, health -0.01.
+[Contract/integration](plans/rust-source-emoji-shaping.md#grapheme-preserving-fragment-boundaries).
+Archive: ~/.local/state/radiology-qa/grapheme-fragments-20261102-7e239ac.
+Shaped glyph painting, caret/selection integration and native 1×/2× source-shaping
+acceptance remain pending; broader parity remains open. Full accessibility and
+actual sibling adoption stay deferred.
+
 ## 2026-11-02 — Optional shared emoji shaping/raster foundation (Codex)
 
 reader-fonts now exposes an optional CPU-only EmojiShaper, one reusable Common/LTR

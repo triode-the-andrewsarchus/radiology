@@ -8,3 +8,4 @@ description = "Application-independent source selection and bounded viewport geo
 [dependencies]
 regex = "1.10"
 tempfile = "3.10"
+unicode-segmentation = "1.13"

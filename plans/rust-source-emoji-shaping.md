@@ -58,6 +58,35 @@ The checked-in generator is used explicitly for QA and never during Cargo builds
 
 ## Required integration and acceptance
 
+### Grapheme-preserving fragment boundaries
+
+Both `reader-text` fragment builders now share a bounded prefix calculation.
+Graphemes that fit within the full fragment limit move intact to the next fragment
+when the remaining room is insufficient. Oversized clusters retain scalar-safe
+splitting; lookahead is bounded by twice the fragment budget plus four bytes,
+including for pathological combining sequences. ASCII remains a fast path.
+Hidden gaps are hard boundaries: unrelated surviving spans cannot synthesize a
+cluster. Canonical byte envelopes, scalar cursor indices, line ownership and copy
+bytes retain their existing contracts. Unicode segmentation reuses the already
+locked 1.13.3 dependency; no dependency versions change.
+
+The boundary matrix covers accents, keycaps, family ZWJ, tone modifiers and flags,
+six limits through the app's 4,096 bytes, five prefix positions, CRLF, folded
+suffixes with partial remaining room, scalar-coordinate round trips and 100,000
+combining marks. The app harness checks wrapped/unwrapped fragmentation at the
+actual 4,096-byte boundary and exact Select All/Copy. These checks establish the
+fragment contract; they do not establish composed glyph painting or native UI
+acceptance.
+
+Workspace verification: 602 app tests passed (seven ignored), two binary, eight
+font, 15 text and 38 doctests. Strict Clippy/check/rustdoc, normal app build,
+formatting/diff and copied standalone resource verification pass. Architecture
+against `before-grapheme-fragments`: NEUTRAL, +118 NLOC/three functions, no new
+hotspot/cycle/clone group, 109 groups retained, health -0.01. Evidence:
+`~/.local/state/radiology-qa/grapheme-fragments-20261102-7e239ac`.
+
+### Remaining display integration
+
 Enable shaping only as the source renderer consumes it. Retain raw source and the
 existing SourceFragment byte/character contract. Validate a layout projection that
 reserves one composed glyph's advance while retaining all original scalar cursor

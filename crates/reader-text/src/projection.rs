@@ -68,6 +68,8 @@ impl ProjectedFragment {
 /// Hidden intervals must end on UTF-8 boundaries and lie inside `source`.
 /// Overlapping/adjacent intervals are unioned before projecting. Hidden newlines
 /// join their surviving prefixes and suffixes; visible CRLF/LF separate rows.
+/// Within each surviving span, graphemes fitting the byte bound stay together;
+/// larger graphemes split at scalar boundaries. Hidden gaps remain boundaries.
 ///
 /// # Panics
 ///
@@ -189,10 +191,12 @@ impl FragmentBuilder {
     fn append_span(&mut self, source: &str, range: Range<usize>) {
         let mut start = range.start;
         while start < range.end {
-            let mut end = (start + self.limit - self.length).min(range.end);
-            while !source.is_char_boundary(end) {
-                end -= 1;
-            }
+            let end = start
+                + crate::fragment_prefix_len(
+                    &source[start..range.end],
+                    self.limit - self.length,
+                    self.limit,
+                );
             if end == start {
                 self.flush(start);
                 continue;
@@ -264,5 +268,36 @@ mod tests {
         assert_eq!(text, "a😀é tailend");
         assert_eq!(parts.iter().filter(|part| part.first_in_line).count(), 4);
         assert!(parts.iter().filter(|part| part.bytes.is_empty()).count() >= 2);
+    }
+
+    #[test]
+    fn folded_suffix_flushes_before_fitting_cluster_and_retains_scalar_coordinates() {
+        let source = "abc hidden\r\n1️⃣z";
+        let hidden = 3..source.find('1').unwrap();
+        let parts = projected_fragments(source, std::slice::from_ref(&hidden), 8);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(&source[parts[0].bytes.clone()], "abc");
+        assert_eq!(&source[parts[1].bytes.clone()], "1️⃣z");
+        assert!(!parts[1].first_in_line);
+        assert_eq!(parts[1].line, 1);
+        for part in parts {
+            let visible: String = part
+                .spans()
+                .iter()
+                .map(|span| &source[span.clone()])
+                .collect();
+            for (index, _) in visible.char_indices().enumerate() {
+                let byte = part.byte_at_char(source, index);
+                assert_eq!(part.char_index(source, byte), index);
+            }
+            assert_eq!(
+                part.byte_at_char(source, visible.chars().count()),
+                part.bytes.end
+            );
+        }
+        // Hidden gaps never create a grapheme from unrelated source spans.
+        let source = "1hidden\u{fe0f}\u{20e3}";
+        let parts = projected_fragments(source, std::slice::from_ref(&(1..7)), 8);
+        assert_eq!(parts[0].spans(), &[0..1, 7..13]);
     }
 }

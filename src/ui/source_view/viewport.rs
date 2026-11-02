@@ -3998,6 +3998,24 @@ mod tests {
     }
 
     #[test]
+    fn source_fragment_edge_keeps_compound_emoji_and_exact_copy() {
+        for wrap in [false, true] {
+            let ctx = egui::Context::default();
+            let text = format!("{}1️⃣ tail\r\nnext", "x".repeat(FRAGMENT_BYTES - 1));
+            let mut reader = Reader::new(&text);
+            reader.wrap = wrap;
+            reader.frame(&ctx, Vec::new());
+            let cluster = (FRAGMENT_BYTES - 1)..(FRAGMENT_BYTES - 1 + "1️⃣".len());
+            assert!(reader.viewport.fragments.iter().any(|part| part
+                .spans()
+                .iter()
+                .any(|span| span.start <= cluster.start && span.end >= cluster.end)));
+            let output = reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL), egui::Event::Copy]);
+            assert_eq!(output.platform_output.copied_text, text);
+        }
+    }
+
+    #[test]
     fn long_line_fragment_navigation_and_zoom_reveal_canonical_caret() {
         let ctx = egui::Context::default();
         let text = "é".repeat(FRAGMENT_BYTES * 3);
