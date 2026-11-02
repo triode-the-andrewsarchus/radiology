@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-02 — Ignored Git compilation databases (Codex)
+
+Checkout inventory now supplements tracked/unignored paths with ignored files
+named compile_commands.json through the existing bounded streamed Git query.
+Root/nested/build-variant/space-containing paths work; unrelated ignored artifacts
+stay excluded. Combined validation/limits, private copying/rebasing, source checks
+and cache freshness remain shared. Pinned exact-head and non-Git walk policies
+are unchanged. No new dependency, worker, scanner, setting or sibling changes.
+One new inventory regression is RED before the fix and green after. Existing app
+regression now untracks/ignores the database and still finds the project before
+generation. Existing service lifecycle runs both tracked/ignored cases with private
+rebasing, preserved database/object bytes, cache reload and edited-database stale
+reporting. Controlled SCIP output is synthetic. Workspace: 626 app tests pass,
+seven ignored; two binary, 13 font, 19 text and 40 doctests pass. Strict workspace
+Clippy/check/build/rustdoc/fmt/diff and copied standalone resource verification
+pass; rendered inventory docs checked. No new native/real-indexer acceptance.
+Architecture: +87 NLOC/one regression function, unchanged max/average CCN, no new
+hotspot/cycle, health -0.01. Default REGRESSION flags five old test clones;
+normalized audit matches all 109 unchanged groups with zero additions/removals.
+[Contract, evidence and limits](plans/rust-ignored-compilation-databases.md).
+Archive: ~/.local/state/radiology-qa/ignored-compdb-20261102-b41e6f2.
+Other ignored generated inputs, non-Git/external build discovery, broader real
+Android/Gradle/C++ corpora and final Swift feature/UI audit remain open. Full
+accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Shared build-input inspection for project controls (Codex)
 
 Extracted generation's existing read-only inventory into service::inspect_inputs

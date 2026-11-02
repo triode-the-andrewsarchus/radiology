@@ -713,6 +713,21 @@ fn index_planning_finds_tracked_build_inputs_and_reports_discovery_failure() {
             .contains("No build projects"))
     );
 
+    // Removing the database from Git tracking must not hide a generated build.
+    crate::repository::test_support::git(&root, &["rm", "--cached", "build/compile_commands.json"]);
+    std::fs::write(root.join(".gitignore"), "build/\n").unwrap();
+    app.inspect_index_projects();
+    settle(&mut app);
+    assert_eq!(
+        app.index_plan()
+            .selected
+            .iter()
+            .find(|project| project.id() == "scip-clang")
+            .unwrap()
+            .evidence,
+        ["build/compile_commands.json"]
+    );
+
     // A failed inventory must not keep advertising the old project's tools.
     std::fs::remove_dir_all(root.join(".git")).unwrap();
     std::fs::write(root.join(".git"), "gitdir: missing-object-store\n").unwrap();

@@ -47,10 +47,11 @@ impl InputInventory {
         })
     }
 
-    /// Discovers tracked and unignored files, including tracked build/vendor inputs.
+    /// Discovers tracked/unignored inputs and ignored C/C++ compilation databases.
     ///
-    /// Non-Git directories use a non-following walk with browser build/dependency
-    /// exclusions, retaining `.cargo` configuration. No files are written.
+    /// Git also includes ignored `compile_commands.json` files, without copying other
+    /// ignored artifacts. Non-Git directories use a non-following walk with browser
+    /// build/dependency exclusions, retaining `.cargo` configuration. No files are written.
     ///
     /// # Errors
     ///
@@ -58,7 +59,18 @@ impl InputInventory {
     pub fn discover(root: &Path, cancel: &AtomicBool) -> Result<Self, String> {
         let root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
         let paths = if root.join(".git").exists() {
-            git_paths(&root, cancel)?
+            let mut paths = git_paths(&root, cancel, &["--cached", "--others"])?;
+            paths.extend(git_paths(
+                &root,
+                cancel,
+                &[
+                    "--others",
+                    "--ignored",
+                    "--",
+                    ":(glob)**/compile_commands.json",
+                ],
+            )?);
+            paths
         } else {
             walk_paths(&root, cancel)?
         };
@@ -97,19 +109,14 @@ pub(super) fn check_cancel(cancel: &AtomicBool) -> Result<(), String> {
     }
 }
 
-fn git_paths(root: &Path, cancel: &AtomicBool) -> Result<Vec<String>, String> {
+fn git_paths(root: &Path, cancel: &AtomicBool, selection: &[&str]) -> Result<Vec<String>, String> {
     let command = IndexCommand {
         executable: "git".into(),
-        arguments: [
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-        ]
-        .into_iter()
-        .map(Into::into)
-        .collect(),
+        arguments: ["ls-files", "-z", "--exclude-standard"]
+            .into_iter()
+            .chain(selection.iter().copied())
+            .map(Into::into)
+            .collect(),
         directory: root.into(),
         environment: BTreeMap::from([
             ("GIT_OPTIONAL_LOCKS".into(), "0".into()),

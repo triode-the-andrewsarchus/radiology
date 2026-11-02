@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Ignored Git compilation databases](plans/rust-ignored-compilation-databases.md)
+now participate in checkout project discovery, isolated generation and cache
+freshness without copying unrelated ignored artifacts. Non-Git/generated dependency
+inputs and broader compiler corpus acceptance remain open.
+
 [Shared project inspection](plans/rust-shared-index-inspection.md) now gives Index
 Projects the same full build-input inventory as generation, including tracked build
 files and verified pinned-review heads. Failure/reload state is explicit; ignored

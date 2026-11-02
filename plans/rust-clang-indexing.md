@@ -92,3 +92,11 @@ Viewed bytes/inventory remain intact and private workspaces are removed.
 This is backend acceptance; the earlier native UI test still uses controlled SCIP
 output. Ignored/generated build-database discovery and the other corpus limits
 above remain open.
+
+## Ignored checkout database discovery — 2026-11-02
+
+[Ignored Git database discovery](rust-ignored-compilation-databases.md) supersedes
+the earlier tracked/unignored-only discovery limit for compilation databases in
+Git checkouts. Root/nested ignored databases now flow through shared project
+inspection, isolated generation and cache fingerprinting. Other ignored inputs,
+non-Git build directories and external build/dependency support remain open.

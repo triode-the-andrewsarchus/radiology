@@ -597,86 +597,99 @@ fn failed_generation_and_cancelled_cache_load_preserve_the_last_persisted_index(
 
 #[test]
 fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() {
-    let fixture = Fixture::new(&[
-        ("build/compile_commands.json", "[]"),
-        ("native.c", "int f(void) { return 0; }\n"),
-        ("include/header.h", "#define VALUE 1\n"),
-        ("flags.rsp", "-I../include -c ../native.c -o native.o"),
-    ]);
-    let database = fixture.source.join("build/compile_commands.json");
-    let original = serde_json::to_vec(&serde_json::json!([{
-        "directory": fixture.source.join("build"), "file": "../native.c",
-        "arguments": ["clang", "@../flags.rsp"], "output": "native.o"
-    }]))
-    .unwrap();
-    fs::write(&database, &original).unwrap();
-    // Full inventories retain tracked build inputs even though the browser hides build/.
-    for arguments in [
-        vec!["init", "-q"],
-        vec!["add", "-f", "build/compile_commands.json"],
-    ] {
-        assert!(std::process::Command::new("git")
-            .args(arguments)
-            .current_dir(&fixture.source)
-            .status()
-            .unwrap()
-            .success());
+    for tracked in [true, false] {
+        let fixture = Fixture::new(&[
+            ("build/compile_commands.json", "[]"),
+            ("native.c", "int f(void) { return 0; }\n"),
+            ("include/header.h", "#define VALUE 1\n"),
+            ("flags.rsp", "-I../include -c ../native.c -o native.o"),
+        ]);
+        let database = fixture.source.join("build/compile_commands.json");
+        let original = serde_json::to_vec(&serde_json::json!([{
+            "directory": fixture.source.join("build"), "file": "../native.c",
+            "arguments": ["clang", "@../flags.rsp"], "output": "native.o"
+        }]))
+        .unwrap();
+        fs::write(&database, &original).unwrap();
+        crate::repository::test_support::git(&fixture.source, &["init", "-q"]);
+        fs::write(fixture.source.join(".gitignore"), "build/\n").unwrap();
+        fs::write(fixture.source.join("build/ignored.o"), "untouched object").unwrap();
+        if tracked {
+            crate::repository::test_support::git(
+                &fixture.source,
+                &["add", "-f", "build/compile_commands.json"],
+            );
+        }
+        let witness = fixture.bin.join("rebased-database.json");
+        fixture.tool(
+            Indexer::Clang,
+            &["native.c"],
+            &format!(
+                "test -d build\n/bin/cat \"$database\" > {}",
+                quote(&witness)
+            ),
+        );
+        let generated = run(fixture.request());
+        assert!(generated.report.cache_warning.is_none());
+        assert_eq!(generated.report.documents, 1, "{:?}", generated.report);
+        let index = generated.index.unwrap();
+        assert_eq!(
+            index.column_encoding("native.c"),
+            Some(crate::source::ColumnEncoding::Utf8)
+        );
+        assert!(index.matches_buffer(&SourceBuffer::from_str(
+            "native.c",
+            "int f(void) { return 0; }\n"
+        )));
+        let arguments = fs::read_to_string(fixture.bin.join("scip-clang.args")).unwrap();
+        let arguments: Vec<_> = arguments.lines().collect();
+        assert_eq!(arguments[0], "--compdb-path");
+        let prepared = Path::new(arguments[1]);
+        assert!(prepared.starts_with(&fixture.cache));
+        assert_eq!(prepared.file_name().unwrap(), "compile_commands.json");
+        assert!(!prepared.exists()); // Disposable run removed after success.
+        let commands: serde_json::Value =
+            serde_json::from_slice(&fs::read(witness).unwrap()).unwrap();
+        let copied = prepared.parent().unwrap().parent().unwrap();
+        assert_eq!(
+            commands[0]["directory"],
+            serde_json::json!(copied.join("build"))
+        );
+        assert_eq!(
+            commands[0]["file"],
+            serde_json::json!(copied.join("native.c"))
+        );
+        assert_eq!(
+            commands[0]["arguments"][1],
+            format!("-I{}", copied.join("include").display())
+        );
+        assert_eq!(
+            commands[0]["output"],
+            serde_json::json!(copied.join("build/native.o"))
+        );
+        assert_eq!(fs::read(&database).unwrap(), original);
+        assert!(!fixture.source.join("build/native.o").exists());
+        assert!(
+            super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+                .unwrap()
+                .unwrap()
+                .report
+                .cached
+        );
+        assert_eq!(
+            fs::read(fixture.source.join("build/ignored.o")).unwrap(),
+            b"untouched object"
+        );
+        fs::write(&database, "[]").unwrap();
+        assert!(
+            super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+                .unwrap()
+                .unwrap()
+                .report
+                .stale_reason
+                .is_some()
+        );
     }
-    let witness = fixture.bin.join("rebased-database.json");
-    fixture.tool(
-        Indexer::Clang,
-        &["native.c"],
-        &format!(
-            "test -d build\n/bin/cat \"$database\" > {}",
-            quote(&witness)
-        ),
-    );
-    let generated = run(fixture.request());
-    assert!(generated.report.cache_warning.is_none());
-    assert_eq!(generated.report.documents, 1, "{:?}", generated.report);
-    let index = generated.index.unwrap();
-    assert_eq!(
-        index.column_encoding("native.c"),
-        Some(crate::source::ColumnEncoding::Utf8)
-    );
-    assert!(index.matches_buffer(&SourceBuffer::from_str(
-        "native.c",
-        "int f(void) { return 0; }\n"
-    )));
-    let arguments = fs::read_to_string(fixture.bin.join("scip-clang.args")).unwrap();
-    let arguments: Vec<_> = arguments.lines().collect();
-    assert_eq!(arguments[0], "--compdb-path");
-    let prepared = Path::new(arguments[1]);
-    assert!(prepared.starts_with(&fixture.cache));
-    assert_eq!(prepared.file_name().unwrap(), "compile_commands.json");
-    assert!(!prepared.exists()); // Disposable run removed after success.
-    let commands: serde_json::Value = serde_json::from_slice(&fs::read(witness).unwrap()).unwrap();
-    let copied = prepared.parent().unwrap().parent().unwrap();
-    assert_eq!(
-        commands[0]["directory"],
-        serde_json::json!(copied.join("build"))
-    );
-    assert_eq!(
-        commands[0]["file"],
-        serde_json::json!(copied.join("native.c"))
-    );
-    assert_eq!(
-        commands[0]["arguments"][1],
-        format!("-I{}", copied.join("include").display())
-    );
-    assert_eq!(
-        commands[0]["output"],
-        serde_json::json!(copied.join("build/native.o"))
-    );
-    assert_eq!(fs::read(database).unwrap(), original);
-    assert!(!fixture.source.join("build/native.o").exists());
-    assert!(
-        super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
-            .unwrap()
-            .unwrap()
-            .report
-            .cached
-    );
 }
 
 #[test]

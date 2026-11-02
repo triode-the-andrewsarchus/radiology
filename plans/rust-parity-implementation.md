@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Ignored Git compilation databases](rust-ignored-compilation-databases.md): checkout
+  inspection includes ignored databases at root/nested build paths, preserving private
+  generation and cache freshness. Other ignored generated inputs and non-Git build
+  discovery retain their existing limits.
+
 - [Shared project inspection](rust-shared-index-inspection.md): project/tool controls
   and generation share cancellable build-input discovery, including tracked nested
   databases and verified pinned heads. Discovery errors clear stale plans and

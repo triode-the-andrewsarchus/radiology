@@ -119,6 +119,59 @@ fn git_inventory_streams_beyond_diagnostic_cap_and_keeps_tracked_build_inputs() 
 }
 
 #[test]
+fn ignored_compilation_databases_are_inputs_but_other_ignored_artifacts_are_not() {
+    let (_owner, source, cache) = fixture();
+    git(&source, &["init", "-q"]);
+    fs::write(
+        source.join(".gitignore"),
+        "build*/\n/compile_commands.json\n",
+    )
+    .unwrap();
+    for directory in ["build debug/nested", "build-release"] {
+        fs::create_dir_all(source.join(directory)).unwrap();
+        fs::write(source.join(directory).join("compile_commands.json"), "[]").unwrap();
+        fs::write(source.join(directory).join("ignored.o"), "object").unwrap();
+    }
+    fs::write(source.join("compile_commands.json"), "[]").unwrap();
+    let cancel = AtomicBool::new(false);
+    let inputs = InputInventory::discover(&source, &cancel).unwrap();
+    for path in [
+        "compile_commands.json",
+        "build debug/nested/compile_commands.json",
+        "build-release/compile_commands.json",
+    ] {
+        assert!(
+            inputs.paths.iter().any(|input| input == path),
+            "missing {path}"
+        );
+    }
+    assert!(!inputs.paths.iter().any(|path| path.ends_with("ignored.o")));
+    assert_eq!(
+        super::super::IndexPlan::inspect(inputs.paths.iter().map(String::as_str))
+            .selected
+            .into_iter()
+            .find(|project| project.indexer == super::super::Indexer::Clang)
+            .unwrap()
+            .evidence,
+        ["compile_commands.json"]
+    );
+    let workspace = isolate(&source, &cache, &cancel);
+    workspace.verify_inputs(&cancel).unwrap();
+    workspace.verify_source(&cancel).unwrap();
+    assert_eq!(
+        fs::read(
+            workspace
+                .root()
+                .join("build debug/nested/compile_commands.json")
+        )
+        .unwrap(),
+        b"[]"
+    );
+    assert!(!workspace.root().join("build-release/ignored.o").exists());
+    assert!(InputInventory::discover(&source, &AtomicBool::new(true)).is_err());
+}
+
+#[test]
 fn invalid_paths_cache_location_limits_and_cancellation_leave_no_input_copy() {
     let (_owner, source, cache) = fixture();
     let cancel = AtomicBool::new(false);
