@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-01 — Match Swift block snippet indentation across inspector excerpts (Codex)
+
+Definition/reference/local excerpts now expand each tab to four spaces and remove
+common nonblank indentation through one private iterator over existing styled
+line jobs. Blank-block and mixed whitespace rules match Swift. Emphasis remaps
+with displayed Unicode text; raw source strings, ranges, digests, index coordinates,
+reference-row mapping, reader copies and navigation stay canonical. No new public
+API/state/worker/cache/dependency/type scale; preview extent contract unchanged.
+Old rendering fails the new painted-string regression. Theme/scale, blank/mixed/
+Unicode/styled-indent and local preview checks pass; an initial test-only empty
+style-section assertion was corrected. Workspace passes 556 app tests (seven
+ignored), two binary, four font, 13 text and 36 doctests. Strict Clippy/check/build/
+rustdoc/fmt/diff pass. Architecture NEUTRAL: +179 NLOC including tests, three
+functions, formatter CCN 3, renderer 6/details 12 unchanged; no new hotspot/cycle/
+max-CCN/clone group, all 91 groups unchanged after audit, health -0.01. Final native
+1×/2× definition/local/reference disclosure, caller commit and light-theme flows
+pass exact original tab/Unicode source copies, fixture/binary hashes and zero exits.
+1× definition/local and 2× reference captures visually checked. Earlier OCR accent/
+focused-button misses and tooltip-covered captures are excluded and retained;
+final 2× driver uses cropped/upscaled OCR. Dedent is delivered. Rapid pointer/key
+handoff and broader reader/language/index/PR/cache/UI/standalone/reuse acceptance
+remain open; full accessibility and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-inspector-previews.md#swift-style-block-snippet-dedent--2026-11-01).
+Archive: ~/.local/state/radiology-qa/snippet-dedent-20261101-6b50180.
+
+
 ## 2026-11-01 — Align source preview layout with caller reveal geometry (Codex)
 
 The shared source preview now allocates and clips the exact extent used by caller

@@ -148,3 +148,52 @@ Durable archive: `~/.local/state/radiology-qa/preview-status-20261101-780f87c`.
 Only `preview-{failure,layout}-ready-*` flows are final native acceptance. Broader
 mixed-language/review/input/large-file/semantic and final Swift/standalone/reuse
 acceptance remain open; full accessibility and actual sibling adoption deferred.
+
+## Swift-style block snippet dedent — 2026-11-01
+
+Definition, reference and local-definition excerpts now match Swift's
+`SnippetLine.dedent`: each tab becomes four spaces and every line loses the
+indentation shared by nonblank lines. Whitespace-only lines do not constrain the
+common indent; an entirely blank excerpt keeps its expanded whitespace, matching
+Swift. Relative indentation, line numbering, clipping/truncation and selectable
+snippet text remain.
+
+The private `snippet_jobs` iterator reuses the existing styled `line_job` and
+transforms its display sections. Emphasis follows the expanded/trimmed text,
+including Unicode and indentation inside a highlighted section. Source buffers,
+PreviewLine strings/ranges, digests, SCIP coordinates, reference summaries and
+navigation remain canonical. The ordinary reference-row renderer still uses
+`line_job` directly because its horizontal hit/reveal mapping uses source bytes.
+Only excerpt display changes; no worker, cache, persistent state, dependency or
+public API is added. Existing preview extents and typography remain unchanged.
+
+The new block-rendering regression fails on the old renderer. It now verifies
+actual painted strings and accented text at 1×/1.5×/2× in both themes. Edge cases
+cover empty/all-blank blocks, mixed tabs/spaces, zero common indentation, Unicode
+whitespace, inline tabs and highlighted indentation, with unchanged raw strings
+and ranges. Existing local metadata rendering now verifies dedented local source.
+An initial edge assertion counted zero-length style sections as painted text;
+filtering those empty sections corrects the test without a product change.
+Workspace passes 556 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture NEUTRAL:
++179 NLOC including tests, three functions (one formatter, two tests), formatter
+CCN 3; renderer stays 6 and details stays 12. No new hotspot/cycle/max-CCN increase;
+all 91 clone groups unchanged after complete normalized multiset audit. Health
+changes -0.01.
+
+Final native 1×/2× flows exercise definition disclosure/navigation, local definition
+source, explicit reference expansion and caller commit, light-theme rendering,
+and exact reader copies retaining original tabs and Unicode. All final fixture/
+binary hashes match and all child exits zero. The 1× definition/local and 2×
+reference captures were visually inspected. Earlier attempts hit OCR accent/
+focused-button omissions and a tooltip covering the snippet; excluded evidence
+is retained. Final flows normalize accents, observe selection before keys and
+move the pointer away after opening; 2× uses cropped/upscaled OCR.
+
+Archive: `~/.local/state/radiology-qa/snippet-dedent-20261101-6b50180`. Accepted
+native cases are only `snippet-dedent-visible-1.0-indexed` and
+`snippet-dedent-cropped-2.0-indexed`. Swift-style dedent is delivered; rapid pointer/
+keyboard handoff, broader corpus/review/semantic/reader acceptance and the final
+Swift/standalone/reuse audit remain open. Full accessibility and actual sibling
+adoption remain deferred. Requested design skills remain unavailable; existing
+font roles and snippet rendering are reused.

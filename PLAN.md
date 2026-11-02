@@ -4,11 +4,16 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Swift-style snippet dedent](plans/rust-inspector-previews.md#swift-style-block-snippet-dedent--2026-11-01)
+now expands tabs and removes common indentation across definition/reference/local
+excerpts while preserving styled Unicode text and all raw source coordinates.
+Theme/scale/edge cases and native 1×/2× disclosure/navigation/exact-copy checks pass.
+Broader pointer/key and corpus acceptance remain open.
+
 [Preview extent and status rendering](plans/rust-inspector-previews.md#measured-preview-extents-and-bounded-statuses--2026-11-01)
 now shares the same reserved geometry with caller reveal, including loading,
 failures, blank source rows and truncation. Bounded diagnostic fitting, phase/
-theme/scale checks and native 1×/2× failure/recovery/navigation pass. Snippet dedent
-and broader mixed pointer/key ownership remain open.
+theme/scale checks and native 1×/2× failure/recovery/navigation pass. Broader mixed pointer/key ownership remains open.
 
 [Semantic availability](plans/rust-semantic-availability.md) now shares missing-index,
 file-coverage, exact-source and Before reasons between References and the lower

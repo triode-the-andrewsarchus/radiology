@@ -228,9 +228,13 @@ fn show_details(
                             .color(theme.text_muted),
                     );
                     ui.add(
-                        Label::new(super::source_preview::line_job(line, theme))
-                            .truncate(true)
-                            .selectable(true),
+                        Label::new(
+                            super::source_preview::snippet_jobs(std::slice::from_ref(line), theme)
+                                .next()
+                                .expect("one local definition line"),
+                        )
+                        .truncate(true)
+                        .selectable(true),
                     );
                 });
             }
@@ -331,6 +335,19 @@ mod tests {
         context.definition_count = 0;
         context.external_package = Some("dependency 2.3".into());
         assert!(render(&context, false, false).contains("dependency 2.3"));
+        context.id = crate::semantic::index::SemanticSymbolID::new("local 0", "source.rs");
+        context.local_definition_line = Some(crate::source::preview::PreviewLine {
+            number: 1,
+            text: "\t\tlet café\t= 1;".into(),
+            emphasis: None,
+            clipped: false,
+        });
+        let local = render(&context, true, false);
+        assert!(local.lines().any(|line| line == "let café    = 1;"));
+        assert_eq!(
+            context.local_definition_line.as_ref().unwrap().text,
+            "\t\tlet café\t= 1;"
+        );
     }
     #[test]
     fn long_indexed_details_keep_pane_width_and_full_navigation_target() {

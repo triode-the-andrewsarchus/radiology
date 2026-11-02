@@ -53,7 +53,11 @@ pub(super) fn show(ui: &mut Ui, theme: &AppTheme, phase: &PreviewPhase) {
             ui.painter().rect_filled(rect, 0.0, theme.bg_base);
             let mut snippet =
                 child.child_ui(rect.shrink(4.0), egui::Layout::top_down(egui::Align::Min));
-            for line in &preview.lines {
+            for (line, job) in preview
+                .lines
+                .iter()
+                .zip(snippet_jobs(&preview.lines, theme))
+            {
                 snippet.allocate_ui_with_layout(
                     egui::vec2(snippet.available_width(), 18.0),
                     egui::Layout::left_to_right(egui::Align::Center),
@@ -63,11 +67,7 @@ pub(super) fn show(ui: &mut Ui, theme: &AppTheme, phase: &PreviewPhase) {
                                 .font(FontId::monospace(12.0))
                                 .color(theme.text_muted),
                         );
-                        let response = ui.add(
-                            Label::new(line_job(line, theme))
-                                .truncate(true)
-                                .selectable(true),
-                        );
+                        let response = ui.add(Label::new(job).truncate(true).selectable(true));
                         if line.clipped {
                             response.on_hover_text(
                                 "This long line is cropped around the indexed occurrence.",
@@ -87,6 +87,38 @@ pub(super) fn show(ui: &mut Ui, theme: &AppTheme, phase: &PreviewPhase) {
             }
         }
     }
+}
+
+// Match Swift's block presentation: tabs are four spaces and blank lines do not
+// constrain common indentation. Only display jobs change; source offsets stay raw.
+pub(super) fn snippet_jobs<'a>(
+    lines: &'a [PreviewLine],
+    theme: &'a AppTheme,
+) -> impl Iterator<Item = LayoutJob> + 'a {
+    let common = lines
+        .iter()
+        .filter(|line| !line.text.chars().all(char::is_whitespace))
+        .map(|line| {
+            line.text
+                .bytes()
+                .take_while(|byte| matches!(byte, b' ' | b'\t'))
+                .map(|byte| if byte == b'\t' { 4 } else { 1 })
+                .sum::<usize>()
+        })
+        .min()
+        .unwrap_or(0);
+    lines.iter().map(move |line| {
+        let source = line_job(line, theme);
+        let mut display = LayoutJob::default();
+        let mut remaining = common;
+        for section in source.sections {
+            let expanded = source.text[section.byte_range].replace('\t', "    ");
+            let removed = remaining.min(expanded.bytes().take_while(|byte| *byte == b' ').count());
+            remaining -= removed;
+            display.append(&expanded[removed..], section.leading_space, section.format);
+        }
+        display
+    })
 }
 
 pub(super) fn line_job(line: &PreviewLine, theme: &AppTheme) -> LayoutJob {
@@ -118,6 +150,141 @@ mod tests {
     use super::*;
     use crate::source::preview::SourcePreview;
     use crate::ui::test_support::{painted_frame, themed_context};
+
+    #[test]
+    fn nested_previews_dedent_as_a_block_without_changing_source_or_emphasis() {
+        let phase = PreviewPhase::Loaded(SourcePreview {
+            path: "nested.rs".into(),
+            revision: None,
+            content_digest: "original bytes".into(),
+            lines: [
+                ("\t  fn café() {\t", Some(6..11)),
+                ("\t\t漢字🦀();\t// note", Some(2..12)),
+                ("    ", None),
+                ("    \t}", None),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (text, emphasis))| PreviewLine {
+                number: index + 1,
+                text: text.into(),
+                emphasis,
+                clipped: false,
+            })
+            .collect(),
+            truncated: false,
+        });
+        for dark in [true, false] {
+            for scale in [1.0, 1.5, 2.0] {
+                let (ctx, theme) = themed_context(dark, scale);
+                let render = || {
+                    painted_frame(&ctx, egui::vec2(300.0, 240.0), vec![], |ui| {
+                        show(ui, &theme, &phase);
+                    })
+                };
+                render();
+                let output = render();
+                let texts = crate::ui::test_support::text_shapes(&output).collect::<Vec<_>>();
+                for expected in ["fn café() {    ", "  漢字🦀();    // note", "  }"] {
+                    assert!(
+                        texts.iter().any(|t| t.galley.job.text == expected),
+                        "missing {expected:?}"
+                    );
+                }
+                for (expected, accented) in [
+                    ("fn café() {    ", "café"),
+                    ("  漢字🦀();    // note", "漢字🦀"),
+                ] {
+                    let job = &texts
+                        .iter()
+                        .find(|t| t.galley.job.text == expected)
+                        .unwrap()
+                        .galley
+                        .job;
+                    let highlighted = job
+                        .sections
+                        .iter()
+                        .filter(|section| section.format.color == theme.accent)
+                        .map(|section| &job.text[section.byte_range.clone()])
+                        .collect::<String>();
+                    assert_eq!(highlighted, accented);
+                }
+            }
+        }
+        let PreviewPhase::Loaded(source) = &phase else {
+            unreachable!()
+        };
+        assert_eq!(source.lines[0].text, "\t  fn café() {\t");
+        assert_eq!(source.lines[0].emphasis, Some(6..11));
+        assert_eq!(
+            line_job(&source.lines[1], &AppTheme::dark()).text,
+            "\t\t漢字🦀();\t// note"
+        );
+    }
+
+    #[test]
+    fn snippet_dedent_handles_blank_blocks_mixed_tabs_and_styled_indentation() {
+        let theme = AppTheme::dark();
+        for (source, expected) in [
+            (vec!["  ", "\t", "\u{2003}"], vec!["  ", "    ", "\u{2003}"]),
+            (
+                vec!["root\tname", "    inner"],
+                vec!["root    name", "    inner"],
+            ),
+            (vec!["\tfoo", "  \tbar"], vec!["foo", "  bar"]),
+            (vec!["\u{2003}foo", "\tbar"], vec!["\u{2003}foo", "    bar"]),
+            (vec![], vec![]),
+        ] {
+            let lines = source
+                .iter()
+                .enumerate()
+                .map(|(index, text)| PreviewLine {
+                    number: index + 1,
+                    text: (*text).into(),
+                    emphasis: None,
+                    clipped: false,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                snippet_jobs(&lines, &theme)
+                    .map(|job| job.text)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                lines
+                    .iter()
+                    .map(|line| line.text.as_str())
+                    .collect::<Vec<_>>(),
+                source
+            );
+        }
+        let line = PreviewLine {
+            number: 1,
+            text: "\t café\t🦀".into(),
+            emphasis: Some(0..12),
+            clipped: true,
+        };
+        let job = snippet_jobs(std::slice::from_ref(&line), &theme)
+            .next()
+            .unwrap();
+        assert_eq!(job.text, "café    🦀");
+        assert!(job
+            .sections
+            .iter()
+            .filter(|section| !section.byte_range.is_empty())
+            .all(|section| section.format.color == theme.accent));
+        assert_eq!(
+            job.sections
+                .iter()
+                .map(|section| &job.text[section.byte_range.clone()])
+                .collect::<String>(),
+            job.text
+        );
+        assert!(line.clipped);
+        assert_eq!(line.text, "\t café\t🦀");
+        assert_eq!(line.emphasis, Some(0..12));
+    }
 
     #[test]
     fn preview_extent_matches_caller_reveal_geometry_for_every_phase() {
