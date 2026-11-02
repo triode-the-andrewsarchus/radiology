@@ -180,8 +180,8 @@ impl ContextInspector {
         egui::TopBottomPanel::top("declaration_region")
             .resizable(true)
             .default_height(height * 0.38)
-            .min_height(100.0)
-            .max_height((ui.available_height() - 120.0).max(100.0))
+            .min_height(160.0)
+            .max_height((ui.available_height() - 120.0).max(160.0))
             .show_inside(ui, |ui| {
                 if let Some(next) = region(ui, |ui| {
                     Self::render_declaration_context(ui, theme, &content, references, declaration)
@@ -331,17 +331,42 @@ impl ContextInspector {
             super::text_fit::explanation(ui, detail, theme.text_secondary);
             return None;
         }
-        ui.heading("Declaration");
-        let mut action = summary.show(
-            ui,
-            theme,
-            content.declaration,
-            content.buffer,
-            content.explicit_references.then_some((
-                content.reference_target.unwrap_or("Pinned symbol"),
-                content.reference_kind,
-            )),
-        );
+        // Keep the name first; reserve the reference heading, coverage and a file/row.
+        // Long or expanded summaries scroll within their share of the region.
+        let reference_space = 3.0 * ui.text_style_height(&egui::TextStyle::Body)
+            + 5.0 * ui.spacing().item_spacing.y
+            + 48.0;
+        let summary_height = (ui.available_height() - reference_space).max(18.0);
+        let mut action = ScrollArea::vertical()
+            .id_source((
+                "declaration_summary",
+                content
+                    .buffer
+                    .map(crate::source::buffer::SourceIdentity::new),
+                content
+                    .declaration
+                    .map(|symbol| symbol.selection_range.clone()),
+                content
+                    .explicit_references
+                    .then_some(content.reference_target),
+            ))
+            .auto_shrink([false, true])
+            .min_scrolled_height(0.0)
+            .drag_to_scroll(false)
+            .max_height(summary_height)
+            .show(ui, |ui| {
+                summary.show(
+                    ui,
+                    theme,
+                    content.declaration,
+                    content.buffer,
+                    content.explicit_references.then_some((
+                        content.reference_target.unwrap_or("Pinned symbol"),
+                        content.reference_kind,
+                    )),
+                )
+            })
+            .inner;
         if let Some(next) = Self::render_reference_context(ui, theme, content, references) {
             action = Some(next);
         }
@@ -372,12 +397,23 @@ impl ContextInspector {
             && content.reference_target.is_some()
             && content.reference_error.is_none()
         {
-            if let Some(next) = references.show_coverage(
-                ui,
-                theme,
-                content.reference_results,
-                content.references_loading,
-            ) {
+            let coverage_height = (ui.available_height() / 3.0).max(0.0);
+            if let Some(next) = ScrollArea::vertical()
+                .id_source(("reference_coverage", content.reference_target))
+                .auto_shrink([false, true])
+                .min_scrolled_height(0.0)
+                .drag_to_scroll(false)
+                .max_height(coverage_height)
+                .show(ui, |ui| {
+                    references.show_coverage(
+                        ui,
+                        theme,
+                        content.reference_results,
+                        content.references_loading,
+                    )
+                })
+                .inner
+            {
                 action = Some(InspectorAction::Reference(next));
             }
         }
@@ -787,47 +823,162 @@ mod tests {
     }
 
     #[test]
+    fn small_reference_regions_keep_coverage_and_the_first_hit_in_separate_viewports() {
+        use crate::ui::test_support::{
+            painted_frame, reference_hit, reference_results, themed_context,
+        };
+        for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
+            let (ctx, theme) = themed_context(dark, scale);
+            let buffer = SourceBuffer::from_str("a.rs", "fn alpha() {}\n");
+            let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
+            let fixture = InspectorFixture {
+                results: ReferenceResults {
+                    unmapped: 3,
+                    omitted: 4,
+                    ..reference_results(vec![reference_hit(0)])
+                },
+                ..Default::default()
+            };
+            let content = InspectorContent {
+                buffer: Some(&buffer),
+                declaration: Some(&symbols[0]),
+                reference_target: Some("alpha"),
+                selected_reference: Some(0),
+                semantic_availability: SemanticAvailability::Available,
+                ..fixture.content()
+            };
+            let mut summary = DeclarationSummary::default();
+            let mut references = Default::default();
+            let mut action = None;
+            let mut render = |events| {
+                painted_frame(&ctx, egui::vec2(240.0, 160.0), events, |ui| {
+                    action = ContextInspector::render_declaration_context(
+                        ui,
+                        &theme,
+                        &content,
+                        &mut references,
+                        &mut summary,
+                    );
+                })
+            };
+            render(vec![]);
+            let output = render(vec![]);
+            for label in ["alpha", "References · 1", "caller0"] {
+                crate::ui::test_support::assert_visible_text(&output, label);
+            }
+            let coverage = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text.contains("unmapped") => {
+                        Some(shape.clip_rect)
+                    }
+                    _ => None,
+                })
+                .expect("coverage viewport");
+            render(vec![
+                egui::Event::PointerMoved(coverage.center()),
+                egui::Event::Scroll(egui::vec2(0.0, -200.0)),
+            ]);
+            for _ in 0..8 {
+                render(vec![]);
+            }
+            let scrolled = render(vec![]);
+            let button = crate::ui::test_support::text_center(&scrolled, "Load More");
+            render(crate::ui::test_support::click(button));
+            assert_eq!(
+                action,
+                Some(InspectorAction::Reference(
+                    crate::ui::reference_list::ReferenceAction::More
+                ))
+            );
+        }
+    }
+
+    #[test]
     fn leaving_a_declaration_retires_its_signature_disclosure() {
-        use crate::ui::test_support::{painted_frame, text_shapes};
-        let ctx = egui::Context::default();
-        let theme = AppTheme::dark();
-        let buffer = SourceBuffer::from_str("a.rs", "fn alpha(argument: u8) {}\n");
-        let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
-        let fixture = InspectorFixture::default();
-        let mut content = InspectorContent {
-            buffer: Some(&buffer),
-            declaration: Some(&symbols[0]),
-            ..fixture.content()
-        };
-        let mut summary = DeclarationSummary::default();
-        let mut references = Default::default();
-        let mut frame = |content: &InspectorContent<'_>, events| {
-            painted_frame(&ctx, egui::vec2(300.0, 300.0), events, |ui| {
-                ContextInspector::render_declaration_context(
-                    ui,
-                    &theme,
-                    content,
-                    &mut references,
-                    &mut summary,
-                );
-            })
-        };
-        frame(&content, vec![]);
-        frame(
-            &content,
-            vec![crate::ui::commands::test_key(egui::Key::Tab)],
-        );
-        let expanded = frame(
-            &content,
-            vec![crate::ui::commands::test_key(egui::Key::Space)],
-        );
-        assert!(text_shapes(&expanded).any(|text| text.galley.job.text.starts_with("fn alpha")));
-        content.declaration = None;
-        let absent = frame(&content, vec![]);
-        crate::ui::test_support::text_center(&absent, "No Declaration");
-        content.declaration = Some(&symbols[0]);
-        let returned = frame(&content, vec![]);
-        assert!(!text_shapes(&returned).any(|text| text.galley.job.text.starts_with("fn alpha")));
+        use crate::ui::test_support::{painted_frame, text_shapes, themed_context};
+        for (dark, scale, height) in [(true, 1.0, 160.0), (false, 1.5, 160.0), (false, 2.0, 300.0)]
+        {
+            let (ctx, theme) = themed_context(dark, scale);
+            let buffer = SourceBuffer::from_str("a.rs", "fn alpha(argument: u8) {}\n");
+            let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
+            let fixture = InspectorFixture::default();
+            let mut content = InspectorContent {
+                buffer: Some(&buffer),
+                declaration: Some(&symbols[0]),
+                semantic_availability: SemanticAvailability::RepositoryNotIndexed(
+                    "Generate an index to find references.",
+                ),
+                ..fixture.content()
+            };
+            let mut summary = DeclarationSummary::default();
+            let mut references = Default::default();
+            let mut frame = |content: &InspectorContent<'_>, events| {
+                painted_frame(&ctx, egui::vec2(300.0, height), events, |ui| {
+                    ContextInspector::render_declaration_context(
+                        ui,
+                        &theme,
+                        content,
+                        &mut references,
+                        &mut summary,
+                    );
+                })
+            };
+            let closed = frame(&content, vec![]);
+            frame(
+                &content,
+                vec![crate::ui::commands::test_key(egui::Key::Tab)],
+            );
+            let expanded = frame(
+                &content,
+                vec![crate::ui::commands::test_key(egui::Key::Space)],
+            );
+            frame(
+                &content,
+                vec![
+                    egui::Event::PointerMoved(egui::pos2(100.0, 16.0)),
+                    egui::Event::Scroll(egui::vec2(0.0, -200.0)),
+                ],
+            );
+            for _ in 0..8 {
+                frame(&content, vec![]);
+            }
+            let scrolled = frame(&content, vec![]);
+            assert!(text_shapes(&scrolled).any(|text| text
+                .galley
+                .job
+                .text
+                .starts_with("fn alpha")));
+            content.declaration = None;
+            let absent = frame(&content, vec![]);
+            crate::ui::test_support::text_center(&absent, "No Declaration");
+            content.declaration = Some(&symbols[0]);
+            frame(&content, vec![]);
+            let returned = frame(&content, vec![]);
+            assert!(!text_shapes(&returned).any(|text| text
+                .galley
+                .job
+                .text
+                .starts_with("fn alpha")));
+            content.explicit_references = true;
+            content.reference_target = Some("pinned");
+            content.reference_kind = 17;
+            let pinned = frame(&content, vec![]);
+            for (output, name) in [
+                (&closed, "alpha"),
+                (&expanded, "alpha"),
+                (&returned, "alpha"),
+                (&pinned, "pinned"),
+            ] {
+                for label in ["References", name, "Follow Caret"] {
+                    if label == "Follow Caret" && name != "pinned" {
+                        continue;
+                    }
+                    crate::ui::test_support::assert_visible_text(output, label);
+                }
+            }
+        }
     }
 
     #[test]
@@ -1003,7 +1154,7 @@ mod tests {
     }
     fn assert_region_geometry(output: &egui::FullOutput, pane: egui::Rect, width: f32) {
         let labels: Vec<_> = crate::ui::test_support::text_shapes(output).collect();
-        for heading in ["Declaration", "Outline", "Bookmarks", "Ctrl+0"] {
+        for heading in ["References", "Outline", "Bookmarks", "Ctrl+0"] {
             assert!(
                 labels.iter().any(|text| text.galley.job.text == heading),
                 "missing {heading}"

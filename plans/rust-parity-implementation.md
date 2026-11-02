@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Compact inspector region sizing](rust-inspector-region-sizing.md) now follows
+  Swift's name/metadata summary and bounds signature/coverage scrolling. The
+  declaration minimum is 160 points; heading, first reference, Load More, exact
+  signature copy, definition commits and Follow Caret have component/native checks.
+
 - [Source Ctrl-click navigation](rust-source-pointer-navigation.md) preserves
   departure caret/selection through exact indexed pointer targets and shared
   navigation. Source definition/copy menu controls reflect availability. Native

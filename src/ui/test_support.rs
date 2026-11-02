@@ -164,3 +164,51 @@ pub(crate) fn indexed_under_caret_context() -> crate::semantic::context::UnderCa
     .unwrap()
     .unwrap()
 }
+
+pub(crate) fn reference_hit(index: usize) -> crate::semantic::reference_results::ReferenceHit {
+    crate::semantic::reference_results::ReferenceHit {
+        path: "a.rs".into(),
+        range: crate::semantic::ScipRange::from_packed(&[index as i32, 0, 1]).unwrap(),
+        byte_range: index..index + 1,
+        source_line: crate::source::preview::PreviewLine {
+            number: index + 1,
+            text: format!("caller{index}"),
+            emphasis: Some(0..1),
+            clipped: false,
+        },
+        is_definition: false,
+    }
+}
+pub(crate) fn reference_results(
+    hits: Vec<crate::semantic::reference_results::ReferenceHit>,
+) -> crate::semantic::reference_results::ReferenceResults {
+    crate::semantic::reference_results::ReferenceResults {
+        groups: vec![crate::semantic::reference_results::ReferenceGroup {
+            path: "a.rs".into(),
+            hits: 0..hits.len(),
+            content_digest: String::new(),
+        }],
+        reference_count: hits.len(),
+        hits,
+        ..Default::default()
+    }
+}
+
+/// Verifies that a named label is fully painted inside its actual clip rectangle.
+pub(crate) fn assert_visible_text(output: &egui::FullOutput, label: &str) {
+    let (clip, text) = output
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text == label => {
+                Some((shape.clip_rect, text))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing painted label {label}"));
+    let rect = egui::Rect::from_min_size(text.pos, text.galley.size());
+    assert!(
+        clip.expand(0.5).contains_rect(rect),
+        "clipped {label}: {rect:?} by {clip:?}"
+    );
+}

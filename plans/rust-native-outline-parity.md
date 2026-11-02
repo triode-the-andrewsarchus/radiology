@@ -151,6 +151,6 @@ workspace/gate logs, negative probes, architecture reports/audit and source diff
 This closes the listed declaration gaps, not broad grammar/corpus or whole-app
 parity. The native resized inspector also exposes an existing minimum-height
 cleanup: the References heading can clip when the declaration region is shrunk.
-That and broader reader/index/PR/cache/UI acceptance remain open. The linked
+That sizing defect is now repaired by [compact summaries and bounded regions](rust-inspector-region-sizing.md). Broader reader/index/PR/cache/UI acceptance remains open. The linked
 compact Kotlin interface limitation remains unchanged. The app stays independent;
 full accessibility and actual sibling adoption remain deferred.

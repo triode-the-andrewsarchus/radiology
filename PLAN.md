@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Compact inspector sizing](plans/rust-inspector-region-sizing.md) now keeps
+name-first summaries, metadata and signatures above usable reference controls.
+Bounded summary/coverage scrolling and a 160-point declaration minimum repair the
+observed clipping; exact signature/source copies, indexed navigation and Follow
+Caret pass at 1×/2×. Broader inspector and whole-app acceptance remain open.
+
 [Shared native declaration queries](plans/rust-native-outline-parity.md#shared-declaration-queries-for-the-remaining-native-languages--2026-11-01)
 now cover Rust trait requirements/unions/macros, Go interfaces and file-scope
 values, Python aliases/values and ECMAScript/TypeScript closures, members, enums

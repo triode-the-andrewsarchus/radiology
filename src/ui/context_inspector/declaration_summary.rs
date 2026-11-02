@@ -33,6 +33,7 @@ impl DeclarationSummary {
         if self.owner != owner {
             self.owner = owner;
             self.expanded = false;
+            ui.scroll_to_cursor(Some(egui::Align::Min));
         }
         if let Some((name, kind)) = pinned {
             ui.horizontal(|ui| {
@@ -59,7 +60,6 @@ impl DeclarationSummary {
             return None;
         };
         let mut action = None;
-        ui.colored_label(theme.text_muted, symbol.kind.title());
         ui.horizontal(|ui| {
             let icon = if self.expanded {
                 crate::ui::icons::Icon::ChevronDown
@@ -98,23 +98,30 @@ impl DeclarationSummary {
             "{}:{line}",
             buffer.path.rsplit('/').next().unwrap_or(&buffer.path)
         );
-        let location = crate::ui::text_fit::middle(
-            ui,
-            &location,
-            egui::TextStyle::Small.resolve(ui.style()),
-            theme.accent,
-            ui.available_width(),
-        );
-        if ui
-            .add(egui::Link::new(location))
-            .on_hover_text(format!(
-                "Go to {}:{line}. Back returns to the caret.",
-                crate::ui::text_fit::bounded(&buffer.path)
-            ))
-            .clicked()
-        {
-            action = Some(InspectorAction::JumpToSymbol(symbol.selection_range.start));
-        }
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(symbol.kind.title())
+                    .small()
+                    .color(theme.text_secondary),
+            );
+            let location = crate::ui::text_fit::middle(
+                ui,
+                &location,
+                egui::TextStyle::Small.resolve(ui.style()),
+                theme.accent,
+                ui.available_width(),
+            );
+            if ui
+                .add(egui::Link::new(location))
+                .on_hover_text(format!(
+                    "Go to {}:{line}. Back returns to the caret.",
+                    crate::ui::text_fit::bounded(&buffer.path)
+                ))
+                .clicked()
+            {
+                action = Some(InspectorAction::JumpToSymbol(symbol.selection_range.start));
+            }
+        });
         if self.expanded {
             let signature = symbol
                 .detail

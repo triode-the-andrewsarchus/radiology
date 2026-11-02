@@ -119,11 +119,19 @@ fn breadcrumb_commit_returns_source_keys_after_pointer_focus() {
     app.jump_to_location("a.rs", 2, 0);
     frame(&mut app, &ctx, vec![]);
     let output = frame(&mut app, &ctx, vec![]);
+    let source = ctx
+        .read_response(crate::ui::source_view::SourceViewport::focus_id())
+        .expect("source viewport")
+        .rect;
     let symbol = output
         .shapes
         .iter()
         .find_map(|shape| match &shape.shape {
-            egui::Shape::Text(text) if text.galley.job.text == "alpha" && text.pos.y < 65.0 => {
+            egui::Shape::Text(text)
+                if text.galley.job.text == "alpha"
+                    && text.pos.y < source.top()
+                    && text.pos.x < source.right() =>
+            {
                 Some(text.pos + text.galley.size() / 2.0)
             }
             _ => None,

@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-01 — Keep compact inspector regions usable when resized (Codex)
+
+Declaration summaries now put the name first and kind/location together, matching
+the Swift summary hierarchy without its redundant Rust heading. Bounded summary
+and coverage scroll areas reserve reference space; the declaration minimum rises
+100→160 points. Existing typography, exact links/signatures, reference virtualization
+and actions are reused. Scroll areas avoid extra leading keyboard stops; source
+owner changes reset disclosure and summary reveal. No dependency, worker, public
+API or persistent app state. The old heading extends y94→108 through a 100-point
+clip. Three-scale/theme cases now check name/header/pinned Follow Caret geometry,
+keyboard disclosure/scroll/retirement and incomplete coverage with a visible first
+hit and scrollable working Load More. Shared reference fixtures and a shared clip
+assertion remove duplication. The breadcrumb focus test now scopes its locator to
+the real source top/right bounds instead of finding the new compact inspector name.
+Workspace passes 570 app tests (seven ignored), two binary, four font, 13 text and
+37 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Four final native
+loaded/indexed 1×/2× minimum-height flows pass signature/whole-source copies,
+retirement, exact indexed definition commits and Follow Caret, unchanged binary/
+fixture hashes and zero exits; dark/light captures inspected. Early keyboard/min
+scroll/fixture and OCR/wait trials are excluded. Architecture +183 NLOC including
+tests, two functions, no new hotspot/max-CCN/cycle; all 91 clones unchanged by full
+audit, health -0.02. Automated regression warning only touches the old modal/ref
+test clone. Broader inspector, language/corpus, reader/index/PR/cache/UI and final
+Swift/standalone/reuse acceptance remain open; accessibility and adoption deferred.
+[Contract and evidence](plans/rust-inspector-region-sizing.md).
+Archive: ~/.local/state/radiology-qa/inspector-region-sizing-20261101-d74a4ce.
+
 ## 2026-11-01 — Share bundled declaration queries across native outlines (Codex)
 
 Rust/Python/Go/ECMAScript/TS/TSX now reuse the Swift/Kotlin native extractor,

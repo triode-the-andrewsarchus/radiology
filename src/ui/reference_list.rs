@@ -672,33 +672,8 @@ mod tests {
         );
         assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
     }
+    use crate::ui::test_support::{reference_hit as test_hit, reference_results as test_results};
     use egui::Event;
-    fn test_hit(index: usize) -> ReferenceHit {
-        ReferenceHit {
-            path: "a.rs".into(),
-            range: crate::semantic::ScipRange::from_packed(&[index as i32, 0, 1]).unwrap(),
-            byte_range: index..index + 1,
-            source_line: crate::source::preview::PreviewLine {
-                number: index + 1,
-                text: format!("caller{index}"),
-                emphasis: Some(0..1),
-                clipped: false,
-            },
-            is_definition: false,
-        }
-    }
-    fn test_results(hits: Vec<ReferenceHit>) -> ReferenceResults {
-        ReferenceResults {
-            groups: vec![crate::semantic::reference_results::ReferenceGroup {
-                path: "a.rs".into(),
-                hits: 0..hits.len(),
-                content_digest: String::new(),
-            }],
-            reference_count: hits.len(),
-            hits,
-            ..Default::default()
-        }
-    }
 
     #[test]
     fn single_click_selects_and_double_click_commits() {
