@@ -93,6 +93,25 @@ impl RepositoryDiscovery {
         Self::discover_files_with(&git)
     }
 
+    pub(crate) fn discover_dropped(
+        path: &Path,
+        filters: &SourceFilters,
+        cancel: &AtomicBool,
+    ) -> Result<DiscoveredRepository, io::Error> {
+        let metadata = std::fs::metadata(path)?;
+        let directory = if metadata.is_dir() {
+            path
+        } else {
+            path.parent().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Dropped file has no parent directory",
+                )
+            })?
+        };
+        Self::discover(directory, filters, cancel)
+    }
+
     pub(crate) fn discover(
         path: &Path,
         filters: &SourceFilters,

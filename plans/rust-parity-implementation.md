@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Native repository drops](rust-repository-drop.md) now match Swift’s first-URL
+  folder/file-parent opening through the existing repository transaction. Native
+  Wayland delivery, cancellation/failure retention, bounded offers and actual
+  file-manager drops with exact source copy pass; embedding hosts remain idle.
+
 - [Kotlin file annotations and negated operators](rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02)
   now receive Swift-equivalent roles, including the bang omitted by a native
   external-token range. Exact-token/theme/line-ending and native retained-source

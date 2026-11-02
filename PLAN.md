@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Native repository drops](plans/rust-repository-drop.md) now open folders or a
+dropped file’s parent through the existing asynchronous repository transaction.
+The standalone Wayland receiver fills winit’s missing delivery path; actual
+file-manager drops, root replacement and exact source copy pass at 1×/2×. Hosts
+can use the public drop method without native frontend state. Broader parity
+remains open.
+
 [Kotlin annotation/operator colors](plans/rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02)
 now match bundled Swift roles for file annotations and negated operators, with a
 scoped correction for kotlin-ng’s omitted bang range. Exact token/source checks,

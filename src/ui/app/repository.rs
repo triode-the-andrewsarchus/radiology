@@ -12,6 +12,7 @@ pub(super) struct RepositoryRequest {
 #[derive(Clone)]
 pub(super) enum RepositoryDestination {
     Default,
+    Dropped,
     Source {
         location: SourceLocation,
         target: crate::source::loader::SourceTarget,
@@ -36,18 +37,56 @@ impl RadiologyApp {
         });
     }
 
+    /// Opens a dropped directory, or the parent of a dropped file.
+    ///
+    /// Path validation and discovery run on the existing repository worker.
+    /// Failed or superseded drops retain the accepted reader and session.
+    pub fn open_dropped_path(&mut self, path: &Path) {
+        self.request_repository(RepositoryRequest {
+            path: path.to_path_buf(),
+            destination: RepositoryDestination::Dropped,
+        });
+    }
+
+    pub(super) fn take_repository_drop(&mut self, ctx: &Context) {
+        #[cfg(target_os = "linux")]
+        if let Some(result) = self
+            .native_drop
+            .as_ref()
+            .and_then(|receiver| receiver.poll())
+        {
+            match result {
+                Ok(path) => self.open_dropped_path(&path),
+                Err(error) => self.error = Some(error),
+            }
+        }
+        let first = ctx
+            .input_mut(|input| std::mem::take(&mut input.raw.dropped_files))
+            .into_iter()
+            .next()
+            .and_then(|file| file.path);
+        if let Some(path) = first {
+            self.open_dropped_path(&path);
+        }
+    }
+
     pub(super) fn request_repository(&mut self, request: RepositoryRequest) {
         // A newer root supersedes any unaccepted review intent, while retaining
         // the currently accepted checkout/review until discovery succeeds.
         self.cancel_review_preparation();
         self.recent_pull_requests.cancel();
         let path = request.path.clone();
+        let dropped = matches!(request.destination, RepositoryDestination::Dropped);
         let filters = self.session.source_filters.clone();
         self.pending_repository = Some(request);
         self.repository_error = None;
         self.repository_open.spawn(move |cancel| {
-            RepositoryDiscovery::discover(&path, &filters, cancel)
-                .map_err(|error| error.to_string())
+            let result = if dropped {
+                RepositoryDiscovery::discover_dropped(&path, &filters, cancel)
+            } else {
+                RepositoryDiscovery::discover(&path, &filters, cancel)
+            };
+            result.map_err(|error| error.to_string())
         });
     }
 
@@ -136,7 +175,9 @@ impl RadiologyApp {
                     ..Default::default()
                 },
             ),
-            RepositoryDestination::Default | RepositoryDestination::RestoreCurrent => {
+            RepositoryDestination::Default
+            | RepositoryDestination::Dropped
+            | RepositoryDestination::RestoreCurrent => {
                 let first = self
                     .all_files
                     .iter()

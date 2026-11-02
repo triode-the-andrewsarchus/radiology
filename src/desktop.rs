@@ -1,5 +1,8 @@
 //! File-manager selection through a short-lived D-Bus client, independent of egui.
 
+#[cfg(target_os = "linux")]
+pub(crate) mod file_drop;
+
 use crate::{process::ProcessCommand, source::SourceLocation};
 use std::{path::Path, sync::atomic::AtomicBool, time::Duration};
 

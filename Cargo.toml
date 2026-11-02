@@ -57,6 +57,11 @@ tree-sitter-go = "0.25"
 tree-sitter-swift = "0.7.4"
 tree-sitter-kotlin-ng = "1.1.0"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+raw-window-handle = "0.6"
+wayland-client = "0.31"
+wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
+
 # Optional patch for Wayland window sizing on egui 0.27 if needed
 [patch.crates-io]
 # egui-winit = { path = "/home/vcarlson/little-screen-clip/vendor/egui-winit" }

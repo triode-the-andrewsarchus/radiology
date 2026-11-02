@@ -210,6 +210,8 @@ pub struct RadiologyApp {
     pub show_sidebar: bool,
     /// Whether the right context inspector is visible.
     pub show_inspector: bool,
+    #[cfg(target_os = "linux")]
+    native_drop: Option<crate::desktop::file_drop::FileDrop>,
 }
 
 impl RadiologyApp {
@@ -226,7 +228,25 @@ impl RadiologyApp {
                 .text_styles
                 .insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
         });
-        let app = Self::from_session(SessionStore::load());
+        let mut app = Self::from_session(SessionStore::load());
+        #[cfg(target_os = "linux")]
+        {
+            use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
+            if let Ok(handle) = cc.display_handle() {
+                if let RawDisplayHandle::Wayland(display) = handle.as_raw() {
+                    // SAFETY: on_exit joins the receiver while eframe's display is
+                    // alive. Dropping the app also joins before returning to eframe.
+                    app.native_drop = unsafe {
+                        crate::desktop::file_drop::FileDrop::start(
+                            display.display.as_ptr(),
+                            cc.egui_ctx.clone(),
+                        )
+                    }
+                    .map_err(|error| tracing::warn!(%error, "Native file drops unavailable"))
+                    .ok();
+                }
+            }
+        }
         cc.egui_ctx.set_visuals(app.theme.visuals());
         app
     }
@@ -334,6 +354,8 @@ impl RadiologyApp {
             reveal_job: Default::default(),
             show_sidebar: true,
             show_inspector: true,
+            #[cfg(target_os = "linux")]
+            native_drop: None,
         }
     }
 
@@ -555,6 +577,8 @@ impl eframe::App for RadiologyApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        #[cfg(target_os = "linux")]
+        drop(self.native_drop.take());
         self.cancel_repository_open();
         self.cancel_source_load();
         self.cancel_review_preparation();
@@ -578,6 +602,7 @@ impl eframe::App for RadiologyApp {
 
 impl RadiologyApp {
     fn render(&mut self, ctx: &Context) {
+        self.take_repository_drop(ctx);
         let captured = !self.reader_input.is_empty();
         if captured {
             self.handle_shortcuts(ctx);
@@ -978,7 +1003,7 @@ impl RadiologyApp {
                         ui.vertical_centered(|ui| {
                             ui.heading(egui::RichText::new("Read the Code").size(24.0).strong());
                             ui.add_space(8.0);
-                            ui.label("Open a repository to browse, search, and follow the source.");
+                            ui.label("Open a repository to browse, search, and follow the source. You can also drop a folder here.");
                             ui.add_space(16.0);
                             let open_clicked = ui
                                 .horizontal(|ui| {

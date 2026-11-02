@@ -2524,6 +2524,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "libc",
+ "raw-window-handle 0.6.2",
  "reader-fonts",
  "reader-text",
  "regex",
@@ -2554,6 +2555,8 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+ "wayland-backend",
+ "wayland-client",
 ]
 
 [[package]]

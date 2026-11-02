@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-02 — Open repositories from native file/folder drops (Codex)
+
+Closes a missing Swift RootView interaction: the first folder opens directly and
+a file opens its parent, with normal default-source selection. Public host API,
+egui input and standalone Wayland delivery reuse asynchronous repository opening,
+failure retention and cancellation/retirement. The native receiver is needed
+because winit 0.29 omits Wayland file drops; independent queue on the existing
+display, Copy-only URI offers, one event thread, bounded nonblocking reads and
+joined shutdown. Existing dependency versions remain unchanged, with no sibling
+product dependency. Two app and two protocol regressions pass, including first
+item, Unicode/escaped paths, invalid drops, byte/deadline bounds and old-hook
+negative. Workspace: 578 app tests, seven ignored, two binary, four font, 13 text
+and 37 doctests; strict gates and copied standalone verifier pass. Two final
+native v4 runs at 1×/2× use the sibling file manager as an actual QA drag source:
+folder from welcome, file-parent replacement, exact source copy, two URI receives/
+finishes, unchanged fixture/binary hashes and zero exits; captures inspected.
+Early PID/OCR harness failures excluded. Architecture NEUTRAL: +567 NLOC including
+tests, 22 functions/one file, native max CCN 10, no new hotspot/cycle/clone; all 91
+clones unchanged by full audit, health +0.13. Broader parity remains open; full
+accessibility and actual sibling integration deferred.
+[Contract/evidence](plans/rust-repository-drop.md).
+Archive: ~/.local/state/radiology-qa/repository-drop-20261102-e0f9c63.
+
 ## 2026-11-02 — Match Kotlin file-annotation and negated-operator colors (Codex)
 
 The existing kotlin-ng highlight adapter now captures file annotations and !is/!in

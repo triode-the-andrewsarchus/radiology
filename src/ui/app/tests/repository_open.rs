@@ -126,3 +126,86 @@ fn discovery_reprepares_its_tree_when_filters_change_before_publication() {
         ["a.rs", "b.rs"]
     );
 }
+
+#[test]
+fn dropped_paths_use_repository_transactions_and_only_the_first_local_item() {
+    let (dir, mut app) = opened_repository();
+    let next = dir.path().join("drop 漢字 ; folder");
+    repository(&next);
+    std::fs::write(next.join("README.md"), "# Dropped repository\n").unwrap();
+    let ctx = Context::default();
+    let drop = |app: &mut RadiologyApp, paths: Vec<Option<PathBuf>>| {
+        let _ = ctx.run(
+            egui::RawInput {
+                dropped_files: paths
+                    .into_iter()
+                    .map(|path| egui::DroppedFile {
+                        path,
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+            |ctx| app.render(ctx),
+        );
+    };
+    let previous = app.repository_root.clone();
+    let buffer = app.open_buffer.clone().unwrap();
+    drop(
+        &mut app,
+        vec![Some(next.join("b.rs")), Some(dir.path().into())],
+    );
+    assert!(
+        app.is_repository_opening() || app.repository_root.as_ref() == Some(&next),
+        "native dropped-file input was ignored"
+    );
+    if app.is_repository_opening() {
+        assert_eq!(app.repository_root, previous);
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    }
+    settle(&mut app);
+    assert_eq!(app.repository_root.as_deref(), Some(next.as_path()));
+    assert_eq!(app.selected_path.as_deref(), Some("README.md"));
+    assert_eq!(app.session.last_repository.as_deref(), next.to_str());
+    assert!(!app.history.can_go_back());
+    assert!(app.review.is_none() && app.active_revision.is_none());
+    drop(&mut app, vec![None, Some(dir.path().into())]);
+    assert!(
+        !app.is_repository_opening(),
+        "byte-only drops must not open another item"
+    );
+    drop(&mut app, vec![Some(dir.path().into())]);
+    settle(&mut app);
+    assert_eq!(app.repository_root.as_deref(), Some(dir.path()));
+    let _ = rendered_frame(&mut app, &ctx);
+    assert!(
+        !app.is_repository_opening(),
+        "a consumed drop must not replay"
+    );
+}
+
+#[test]
+fn failed_and_superseded_drops_keep_the_accepted_repository_and_source() {
+    let (dir, mut app) = opened_repository();
+    let root = app.repository_root.clone();
+    let buffer = app.open_buffer.clone().unwrap();
+    let saved = app.session.last_repository.clone();
+    app.open_dropped_path(&dir.path().join("missing.rs"));
+    settle(&mut app);
+    assert!(app.repository_error.is_some());
+    assert_eq!(app.repository_root, root);
+    assert_eq!(app.session.last_repository, saved);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    let next = dir.path().join("next");
+    repository(&next);
+    app.open_dropped_path(&next);
+    app.cancel_repository_open();
+    settle(&mut app);
+    assert_eq!(app.repository_root, root);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    app.open_dropped_path(&next);
+    app.open_repository(dir.path());
+    settle(&mut app);
+    assert_eq!(app.repository_root.as_deref(), Some(dir.path()));
+    assert!(app.repository_error.is_none());
+}
