@@ -78,3 +78,48 @@ alone have narrower ownership: previews call cancel_destination and must retain
 selection. Production logic replaces a 13-line heuristic with one explicit
 transaction call and a bounded cleanup method; most added lines are regression
 matrices. No new hotspot or worsened existing hotspot is reported. Accept.
+
+## Plain horizontal selection collapse — 2026-11-02
+
+Swift ReaderTextView.keyDown delegates ordinary movement to NSTextView. The local
+pinned egui 0.27.2 CursorRange.on_key_press also collapses a nonempty selection to
+its lower/upper edge for unmodified Left/Right. Radiology's custom source viewport
+instead moved one grapheme from the active caret and discarded the selection.
+The regression failed before the repair: forward range 2..41 followed by Left
+landed at byte 16, instead of byte 2.
+
+The existing move_key destination match now resolves plain Left/Right from the
+sorted canonical selection edges before the normal caret/selection/reveal commit.
+Selection direction does not affect the edge. Empty selections and modified
+movement retain their existing paths. No extra helper, queue, source scan, worker,
+dependency or public API is introduced. Resolving the byte edge does not wait for
+horizontal prefix measurement. Deferred reveal continues through the existing
+bounded layout path; subsequent Shift movement starts a fresh selection there.
+
+Two regression matrices cover forward/reverse selection, both directions,
+Unicode/compound emoji, exact CRLF gaps, document edges, wrap on/off and
+1×/1.5×/2×. The second covers a folded function and a 780,000-byte line whose
+horizontal prefix is explicitly confirmed unmeasured. Same-frame collapse,
+Shift selection and Copy publish exact canonical bytes without pending input.
+
+Workspace unit tests pass: 616 app (seven ignored), two binary, 13 font and
+19 text. The initial doctest run exhausted /tmp while linking parallel examples;
+the complete workspace doctest rerun with four test threads passes all 40. Strict
+Clippy/check/rustdoc/build/fmt/diff and copied standalone resource checks pass.
+Cargo remains at 16 build jobs. Native old control v2 at 1× and v1 at 2× pass eight
+copies each and reproduce the wrong edge. Final v1 after-runs pass ten fresh exact
+copies per scale, including forward/reverse selections, both arrows, light/wrap
+and whole-source folded selection. Captures inspected, hashes unchanged and final
+process exits zero. An initial old 1× attempt is retained: its capture shows Go to
+Line still open, so it is not accepted as source-selection evidence; the repeated
+control completes the full matrix. No cause is inferred from its timing.
+
+Architecture against before-source-selection-collapse is NEUTRAL: +125 NLOC/two
+functions including tests, average CCN +0.01, maximum 132 unchanged, no new problem,
+clone group or cycle, all 109 clone groups retained and health -0.02. The change
+extends the existing movement destination match and shares its commit/reveal path.
+Archive: ~/.local/state/radiology-qa/selection-collapse-20261102-ea0dcbf.
+
+This closes plain horizontal selection collapse. Modified and vertical native
+bindings, broader ownership, Unicode/UI text, typography/spacing and final Swift
+feature/corpus acceptance remain in the parity audit.

@@ -1163,6 +1163,19 @@ impl SourceViewport {
         let buffer = content.buffer;
         let byte = buffer.byte_offset(*content.caret_line, *content.caret_col);
         let target = match (key, modifiers.ctrl || modifiers.command) {
+            (Key::ArrowLeft | Key::ArrowRight, false)
+                if modifiers.is_none()
+                    && self
+                        .selection
+                        .is_some_and(|selection| selection.anchor != selection.focus) =>
+            {
+                let range = self.selection?.range();
+                if key == Key::ArrowLeft {
+                    range.start
+                } else {
+                    range.end
+                }
+            }
             (Key::Home, true) => 0,
             (Key::End, true) => buffer.byte_len(),
             (Key::ArrowLeft | Key::ArrowRight, true) => {
@@ -2753,6 +2766,120 @@ mod tests {
             }
             let output = reader.frame(&ctx, vec![egui::Event::Copy]);
             assert_eq!(output.platform_output.copied_text, reader.source.text);
+        }
+    }
+
+    #[test]
+    fn plain_horizontal_keys_collapse_selection_before_moving_and_copying() {
+        let text = "x café 1️⃣ 👨‍👩‍👧‍👦\r\nnext 👍🏽 z";
+        let ranges = [
+            text.find("café").unwrap()..text.find("\r").unwrap(),
+            0..text.len(),
+            text.find("\r").unwrap()..text.find("next").unwrap(),
+        ];
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(text);
+            for wrap in [false, true] {
+                reader.wrap = wrap;
+                reader.frame(&ctx, vec![]);
+                for range in &ranges {
+                    for reverse in [false, true] {
+                        for direction in [Key::ArrowLeft, Key::ArrowRight] {
+                            let (anchor, focus) = if reverse {
+                                (range.end, range.start)
+                            } else {
+                                (range.start, range.end)
+                            };
+                            reader.line = reader.source.line_at_byte(focus);
+                            reader.column = reader.source.column_at_byte(focus);
+                            reader.viewport.selection = Some(ByteSelection { anchor, focus });
+                            let output = reader.frame(
+                                &ctx,
+                                vec![key(direction, Modifiers::NONE), egui::Event::Copy],
+                            );
+                            let expected = if direction == Key::ArrowLeft {
+                                range.start
+                            } else {
+                                range.end
+                            };
+                            assert_eq!(
+                                reader.source.byte_offset(reader.line, reader.column),
+                                expected,
+                                "{range:?}, reverse={reverse}, {direction:?}, scale={scale}, wrap={wrap}"
+                            );
+                            assert!(reader.viewport.selection.is_none());
+                            assert!(output.platform_output.copied_text.is_empty());
+                            let extend = if direction == Key::ArrowLeft {
+                                Key::ArrowRight
+                            } else {
+                                Key::ArrowLeft
+                            };
+                            let output = reader.frame(
+                                &ctx,
+                                vec![key(extend, Modifiers::SHIFT), egui::Event::Copy],
+                            );
+                            let selected = reader.viewport.selection.unwrap();
+                            assert_eq!(selected.anchor, expected);
+                            assert_ne!(selected.focus, expected);
+                            assert_eq!(output.platform_output.copied_text, text[selected.range()]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn selection_collapse_orders_fresh_copy_across_folds_and_unmeasured_fragments() {
+        let long = format!("{}\r\nlast", "é🦀漢字 ".repeat(60000));
+        let folded_source = "fn café() {\r\n hidden();\r\n} // z";
+        for (text, folded, end, left, right) in [
+            (long.as_str(), false, long.find('\r').unwrap(), "é", " "),
+            (folded_source, true, folded_source.len(), "f", "z"),
+        ] {
+            for scale in [1.0, 2.0] {
+                let ctx = reader_context(scale);
+                let mut reader = Reader::new(text);
+                reader.wrap = false;
+                if folded {
+                    reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+                    reader.folds.collapse_all_functions(&reader.ranges);
+                }
+                reader.frame(&ctx, vec![]);
+                if !folded {
+                    let (row, _) = reader.viewport.row_for_byte(end).unwrap();
+                    assert!(!reader.viewport.unwrapped.prefix_measured(row));
+                }
+                for reverse in [false, true] {
+                    for (direction, expected) in [(Key::ArrowLeft, left), (Key::ArrowRight, right)]
+                    {
+                        let (anchor, focus) = if reverse { (end, 0) } else { (0, end) };
+                        reader.line = reader.source.line_at_byte(focus);
+                        reader.column = reader.source.column_at_byte(focus);
+                        reader.viewport.selection = Some(ByteSelection { anchor, focus });
+                        let extend = if direction == Key::ArrowLeft {
+                            Key::ArrowRight
+                        } else {
+                            Key::ArrowLeft
+                        };
+                        let output = reader.frame(
+                            &ctx,
+                            vec![
+                                key(direction, Modifiers::NONE),
+                                key(extend, Modifiers::SHIFT),
+                                egui::Event::Copy,
+                            ],
+                        );
+                        assert_eq!(output.platform_output.copied_text, expected);
+                        assert!(reader.viewport.pending_input.is_empty());
+                        assert_eq!(
+                            reader.viewport.selection.unwrap().anchor,
+                            if direction == Key::ArrowLeft { 0 } else { end }
+                        );
+                    }
+                }
+            }
         }
     }
 

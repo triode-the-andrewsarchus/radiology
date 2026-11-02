@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Plain horizontal selection collapse](plans/rust-navigation-selection.md#plain-horizontal-selection-collapse--2026-11-02)
+now sends Left/Right to the corresponding selected-source edge before later
+movement, with canonical copying, bounded reveal and native 1×/2× evidence.
+
+
 [Accepted navigation selection](plans/rust-navigation-selection.md) now clears old
 source selection at the successful navigation transaction, including old endpoints,
 while preserving failed/canceled requests, Find, previews and appearance changes.

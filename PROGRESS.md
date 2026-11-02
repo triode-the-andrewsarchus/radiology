@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-02 — Plain source arrows collapse selections to their edges (Codex)
+
+Plain Left/Right now resolve a nonempty selection's canonical lower/upper edge,
+independent of selection direction, through the existing movement destination
+match and shared caret/selection/reveal commit. Empty and modified movements keep
+their existing paths. Two matrices cover Unicode/emoji, CRLF, both directions,
+wrap/scales, folded selection and a confirmed unmeasured long-line prefix with
+same-frame fresh Shift/Copy. Workspace: 616 app tests pass, seven ignored; two
+binary, 13 font and 19 text tests pass. Initial parallel doctest linking exhausted
+/tmp; all 40 workspace doctests pass with four test threads. Strict Clippy/check/
+rustdoc/build/fmt/diff and copied standalone resources pass. Native old controls
+v2 1×/v1 2× reproduce wrong edges with eight copies each; final v1 new runs at
+both scales pass ten exact fresh copies including forward/reverse, light/wrap and
+folded whole-source selection. Captures inspected, original hashes unchanged and
+final exits zero. Initial old 1× attempt retained with Go to Line still visible;
+it is excluded from source acceptance. Architecture NEUTRAL: +125 NLOC/two test
+functions, avg CCN +0.01, max unchanged; no new problem/clone/cycle, 109 groups,
+health -0.02. No dependency or Cargo changes.
+[Contract and evidence](plans/rust-navigation-selection.md#plain-horizontal-selection-collapse--2026-11-02).
+Archive: ~/.local/state/radiology-qa/selection-collapse-20261102-ea0dcbf.
+Full parity remains open: broader native bindings/ownership, Unicode/UI text,
+typography/spacing and final Swift feature/corpus acceptance.
+
 ## 2026-11-02 — Accepted navigation collapses old source selections (Codex)
 
 Successful source destinations now explicitly retire old viewport interaction and

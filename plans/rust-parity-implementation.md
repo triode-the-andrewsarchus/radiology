@@ -24,6 +24,12 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Plain horizontal selection collapse](rust-navigation-selection.md#plain-horizontal-selection-collapse--2026-11-02):
+  Left/Right now collapse a nonempty selection to its canonical edge, independent
+  of direction, with fresh Shift/Copy, folds and unmeasured fragments covered.
+  Native 1×/2× old/new controls pass.
+
+
 - [Accepted navigation selection](rust-navigation-selection.md): old endpoint
   selections now collapse at successful destinations, with later input retained;
   cancellation/failure, Find, preview and appearance retain their selection policy.
