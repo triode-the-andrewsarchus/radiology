@@ -180,7 +180,7 @@ impl RadiologyApp {
         self.save_bookmarks();
         self.active_pr = Some(snapshot.summary.clone());
         self.session.set_active_pr(Some(snapshot.summary.number));
-        self.all_files = snapshot.files.clone();
+        self.all_files = snapshot.files.clone().into();
         self.pr_changes = snapshot.changes.clone();
         self.inspect_index_projects();
         self.review = Some(snapshot);

@@ -4,6 +4,7 @@ use crate::repository::discovery::DiscoveredRepository;
 #[test]
 fn repository_failure_cancel_and_retry_keep_the_accepted_reader_and_session() {
     let (dir, mut app) = opened_repository();
+    let inventory = app.all_files.clone();
     let root = app.repository_root.clone();
     let buffer = app.open_buffer.clone().unwrap();
     let history = app.history.current().cloned();
@@ -23,11 +24,13 @@ fn repository_failure_cancel_and_retry_keep_the_accepted_reader_and_session() {
     assert_eq!(app.repository_root, root);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(app.session.last_repository, saved);
+    assert!(Arc::ptr_eq(&app.all_files, &inventory));
     repository(&next);
     let retry = app.pending_repository.clone().unwrap();
     app.request_repository(retry);
     settle(&mut app);
     assert_eq!(app.repository_root.as_deref(), Some(next.as_path()));
+    assert!(!Arc::ptr_eq(&app.all_files, &inventory));
     assert!(app.repository_error.is_none());
 }
 

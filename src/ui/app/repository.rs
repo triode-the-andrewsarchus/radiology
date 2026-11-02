@@ -154,7 +154,7 @@ impl RadiologyApp {
         self.session.active_pr = None;
         self.session.record_repository(root.to_string_lossy());
 
-        self.all_files = files;
+        self.all_files = files.into();
         self.file_tree = tree;
         self.load_bookmarks();
 

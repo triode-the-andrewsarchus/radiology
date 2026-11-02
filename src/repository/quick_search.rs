@@ -84,21 +84,39 @@ impl QuickFileSearch {
     /// ```
     #[must_use]
     pub fn search(files: &[RepositoryFile], query: &str, limit: usize) -> QuickFileSearchResponse {
+        Self::search_cancellable(files, query, limit, || false).expect("uncancelled file search")
+    }
+
+    pub(crate) fn search_cancellable(
+        files: &[RepositoryFile],
+        query: &str,
+        limit: usize,
+        cancelled: impl Fn() -> bool,
+    ) -> Option<QuickFileSearchResponse> {
+        if cancelled() {
+            return None;
+        }
         let trimmed = query.trim();
         let normalized_query = Self::normalize(trimmed);
+        if cancelled() {
+            return None;
+        }
 
         if normalized_query.is_empty() {
             let count = files.len().min(limit);
-            return QuickFileSearchResponse {
+            return Some(QuickFileSearchResponse {
                 files: files[..count].to_vec(),
                 total_count: files.len(),
-            };
+            });
         }
 
         let mut best: Vec<Candidate> = Vec::with_capacity(limit);
         let mut total = 0;
 
-        for file in files {
+        for (index, file) in files.iter().enumerate() {
+            if index % 128 == 0 && cancelled() {
+                return None;
+            }
             if let Some(candidate) = Self::candidate_for(file, &normalized_query) {
                 total += 1;
                 if limit > 0 {
@@ -115,10 +133,13 @@ impl QuickFileSearch {
             }
         }
 
-        QuickFileSearchResponse {
+        if cancelled() {
+            return None;
+        }
+        Some(QuickFileSearchResponse {
             files: best.into_iter().map(|c| c.file).collect(),
             total_count: total,
-        }
+        })
     }
 
     fn candidate_for(file: &RepositoryFile, query: &[char]) -> Option<Candidate> {
@@ -326,5 +347,34 @@ mod tests {
 
         let resp = QuickFileSearch::search(&files, "cafe", 10);
         assert_eq!(resp.files.len(), 2);
+    }
+
+    #[test]
+    fn cancelled_ranking_discards_partial_matches_and_fresh_search_keeps_order_and_totals() {
+        let files = (0..4096)
+            .map(|n| RepositoryFile::new(format!("src/file{n:04}.rs")))
+            .collect::<Vec<_>>();
+        let checks = std::cell::Cell::new(0);
+        assert!(
+            QuickFileSearch::search_cancellable(&files, "file", 100, || {
+                checks.set(checks.get() + 1);
+                checks.get() == 4
+            })
+            .is_none()
+        );
+        assert_eq!(
+            checks.get(),
+            4,
+            "ranking must stop at the first cancellation checkpoint"
+        );
+        assert!(QuickFileSearch::search_cancellable(&files, "", 100, || true).is_none());
+        let zero = QuickFileSearch::search_cancellable(&files, "file", 0, || false).unwrap();
+        assert!(zero.files.is_empty());
+        assert_eq!(zero.total_count, files.len());
+        let response = QuickFileSearch::search(&files, "file", 100);
+        assert_eq!(response.total_count, files.len());
+        assert_eq!(response.files.len(), 100);
+        assert!(response.is_limited());
+        assert_eq!(response.files[0].path, "src/file0000.rs");
     }
 }

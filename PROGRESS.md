@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-11-02 — Shared file inventories and cancellable ranking (Codex)
+
+Repository/review inventories now publish immutable Arc snapshots; failed or
+cancelled replacement retains the accepted identity. Existing bounded ranking
+checks cancellation every 128 candidates and discards partial matches. Public
+synchronous search is preserved. Fresh workspace: 583 app tests, seven ignored,
+two binary, four font, 13 text and 37 doctests; strict gates pass. Architecture
+NEUTRAL: +51 NLOC/two functions, no new hotspot/cycle, all 110 clones unchanged.
+This groundwork does not yet change the picker UI or move its search off rendering.
+[Remaining UI work and evidence](plans/rust-file-picker.md). Broader parity open.
+
 ## 2026-11-02 — Route JSX through JavaScript, keeping TSX distinct (Codex)
 
 The shared language registry now sends .jsx to the existing JavaScript parser and

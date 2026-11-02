@@ -24,6 +24,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [File picker foundation](rust-file-picker.md): immutable inventories and
+  cancellable bounded ranking pass regression/transaction tests. Async picker
+  integration and UI acceptance remain pending.
+
 - [JSX dialect routing](rust-jsx-dialect.md) now uses JavaScript metadata/parser
   and bundled query roles while preserving TSX’s typed grammar. Dialect/error
   boundaries, indexing family names, native old/new UI and standalone checks pass.

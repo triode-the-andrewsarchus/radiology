@@ -84,8 +84,8 @@ pub struct RadiologyApp {
     git_refresh:
         crate::background::LatestRead<Result<crate::repository::git_refresh::GitSnapshot, String>>,
     git_error: Option<String>,
-    /// All discovered candidate files.
-    pub all_files: Vec<RepositoryFile>,
+    /// Shared immutable candidate inventory for the accepted repository or review.
+    pub all_files: Arc<[RepositoryFile]>,
     /// Hierarchical directory tree of filtered files.
     pub file_tree: Vec<FileNode>,
     /// Set of expanded directory paths.
@@ -278,7 +278,7 @@ impl RadiologyApp {
             repository_error: None,
             git_refresh: Default::default(),
             git_error: None,
-            all_files: Vec::new(),
+            all_files: Default::default(),
             file_tree: Vec::new(),
             expanded_dirs: HashSet::new(),
             selected_path: None,
@@ -496,7 +496,7 @@ impl RadiologyApp {
         self.repository_root = None;
         self.repository_name = None;
         self.branch_name = None;
-        self.all_files.clear();
+        self.all_files = Default::default();
         self.file_tree.clear();
         self.expanded_dirs.clear();
         self.selected_path = None;
