@@ -16,6 +16,15 @@ fn key(key: Key, modifiers: Modifiers) -> Event {
 }
 
 fn frame(app: &mut RadiologyApp, ctx: &Context, events: Vec<Event>) -> egui::FullOutput {
+    frame_with_overlay(app, ctx, events, |_| {})
+}
+
+fn frame_with_overlay(
+    app: &mut RadiologyApp,
+    ctx: &Context,
+    events: Vec<Event>,
+    mut overlay: impl FnMut(&Context),
+) -> egui::FullOutput {
     use eframe::App;
     let mut input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -26,7 +35,10 @@ fn frame(app: &mut RadiologyApp, ctx: &Context, events: Vec<Event>) -> egui::Ful
         ..Default::default()
     };
     app.raw_input_hook(ctx, &mut input);
-    ctx.run(input, |ctx| app.render(ctx))
+    ctx.run(input, |ctx| {
+        app.render(ctx);
+        overlay(ctx);
+    })
 }
 
 fn source_reader() -> (tempfile::TempDir, RadiologyApp, Context) {

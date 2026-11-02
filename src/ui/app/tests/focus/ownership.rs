@@ -124,3 +124,55 @@ fn pointer_handoff_preserves_queued_keys_ahead_of_new_input_and_retires_at_bound
         );
     }
 }
+
+#[test]
+fn floating_editor_over_source_receives_click_then_select_all_and_text() {
+    for scale in [1.0, 1.5, 2.0] {
+        let (_dir, mut app, ctx) = source_reader();
+        ctx.set_pixels_per_point(scale);
+        let mut value = "original".to_string();
+        let field = std::cell::Cell::new(egui::Rect::NOTHING);
+        let source = app.open_buffer.clone().unwrap();
+        let caret = (app.caret_line, app.caret_col);
+        let mut overlay = |ctx: &Context| {
+            let source = ctx
+                .read_response(crate::ui::source_view::SourceViewport::focus_id())
+                .unwrap();
+            egui::Area::new(egui::Id::new("floating_editor"))
+                .order(egui::Order::Foreground)
+                .fixed_pos(source.rect.center())
+                .show(ctx, |ui| {
+                    field.set(
+                        ui.add(egui::TextEdit::singleline(&mut value).id_source("field"))
+                            .rect,
+                    );
+                });
+        };
+        frame_with_overlay(&mut app, &ctx, vec![], &mut overlay);
+        app.source_viewport.request_focus(&ctx);
+        frame_with_overlay(&mut app, &ctx, vec![], &mut overlay);
+        let source_response = ctx
+            .read_response(crate::ui::source_view::SourceViewport::focus_id())
+            .unwrap();
+        let point = field.get().center();
+        assert!(source_response.rect.contains(point));
+        assert_ne!(ctx.layer_id_at(point), Some(source_response.layer_id));
+        let mut events = crate::ui::test_support::click(point);
+        events.extend([
+            key(
+                Key::A,
+                Modifiers {
+                    command: true,
+                    ..Modifiers::CTRL
+                },
+            ),
+            Event::Text("replacement".into()),
+        ]);
+        frame_with_overlay(&mut app, &ctx, events, &mut overlay);
+        frame_with_overlay(&mut app, &ctx, vec![], &mut overlay);
+        assert_eq!(value, "replacement", "{scale}x");
+        assert_eq!((app.caret_line, app.caret_col), caret);
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &source));
+        assert!(app.deferred_input.is_empty());
+    }
+}

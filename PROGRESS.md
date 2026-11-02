@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-01 — Respect foreground layers during source input handoff (Codex)
+
+The source-only fast path now checks the source response layer as well as its
+rectangle, matching existing source pointer capture. A hosted foreground egui
+TextEdit inside the actual source rectangle reproduces the old Ctrl+A loss:
+originalreplacement instead of replacement. The corrected RawInput test uses both
+physical Ctrl and logical command, passes at three scales and preserves source
+caret/buffer. Initial incomplete-modifier trials failed with either guard and are
+excluded; corrected old-guard negative still fails and final code is restored.
+The shared real-app frame helper gains a test-only overlay callback. No new product
+function/state/API/dependency. Workspace passes 559 app tests (seven ignored), two
+binary, four font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff
+pass. Architecture +67 NLOC including tests, two test/helper functions; stage
+CCN 11→12, no new hotspot/max-CCN/cycle, all 91 clones unchanged after full audit;
+touched old test warning only. Four native 1×/2× existing reader/reference navigation
+and failure/restore/retry flows pass exact destination/Back/accepted-source copies,
+fixture/binary hashes and zero exits. The hosted field is a real-app integration
+test, not a new standalone editor. Initial 2× clipboard sentinel race is excluded;
+final polling waits for expected content without repeating keys. Source-only
+interleaving and broader hover/overlay/mixed-owner/reader/language/index/PR/cache/
+UI/final Swift/standalone/reuse acceptance remain open; accessibility and actual
+sibling adoption deferred.
+[Contract/evidence](plans/rust-keyboard-owner-order.md#layer-aware-source-ownership--2026-11-01).
+Archive: ~/.local/state/radiology-qa/layer-handoff-20261101-d28aa81.
+
+
 ## 2026-11-01 — Preserve pointer/keyboard owner changes in event order (Codex)
 
 The corrected real-app regression fails on the old input path: click/Right selects

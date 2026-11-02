@@ -141,6 +141,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
+[Layer-aware source ownership](rust-keyboard-owner-order.md#layer-aware-source-ownership--2026-11-01)
+now repairs the confirmed hosted floating-field Select All defect without changing
+source coordinates or adding state. Source-only raw input interleaving and broader
+hover/overlay ownership remain concrete audit targets.
+
 [Preview extents and bounded statuses](rust-inspector-previews.md#measured-preview-extents-and-bounded-statuses--2026-11-01)
 now align caller reveal with all rendered phases, with native failure/recovery/
 keyboard navigation at both scales. [Swift-style snippet dedent](rust-inspector-previews.md#swift-style-block-snippet-dedent--2026-11-01)

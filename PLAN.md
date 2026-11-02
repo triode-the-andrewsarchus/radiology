@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Layer-aware source ownership](plans/rust-keyboard-owner-order.md#layer-aware-source-ownership--2026-11-01)
+now gives floating controls above the reader their keyboard handoff despite
+sharing its rectangle. A corrected three-scale real-app field regression and
+four native reader/reference flows pass. Source-only interleaving and broader
+hover/overlay ownership remain audit targets.
+
 [Pointer/keyboard handoff](plans/rust-keyboard-owner-order.md#pointerkeyboard-frame-handoff--2026-11-01)
 now preserves click/Right and Right/click ordering through an automatically
 repainted input suffix. Source-only gestures retain their queue; window/repository

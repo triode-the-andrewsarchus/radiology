@@ -29,7 +29,12 @@ impl RadiologyApp {
                 .read_response(crate::ui::source_view::SourceViewport::focus_id())
                 .is_some_and(|response| {
                     input.events.iter().all(|event| match event {
-                        Event::PointerButton { pos, .. } => response.rect.contains(*pos),
+                        Event::PointerButton { pos, .. } => {
+                            response.rect.contains(*pos)
+                                && ctx
+                                    .layer_id_at(*pos)
+                                    .is_none_or(|layer| layer == response.layer_id)
+                        }
                         _ => true,
                     })
                 });

@@ -121,3 +121,45 @@ Archive: `~/.local/state/radiology-qa/pointer-key-20261101-ed4f546`.
 Broader overlays, mixed owners, source/performance/language/semantic/PR/cache/UI and
 final Swift/standalone/reuse acceptance remain open. Accessibility and actual
 sibling adoption stay deferred.
+
+## Layer-aware source ownership — 2026-11-01
+
+The source-only bypass now requires both the source response rectangle and its
+interaction layer. A foreground control can lie inside the source rectangle
+without owning source gestures. The check reuses the same `layer_id_at` policy
+already used by source gesture capture; absent layer information retains the
+existing fallback. Event staging, modal/menu policy and the source gesture queue
+otherwise remain unchanged. No new product function, state, API or dependency.
+
+The regression hosts a real foreground egui TextEdit above the actual app's source
+viewport and verifies that the field lies inside its rectangle on a different
+layer. Click, Ctrl+A and replacement text arrive in one RawInput batch. The old
+rectangle-only path leaves originalreplacement because source consumes Select
+All. The layer-aware path yields replacement at 1×/1.5×/2×; source caret and accepted
+buffer remain unchanged and the staged queue drains. The shared real-app frame
+helper now accepts a test-only overlay callback. This is an embedding/interaction
+regression, not a new floating editor in the standalone product.
+
+Initial trials omitted egui's logical command modifier and failed with either
+guard. The corrected negative uses both physical Ctrl and logical command and
+still fails with the old guard. Its script restores final product code in a
+finally block. Workspace passes 559 app tests (seven ignored), two binary, four
+font, 13 text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture +67 NLOC including tests, two functions (test/frame extension), stage
+CCN 11→12 for necessary layer ownership. No new hotspot/max-CCN/cycle; all 91 clone
+groups unchanged after full normalized audit. The touched old test clone warning
+is pre-existing; health is effectively unchanged.
+
+Four native 1×/2× reader/reference navigation and preview failure/restore/retry
+flows retain exact source/destination/Back copies, unchanged binary/fixture hashes
+and zero exits. They validate the existing standalone flows; floating-field layer
+ownership is proved by the real-app frame regression. An initial 2× native copy
+read the sentinel before Copy completed; excluded. The final 2× controller polls
+for the expected payload without replaying keys.
+
+Archive: `~/.local/state/radiology-qa/layer-handoff-20261101-d28aa81`. Accepted
+native roots are `layer-handoff-1.0`, `layer-handoff-fresh-2.0` and
+`layer-handoff-failure-{1.0,2.0}-indexed`. Source-only raw input interleaving and
+broader real hover/overlay/mixed-owner corpus checks remain audit targets, along
+with reader/language/index/PR/cache/UI and final Swift/standalone/reuse acceptance.
+Full accessibility and actual sibling adoption remain deferred.
