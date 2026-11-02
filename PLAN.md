@@ -4,18 +4,19 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[Workspace symbol Unicode matching](plans/rust-symbol-unicode.md) now handles
-canonical spellings, complete grapheme prefixes/subsequences, numeric initials and
-NFC ranking ties without changing navigation bytes. Old/new native controls and
-standalone checks pass. Document fallback, source emoji shaping and broader
-application parity remain open.
+[Symbol Unicode matching](plans/rust-symbol-unicode.md) now shares canonical keys
+and complete-character comparisons across workspace ranking and document substring
+filtering, without changing navigation bytes. Both modes pass old/new native
+controls and standalone checks. Source emoji shaping and broader application
+parity remain open.
 
 [Symbol picker integration](plans/rust-symbol-picker.md) now provides background
 workspace/outline search, Swift's 200-result workspace limit, kind/definition
 metadata, bounded two-line rows, empty states and Go/Cancel. Ordered input and
 picker components are shared with file navigation; source destinations and both
 pickers pass native 1×/2× checks. Grapheme lengths and [workspace Unicode matching](plans/rust-symbol-unicode.md)
-are fixed; document fallback and broader application parity remain open.
+and document substring filtering are fixed; source shaping and broader application
+parity remain open.
 
 [File picker parity](plans/rust-file-picker.md) now connects shared immutable
 inventories and cancellable background ranking to the Swift-style 100-result UI,

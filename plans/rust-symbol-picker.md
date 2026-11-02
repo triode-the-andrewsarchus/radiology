@@ -51,8 +51,9 @@ Swift's Character count. The existing locked unicode-segmentation 1.13.3 package
 is now a direct dependency; no package version changes. CJK, decomposed accents,
 ZWJ families and flags rank ahead of longer ASCII names. The subsequent
 [workspace Unicode repair](rust-symbol-unicode.md) now covers canonical matching,
-grapheme boundaries and NFC ordering. The document fallback still needs a separate
-filter audit; this is not a claim of whole-application parity.
+grapheme boundaries and NFC ordering. Document substring
+filtering now shares those primitives and passes its own regression/native audit;
+this is not a claim of whole-application parity.
 
 ## Integration verification
 

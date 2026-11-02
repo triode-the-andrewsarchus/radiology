@@ -60,7 +60,7 @@ impl Inventory {
                 .collect(),
             ),
             Self::Document(symbols) => {
-                let needle = query.trim().to_lowercase();
+                let needle = SymbolSearch::query_key(query);
                 let mut stack: Vec<_> = symbols.iter().rev().collect();
                 let mut choices = Vec::new();
                 let mut visited = 0;
@@ -69,7 +69,7 @@ impl Inventory {
                         return None;
                     }
                     visited += 1;
-                    if needle.is_empty() || symbol.name.to_lowercase().contains(&needle) {
+                    if SymbolSearch::contains_query(&symbol.name, &needle) {
                         choices.push(SymbolChoice {
                             name: symbol.name.clone(),
                             detail: format!("line {}", symbol.line),
@@ -673,6 +673,73 @@ mod tests {
             Some(ModalAction::JumpToIndexedSymbol(
                 replacement.search_entries[0].id.clone()
             ))
+        );
+    }
+
+    #[test]
+    fn document_filter_uses_canonical_character_substrings_and_preserves_offsets() {
+        let ctx = Context::default();
+        let mut outline = symbols(6).to_vec();
+        for (symbol, name) in outline.iter_mut().zip([
+            "Cafe\u{301}Factory",
+            "CaféWidget",
+            "👩‍👩‍👦Builder",
+            "1\u{fe0f}\u{20e3}Counter",
+            "prefix👍🏽Factory",
+            "CAFÉLeaf",
+        ]) {
+            symbol.name = name.into();
+        }
+        let outline: Arc<[DocumentSymbol]> = outline.into();
+        let mut modal = GoToSymbolModal::default();
+        for (query, offsets) in [
+            ("café", vec![0, 8, 40]),
+            ("cafe\u{301}", vec![0, 8, 40]),
+            ("\u{a0}FÉ\t", vec![0, 8, 40]),
+            ("cafe", vec![]),
+            ("👩", vec![]),
+            ("👩‍👩‍👦", vec![16]),
+            ("1", vec![]),
+            ("1\u{fe0f}\u{20e3}", vec![24]),
+            ("👍", vec![]),
+            ("👍🏽", vec![32]),
+            ("\n", vec![]),
+            ("cft", vec![]),
+            ("\t\u{a0}", vec![0, 8, 16, 24, 32, 40]),
+        ] {
+            modal.query = query.into();
+            let (output, _) = settled(&ctx, &mut modal, None, &outline);
+            let choices = modal.choices.as_ref().unwrap();
+            assert_eq!(
+                choices
+                    .iter()
+                    .map(|choice| choice.action.clone())
+                    .collect::<Vec<_>>(),
+                offsets
+                    .into_iter()
+                    .map(ModalAction::JumpToSymbol)
+                    .collect::<Vec<_>>(),
+                "{query:?}"
+            );
+            for choice in choices {
+                let ModalAction::JumpToSymbol(byte) = choice.action else {
+                    panic!("wrong destination")
+                };
+                assert_eq!(
+                    choice.name,
+                    outline[byte / 8].name,
+                    "display name must retain its original bytes"
+                );
+            }
+            if !SymbolSearch::trim_query(query).is_empty() && choices.is_empty() {
+                assert!(text_shapes(&output).any(|text| text.galley.job.text == "No Matches"));
+            }
+        }
+        modal.query = "café".into();
+        settled(&ctx, &mut modal, None, &outline);
+        assert_eq!(
+            frame(&ctx, &mut modal, None, &outline, vec![test_key(Key::Enter)]).1,
+            Some(ModalAction::JumpToSymbol(0))
         );
     }
 }

@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-02 — Canonical document-symbol filtering without changing navigation (Codex)
+
+The no-index document fallback now shares query keys, NFC normalization and whole-
+character prefix comparisons with workspace search. Substrings and declaration
+order remain its policy; no fuzzy ranking or new subsystem. One 13-query picker
+matrix checks canonical/case/space matching, partial/whole characters, empty/miss
+states, original names/offsets and Return. Fresh workspace: 601 app tests, seven
+ignored, two binary, four font, 13 text and 37 doctests; strict gates and copied
+standalone verification pass. Native v1 old control reproduces the defects; final
+1×/2× runs verify both spellings, partial-accent rejection, Return/Escape/Back,
+light pointer Go and six exact CRLF-source line copies each, unchanged hashes and
+zero exits; captures inspected. Architecture default REGRESSION flags shifted old
+clones; all 109 unchanged by normalized audit. +77 NLOC/three functions, no new
+hotspot/cycle. [Contract/evidence](plans/rust-symbol-unicode.md#document-fallback-integration--2026-11-02).
+Archive: ~/.local/state/radiology-qa/document-unicode-20261102-94c8b74.
+Source emoji shaping and broader application parity remain open; full accessibility
+and actual sibling adoption deferred.
+
 ## 2026-11-02 — Canonical workspace symbol matching and whole-character boundaries (Codex)
 
 Workspace search now normalizes computed keys to NFC, compares whole graphemes for

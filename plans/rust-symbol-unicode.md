@@ -33,7 +33,7 @@ same emptiness predicate for No Symbols versus No Matches. Matching does not str
 accents, perform compatibility normalization or apply full caseless folding.
 File navigation's deliberately accent-insensitive fuzzy search keeps its own rules.
 
-## Verification
+## Workspace verification (`94c8b74`)
 
 Four new backend tests cover 24 tier/miss cases, 10 initials cases, canonical name/
 path order and stable ties, and 12 trimming queries. Cases include bidirectional
@@ -66,13 +66,43 @@ clone groups unchanged. +213 NLOC/11 functions, no new hotspot or cycle; new cor
 functions have CCN at most 11. The two component strategies share one walker.
 Evidence: `~/.local/state/radiology-qa/symbol-unicode-20261102-2eb85f4`.
 
+## Document fallback integration — 2026-11-02
+
+The Rust-only document picker now shares the workspace query-key construction,
+normalization and complete-character prefix primitive. Its substring scan starts
+only at grapheme boundaries, preserving the previous document substring policy
+and DFS declaration order without adding fuzzy ranking. Empty queries still
+include every declaration. Query keys are computed once per worker request; raw
+names and source byte destinations remain unchanged. There is no new dependency,
+worker pool, public API or search subsystem.
+
+A new real picker-frame matrix covers 13 queries: bidirectional canonical accents,
+case/space normalization, interior substrings, partial/whole emoji and keycaps,
+newline/no-match state, non-fuzzy misses, empty queries, original display names
+and byte offsets. Return opens the first canonical match. Existing 1,000-row,
+cancellation, index/source replacement and keyboard/pointer tests remain intact.
+Fresh workspace: 601 application tests passed, seven ignored; two binary, four
+font, 13 text and 37 doctests passed. All strict gates and copied standalone
+resource verification pass.
+
+Native document v1 old control at 1× reproduces one-spelling-only matching and
+acceptance of a partial accent. Repaired runs at 1×/2× use actual unindexed Rust
+outlines in CRLF source, find both spellings, reject the partial accent, and verify
+Return, Escape, interior substring navigation, Back and light pointer Go. Six exact
+line copies per run preserve NFD/NFC source bytes and caret destinations. Captures
+are inspected; binary/fixture hashes stay unchanged and all child exits are zero.
+
+Architecture against `before-document-symbol-unicode`: default REGRESSION flags
+old clone locations; normalized audit keeps all 109 groups unchanged. +77 NLOC/
+three functions (two shared helpers and one UI matrix), no new hotspot or cycle.
+Evidence: `~/.local/state/radiology-qa/document-unicode-20261102-94c8b74`.
+
 ## Remaining scope
 
-This accepts workspace symbol matching for the measured contract. The Rust-only
-document outline fallback still uses its existing substring filter and needs a
-separate Unicode filter audit. The native keycap capture also exposes a source
-shaping gap: the digit and enclosing keycap glyph are drawn separately. The bundled
-emoji font contains U+20E3 with nonzero advance, so this is a cluster-shaping issue,
-not evidence of a missing fallback font. Matching/copy acceptance does not establish
-complete emoji rendering. Broader corpus/UI and whole-application Swift parity
-remain open. Full accessibility and actual sibling integration remain deferred.
+Workspace and document symbol matching now share the tested canonical-character
+contract. The native keycap capture exposes a source shaping gap: the digit and
+enclosing keycap glyph are drawn separately. The bundled emoji font contains
+U+20E3 with nonzero advance, so this is a cluster-shaping issue, not evidence of a
+missing fallback font. Matching/copy acceptance does not establish complete emoji
+rendering. Broader corpus/UI and whole-application Swift parity remain open. Full
+accessibility and actual sibling integration remain deferred.

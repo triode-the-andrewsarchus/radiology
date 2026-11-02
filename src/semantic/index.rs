@@ -321,7 +321,7 @@ impl SymbolSearch {
         if limit == 0 {
             return Some(Vec::new());
         }
-        let needle = Self::lowercase_nfc(Self::trim_query(query));
+        let needle = Self::query_key(query);
         let mut best: Vec<RankedSymbol<'_>> = Vec::with_capacity(limit.min(entries.len()));
         for (index, entry) in entries.iter().enumerate() {
             if index % 128 == 0 && cancelled() {
@@ -396,6 +396,20 @@ impl SymbolSearch {
                 || CodePointMapData::<GeneralCategory>::new().get(c)
                     == GeneralCategory::SpaceSeparator
         })
+    }
+
+    pub(crate) fn query_key(query: &str) -> String {
+        Self::lowercase_nfc(Self::trim_query(query))
+    }
+
+    /// Matches raw document names against a precomputed canonical query key.
+    pub(crate) fn contains_query(name: &str, needle: &str) -> bool {
+        if needle.is_empty() {
+            return true;
+        }
+        let name = Self::lowercase_nfc(name);
+        name.grapheme_indices(true)
+            .any(|(offset, _)| Self::prefix(&name[offset..], needle))
     }
 
     fn lowercase_nfc(value: &str) -> String {

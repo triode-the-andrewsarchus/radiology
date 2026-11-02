@@ -29,7 +29,8 @@ actual sibling adoption/integration is deferred until the user requests it.
   states, Go/Cancel and generation-owned pointer activation. Shared file/symbol
   picker components and both native 1×/2× workflows pass. Grapheme lengths and
   [workspace Unicode matching](rust-symbol-unicode.md) now follow Swift's measured
-  contract; document fallback and broader corpus acceptance remain open.
+  contract; document substring filtering also shares canonical-character primitives
+  and passes native checks. Source shaping and broader corpus acceptance remain open.
 
 - [File picker](rust-file-picker.md): immutable inventories, cancellable background
   ranking, 100 results with truthful totals, bounded filename/directory rows,
