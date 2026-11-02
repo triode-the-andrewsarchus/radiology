@@ -15,7 +15,7 @@ pub enum SupportedGrammar {
     JavaScript,
     /// TypeScript language grammar.
     TypeScript,
-    /// TSX and JSX language grammar with React element support.
+    /// TypeScript JSX grammar with React element support.
     Tsx,
     /// Swift language grammar.
     Swift,
@@ -172,12 +172,12 @@ impl LanguageRegistry {
                 display_name: "TypeScript",
                 grammar: Some(SupportedGrammar::TypeScript),
             },
-            "tsx" | "jsx" => LanguageInfo {
+            "tsx" => LanguageInfo {
                 id: "tsx",
                 display_name: "TSX",
                 grammar: Some(SupportedGrammar::Tsx),
             },
-            "js" | "mjs" | "cjs" => LanguageInfo {
+            "js" | "jsx" | "mjs" | "cjs" => LanguageInfo {
                 id: "javascript",
                 display_name: "JavaScript",
                 grammar: Some(SupportedGrammar::JavaScript),
@@ -300,5 +300,57 @@ mod tests {
             Some(SupportedGrammar::Python)
         );
         assert_eq!(LanguageRegistry::for_path("Makefile").id, "makefile");
+    }
+
+    #[test]
+    fn ecmascript_dialects_keep_the_swift_parser_boundaries() {
+        use SupportedGrammar::{JavaScript, Tsx, TypeScript};
+        let jsx = "// café 😀\nexport function View(value) {\n return <main title={value}>Hello</main>;\n}\n";
+        let typed_jsx =
+            "const value: number = 1;\nexport const View = () => <main>{value}</main>;\n";
+        let typed = "const value: number = 1;\n";
+        let assertion = "const value = <string>(input as unknown);\n";
+        for (path, grammar, display, source, errors) in [
+            ("View.jsx", JavaScript, "JavaScript", typed_jsx, true),
+            ("View.jsx", JavaScript, "JavaScript", jsx, false),
+            ("View.JSX", JavaScript, "JavaScript", jsx, false),
+            ("View.js", JavaScript, "JavaScript", jsx, false),
+            ("View.mjs", JavaScript, "JavaScript", jsx, false),
+            ("View.cjs", JavaScript, "JavaScript", jsx, false),
+            ("View.tsx", Tsx, "TSX", typed_jsx, false),
+            ("View.ts", TypeScript, "TypeScript", typed, false),
+            ("View.mts", TypeScript, "TypeScript", typed, false),
+            ("View.cts", TypeScript, "TypeScript", typed, false),
+            ("View.ts", TypeScript, "TypeScript", jsx, true),
+            ("Cast.ts", TypeScript, "TypeScript", assertion, false),
+            ("Cast.tsx", Tsx, "TSX", assertion, true),
+        ] {
+            for crlf in [false, true] {
+                let source = if crlf {
+                    source.replace('\n', "\r\n")
+                } else {
+                    source.to_owned()
+                };
+                let info = LanguageRegistry::for_path(path);
+                let tree = info.grammar.unwrap().parse(source.as_bytes()).unwrap();
+                assert_eq!(
+                    tree.root_node().has_error(),
+                    errors,
+                    "{path} CRLF={crlf}: {}",
+                    tree.root_node().to_sexp()
+                );
+                assert_eq!(info.grammar, Some(grammar));
+                assert_eq!(info.display_name, display);
+                let facts = crate::syntax::DocumentSyntax::analyze(
+                    &crate::source::SourceBuffer::from_str(path, &source),
+                );
+                assert_eq!(facts.calls.parse_errors, errors);
+                assert!(facts.parse_error.is_none() && facts.fold_error.is_none());
+            }
+        }
+        assert_eq!(
+            LanguageRegistry::for_path("View.jsx"),
+            LanguageRegistry::for_path("View.js")
+        );
     }
 }

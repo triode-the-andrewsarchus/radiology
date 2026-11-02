@@ -24,6 +24,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [JSX dialect routing](rust-jsx-dialect.md) now uses JavaScript metadata/parser
+  and bundled query roles while preserving TSX’s typed grammar. Dialect/error
+  boundaries, indexing family names, native old/new UI and standalone checks pass.
+
 - [Kotlin scanner parity](rust-kotlin-scanner.md) closes the compact-member defect
   and omitted bang range in the native grammar, removing the Rust color workaround.
   Pinned corpus, malformed controls, raw ranges, native before/after and standalone

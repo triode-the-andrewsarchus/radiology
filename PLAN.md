@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[JSX dialect routing](plans/rust-jsx-dialect.md) now follows Swift’s JavaScript
+grammar and metadata, keeping TSX separate. Typed JSX warns under `.jsx` while
+the same bytes remain clean in `.tsx`; native old/new controls, exact copies,
+colors, Back and standalone resource checks pass. Broader parity remains open.
+
 [Kotlin scanner parity](plans/rust-kotlin-scanner.md) now repairs compact final
 members and raw negated-type-check ranges in the pinned grammar. The former Rust
 highlight workaround is removed; valid compact declarations regain their facts,

@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-11-02 — Route JSX through JavaScript, keeping TSX distinct (Codex)
+
+The shared language registry now sends .jsx to the existing JavaScript parser and
+ECMAScript/JavaScript/JSX queries, matching Swift. Source metadata and unconfigured
+index-language diagnostics now say JavaScript; no new parser, dependency, worker,
+utility or state. One 13-case LF/CRLF matrix covers aliases, uppercase JSX, typed
+JSX versus TSX, plain TypeScript and angle-assertion boundaries; the old route
+fails by accepting a TypeScript annotation in .jsx. Existing index-language tests
+require the corrected family. The CLI now probes actual JSX reader facts; a copied
+standalone executable passes. Workspace: 582 app tests, seven ignored, two binary,
+four font, 13 text and 37 doctests; all strict gates pass. Native old/new 1× and
+new 2× flows verify labels/warnings for byte-identical JSX/TSX, exact CRLF/Unicode
+and component copies, tag/attribute/string/keyword pixels, Back, unchanged hashes
+and zero exits. Earlier filename/footer OCR failures excluded; final tight crops
+fix QA only. Architecture NEUTRAL: +52 NLOC/one test function, no new hotspot/cycle,
+all 110 clones unchanged by full audit. Broader parity remains open; full
+accessibility and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-jsx-dialect.md).
+Archive: ~/.local/state/radiology-qa/jsx-routing-20261102-df36eaf.
+
 ## 2026-11-02 — Repair Kotlin compact members and native operator ranges (Codex)
 
 A pinned local Kotlin scanner patch now accepts legal final members before class
