@@ -87,11 +87,10 @@ PID 3873238 and its restarted PID 3881943 execute that binary. Final evidence:
 Outline selection/preview/commit and hierarchical keyboard behavior are now
 integrated; see [outline acceptance](rust-outline-pane.md). Retain the final
 light/dark/scaling, pinned-PR revision labels,
-long-name/mixed-language corpus and large-list drag-edge
-scroll acceptance. Bookmark navigation errors currently use the application error
-surface rather than Swift's dedicated bookmark-region status. Swift's persisted
-entry validity/deduplication and exact bookmark-location semantics merit a further
-cross-language audit; this pane work does not assert full bookmark-model parity.
+long-name/mixed-language corpus. Large-list drag-edge scrolling, dedicated region
+diagnostics and persisted exact-location/validity behavior are now implemented and
+validated in the follow-ups below. These checks do not assert full bookmark/inspector
+or final Swift visual parity.
 
 The requested swiftui-pro, macos-design and typography-designer skills are absent
 from the configured skill roots. Checked-in Swift views and the Rust Body/Small
@@ -295,3 +294,57 @@ Evidence: `~/.local/state/radiology-qa/bookmark-notice-20261101-d4249db`.
 Broader mixed-owner input, reader/corpus performance, language/index/PR/cache and
 final Swift feature/visual/standalone/reuse acceptance remain open. Full accessibility
 and actual sibling integration remain deferred.
+
+
+## Held-drag edge scrolling and cancellation — 2026-11-01
+
+The virtualized Rust list could only reorder within its visible rows. It now
+scrolls while an existing bookmark drag is held inside the list's top/bottom
+24-point edge bands. Speed increases with proximity to the edge, uses logical
+points and elapsed frame time, and caps a frame's time contribution at 50 ms.
+The existing ScrollArea owns offsets and clamping; existing UUID payloads and
+Move actions own reordering/persistence. Holding never commits a move. No new
+persistent state, timer, worker, dependency, public API or sibling coupling.
+
+The pointer must remain down in the enabled, unobscured list viewport and its
+identity must still exist in the store. Leaving that viewport, releasing, disabling
+the region or retiring the identity stops requesting edge movement. Drag start
+focuses the existing list keyboard owner; Escape clears only its bookmark payload
+through ordinary app dispatch. Releasing after Escape cannot reorder or navigate.
+Right-click selection keeps its previous focus policy. Row CCN remains 15; the
+new scrolling helper is CCN 7 and cancellation is CCN 2.
+
+A 1,000-entry regression initially fails with offset 0→0. It now scrolls over 400
+logical points in either direction at 1×/1.5×/2×, never commits while held, drops
+the original identity at an initially off-screen slot, and stops on release. A real
+app frame test covers drag focus, Escape, subsequent release, unchanged ordering,
+source identity and history. Removing focus transfer or cancellation separately
+fails it; restored production passes all 27 bookmark-related tests. Full workspace
+passes 543 app tests (seven ignored), two binary, four font, 13 reader-text and
+36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass.
+
+Architecture adds 140 NLOC including tests and five functions. No new hotspot,
+cycle, maximum complexity increase or clone group. The raw touched-file clone
+warning is the unchanged seven-line bookmark/sidebar group: normalized full
+multiset audit retains all 91 baseline groups with no addition/removal. An initial
+row change increased CCN to 17; grouping selection/focus by gesture restored 15
+before final verification, without changing right-click behavior.
+
+Final native private-window checks at 1×/2× seed 100 records from one real bookmark,
+then restart and hold each direction for 2.5 seconds. The first identity moves
+from slot 0 to 27; the last moves from 99 to 72/71. Storage is byte-identical while
+held. Escape keeps persisted ordering unchanged and at least two independently
+recognized row positions remain stationary through release. After another restart,
+Ctrl+0/Ctrl+9 copy the exact source suffix belonging to their reordered identities.
+Viewed fixture and final binary hashes, inspected captures and all eight child
+exit statuses per scale pass. QA alone imports sibling capture helpers and uses
+a locally extended private pointer helper; application dependencies are unchanged.
+Preliminary captures are retained: their strict OCR label-set check failed when
+a normal release tooltip obscured a label, although the shared positions were
+unchanged. Final QA validates common visible anchors and records their coordinates.
+
+Evidence: `~/.local/state/radiology-qa/bookmark-drag-20261101-2c7c3cc`.
+Remaining acceptance includes pinned-review/mixed-language/long-name inspector
+corpora, other cross-owner interactions, broader reader/index/PR/cache behavior
+and final Swift UI/standalone/reuse audit. Full accessibility and actual sibling
+integration remain deferred.

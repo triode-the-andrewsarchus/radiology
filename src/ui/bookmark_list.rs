@@ -46,6 +46,12 @@ impl BookmarkList {
         Key::Escape,
     ];
 
+    pub(super) fn cancel_drag(ctx: &Context) {
+        if egui::DragAndDrop::has_payload_of_type::<BookmarkDrag>(ctx) {
+            egui::DragAndDrop::clear_payload(ctx);
+        }
+    }
+
     pub(super) fn clear_navigation_error(&mut self) {
         self.navigation_error = None;
         self.error_notice = Default::default();
@@ -187,6 +193,7 @@ impl BookmarkList {
             row_height,
         );
         scroll.show_rows(ui, row_height, store.bookmarks.len(), |ui, rows| {
+            Self::scroll_drag_near_edge(ui, store, region);
             if store.bookmarks.is_empty() {
                 ui.colored_label(theme.text_muted, "Ctrl+D to bookmark this location.");
             }
@@ -197,6 +204,39 @@ impl BookmarkList {
             }
         });
         action
+    }
+
+    fn scroll_drag_near_edge(ui: &Ui, store: &BookmarkStore, region: egui::Rect) {
+        let Some(payload) = egui::DragAndDrop::payload::<BookmarkDrag>(ui.ctx()) else {
+            return;
+        };
+        let viewport = ui.clip_rect().intersect(region);
+        if !ui.is_enabled()
+            || !viewport.is_positive()
+            || store.index_of(payload.0).is_none()
+            || !ui.rect_contains_pointer(viewport)
+        {
+            return;
+        }
+        let Some(pointer) = ui.input(|input| {
+            input
+                .pointer
+                .primary_down()
+                .then(|| input.pointer.hover_pos())
+                .flatten()
+        }) else {
+            return;
+        };
+        // Logical-point edge bands and time-based speed remain consistent across scales.
+        let band = 24.0_f32.min(viewport.height() / 4.0);
+        let direction = ((viewport.top() + band - pointer.y).max(0.0)
+            - (pointer.y - viewport.bottom() + band).max(0.0))
+            / band;
+        if direction != 0.0 {
+            let dt = ui.input(|input| input.stable_dt.min(0.05));
+            ui.scroll_with_delta(egui::vec2(0.0, direction * 600.0 * dt));
+            ui.ctx().request_repaint();
+        }
     }
 
     fn row(
@@ -251,11 +291,14 @@ impl BookmarkList {
         self.paint_row(ui, theme, rect, bookmark, index);
         let mut action = None;
         let clicked = super::commands::row_activated(&response);
-        if clicked || response.drag_started() || response.secondary_clicked() {
+        if clicked || response.drag_started() {
+            self.selected = Some(bookmark.id);
+            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
+        }
+        if response.secondary_clicked() {
             self.selected = Some(bookmark.id);
         }
         if clicked {
-            ui.memory_mut(|memory| memory.request_focus(Self::focus_id()));
             action = Some(BookmarkAction::Open(bookmark.id));
         }
         response.dnd_set_drag_payload(BookmarkDrag(bookmark.id));
@@ -525,15 +568,84 @@ mod tests {
         assert_eq!(input.events, original[1..]);
     }
 
-    #[test]
-    fn large_lists_only_paint_visible_rows_and_reveal_keyboard_selection() {
-        let ctx = Context::default();
+    fn large_bookmarks() -> BookmarkStore {
         let buffer = SourceBuffer::from_str("very/long/path/a.rs", "fn alpha() {}\n");
-        let store = BookmarkStore {
+        BookmarkStore {
             bookmarks: (0..1000)
                 .map(|index| SourceBookmark::new(&buffer, 0, format!("bookmark-{index:04}")))
                 .collect(),
-        };
+        }
+    }
+
+    #[test]
+    fn held_bookmark_drags_scroll_to_offscreen_destinations_in_both_directions() {
+        use crate::ui::test_support::{click, painted_frame, text_center, themed_context};
+        for scale in [1.0, 1.5, 2.0] {
+            for upward in [false, true] {
+                let (ctx, theme) = themed_context(!upward, scale);
+                let store = large_bookmarks();
+                let mut list = BookmarkList::default();
+                let frame = |list: &mut BookmarkList, events| {
+                    let mut action = None;
+                    let mut scroll_id = egui::Id::NULL;
+                    let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
+                        ui.style_mut().interaction.selectable_labels = false;
+                        scroll_id = ui.make_persistent_id(egui::Id::new("reader_bookmarks"));
+                        action = list.show(ui, &theme, &store, "Checkout", Some(false));
+                    });
+                    let offset = egui::scroll_area::State::load(&ctx, scroll_id)
+                        .unwrap()
+                        .offset
+                        .y;
+                    (output, action, offset)
+                };
+                frame(&mut list, vec![]);
+                frame(&mut list, vec![]);
+                list.key(if upward { Key::End } else { Key::Home }, &store);
+                frame(&mut list, vec![]);
+                let (output, _, start_offset) = frame(&mut list, vec![]);
+                let label = if upward {
+                    "bookmark-0999"
+                } else {
+                    "bookmark-0000"
+                };
+                let from = text_center(&output, label);
+                let edge = egui::pos2(from.x, if upward { 36.0 } else { 229.0 });
+                let mut press = click(from);
+                press.pop();
+                assert_eq!(frame(&mut list, press).1, None);
+                assert_eq!(
+                    frame(&mut list, vec![egui::Event::PointerMoved(edge)]).1,
+                    None
+                );
+                let mut offset = start_offset;
+                for _ in 0..120 {
+                    let (_, action, next) = frame(&mut list, vec![]);
+                    assert_eq!(action, None, "holding must not commit a reorder");
+                    offset = next;
+                }
+                assert!(if upward { start_offset - offset > 400.0 } else { offset - start_offset > 400.0 },
+                    "held drag did not scroll: scale={scale}, upward={upward}, {start_offset} -> {offset}");
+                let release = click(edge).pop().unwrap();
+                let (_, action, stopped) = frame(&mut list, vec![release]);
+                let Some(BookmarkAction::Move { id, slot }) = action else {
+                    panic!("missing drop: {action:?}");
+                };
+                assert_eq!(id, store.bookmarks[if upward { 999 } else { 0 }].id);
+                assert!(if upward { slot < 990 } else { slot > 9 }, "{slot}");
+                assert_eq!(
+                    frame(&mut list, vec![]).2,
+                    stopped,
+                    "release must stop edge scrolling"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn large_lists_only_paint_visible_rows_and_reveal_keyboard_selection() {
+        let ctx = Context::default();
+        let store = large_bookmarks();
         let mut list = BookmarkList::default();
         let render = |list: &mut BookmarkList| {
             crate::ui::test_support::painted_text(&ctx, egui::vec2(300.0, 240.0), |ui| {

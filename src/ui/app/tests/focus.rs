@@ -339,3 +339,34 @@ fn source_command_navigation_retires_the_remaining_source_batch() {
         "navigation must retire later source commands"
     );
 }
+
+#[test]
+fn escape_cancels_a_bookmark_drag_without_navigation_or_reordering() {
+    use crate::ui::test_support::{click, text_center};
+    let (_dir, mut app, ctx) = source_reader();
+    let buffer = app.open_buffer.clone().unwrap();
+    app.bookmarks.bookmarks = (0..30)
+        .map(|index| {
+            crate::bookmarks::bookmark::SourceBookmark::new(&buffer, 0, format!("drag-{index:02}"))
+        })
+        .collect();
+    let original = app.bookmarks.bookmarks.clone();
+    let history = format!("{:?}", app.history);
+    frame(&mut app, &ctx, vec![]);
+    let output = frame(&mut app, &ctx, vec![]);
+    let from = text_center(&output, "drag-00");
+    let to = text_center(&output, "drag-01");
+    let mut press = click(from);
+    press.pop();
+    frame(&mut app, &ctx, press);
+    frame(&mut app, &ctx, vec![Event::PointerMoved(to)]);
+    assert!(crate::ui::bookmark_list::BookmarkList::has_focus(&ctx));
+    assert!(egui::DragAndDrop::has_any_payload(&ctx));
+    frame(&mut app, &ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(!egui::DragAndDrop::has_any_payload(&ctx));
+    assert!(app.bookmark_list.selected.is_none());
+    frame(&mut app, &ctx, vec![click(to).pop().unwrap()]);
+    assert_eq!(app.bookmarks.bookmarks, original);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(format!("{:?}", app.history), history);
+}

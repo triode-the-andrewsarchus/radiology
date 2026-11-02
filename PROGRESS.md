@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-01 — Reach off-screen bookmark destinations while dragging (Codex)
+
+Held bookmark drags now scroll the existing list near its top/bottom edges. Logical
+geometry, time-based speed and a capped frame interval keep behavior consistent
+across scales. Valid UUID payloads, enabled/clipped/layer-aware pointer bounds and
+the held primary button gate movement. Existing egui offsets, row drop actions
+and persistence remain shared. Drag start focuses the list; Escape retires only
+its payload through normal app dispatch, preserving source/history and ordering.
+No new persistent state, worker, cache, dependency or public API. A 1,000-record
+failing offset regression now passes bidirectionally at 1×/1.5×/2×; real app Escape
+coverage fails independently without focus or cancellation. All 27 bookmark tests
+pass after restoration. Workspace passes 543 app tests (seven ignored), two binary,
+four font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture +140 NLOC including tests, five functions; row CCN stays 15, scrolling
+CCN 7. No new hotspot/cycle/max-CCN or clone group; all 91 baseline fragments remain
+unchanged after full audit. Native 1×/2× held drags move the first bookmark to slot
+27 and the last to 72/71, with no storage write before release. Escape leaves
+ordering unchanged and observed rows stationary through release. Restart and exact
+Ctrl+0/Ctrl+9 copies, fixture/binary hashes and eight zero child exits per scale
+pass. Earlier strict OCR label-set comparisons were obscured by release tooltips;
+final runs record matching visible anchor positions. Broader inspector/input/corpus,
+language/index/PR/cache and final Swift UI/standalone/reuse acceptance remain open.
+Full accessibility and actual sibling adoption deferred.
+[Behavior and evidence](plans/rust-bookmark-pane.md#held-drag-edge-scrolling-and-cancellation--2026-11-01).
+Archive: ~/.local/state/radiology-qa/bookmark-drag-20261101-2c7c3cc.
+
 ## 2026-11-01 — Keep bookmark navigation failures in their owning region (Codex)
 
 Immediate, cached and background bookmark errors now belong to the Bookmarks pane,

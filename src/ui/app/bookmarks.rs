@@ -99,6 +99,9 @@ impl RadiologyApp {
         ) {
             return false;
         }
+        if key == egui::Key::Escape {
+            BookmarkList::cancel_drag(ctx);
+        }
         if self.repository_interaction_ready() {
             if let Some(action) = self.bookmark_list.key(key, &self.bookmarks) {
                 self.handle_bookmark_action(ctx, action);
