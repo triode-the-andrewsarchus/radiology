@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-01 — Match bundled Swift/Kotlin symbol-query declarations (Codex)
+
+Native outlines now reuse the cached folding/symbol queries and bounded query
+visitor instead of the smaller Swift/Kotlin AST arms. Swift protocol requirements
+and lifecycle routines retain exact names; Kotlin gains file/type properties,
+enum cases, constructors, initializer blocks and named companions. Captured UTF-8
+and escaped names, signatures, hierarchy and shared callable classification reach
+the existing inspector/navigation. Query failures report degraded structure;
+cancellation never publishes a partial outline. No new dependency, worker or UI
+state. Workspace passes 564 app tests (seven ignored), two binary, four font,
+13 text and 37 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture
+adds 249 NLOC including tests, ten functions; old parse_node CCN 6→4, max unchanged,
+zero cycles, health +0.15. All 91 clone groups unchanged after full multiset audit;
+the automated regression warning only touches a pre-existing nine-line clone.
+Four native Swift/Kotlin 1×/2× flows pass exact lifecycle/alias/property and whole
+source copies, fixture/binary hashes and zero exits; dark/light captures inspected.
+Earlier timing, pointer-coordinate, tooltip/OCR and offscreen-row harness failures
+are excluded. The linked Kotlin grammar still rejects a valid compact interface
+without an explicit member separator; broader grammar/corpus, reader/input/index/
+PR/cache/UI and final Swift/standalone/reuse acceptance remain open. Accessibility
+and actual sibling adoption remain deferred.
+[Contract and evidence](plans/rust-native-outline-parity.md).
+Archive: ~/.local/state/radiology-qa/native-declarations-20261101-a103340.
+
 ## 2026-11-01 — Preserve original source gesture order across keyboard capture (Codex)
 
 Protected keys now retain per-frame ordinals and merge linearly between retained

@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Swift/Kotlin native outlines](plans/rust-native-outline-parity.md) now use the
+bundled symbol queries for exact lifecycle, protocol, property, enum-case and
+companion declarations. Broader grammar/corpus acceptance remains open, including
+a confirmed compact Kotlin interface parser limitation.
+
 [Source pointer/key interleaving](plans/rust-source-input-order.md#preserve-source-pointerkeyboard-interleaving-through-capture--2026-11-01)
 now restores captured keys at their original event positions, so clicks, drags,
 bookmarks, copy and semantic commands reach the existing source queue in order.

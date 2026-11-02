@@ -63,6 +63,10 @@ actual sibling adoption/integration is deferred until the user requests it.
   caret strokes, long-line destination reveal, and independently persisted source
   zoom are integrated. Source focus is separate from other controls. Indexed pins
   use exact semantic occurrences; lexical fallback is scoped to enclosing functions.
+- [Native Swift/Kotlin declaration queries](rust-native-outline-parity.md) now cover
+  protocol requirements, lifecycle routines, Kotlin properties, enum cases and
+  named companions with exact names, signatures and hierarchy. Broader grammar
+  acceptance remains open, including compact Kotlin interface member separators.
 - Native Swift/Kotlin grammars, nested declaration outlines and source-span folds
   are registered and tested; detailed highlighting/query coverage remains open.
 - Conservative AST test detection and independent Hide Tests projection are

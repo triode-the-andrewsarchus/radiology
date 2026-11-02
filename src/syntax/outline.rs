@@ -5,6 +5,7 @@ use crate::syntax::language::SupportedGrammar;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use tree_sitter::Node;
+mod native;
 
 /// Enumerates kinds of declarations extracted into the document outline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -13,6 +14,12 @@ pub enum SymbolKind {
     Function,
     /// Method declaration.
     Method,
+    /// Constructor or initialization block.
+    Initializer,
+    /// Instance teardown declaration.
+    Deinitializer,
+    /// Property declared at file or type scope.
+    Property,
     /// Struct declaration.
     Struct,
     /// Class declaration.
@@ -38,12 +45,30 @@ pub enum SymbolKind {
 }
 
 impl SymbolKind {
+    /// Returns whether this declaration owns a callable source region.
+    ///
+    /// ```
+    /// use radiology::syntax::SymbolKind;
+    /// assert!(SymbolKind::Initializer.is_callable());
+    /// assert!(!SymbolKind::Property.is_callable());
+    /// ```
+    #[must_use]
+    pub fn is_callable(self) -> bool {
+        matches!(
+            self,
+            Self::Function | Self::Method | Self::Initializer | Self::Deinitializer
+        )
+    }
+
     /// Returns the human-readable display title for this kind.
     #[must_use]
     pub fn title(&self) -> &'static str {
         match self {
             Self::Function => "Function",
             Self::Method => "Method",
+            Self::Initializer => "Initializer",
+            Self::Deinitializer => "Deinitializer",
+            Self::Property => "Property",
             Self::Struct => "Struct",
             Self::Class => "Class",
             Self::Extension => "Implementation",
@@ -64,6 +89,9 @@ impl SymbolKind {
         match self {
             Self::Function => "ƒ",
             Self::Method => "m",
+            Self::Initializer => "i",
+            Self::Deinitializer => "d",
+            Self::Property => "v",
             Self::Struct => "S",
             Self::Class => "C",
             Self::Extension => "I",
@@ -114,10 +142,10 @@ pub struct DocumentSymbol {
 }
 
 impl DocumentSymbol {
-    /// Returns whether this declaration is a function or method.
+    /// Returns whether this declaration is a function, method or lifecycle routine.
     #[must_use]
     pub fn is_callable(&self) -> bool {
-        matches!(self.kind, SymbolKind::Function | SymbolKind::Method)
+        self.kind.is_callable()
     }
     /// Returns `true` if this symbol's full range contains `byte`.
     #[must_use]
@@ -215,9 +243,12 @@ pub struct SymbolExtractor;
 
 impl SymbolExtractor {
     /// Extracts a tree of [`DocumentSymbol`] declarations from the given [`SourceBuffer`].
+    ///
+    /// Returns an empty tree if native query facts cannot be completed. Hosts that
+    /// need diagnostics should use [`crate::syntax::DocumentSyntax::analyze`].
     #[must_use]
     pub fn extract(buffer: &SourceBuffer) -> Vec<DocumentSymbol> {
-        Self::extract_cancellable(buffer, || false).expect("uncancelled outline extraction")
+        Self::extract_cancellable(buffer, || false).unwrap_or_default()
     }
 
     pub(crate) fn extract_cancellable(
@@ -226,7 +257,7 @@ impl SymbolExtractor {
     ) -> Result<Vec<DocumentSymbol>, String> {
         let control = super::AnalysisControl::new(&cancelled);
         let symbols = if let Some((grammar, tree)) = control.parse(buffer)? {
-            Self::from_tree(buffer, grammar, tree.root_node(), &control)
+            Self::from_tree(buffer, grammar, tree.root_node(), &control)?
         } else {
             Self::extract_fallback(buffer, &control)
         };
@@ -239,10 +270,13 @@ impl SymbolExtractor {
         grammar: SupportedGrammar,
         root: Node<'_>,
         control: &super::AnalysisControl<'_>,
-    ) -> Vec<DocumentSymbol> {
+    ) -> Result<Vec<DocumentSymbol>, String> {
+        if matches!(grammar, SupportedGrammar::Swift | SupportedGrammar::Kotlin) {
+            return native::extract(buffer, grammar, root, control);
+        }
         let mut symbols = Vec::new();
         Self::collect_symbols(root, buffer, grammar, &mut symbols, control);
-        symbols
+        Ok(symbols)
     }
 
     fn collect_symbols(
@@ -310,32 +344,6 @@ impl SymbolExtractor {
                 (SymbolKind::TypeAlias, "name")
             }
 
-            (
-                SupportedGrammar::Swift,
-                "function_declaration" | "init_declaration" | "deinit_declaration",
-            ) => (SymbolKind::Function, "name"),
-            (SupportedGrammar::Swift, "class_declaration") => {
-                let kind = node
-                    .child_by_field_name("declaration_kind")
-                    .map(|node| node_text(node, buffer));
-                (
-                    match kind.as_deref() {
-                        Some("struct") => SymbolKind::Struct,
-                        Some("enum") => SymbolKind::Enum,
-                        Some("extension") => SymbolKind::Extension,
-                        _ => SymbolKind::Class,
-                    },
-                    "name",
-                )
-            }
-            (SupportedGrammar::Swift, "protocol_declaration") => (SymbolKind::Trait, "name"),
-            (SupportedGrammar::Swift, "typealias_declaration") => (SymbolKind::TypeAlias, "name"),
-            (SupportedGrammar::Kotlin, "function_declaration") => (SymbolKind::Function, "name"),
-            (SupportedGrammar::Kotlin, "class_declaration" | "object_declaration") => {
-                (SymbolKind::Class, "name")
-            }
-            (SupportedGrammar::Kotlin, "type_alias") => (SymbolKind::TypeAlias, "type"),
-
             (SupportedGrammar::C, "function_definition") => (SymbolKind::Function, "declarator"),
             (SupportedGrammar::C, "struct_specifier") => (SymbolKind::Struct, "name"),
             (SupportedGrammar::C, "enum_specifier") => (SymbolKind::Enum, "name"),
@@ -366,23 +374,7 @@ impl SymbolExtractor {
             selection_range,
             line,
             children,
-            detail: node
-                .child_by_field_name("body")
-                .or_else(|| {
-                    let mut cursor = node.walk();
-                    let body = node.named_children(&mut cursor).find(|child| {
-                        matches!(
-                            child.kind(),
-                            "function_body" | "class_body" | "enum_class_body"
-                        )
-                    });
-                    body
-                })
-                .map(|body| {
-                    buffer.text[node.start_byte()..body.start_byte()]
-                        .trim()
-                        .to_string()
-                }),
+            detail: declaration_header(node, buffer),
         })
     }
 
@@ -449,6 +441,25 @@ fn node_text(node: Node, buffer: &SourceBuffer) -> String {
         }
     }
     String::new()
+}
+
+fn declaration_header(node: Node<'_>, buffer: &SourceBuffer) -> Option<String> {
+    node.child_by_field_name("body")
+        .or_else(|| {
+            let mut cursor = node.walk();
+            let body = node.named_children(&mut cursor).find(|child| {
+                matches!(
+                    child.kind(),
+                    "function_body" | "class_body" | "enum_class_body" | "block"
+                )
+            });
+            body
+        })
+        .map(|body| {
+            buffer.text[node.start_byte()..body.start_byte()]
+                .trim()
+                .to_string()
+        })
 }
 
 #[cfg(test)]
@@ -569,3 +580,7 @@ fn calculate() {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "outline/native_tests.rs"]
+mod native_tests;

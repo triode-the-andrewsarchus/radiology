@@ -73,7 +73,7 @@ impl<'a> AnalysisControl<'a> {
 pub struct DocumentSyntax {
     /// Full outline, unaffected by source presentation filters.
     pub symbols: Vec<DocumentSymbol>,
-    /// Native parser failure for a registered language; fallback rows may remain.
+    /// Native parser or outline-query failure for a registered language; fallback rows may remain.
     ///
     /// Unsupported formats and recoverable errors inside a returned syntax tree
     /// do not set this field. Hosts should retain source and explain degraded structure.
@@ -117,7 +117,11 @@ impl DocumentSyntax {
             Err(error) => (Vec::new(), Some(error)),
         };
         control.check()?;
-        let symbols = SymbolExtractor::from_tree(buffer, grammar, root, &control);
+        let (symbols, parse_error) =
+            match SymbolExtractor::from_tree(buffer, grammar, root, &control) {
+                Ok(symbols) => (symbols, None),
+                Err(error) => (Vec::new(), Some(error)),
+            };
         control.check()?;
         let tests = TestRegionDetector::from_tree(buffer, grammar, root, &control);
         control.check()?;
@@ -139,7 +143,7 @@ impl DocumentSyntax {
             fold_error,
             occurrences,
             native_highlights,
-            parse_error: None,
+            parse_error,
         })
     }
 
