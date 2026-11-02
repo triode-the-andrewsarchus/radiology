@@ -3,6 +3,55 @@ use super::*;
 use egui::{Event, Key, Modifiers};
 
 impl RadiologyApp {
+    // A UI click applies its action during painting. Keep later keys for the
+    // next frame instead of routing them using the owner from before the click.
+    // Source-only batches retain the existing precise source gesture queue.
+    pub(super) fn stage_pointer_keys(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+        if !input.focused
+            || input
+                .events
+                .iter()
+                .any(|event| matches!(event, Event::WindowFocused(false)))
+        {
+            self.deferred_input.clear();
+            return;
+        }
+        let mut events = std::mem::take(&mut self.deferred_input);
+        events.append(&mut input.events);
+        input.events = events;
+        if !matches!(self.modal, ActiveModal::None)
+            || crate::ui::commands::context_menu_is_open(ctx)
+        {
+            return;
+        }
+        let source_only = self.source_viewport.accepts_keyboard(ctx)
+            && ctx
+                .read_response(crate::ui::source_view::SourceViewport::focus_id())
+                .is_some_and(|response| {
+                    input.events.iter().all(|event| match event {
+                        Event::PointerButton { pos, .. } => response.rect.contains(*pos),
+                        _ => true,
+                    })
+                });
+        if source_only {
+            return;
+        }
+        let mut first_kind = None;
+        let boundary = input.events.iter().enumerate().find_map(|(index, event)| {
+            let pointer = match event {
+                Event::PointerButton { .. } => true,
+                _ if crate::ui::commands::keyboard_event(event) => false,
+                _ => return None,
+            };
+            let first = *first_kind.get_or_insert(pointer);
+            (first != pointer).then_some(index)
+        });
+        if let Some(boundary) = boundary {
+            self.deferred_input = input.events.split_off(boundary);
+            ctx.request_repaint();
+        }
+    }
+
     pub(super) fn inspector_has_focus(&self, ctx: &Context) -> bool {
         self.show_inspector
             && (self.reference_viewport.has_focus(ctx)

@@ -165,6 +165,7 @@ pub struct RadiologyApp {
     outline_list: crate::ui::outline_list::OutlineList,
     declaration_summary: crate::ui::context_inspector::DeclarationSummary,
     reader_input: Vec<egui::Event>,
+    deferred_input: Vec<egui::Event>,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
     /// Immutable review objects and revision-specific source routing.
@@ -306,6 +307,7 @@ impl RadiologyApp {
             outline_list: Default::default(),
             declaration_summary: Default::default(),
             reader_input: Vec::new(),
+            deferred_input: Vec::new(),
             active_pr: None,
             review: None,
             review_job: Default::default(),
@@ -464,6 +466,7 @@ impl RadiologyApp {
         self.source_viewport = Default::default();
         self.declaration_summary = Default::default();
         self.reader_input.clear();
+        self.deferred_input.clear();
         self.test_code = Default::default();
         self.repository_search = RepositorySearch::default();
         self.search_options = SearchOptions::default();
@@ -534,6 +537,7 @@ impl RadiologyApp {
 
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+        self.stage_pointer_keys(ctx, input);
         super::commands::take_context_menu_input(ctx, input);
         self.take_modal_input(ctx, input);
         self.capture_reader_input(ctx, input);

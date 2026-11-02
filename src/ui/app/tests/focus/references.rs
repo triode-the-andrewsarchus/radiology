@@ -248,3 +248,55 @@ fn pinned_metadata_uses_the_captured_local_document_and_current_index() {
         .any(|text| text.galley.job.text == "Kind 9001"
             || text.galley.job.text.starts_with("References")));
 }
+
+pub(super) fn reference_click_and_right(
+    app: &mut RadiologyApp,
+    ctx: &Context,
+    pointer_first: bool,
+) -> Vec<Event> {
+    app.source_viewport.request_focus(ctx);
+    let output = frame(app, ctx, vec![]);
+    let row = crate::ui::test_support::text_center(
+        &output,
+        &app.reference_context.results.hits[1].source_line.text,
+    );
+    let mut events = crate::ui::test_support::click(row);
+    let arrow = key(Key::ArrowRight, Modifiers::NONE);
+    if pointer_first {
+        events.push(arrow);
+    } else {
+        events.insert(0, arrow);
+    }
+    events
+}
+
+#[test]
+fn pointer_selection_hands_later_keys_to_references_without_reordering_earlier_keys() {
+    for scale in [1.0, 1.5, 2.0] {
+        for pointer_first in [true, false] {
+            let (_dir, mut app) = reader_with_reference_index();
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            app.show_inspector = true;
+            frame(&mut app, &ctx, vec![]);
+            let caret = (app.caret_line, app.caret_col);
+            let events = reference_click_and_right(&mut app, &ctx, pointer_first);
+            let output = frame(&mut app, &ctx, events);
+            assert_eq!(
+                output.viewport_output[&egui::ViewportId::ROOT].repaint_delay,
+                std::time::Duration::ZERO
+            );
+            frame(&mut app, &ctx, vec![]);
+            assert!(app.deferred_input.is_empty());
+            assert_eq!(app.reference_context.selected, Some(1));
+            assert_eq!(
+                app.reference_context.disclosures.contains_key(&1),
+                pointer_first
+            );
+            assert_eq!(
+                (app.caret_line, app.caret_col),
+                (caret.0, caret.1 + usize::from(!pointer_first))
+            );
+        }
+    }
+}

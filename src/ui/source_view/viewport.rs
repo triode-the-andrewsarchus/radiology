@@ -157,7 +157,7 @@ impl CanvasGeometry {
 }
 
 impl SourceViewport {
-    fn focus_id() -> Id {
+    pub(crate) fn focus_id() -> Id {
         Id::new("radiology_source_canvas")
     }
 

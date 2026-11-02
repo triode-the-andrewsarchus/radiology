@@ -1,4 +1,4 @@
-use super::references::caller_reader;
+use super::references::{caller_reader, reference_click_and_right};
 use super::*;
 
 #[test]
@@ -88,4 +88,39 @@ fn repository_search_shortcut_focuses_and_accepts_the_query_in_its_opening_batch
     assert_eq!(app.sidebar_tab, SidebarTab::Search);
     assert_eq!(app.search_options.query, "needle");
     assert!(ctx.wants_keyboard_input());
+}
+
+#[test]
+fn pointer_handoff_preserves_queued_keys_ahead_of_new_input_and_retires_at_boundaries() {
+    use crate::ui::reference_list::ReferenceAction;
+    use eframe::App;
+    for boundary in ["new-key", "window", "repository"] {
+        let (dir, mut app, ctx) = caller_reader();
+        app.handle_reference_action(ReferenceAction::SetExpanded(1, false));
+        let events = reference_click_and_right(&mut app, &ctx, true);
+        frame(&mut app, &ctx, events);
+        assert!(!app.deferred_input.is_empty());
+        match boundary {
+            "new-key" => {
+                frame(&mut app, &ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
+            }
+            "window" => {
+                let mut input = egui::RawInput {
+                    focused: false,
+                    ..Default::default()
+                };
+                app.raw_input_hook(&ctx, &mut input);
+            }
+            "repository" => {
+                app.open_repository(dir.path());
+                settle(&mut app);
+            }
+            _ => unreachable!(),
+        }
+        assert!(app.deferred_input.is_empty(), "{boundary}");
+        assert!(
+            !app.reference_context.disclosures.contains_key(&1),
+            "{boundary}"
+        );
+    }
 }

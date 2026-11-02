@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Pointer/keyboard handoff](plans/rust-keyboard-owner-order.md#pointerkeyboard-frame-handoff--2026-11-01)
+now preserves click/Right and Right/click ordering through an automatically
+repainted input suffix. Source-only gestures retain their queue; window/repository
+boundaries retire staged events. Three-scale app regressions and four native
+1×/2× rapid navigation/failure-retry flows pass. Broader mixed-owner acceptance
+remains open.
+
 [Swift-style snippet dedent](plans/rust-inspector-previews.md#swift-style-block-snippet-dedent--2026-11-01)
 now expands tabs and removes common indentation across definition/reference/local
 excerpts while preserving styled Unicode text and all raw source coordinates.

@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-01 — Preserve pointer/keyboard owner changes in event order (Codex)
+
+The corrected real-app regression fails on the old input path: click/Right selects
+a reference without expanding it. The raw hook now stages mixed button/keyboard
+input at the first kind transition and prepends its suffix on an automatic repaint.
+Earlier keys keep their owner; later keys see the applied click. Source-only batches
+retain the existing gesture queue through the registered source rectangle; modal/
+menu ownership stays shared. One ephemeral event vector, no timer/worker/dependency/
+second dispatcher. Existing source focus identity is crate-visible for reuse.
+New input follows staged input; window focus/repository changes clear it. Both
+orders pass exact caret/selection/disclosure assertions at three scales, including
+zero repaint delay. Additional app checks cover fresh-key order and retirement.
+Workspace passes 558 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests. Final nine pointer-related tests pass after gesture-fixture reuse;
+strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture +133 NLOC including
+tests, four functions; stage CCN 11, no new hotspot/max-CCN/cycle. All 91 baseline
+clone groups remain unchanged after full audit; touched old test warning only,
+health -0.01. Four native 1×/2× caller navigation and preview failure/restore/retry
+flows pass without a selection-to-key pause, exact destination/Back/accepted-source
+copies, fixture/binary hashes and all zero exits. Native frame grouping is not
+logged; RawInput proves same-batch order. Initial whitespace label mismatch is
+retained as excluded test setup evidence. Broader overlays/mixed-owner/reader/
+language/semantic/PR/cache/UI and final Swift/standalone/reuse acceptance remain
+open; accessibility and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-keyboard-owner-order.md#pointerkeyboard-frame-handoff--2026-11-01).
+Archive: ~/.local/state/radiology-qa/pointer-key-20261101-ed4f546.
+
+
 ## 2026-11-01 — Match Swift block snippet indentation across inspector excerpts (Codex)
 
 Definition/reference/local excerpts now expand each tab to four spaces and remove

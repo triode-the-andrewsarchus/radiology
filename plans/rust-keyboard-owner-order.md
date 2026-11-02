@@ -65,3 +65,59 @@ and error recovery, large-file/reader performance, grammar/index generation,
 PR/cache validation and the final requirement-by-requirement Swift/reuse audit
 remain open. Full assistive accessibility and actual sibling adoption are deferred;
 keyboard shortcuts and focus/navigation remain required.
+
+## Pointer/keyboard frame handoff — 2026-11-01
+
+A real-app RawInput regression confirms that selecting a reference and pressing
+Right in the same batch selects the row without expanding it. The pre-frame
+keyboard capture runs before UI painting applies the click action and its focus
+change. Reversing those events must instead move the source caret before selecting
+the reference; routing every key to the final owner would lose that distinction.
+
+The raw hook now stages mixed pointer-button/keyboard batches at their first
+input-kind transition. The suffix remains in one ephemeral event vector and is
+prepended to new input on the next automatically requested repaint. Thus earlier
+keys execute before a later click, and later keys see the click's registered owner.
+This adds one frame per transition without a timer or sleep. The existing source
+queue still handles source-only gestures directly: when source owns keyboard input
+and every button position is inside its registered response rectangle, staging is
+bypassed. `SourceViewport::focus_id` is now crate-visible to reuse that identity.
+Modal/menu input continues through the existing owners. No alternate command or
+pointer-action dispatcher, widget hit cache, worker or dependency was added.
+
+Window-focus loss drops the staged suffix; accepted repository replacement clears
+it alongside existing reader input. New events follow the earlier suffix. Pointer
+movement alone does not create a focus boundary. This contract belongs to the
+normal eframe raw-input hook; prepared keyboard-only dispatch remains unchanged.
+The source bypass uses the previous registered source rectangle; overlay and wider
+mixed-pane interaction acceptance remain open.
+
+The old renderer fails the corrected same-batch regression because no disclosure
+opens. The initial label lookup assumed leading whitespace; final tests derive
+text from the actual ReferenceHit and reuse one gesture fixture. Both event orders
+now pass at 1×/1.5×/2×, with exact caret/selection/disclosure assertions and a zero
+repaint delay proving progress is scheduled. Additional app tests verify queued
+Right followed by fresh Left, focus-loss retirement and repository retirement.
+Existing modal/global/focus and source-gesture tests pass. Workspace passes 558 app
+tests (seven ignored), two binary, four font, 13 text and 36 doctests. After sharing
+test setup, all nine pointer-related tests and strict Clippy/check/build/rustdoc/
+fmt/diff pass.
+
+Architecture adds 133 NLOC including tests and four functions (one stage method,
+two tests and a shared test gesture). Stage CCN 11; app render/dispatch complexity,
+max CCN, hotspot count and dependency cycles stay unchanged. Sharing the gesture
+removes the initially added test clone; the full normalized multiset contains the
+same 91 groups as the baseline. The comparator's touched old test clone warning
+is pre-existing. Health changes -0.01.
+
+Four native 1×/2× navigation and preview-failure/retry flows pass after removing the
+previous selection-to-keyboard pause. Navigation copies the exact 473-byte Unicode
+destination and Back restores the original call-site copy. Failure/retry removes
+and restores only private fixture bytes and preserves exact accepted source.
+Final binary/fixture hashes match and every final child exits zero. Actual native
+same-frame grouping is not logged; the RawInput tests prove that ordering directly.
+
+Archive: `~/.local/state/radiology-qa/pointer-key-20261101-ed4f546`.
+Broader overlays, mixed owners, source/performance/language/semantic/PR/cache/UI and
+final Swift/standalone/reuse acceptance remain open. Accessibility and actual
+sibling adoption stay deferred.
