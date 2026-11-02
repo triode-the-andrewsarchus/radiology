@@ -18,6 +18,7 @@ impl RadiologyApp {
         self.index_plan_job.stop();
         self.tool_probe_job.stop();
         self.index_plan = Default::default();
+        self.index_plan_error = None;
         self.tool_availability.clear();
         self.semantic_index = None;
         self.refresh_symbol_context();
@@ -164,13 +165,17 @@ impl RadiologyApp {
     }
 
     pub(super) fn inspect_index_projects(&mut self) {
-        let paths: Vec<_> = self
-            .all_files
-            .iter()
-            .map(|file| file.path.clone())
-            .collect();
-        self.index_plan_job
-            .spawn(move |_| IndexPlan::inspect(paths.iter().map(String::as_str)));
+        self.index_plan_error = None;
+        let Some(root) = self.search_root() else {
+            self.index_plan_job.stop();
+            self.index_plan = Default::default();
+            return;
+        };
+        let review = self.review.clone();
+        self.index_plan_job.spawn(move |cancel| {
+            crate::semantic::indexing::service::inspect_inputs(&root, review.as_deref(), cancel)
+                .map(|inputs| IndexPlan::inspect(inputs.paths.iter().map(String::as_str)))
+        });
     }
 
     /// Returns the unfiltered repository's detected indexing projects.
@@ -187,10 +192,22 @@ impl RadiologyApp {
             self.refresh_symbol_context();
             self.refresh_critical_projection();
         }
-        match self.index_plan_job.poll() {
-            Ok(Some(plan)) => self.index_plan = plan,
-            Ok(None) => {}
-            Err(_) => self.error = Some("Index project inspection stopped unexpectedly".into()),
+        let inspected = match self.index_plan_job.poll() {
+            Ok(result) => result,
+            Err(_) => Some(Err("Inspection worker stopped unexpectedly".into())),
+        };
+        if let Some(result) = inspected {
+            match result {
+                Ok(plan) => {
+                    self.index_plan = plan;
+                    self.index_plan_error = None;
+                }
+                Err(error) => {
+                    self.index_plan = Default::default();
+                    self.error = Some(format!("Cannot inspect build projects: {error}"));
+                    self.index_plan_error = Some(error);
+                }
+            }
         }
         match self.tool_probe_job.poll() {
             Ok(Some(availability)) => self.tool_availability = availability,
@@ -213,6 +230,7 @@ impl RadiologyApp {
                 self.refresh_critical_projection();
             }
             self.index_plan = generated.report.plan.clone();
+            self.index_plan_error = None;
             self.generation_report = Some(generated.report);
         }
         if loading_cache
@@ -431,13 +449,12 @@ impl RadiologyApp {
             ui.label("Inspecting build files…");
             return None;
         }
+        if self.index_plan_error.is_some() {
+            ui.label("Build project inspection failed. Reload the repository to retry.");
+            return None;
+        }
         if self.index_plan.selected.is_empty() {
-            ui.label(if self.index_plan_job.is_running() {
-                "Inspecting build projects…"
-            } else {
-                "No build projects detected in the current inventory."
-            });
-            ui.label("Generate Index checks complete build inputs.");
+            ui.label("No build projects detected in the current inventory.");
         }
         let mut install = None;
         egui::ScrollArea::vertical()

@@ -679,6 +679,110 @@ fn index_planning_uses_unfiltered_inventory_and_retires_previous_repository() {
     assert!(app.index_plan().uncovered_languages.is_empty());
 }
 
+#[test]
+fn index_planning_finds_tracked_build_inputs_and_reports_discovery_failure() {
+    let (dir, mut app) = reader();
+    let root = dir.path().join("checkout");
+    repository(&root);
+    crate::repository::test_support::repository(&root);
+    std::fs::create_dir(root.join("build")).unwrap();
+    std::fs::write(root.join("build/compile_commands.json"), "[]").unwrap();
+    std::fs::write(root.join("main.c"), "int main(void) { return 0; }\n").unwrap();
+    crate::repository::test_support::git(&root, &["add", "-f", "."]);
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(!app
+        .all_files
+        .iter()
+        .any(|file| file.path.contains("compile_commands")));
+    assert!(app
+        .index_plan()
+        .selected
+        .iter()
+        .any(|project| project.id() == "scip-clang"));
+    assert!(app.generation_report.is_none());
+    let ctx = Context::default();
+    app.index_projects_open = true;
+    rendered_frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
+    assert!(
+        !crate::ui::test_support::text_shapes(&output).any(|text| text
+            .galley
+            .job
+            .text
+            .contains("No build projects"))
+    );
+
+    // A failed inventory must not keep advertising the old project's tools.
+    std::fs::remove_dir_all(root.join(".git")).unwrap();
+    std::fs::write(root.join(".git"), "gitdir: missing-object-store\n").unwrap();
+    app.inspect_index_projects();
+    settle(&mut app);
+    assert!(app.index_plan().selected.is_empty());
+    assert!(app
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("Cannot inspect build projects"));
+    let output = rendered_frame(&mut app, &ctx);
+    assert!(
+        crate::ui::test_support::text_shapes(&output).any(|text| text.galley.job.text
+            == "Build project inspection failed. Reload the repository to retry.")
+    );
+    std::fs::remove_file(root.join(".git")).unwrap();
+    crate::repository::test_support::repository(&root);
+    crate::repository::test_support::git(&root, &["add", "-f", "."]);
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app
+        .index_plan()
+        .selected
+        .iter()
+        .any(|project| project.id() == "scip-clang"));
+}
+
+#[test]
+fn index_planning_uses_pinned_inputs_and_rejects_tampered_review() {
+    use crate::semantic::indexing::service::inspect_inputs;
+    use std::sync::atomic::AtomicBool;
+    let (_owner, root, review) = crate::pull_request::review::tests::indexing_fixture();
+    let (_settings, mut app) = reader();
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app.index_plan().selected.is_empty());
+    app.accept_review((*review).clone());
+    settle(&mut app);
+    assert_eq!(app.index_plan().selected[0].id(), "rust-analyzer");
+    let inputs = inspect_inputs(&review.head_root, Some(&review), &AtomicBool::new(false)).unwrap();
+    assert!(inputs.paths.iter().any(|path| path == "Cargo.toml"));
+    assert!(
+        inspect_inputs(&root, Some(&review), &AtomicBool::new(false))
+            .unwrap_err()
+            .contains("differs")
+    );
+    assert!(inspect_inputs(&review.head_root, Some(&review), &AtomicBool::new(true)).is_err());
+    let buffer = app.open_buffer.clone();
+    std::fs::write(review.head_root.join("Cargo.toml"), "tampered\n").unwrap();
+    app.inspect_index_projects();
+    settle(&mut app);
+    assert!(app.error.as_ref().unwrap().contains("pinned"));
+    assert!(app.index_plan().selected.is_empty());
+    assert_eq!(
+        app.open_buffer.as_ref().map(|buffer| &buffer.text),
+        buffer.as_ref().map(|buffer| &buffer.text)
+    );
+    app.error = None;
+    app.poll_index(&Context::default());
+    assert!(
+        app.error.is_none(),
+        "dismissed diagnostics must stay dismissed"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("a file.rs")).unwrap(),
+        "checkout only\n"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn tool_probes_publish_real_versions_and_are_retired_on_repository_changes() {

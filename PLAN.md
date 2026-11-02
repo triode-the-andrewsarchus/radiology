@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Shared project inspection](plans/rust-shared-index-inspection.md) now gives Index
+Projects the same full build-input inventory as generation, including tracked build
+files and verified pinned-review heads. Failure/reload state is explicit; ignored
+generated database discovery and broader corpus acceptance remain open.
+
 [Android SDK generation context](plans/rust-android-sdk-context.md) now ports the
 Swift SDK fallback into child-only Kotlin/Java Gradle generation, with Linux-first
 lookup and preserved explicit settings. Isolated service/environment checks pass;

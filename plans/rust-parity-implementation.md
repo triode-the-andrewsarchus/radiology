@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Shared project inspection](rust-shared-index-inspection.md): project/tool controls
+  and generation share cancellable build-input discovery, including tracked nested
+  databases and verified pinned heads. Discovery errors clear stale plans and
+  support reload recovery; ignored/generated database discovery remains open.
+
 - [Android SDK generation context](rust-android-sdk-context.md): Kotlin/Java Gradle
   receives an existing conventional SDK when both SDK variables are absent;
   explicit settings and other indexers remain unchanged. Controlled isolated

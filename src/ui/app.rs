@@ -138,7 +138,9 @@ pub struct RadiologyApp {
     tool_provisioner: crate::semantic::indexing::provisioning::ToolProvisioner,
     generation_report: Option<crate::semantic::indexing::service::GenerationReport>,
     index_plan: crate::semantic::indexing::IndexPlan,
-    index_plan_job: crate::background::LatestRead<crate::semantic::indexing::IndexPlan>,
+    index_plan_job:
+        crate::background::LatestRead<Result<crate::semantic::indexing::IndexPlan, String>>,
+    index_plan_error: Option<String>,
     index_projects_open: bool,
     tool_probe_job: crate::background::LatestRead<
         std::collections::BTreeMap<
@@ -313,6 +315,7 @@ impl RadiologyApp {
             generation_report: None,
             index_plan: Default::default(),
             index_plan_job: Default::default(),
+            index_plan_error: None,
             index_projects_open: false,
             tool_probe_job: Default::default(),
             tool_availability: Default::default(),

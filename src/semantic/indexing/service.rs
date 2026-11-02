@@ -9,7 +9,7 @@ use super::{IndexPlan, Indexer, IndexingStrategy};
 use crate::background::LatestRead;
 use crate::semantic::{ScipIndex, SemanticIndex};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -36,18 +36,7 @@ pub struct GenerationRequest {
 
 impl GenerationRequest {
     pub(super) fn inventory(&self, cancel: &AtomicBool) -> Result<InputInventory, String> {
-        let Some(review) = &self.review else {
-            return InputInventory::discover(&self.root, cancel);
-        };
-        if std::fs::canonicalize(&self.root).map_err(|e| e.to_string())?
-            != std::fs::canonicalize(&review.head_root).map_err(|e| e.to_string())?
-        {
-            return Err("Index input root differs from its pinned review".into());
-        }
-        let inputs = review.head_inputs(cancel)?;
-        let mut inventory = InputInventory::from_paths(inputs.blobs.into_keys())?;
-        inventory.omitted_directories = inputs.omitted_directories;
-        Ok(inventory)
+        inspect_inputs(&self.root, self.review.as_deref(), cancel)
     }
 
     fn prepare(
@@ -77,6 +66,34 @@ impl GenerationRequest {
     pub(super) fn revision(&self) -> Option<&str> {
         self.review.as_ref().map(|review| review.head.as_str())
     }
+}
+
+/// Discovers build inputs for a checkout or pinned review without creating a workspace.
+///
+/// Run this blocking, cancellable inspection on a worker. A pinned review supplies
+/// its exact head inventory; browser filters do not determine build inputs.
+///
+/// # Errors
+///
+/// Returns an error on cancellation, discovery failure, or a root that does not
+/// match the pinned review.
+pub fn inspect_inputs(
+    root: &Path,
+    review: Option<&crate::pull_request::review::ReviewSnapshot>,
+    cancel: &AtomicBool,
+) -> Result<InputInventory, String> {
+    let Some(review) = review else {
+        return InputInventory::discover(root, cancel);
+    };
+    if std::fs::canonicalize(root).map_err(|e| e.to_string())?
+        != std::fs::canonicalize(&review.head_root).map_err(|e| e.to_string())?
+    {
+        return Err("Index input root differs from its pinned review".into());
+    }
+    let inputs = review.head_inputs(cancel)?;
+    let mut inventory = InputInventory::from_paths(inputs.blobs.into_keys())?;
+    inventory.omitted_directories = inputs.omitted_directories;
+    Ok(inventory)
 }
 
 /// Latest bounded progress snapshot, without an event backlog.

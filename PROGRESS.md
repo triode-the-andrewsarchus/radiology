@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-02 — Shared build-input inspection for project controls (Codex)
+
+Extracted generation's existing read-only inventory into service::inspect_inputs
+and reused it in the current LatestRead project worker with cancellation and review
+lease ownership. Tracked build databases now appear before Generate Index despite
+browser exclusions. Pinned regression caught scheduling before the new review was
+installed; installation now precedes inspection. Failures clear old plans, display
+truthful panel state and use existing complete diagnostics without reopening a
+dismissed notice. Reload/success/reset recover. No cache/tool/dependency required.
+Two actual-app regressions cover tracked build detection before generation, failure/
+reload/rendered messages and exact pinned inputs/root mismatch/cancellation/tamper/
+retained source. Workspace: 625 app tests, seven ignored; two binary, 13 font,
+19 text and 40 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff and copied
+standalone resources/rendered API docs pass. No new native/corpus acceptance.
+Architecture: +122 NLOC/four functions including tests, unchanged max/average CCN,
+no new hotspot/cycle. Removed initial test duplication; final default REGRESSION
+flags four old clones, normalized audit matches all 109 unchanged groups.
+[Contract and evidence](plans/rust-shared-index-inspection.md).
+Archive: ~/.local/state/radiology-qa/shared-index-inspection-20261102-d387597.
+Ignored/generated database discovery, broader real indexer corpora and final Swift
+feature/UI audit remain open. Full accessibility/adoption remain deferred.
+
 ## 2026-11-02 — Android SDK fallback in isolated Gradle generation (Codex)
 
 Ported Swift's conventional SDK handoff into ToolDirectory.indexing_environment:
