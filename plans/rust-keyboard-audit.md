@@ -224,3 +224,50 @@ Evidence: `~/.local/state/radiology-qa/view-command-state-20261031-eb0ab96`.
 Other command groups, broader bookmark model/interaction, grammar/index/PR/cache
 corpora and final Swift UI/standalone/reuse acceptance remain open. Full
 accessibility and actual sibling integration remain deferred.
+
+
+## Source document-edge navigation — 2026-11-02
+
+The Swift `ReaderTextView.keyDown` routes only its explicit semantic-definition
+shortcut and otherwise calls `super.keyDown`, leaving ordinary text navigation to
+NSTextView. Rust's source input resolver instead rejected modified Home/End. A
+native control against `fc4908d` confirms Ctrl+Home/End left the departure unchanged.
+The Linux port now provides Ctrl+Home/End as document-start/end navigation, with
+Shift extending selection; primary-command modifiers use the same source policy.
+This closes the concrete gap found during source-composition acceptance, without
+claiming every inherited AppKit text binding has been audited.
+
+The existing ordered movement event retains full modifiers. Document edges resolve
+directly to canonical 0/source byte length and reuse the same selection-anchor,
+caret publication and pending reveal path as ordinary movement. Geometry-dependent
+movement is separated into `movement_target`, retaining its bounded/deferred work;
+document-edge selection and Copy never wait for an unwrapped line's prefix layout.
+No worker, dependency, source mutation or second command dispatcher is added.
+Unshifted movement clears selection; repeated shifted movement retains its original
+anchor. Folded bytes remain part of copied canonical ranges and folds stay folded.
+Alt combinations, inactive source, modal controls and menus retain their ownership.
+
+Four regression matrices cover Ctrl/primary-command and repeat capture, Shift
+anchor reversal, CRLF/folded bytes, wrap on/off, 1×/1.5×/2×, large-source coalesced
+movement/copy, empty and trailing-newline documents, distant-row visibility and
+another keyboard owner. The distant-start assertion checks the actual painted
+caret, accounting for the viewport's normal two-point text inset. Fixture syntax
+is shared across repeated cases; small and large documents share the batch matrix.
+Architecture comparison is NEUTRAL: +192 NLOC/five functions, unchanged 109 clone
+groups, no new hotspot/cycle, health -0.01. Movement commit/resolution have CCN 5/11;
+input resolution has CCN 11. No lockfile or Cargo configuration changes.
+
+Workspace: 607 app tests pass, seven ignored; two binary, 13 font, 16 text and 39
+doctests pass. Strict Clippy/check/rustdoc, app build/fmt/diff and copied standalone
+resource verification pass. Native v1 old control at 1× retains the departure for
+both keys. Final 1×/2× each pass nine fresh byte-exact clipboard checks: document
+start/end, forward/backward full selection, extension to start, modal Escape return,
+light appearance, wrapped long-line end and repeated start. The fixture has 1,606
+lines, exact CRLF, a hidden function, an unterminated long Unicode final line and
+composed emoji. Actual source captures are inspected; fixture/binary hashes remain
+unchanged and every final process exits zero.
+
+Evidence: `~/.local/state/radiology-qa/document-keys-20261102-fc4908d`.
+Word/paragraph navigation, broader enabled/focus transitions, Unicode UI text and
+the full Swift feature/UI/corpus review remain open. Full accessibility and actual
+sibling integration remain deferred.

@@ -358,14 +358,14 @@ impl SourceViewport {
                     );
                     None
                 }
-                SourceInput::Move(key, shift) => {
+                SourceInput::Move(key, modifiers) => {
                     let Some(next) = self.move_key(
                         ui,
                         content,
                         &geometry.font,
                         geometry.width,
                         geometry.height,
-                        (key, shift),
+                        (key, modifiers),
                     ) else {
                         break;
                     };

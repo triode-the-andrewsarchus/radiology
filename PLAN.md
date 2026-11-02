@@ -4,11 +4,16 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source document-edge keys](plans/rust-keyboard-audit.md#source-document-edge-navigation--2026-11-02)
+now route Ctrl+Home/End and Shift extension through ordered source input, with exact
+canonical copy and native 1×/2× long-file/modal checks. Word/paragraph navigation
+and the broader command audit remain open.
+
 [Source emoji composition](plans/rust-source-emoji-shaping.md) now connects shared
 shaping/rasterization to the source renderer, preserving canonical bytes and scalar
 indices. Bounded caches, complete-character navigation and fragment boundaries,
 whole-glyph highlights and native 1×/2× copy/pointer/drag/fold/wrap/zoom checks pass.
-General Unicode/UI-label rendering and modified source navigation remain open.
+General Unicode/UI-label rendering and word/paragraph source navigation remain open.
 
 [Symbol Unicode matching](plans/rust-symbol-unicode.md) now shares canonical keys
 and complete-character comparisons across workspace ranking and document substring

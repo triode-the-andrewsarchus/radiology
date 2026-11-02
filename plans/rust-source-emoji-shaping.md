@@ -146,8 +146,9 @@ inside a compound. Left/right movement uses complete graphemes per visible span.
   exposed the pre-existing unsupported Ctrl+Home command, which the script had
   incorrectly assumed for line-start movement. V3 uses the supported Home and
   passes; v4 adds pointer/drag/fold/edge coverage. These failed attempts are kept
-  separately from accepted evidence. Ctrl+Home/End and modified source navigation
-  require the broader keyboard audit; they are not claimed fixed here.
+  separately from accepted evidence. The [document-edge increment](rust-keyboard-audit.md#source-document-edge-navigation--2026-11-02)
+  subsequently fixes Ctrl+Home/End; other modified source bindings remain in the
+  broader keyboard audit.
 
 Architecture against `before-source-emoji-paint`: NEUTRAL, +565 NLOC/20 functions/
 one module including tests, no new hotspots/cycles/clone groups, all 109 groups
@@ -157,8 +158,8 @@ Archive: `~/.local/state/radiology-qa/source-composition-20261102-1444bf2`.
 ## Remaining scope
 
 The confirmed source compound-emoji defect is integrated and accepted. General
-Unicode shaping/bidi, compound emoji in other UI labels/previews, modified source
-navigation and the broader Swift parity/corpus review remain open. The shaper is
+Unicode shaping/bidi, compound emoji in other UI labels/previews, source
+word/paragraph navigation and the broader Swift parity/corpus review remain open. The shaper is
 intentionally bounded to supported single-glyph clusters; unsupported text keeps
 the existing scalar fallback. Full accessibility and actual sibling adoption
 remain deferred. The existing broad requirement ledger stays authoritative.

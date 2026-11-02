@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-02 — Ordered source document-edge keys (Codex)
+
+Ctrl+Home/End (and primary-command equivalents) now move to canonical document
+edges, with Shift extension and stable anchors. Source movement retains complete
+modifiers; geometry resolution is separated from shared caret/selection/reveal
+commit, so document-edge copy never waits for long-line prefix measurement.
+Other keyboard owners and Alt combinations remain outside this source route.
+Four matrices cover repeats/modifiers, CRLF/folded selection and reversal,
+1×/1.5×/2× with wrap on/off, coalesced large/empty/trailing-newline copy, distant
+painted caret visibility and keyboard-owner exclusion. Workspace: 607 app tests
+passed, seven ignored; two binary, 13 font, 16 text, 39 doctests passed. Strict
+Clippy/check/rustdoc/build/fmt/diff and copied standalone resource checks pass.
+Native old control reproduces ignored keys; final 1×/2× each pass nine exact fresh
+clipboard checks over 1,606 CRLF lines and a long Unicode tail, including full
+forward/backward selection, modal return, light/wrap and repeated keys. Captures,
+original hashes and zero final process exits checked. Architecture NEUTRAL:
++192 NLOC/five functions, no new hotspot/cycle/clone group, 109 groups retained,
+health -0.01. No Cargo/dependency changes.
+[Contract/evidence](plans/rust-keyboard-audit.md#source-document-edge-navigation--2026-11-02).
+Archive: ~/.local/state/radiology-qa/document-keys-20261102-fc4908d.
+Word/paragraph source navigation, general Unicode/UI text and the broader Swift
+feature/UI/corpus review remain open; accessibility and sibling adoption deferred.
+
 ## 2026-11-02 — Source compound-emoji painting and canonical interaction (Codex)
 
 The app now consumes shared EmojiGalley composition: unchanged font assets,

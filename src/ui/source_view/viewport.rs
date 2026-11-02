@@ -1154,9 +1154,41 @@ impl SourceViewport {
         font: &FontId,
         width: f32,
         height: f32,
-        navigation: (Key, bool),
+        navigation: (Key, Modifiers),
     ) -> Option<SourceViewAction> {
-        let (key, shift) = navigation;
+        let (key, modifiers) = navigation;
+        let buffer = content.buffer;
+        let byte = buffer.byte_offset(*content.caret_line, *content.caret_col);
+        let target = match (key, modifiers.ctrl || modifiers.command) {
+            (Key::Home, true) => 0,
+            (Key::End, true) => buffer.byte_len(),
+            _ => self.movement_target(ui, content, font, width, height, key)?,
+        };
+        if modifiers.shift {
+            self.selection
+                .get_or_insert(ByteSelection {
+                    anchor: byte,
+                    focus: byte,
+                })
+                .focus = target;
+        } else {
+            self.selection = None;
+        }
+        *content.target = Some(buffer.line_at_byte(target));
+        Some(move_caret(content, target))
+    }
+
+    // Geometry-dependent navigation is separate from selection and canonical
+    // document edges, which must not wait for horizontal prefix measurement.
+    fn movement_target(
+        &mut self,
+        ui: &Ui,
+        content: &CanvasContent<'_>,
+        font: &FontId,
+        width: f32,
+        height: f32,
+        key: Key,
+    ) -> Option<usize> {
         let buffer = content.buffer;
         let byte = buffer.byte_offset(*content.caret_line, *content.caret_col);
         let target = if matches!(key, Key::ArrowUp | Key::ArrowDown) {
@@ -1201,18 +1233,7 @@ impl SourceViewport {
         } else {
             target
         };
-        if shift {
-            self.selection
-                .get_or_insert(ByteSelection {
-                    anchor: byte,
-                    focus: byte,
-                })
-                .focus = target;
-        } else {
-            self.selection = None;
-        }
-        *content.target = Some(buffer.line_at_byte(target));
-        Some(move_caret(content, target))
+        Some(target)
     }
 
     fn unwrapped_vertical_target(
@@ -1469,7 +1490,7 @@ enum SourceInput {
     Command(crate::ui::commands::ReaderCommand),
     Copy,
     SelectAll,
-    Move(Key, bool),
+    Move(Key, Modifiers),
     Pointer(PointerEvent),
     MenuKey(Key, Modifiers),
 }
@@ -1491,6 +1512,9 @@ fn source_input(event: &egui::Event) -> Option<SourceInput> {
         return None;
     };
     if modifiers.command || modifiers.ctrl {
+        if !modifiers.alt && matches!(key, Key::Home | Key::End) {
+            return Some(SourceInput::Move(*key, *modifiers));
+        }
         if modifiers.alt || modifiers.shift {
             return None;
         }
@@ -1510,7 +1534,7 @@ fn source_input(event: &egui::Event) -> Option<SourceInput> {
         Key::PageUp,
         Key::PageDown,
     ];
-    (!modifiers.alt && NAVIGATION.contains(key)).then_some(SourceInput::Move(*key, modifiers.shift))
+    (!modifiers.alt && NAVIGATION.contains(key)).then_some(SourceInput::Move(*key, *modifiers))
 }
 
 fn move_caret(content: &mut CanvasContent<'_>, byte: usize) -> SourceViewAction {
@@ -3555,6 +3579,183 @@ mod tests {
             pressed: true,
             repeat: false,
             modifiers,
+        }
+    }
+
+    #[test]
+    fn document_edge_keys_preserve_modifiers_and_reject_unowned_combinations() {
+        for primary in [
+            Modifiers::CTRL,
+            Modifiers {
+                command: true,
+                ..Default::default()
+            },
+        ] {
+            for shift in [false, true] {
+                let modifiers = Modifiers { shift, ..primary };
+                for keycode in [Key::Home, Key::End] {
+                    let mut event = key(keycode, modifiers);
+                    if let egui::Event::Key { repeat, .. } = &mut event {
+                        *repeat = true;
+                    }
+                    assert!(
+                        matches!(source_input(&event), Some(SourceInput::Move(found, captured)) if found == keycode && captured == modifiers)
+                    );
+                    let alternate = Modifiers {
+                        alt: true,
+                        ..modifiers
+                    };
+                    assert!(source_input(&key(keycode, alternate)).is_none());
+                }
+            }
+        }
+        assert!(source_input(&key(Key::Z, Modifiers::CTRL)).is_none());
+        assert!(source_input(&key(Key::C, Modifiers::CTRL | Modifiers::SHIFT)).is_none());
+    }
+
+    #[test]
+    fn document_edges_extend_exact_crlf_selection_and_keep_the_original_anchor() {
+        let text = "// café\r\nfn f() {\r\n    hidden();\r\n}\r\n// final 1️⃣";
+        let departure = text.find("fn f").unwrap() + 3;
+        let source = SourceBuffer::from_str("fixture.rs", text);
+        let ranges = crate::syntax::DocumentSyntax::analyze(&source).folds;
+        for scale in [1.0, 1.5, 2.0] {
+            for wrap in [false, true] {
+                for keycode in [Key::Home, Key::End] {
+                    let ctx = reader_context(scale);
+                    let mut reader = Reader::new(text);
+                    reader.wrap = wrap;
+                    reader.ranges = ranges.clone();
+                    reader.folds.collapse_all_functions(&reader.ranges);
+                    reader.line = reader.source.line_at_byte(departure);
+                    reader.column = reader.source.column_at_byte(departure);
+                    reader.frame(&ctx, Vec::new());
+                    let output = reader.frame(
+                        &ctx,
+                        vec![
+                            key(keycode, Modifiers::CTRL | Modifiers::SHIFT),
+                            egui::Event::Copy,
+                        ],
+                    );
+                    let destination = if keycode == Key::Home { 0 } else { text.len() };
+                    let range = departure.min(destination)..departure.max(destination);
+                    assert_eq!(output.platform_output.copied_text, &text[range]);
+                    assert_eq!(
+                        reader.viewport.selection,
+                        Some(ByteSelection {
+                            anchor: departure,
+                            focus: destination
+                        })
+                    );
+                    assert_eq!(
+                        reader.source.byte_offset(reader.line, reader.column),
+                        destination
+                    );
+                    // Reversing extends from the same anchor, including the
+                    // hidden function bytes without expanding the fold.
+                    let reverse = if keycode == Key::Home {
+                        Key::End
+                    } else {
+                        Key::Home
+                    };
+                    let output = reader.frame(
+                        &ctx,
+                        vec![
+                            key(reverse, Modifiers::CTRL | Modifiers::SHIFT),
+                            egui::Event::Copy,
+                        ],
+                    );
+                    assert_eq!(reader.viewport.selection.unwrap().anchor, departure);
+                    let destination = if reverse == Key::Home { 0 } else { text.len() };
+                    assert_eq!(
+                        output.platform_output.copied_text,
+                        &text[departure.min(destination)..departure.max(destination)]
+                    );
+                    assert!(!reader.folds.folded_ranges.is_empty());
+                    let output =
+                        reader.frame(&ctx, vec![key(keycode, Modifiers::CTRL), egui::Event::Copy]);
+                    assert!(reader.viewport.selection.is_none());
+                    assert!(output.platform_output.copied_text.is_empty());
+                    assert_eq!(reader.source.text, text);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn document_edge_batches_copy_large_sources_without_waiting_for_prefix_layout() {
+        let large = format!("// first\r\n{}1️⃣ end", "é".repeat(FRAGMENT_BYTES * 128));
+        for text in [large.as_str(), "", "\r\n", "a\n"] {
+            for wrap in [false, true] {
+                let ctx = reader_context(1.0);
+                let mut reader = Reader::new(text);
+                reader.wrap = wrap;
+                reader.frame(&ctx, Vec::new());
+                let output = reader.frame(
+                    &ctx,
+                    vec![
+                        key(Key::End, Modifiers::CTRL),
+                        key(Key::Home, Modifiers::CTRL | Modifiers::SHIFT),
+                        egui::Event::Copy,
+                    ],
+                );
+                assert_eq!(output.platform_output.copied_text, text);
+                assert_eq!((reader.line, reader.column), (1, 0));
+                assert!(reader.viewport.pending_input.is_empty());
+                let output = reader.frame(
+                    &ctx,
+                    vec![
+                        key(Key::Home, Modifiers::CTRL),
+                        key(Key::End, Modifiers::CTRL | Modifiers::SHIFT),
+                        egui::Event::Copy,
+                    ],
+                );
+                assert_eq!(output.platform_output.copied_text, text);
+                assert_eq!(
+                    reader.source.byte_offset(reader.line, reader.column),
+                    text.len()
+                );
+                assert!(reader.viewport.pending_input.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn document_edges_reveal_distant_rows_and_respect_another_keyboard_owner() {
+        let text = format!(
+            "// BEGIN café\r\n{}// last 1️⃣",
+            "// row café\r\n".repeat(1600)
+        );
+        for wrap in [false, true] {
+            let ctx = reader_context(2.0);
+            let mut reader = Reader::new(&text);
+            reader.wrap = wrap;
+            reader.frame(&ctx, Vec::new());
+            reader.frame(&ctx, vec![key(Key::End, Modifiers::CTRL)]);
+            assert_eq!(
+                reader.source.byte_offset(reader.line, reader.column),
+                text.len()
+            );
+            assert!(reader.viewport.scroll_y > 0.0);
+            let output = reader.frame(&ctx, vec![key(Key::Home, Modifiers::CTRL)]);
+            assert_eq!((reader.line, reader.column), (1, 0));
+            let (origin, galley) = text_shape(&output, "// BEGIN café");
+            let caret = galley
+                .pos_from_ccursor(egui::text::CCursor::new(0))
+                .translate(origin.to_vec2());
+            assert!(caret.top() >= 0.0 && caret.bottom() <= 360.0);
+            let other = Id::new("document_edge_other_owner");
+            ctx.memory_mut(|memory| memory.request_focus(other));
+            let output = reader.frame(
+                &ctx,
+                vec![
+                    key(Key::End, Modifiers::CTRL | Modifiers::SHIFT),
+                    egui::Event::Copy,
+                ],
+            );
+            assert_eq!((reader.line, reader.column), (1, 0));
+            assert!(reader.viewport.selection.is_none());
+            assert!(output.platform_output.copied_text.is_empty());
         }
     }
 

@@ -24,11 +24,16 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Source document-edge keys](rust-keyboard-audit.md#source-document-edge-navigation--2026-11-02):
+  Ctrl+Home/End and Shift extension now preserve canonical bytes, ordering and
+  anchors, with bounded reveal and native 1×/2× long-file/modal evidence. Other
+  inherited source bindings and broader ownership acceptance remain in the audit.
+
 - [Source emoji composition](rust-source-emoji-shaping.md): shared CPU shaping and
   optional egui projection/painting now compose source keycaps/families/tones/flags.
   Canonical bytes, scalar indices, complete-character navigation, whole-glyph
   highlights and bounded caches pass component/native 1×/2× checks. Broader
-  Unicode/UI-label shaping and modified source navigation remain in the audit.
+  Unicode/UI-label shaping and word/paragraph source navigation remain in the audit.
 
 - [Symbol picker integration](rust-symbol-picker.md): cancellable background
   ranking, 200 workspace results, kind/definition metadata, bounded rows, empty

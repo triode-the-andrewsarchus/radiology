@@ -67,6 +67,10 @@ The primary workflows are:
 
 ### Keyboard shortcuts
 
+In the Rust app, **Ctrl+Home / Ctrl+End** move to the start/end of the source
+document. Add **Shift** to extend selection from its original anchor. Copy retains
+the original bytes, including CRLF and folded code.
+
 | Shortcut | Action |
 | --- | --- |
 | ⌘O | Open repository/folder |
