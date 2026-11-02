@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-02 — Contextual Reload/Refresh menu and pending-work guards (Codex)
+
+Swift command audit found checkout Reload absent from the repository menu and
+refresh able to replace pending work. Added contextual Reload Repository/Refresh
+PR to the existing repository menu; both menus and Ctrl+R now use ReaderCommand::
+Refresh. Existing RefreshPR spelling remains a compatible alias. Shared readiness
+reuses can_choose_review and owned pending_pr rather than new state or processes.
+Existing asynchronous RestoreCurrent/review transactions are unchanged.
+RED regression proves refresh formerly enabled without a repository. Two new
+regressions cover readiness/alias and actual app menu clicks at 1×/2×: newly added
+file discovery, retained source/caret, contextual review label, disabled row and
+Escape/Ctrl+R retaining the exact live non-cancelled review worker, eventual failure
+and retained accepted snapshot. Initial line-zero fixture expectation corrected to
+the existing one-based contract. Existing focused_source_frame replaces duplicate
+setup. Workspace: 628 app tests pass, seven ignored; two binary, 13 font, 19 text
+and 40 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff and copied standalone
+resources/rendered command docs pass. No new native compositor acceptance.
+Architecture: +103 NLOC/two test functions, unchanged max/average CCN, no new
+hotspot/cycle, health -0.00, all 109 normalized clone groups unchanged. Initial
+redundant command policy threshold and test duplicate removed by reuse. Default
+REGRESSION now only flags Toolbar::show CCN 22→23 for necessary contextual label;
+no helper added just to relocate the branch. [Contract/evidence](plans/rust-contextual-refresh.md).
+Archive: ~/.local/state/radiology-qa/context-refresh-20261102-0999e59.
+Broader owner/command transitions, toolbar long-label layout, language/indexer
+corpora and final Swift feature/UI audit remain open. Accessibility/adoption remain
+deferred under the user's scope.
+
 ## 2026-11-02 — Ignored Git compilation databases (Codex)
 
 Checkout inventory now supplements tracked/unignored paths with ignored files

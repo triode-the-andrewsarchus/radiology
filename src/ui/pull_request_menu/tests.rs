@@ -92,7 +92,7 @@ fn menu_routes_recent_fallback_checkout_number_and_independent_refresh_commands(
         ("#9  Review 9 · Closed", ReaderCommand::OpenPullRequest(9)),
         ("Local Checkout", ReaderCommand::ExitPRReview),
         ("Open Pull Request… (Ctrl+P)", ReaderCommand::OpenPRDialog),
-        ("Refresh PR (Ctrl+R)", ReaderCommand::RefreshPR),
+        ("Refresh PR (Ctrl+R)", ReaderCommand::Refresh),
         ("Refresh List", ReaderCommand::RefreshPRList),
     ] {
         assert_eq!(click(&menu, label), Some(command));

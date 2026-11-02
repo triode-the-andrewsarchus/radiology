@@ -108,6 +108,15 @@ impl Toolbar {
                             ToolbarAction::OpenRepositoryDialog,
                         ),
                         Item::action("Copy Repository Path", ToolbarAction::CopyRepoPath),
+                        Item::action(
+                            if review_menu.active.is_some() {
+                                "Refresh PR (Ctrl+R)"
+                            } else {
+                                "Reload Repository (Ctrl+R)"
+                            },
+                            ToolbarAction::Refresh,
+                        )
+                        .enabled(command_enabled(&ToolbarAction::Refresh)),
                         Item::separator(),
                         Item::submenu(
                             "Open Recent",

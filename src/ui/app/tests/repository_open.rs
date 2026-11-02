@@ -212,3 +212,25 @@ fn failed_and_superseded_drops_keep_the_accepted_repository_and_source() {
     assert_eq!(app.repository_root.as_deref(), Some(dir.path()));
     assert!(app.repository_error.is_none());
 }
+
+#[test]
+fn refresh_availability_blocks_replacement_of_pending_repository_or_review_work() {
+    let (_settings, empty) = reader();
+    assert!(!empty.command_enabled(&ToolbarAction::Refresh));
+    assert!(!empty.command_enabled(&ToolbarAction::RefreshPR));
+    let (_dir, mut app) = opened_repository();
+    let ctx = Context::default();
+    assert!(app.command_enabled(&ToolbarAction::Refresh));
+    app.execute_command(&ctx, ToolbarAction::Refresh);
+    assert!(app.is_repository_opening());
+    assert!(!app.command_enabled(&ToolbarAction::Refresh));
+    app.cancel_repository_open();
+    app.pending_pr = Some(7);
+    assert!(!app.command_enabled(&ToolbarAction::Refresh));
+    assert!(!app.command_enabled(&ToolbarAction::RefreshPR));
+    app.execute_command(&ctx, ToolbarAction::RefreshPR);
+    assert_eq!(app.pending_pr, Some(7));
+    assert!(!app.is_repository_opening());
+    app.pending_pr = None;
+    assert!(app.command_enabled(&ToolbarAction::Refresh));
+}

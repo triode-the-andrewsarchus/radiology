@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Contextual refresh](plans/rust-contextual-refresh.md) now exposes checkout Reload
+in the repository menu, switches to Refresh PR during review, and prevents repeated
+menu/keyboard refresh from replacing pending repository/review work. Actual app
+frames cover discovery/restoration and worker retention at 1×/2×.
+
 [Ignored Git compilation databases](plans/rust-ignored-compilation-databases.md)
 now participate in checkout project discovery, isolated generation and cache
 freshness without copying unrelated ignored artifacts. Non-Git/generated dependency

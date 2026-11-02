@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Contextual refresh](rust-contextual-refresh.md): the repository menu now exposes
+  Reload/Refresh PR through the same contextual command as Ctrl+R. Existing host
+  spelling remains compatible; readiness prevents replacing pending work. Actual
+  app menu/caret/worker-retention checks pass at 1×/2×.
+
 - [Ignored Git compilation databases](rust-ignored-compilation-databases.md): checkout
   inspection includes ignored databases at root/nested build paths, preserving private
   generation and cache freshness. Other ignored generated inputs and non-Git build

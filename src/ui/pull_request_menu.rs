@@ -95,7 +95,7 @@ impl PullRequestMenu<'_> {
         items.extend([
             Item::action("Open Pull Request… (Ctrl+P)", ReaderCommand::OpenPRDialog)
                 .enabled(self.enabled),
-            Item::action("Refresh PR (Ctrl+R)", ReaderCommand::RefreshPR)
+            Item::action("Refresh PR (Ctrl+R)", ReaderCommand::Refresh)
                 .enabled(self.enabled && self.active.is_some() && self.pending.is_none()),
             Item::action("Refresh List", ReaderCommand::RefreshPRList)
                 .enabled(self.enabled && !loading),

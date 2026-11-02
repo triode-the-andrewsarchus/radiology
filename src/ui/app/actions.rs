@@ -6,6 +6,7 @@ impl RadiologyApp {
     pub(super) fn command_enabled(&self, command: &ToolbarAction) -> bool {
         use ToolbarAction::*;
         match command {
+            Refresh | RefreshPR => self.can_choose_review() && self.pending_pr.is_none(),
             OpenQuickFilePicker | OpenGoToSymbol | OpenSearch => {
                 self.repository_interaction_ready()
             }
@@ -137,7 +138,7 @@ impl RadiologyApp {
                     self.open_repository(&root);
                 }
             }
-            RefreshPR => self.refresh(),
+            Refresh | RefreshPR => self.refresh(),
             ToggleSourceFilesOnly => {
                 self.session.source_filters.source_files_only =
                     !self.session.source_filters.source_files_only;

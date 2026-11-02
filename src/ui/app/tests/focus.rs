@@ -28,6 +28,78 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn repository_menu_refresh_is_contextual_and_pending_review_cannot_restart() {
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    for scale in [1.0, 2.0] {
+        let (_owner, root, review) = crate::pull_request::review::tests::fixture();
+        let (_settings, mut app) = reader();
+        app.open_repository(&root);
+        settle(&mut app);
+        app.jump_to_location("a file.rs", 1, 4);
+        settle(&mut app);
+        let before = app.open_buffer.clone().unwrap();
+        std::fs::write(root.join("new.rs"), "fn new_file() {}\n").unwrap();
+        let (ctx, output) = focused_source_frame(&mut app, scale);
+        let title = app.repository_name.clone().unwrap();
+        frame(&mut app, &ctx, click(text_center(&output, &title)));
+        let output = frame(&mut app, &ctx, vec![]);
+        frame(
+            &mut app,
+            &ctx,
+            click(text_center(&output, "Reload Repository (Ctrl+R)")),
+        );
+        assert!(app.is_repository_opening());
+        settle(&mut app);
+        assert!(app.all_files.iter().any(|file| file.path == "new.rs"));
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, before.text);
+        assert_eq!((app.caret_line, app.caret_col), (1, 4));
+        app.accept_review(review);
+        settle(&mut app);
+        let accepted = app.review.clone().unwrap();
+        let (release, gate) = std::sync::mpsc::channel();
+        let (finished, outcome) = std::sync::mpsc::channel();
+        app.review_job.spawn(move |cancel| {
+            let _ = gate.recv_timeout(std::time::Duration::from_secs(5));
+            let _ = finished.send(cancel.load(std::sync::atomic::Ordering::Relaxed));
+            Err("controlled refresh failure".into())
+        });
+        app.pending_pr = Some(accepted.summary.number);
+        let output = frame(&mut app, &ctx, vec![]);
+        frame(&mut app, &ctx, click(text_center(&output, &title)));
+        let output = frame(&mut app, &ctx, vec![]);
+        assert!(
+            !text_shapes(&output).any(|text| text.galley.job.text == "Reload Repository (Ctrl+R)")
+        );
+        frame(
+            &mut app,
+            &ctx,
+            click(text_center(&output, "Refresh PR (Ctrl+R)")),
+        );
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::Escape, Modifiers::NONE),
+                key(Key::R, Modifiers::CTRL),
+            ],
+        );
+        assert!(app.review_job.is_running());
+        assert_eq!(app.pending_pr, Some(accepted.summary.number));
+        release.send(()).unwrap();
+        assert!(!outcome
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap());
+        settle(&mut app);
+        assert!(Arc::ptr_eq(app.review.as_ref().unwrap(), &accepted));
+        assert!(app
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("controlled refresh failure"));
+    }
+}
+
+#[test]
 fn modal_background_clicks_scroll_and_closing_input_preserve_the_reader() {
     let text: String = (1..=300)
         .map(|line| format!("// line {line} café\r\n"))

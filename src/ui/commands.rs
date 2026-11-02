@@ -69,7 +69,9 @@ pub enum ReaderCommand {
     ReloadIndexImport,
     /// Cancels an import while retaining any published semantic data.
     CancelIndexImport,
-    /// Refreshes the currently reviewed pull request from GitHub.
+    /// Reloads the checkout or refreshes the accepted pull request from GitHub.
+    Refresh,
+    /// Compatibility spelling of [`Self::Refresh`] for existing reader hosts.
     RefreshPR,
     /// Exits the active pull request review session and clears diff overlays.
     ExitPRReview,
@@ -216,7 +218,7 @@ pub(super) fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<R
         (true, false, false, Key::L) => Some(OpenGoToLine),
         (true, false, false, Key::T) => Some(OpenGoToSymbol),
         (true, false, false, Key::P) => Some(OpenPRDialog),
-        (true, false, false, Key::R) => Some(RefreshPR),
+        (true, false, false, Key::R) => Some(Refresh),
         (true, true, false, Key::R) if !typing => Some(FindReferences),
         (true, true, false, Key::J) if !typing => Some(GoToDefinition),
         (true, false, true, Key::I) => Some(GenerateIndex),
@@ -545,7 +547,7 @@ mod tests {
         );
         assert_eq!(
             dispatch(Key::R, Modifiers::CTRL, false),
-            vec![ReaderCommand::RefreshPR]
+            vec![ReaderCommand::Refresh]
         );
         assert!(shortcut(Key::R, modifiers, true).is_none());
         assert!(dispatch(Key::R, modifiers, true).is_empty());
