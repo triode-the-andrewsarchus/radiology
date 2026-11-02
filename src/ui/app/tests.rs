@@ -1657,6 +1657,59 @@ fn metadata_jobs_preserve_token_disclosure_and_retire_replaced_indexes() {
 }
 
 #[test]
+fn source_multi_click_selection_copies_and_keeps_occurrence_pin_policy() {
+    use crate::ui::test_support::{click, text_shapes};
+    use eframe::App;
+    let text = "fn alpha() { let café_name = 1; café_name; }\r\n";
+    for scale in [1.0, 2.0] {
+        let (_dir, mut app) = reader_with_source(text);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        let output = rendered_frame(&mut app, &ctx);
+        let shape = text_shapes(&output)
+            .find(|shape| shape.galley.job.text == text.trim_end())
+            .unwrap();
+        let point = shape.pos
+            + shape
+                .galley
+                .pos_from_ccursor(egui::text::CCursor::new(20))
+                .center()
+                .to_vec2();
+        for (count, pins, now) in [
+            (1, 0, 1.1),
+            (2, 1, 1.2),
+            (3, 1, 1.3),
+            (1, 1, 2.0),
+            (2, 0, 2.1),
+        ] {
+            let mut input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1100.0, 800.0),
+                )),
+                time: Some(now),
+                events: click(point),
+                ..Default::default()
+            };
+            input.events.push(egui::Event::Copy);
+            app.raw_input_hook(&ctx, &mut input);
+            let output = ctx.run(input, |ctx| app.render(ctx));
+            assert_eq!(app.pin_store.groups.len(), pins);
+            match count {
+                2 => {
+                    assert_eq!(output.platform_output.copied_text, "café_name");
+                    if pins > 0 {
+                        assert_eq!(app.pin_store.groups[0].label, "café_name");
+                    }
+                }
+                3 => assert_eq!(output.platform_output.copied_text, text),
+                _ => {}
+            }
+        }
+    }
+}
+
+#[test]
 fn pinning_after_pointer_caret_movement_refreshes_metadata_and_current_history() {
     let (_dir, mut app) = reader_with_reference_index();
     app.jump_to_location("b.rs", 1, 4);

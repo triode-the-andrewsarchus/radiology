@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source multi-click selection](plans/rust-source-click-selection.md) now combines
+word/paragraph selection and whole-unit dragging with occurrence pinning. Pin
+controls live in the measured footer so they do not move text under the pointer.
+Core/app/native 1×/2× checks preserve Unicode and original CRLF copy.
+
 [Modal IME ownership](plans/rust-picker-preframe-focus.md#modal-ime-event-ownership)
 now routes composition start/update/commit through the shared modal boundary.
 Direct-host and actual-app Japanese file queries preserve background text and

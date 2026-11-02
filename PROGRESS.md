@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-02 — Source word/paragraph selection with stable pin controls (Codex)
+
+Restored Swift's native multi-click selection behavior: double-click words,
+triple-click projected paragraphs, and whole-unit drag selection in both directions.
+Pin callbacks retain their original clicked byte and double-drag semantics; third
+clicks leave pins unchanged. Exact canonical copying includes CRLF and folded source.
+Public WordRangeCursor shares existing bounded word traversal/classification; the
+existing source event queue delays Copy without exposing partial ranges. Owner,
+projection and layout changes retire progress through shared cancellation.
+Actual-app regression exposed pin-row insertion moving source away from the third
+click. Existing controls now live in the measured footer, preserving typography,
+actions and pointer position. No dependency/worker/router or sibling edits.
+RED viewport empty-copy and actual-app third-click word-only failures retained.
+Workspace: 638 app tests pass (seven ignored/zero filtered), two binary, 13 font,
+21 text and 42 doctests. Strict Clippy/check/build/rustdoc/fmt/diff, rendered public
+API docs and copied standalone resource checks pass. Native old/current 1×/2× text
+fixtures prove selection and seven exact fresh copies per scale; Rust pin fixtures
+exercise pin/unpin and footer Clear Pins. Initial 1× OCR joined ClearPins; corrected
+harness preserves the failed attempt. Final hashes unchanged and child exits zero.
+Architecture +530 NLOC/17 functions/one UI module, avg/max unchanged, no cycles,
+health -0.01. Removed initial production clones and pointer hotspot. Remaining
+REGRESSION is necessary WordCursor::visit CCN 15→16 and one six-line long-word
+regression setup clone (109→110); normalized audit finds no new production clones.
+[Contract/evidence](plans/rust-source-click-selection.md). Archive:
+~/.local/state/radiology-qa/click-selection-20261102-0d6e39a.
+Broader Swift UI/input/language/indexer corpus and native IME-engine acceptance
+remain open. Full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — IME composition follows modal ownership (Codex)
 
 Extended existing keyboard_event classification to CompositionStart/Update/End.

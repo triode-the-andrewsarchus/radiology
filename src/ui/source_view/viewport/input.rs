@@ -62,6 +62,8 @@ impl SourceViewport {
     pub(crate) fn cancel_deferred_input(&mut self) {
         self.pending_input.clear();
         self.word_navigation = None;
+        self.word_selection = None;
+        self.selection_gesture = None;
         self.pointer = PointerCapture::default();
         self.dragging = false;
         self.occurrence_clicks = None;
@@ -374,10 +376,26 @@ impl SourceViewport {
                     Some(next)
                 }
                 SourceInput::Pointer(pointer) => {
-                    let Some(byte) = self.pointer_byte(ui, content, geometry, pointer) else {
+                    let (unit, clicks) = self.pointer_unit(pointer);
+                    let Some(byte) = self.pointer_byte(ui, content, geometry, pointer, unit) else {
                         break;
                     };
-                    let next = self.apply_pointer(ui, content, pointer, byte);
+                    let Some(origin) = self.pointer_selection_range(content.buffer, byte, unit)
+                    else {
+                        break;
+                    };
+                    let next = self.apply_pointer(
+                        ui,
+                        content,
+                        pointer,
+                        byte,
+                        SelectionGesture {
+                            unit,
+                            origin,
+                            clicked: byte,
+                            clicks,
+                        },
+                    );
                     if pointer.fragment.is_some()
                         && !matches!(next, Some(SourceViewAction::NavigateToDefinition(_)))
                     {
@@ -410,6 +428,7 @@ impl SourceViewport {
         content: &CanvasContent<'_>,
         geometry: &CanvasGeometry,
         pointer: PointerEvent,
+        unit: SelectionUnit,
     ) -> Option<usize> {
         let row = pointer.fragment.unwrap_or_else(|| {
             if content.wrap {
@@ -425,20 +444,49 @@ impl SourceViewport {
         }
         let part = &self.fragments[self.visible[row]];
         let galley = layout(ui, content, part, &geometry.font, geometry.width);
-        Some(hit_byte(
-            &galley,
-            pointer.local
-                - vec2(
-                    if pointer.fragment.is_some() {
-                        0.0
-                    } else {
-                        self.fragment_x(row, content.wrap)
+        let position = pointer.local
+            - vec2(
+                if pointer.fragment.is_some() {
+                    0.0
+                } else {
+                    self.fragment_x(row, content.wrap)
+                },
+                0.0,
+            );
+        let byte = hit_byte(&galley, position, part, &content.buffer.text);
+        let cursor = galley.cursor_from_pos(position);
+        Some(
+            if unit == SelectionUnit::Word
+                && position.x < galley.pos_from_cursor(&cursor).center().x
+            {
+                part.adjacent_grapheme(&content.buffer.text, byte, false)
+            } else {
+                byte
+            },
+        )
+    }
+
+    fn pointer_unit(&self, pointer: PointerEvent) -> (SelectionUnit, u8) {
+        match pointer.kind {
+            PointerKind::Press if pointer.modifiers == Modifiers::NONE => {
+                let count = self.next_click_count(pointer.screen, pointer.time);
+                (
+                    match count {
+                        1 => SelectionUnit::Character,
+                        2 => SelectionUnit::Word,
+                        _ => SelectionUnit::Line,
                     },
-                    0.0,
-                ),
-            part,
-            &content.buffer.text,
-        ))
+                    count,
+                )
+            }
+            PointerKind::Press | PointerKind::Context => (SelectionUnit::Character, 0),
+            _ => self
+                .selection_gesture
+                .as_ref()
+                .map_or((SelectionUnit::Character, 0), |gesture| {
+                    (gesture.unit, gesture.clicks)
+                }),
+        }
     }
 
     fn apply_pointer(
@@ -447,7 +495,9 @@ impl SourceViewport {
         content: &mut CanvasContent<'_>,
         pointer: PointerEvent,
         byte: usize,
+        gesture: SelectionGesture,
     ) -> Option<SourceViewAction> {
+        let mut caret = byte;
         match pointer.kind {
             PointerKind::Press => {
                 let modifiers = pointer.modifiers;
@@ -460,27 +510,31 @@ impl SourceViewport {
                     }
                 }
                 self.begin_selection(content, byte, modifiers.shift, false);
+                let range = gesture.origin.clone();
+                self.occurrence_clicks = (modifiers == Modifiers::NONE).then_some((
+                    pointer.screen,
+                    pointer.time,
+                    gesture.clicks,
+                ));
+                self.selection_gesture = Some(gesture);
+                caret = self.extend_pointer_selection(range)?;
                 self.dragging = true;
             }
             PointerKind::Drag if self.dragging => {
-                self.selection.as_mut()?.focus = byte;
+                caret = self.extend_pointer_selection(gesture.origin)?;
             }
             PointerKind::Release { click } if self.dragging => {
-                self.selection.as_mut()?.focus = byte;
-                self.dragging = false;
-                let selected = self
-                    .selection
-                    .is_some_and(|selection| !selection.range().is_empty());
-                if click && !selected && pointer.modifiers == Modifiers::NONE {
-                    return self
-                        .occurrence_click(pointer.screen, pointer.time, byte)
-                        .or_else(|| Some(move_caret(content, byte)));
-                }
-                self.occurrence_clicks = None;
+                return self.finish_pointer_selection(
+                    content,
+                    gesture.origin,
+                    click,
+                    pointer.modifiers,
+                );
             }
             PointerKind::Context => {
                 self.begin_selection(content, byte, pointer.modifiers.shift, true);
                 self.dragging = false;
+                self.selection_gesture = None;
                 self.pointer.menu_waiting = false;
                 self.context_byte = Some(byte);
                 self.menu_request = Some(pointer.screen);
@@ -488,7 +542,7 @@ impl SourceViewport {
             _ => return None,
         }
         ui.ctx().request_repaint();
-        Some(move_caret(content, byte))
+        Some(move_caret(content, caret))
     }
 
     fn begin_selection(

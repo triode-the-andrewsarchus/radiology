@@ -11,6 +11,7 @@ pub(super) fn show(
     egui::TopBottomPanel::bottom(ui.id().with("source_footer"))
         .frame(egui::Frame::none().inner_margin(egui::Margin::symmetric(8.0, 2.0)))
         .show_inside(ui, |ui| {
+            action = show_pin_groups(ui, theme, content.pin_store);
             ui.horizontal_wrapped(|ui| {
                 let language = crate::syntax::language::LanguageRegistry::for_path(&content.buffer.path);
                 ui.colored_label(theme.text_secondary, language.display_name);

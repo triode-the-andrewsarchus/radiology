@@ -24,7 +24,9 @@ use std::{
 };
 
 mod input;
+mod selection;
 use input::{PointerCapture, PointerEvent};
+use selection::{SelectionGesture, SelectionUnit};
 
 const FRAGMENT_BYTES: usize = 4096;
 const TEXT_INSET: f32 = 12.0;
@@ -49,6 +51,8 @@ pub struct SourceViewport {
     scrollbars: Vec<Rect>,
     pending_input: VecDeque<SourceInput>,
     word_navigation: Option<((usize, bool), reader_text::WordCursor)>,
+    word_selection: Option<(usize, reader_text::WordRangeCursor)>,
+    selection_gesture: Option<SelectionGesture>,
     pointer: PointerCapture,
     menu_request: Option<egui::Pos2>,
     context_byte: Option<usize>,
@@ -293,11 +297,7 @@ impl SourceViewport {
             self.folded.clone_from(&content.fold_store.folded_ranges);
             self.rows = RowHeights::default();
             self.layout_key = None;
-            self.pending_input.clear();
-            self.word_navigation = None;
-            self.pointer = PointerCapture::default();
-            self.dragging = false;
-            self.menu_request = None;
+            self.cancel_deferred_input();
             self.context_byte = None;
             self.pending_reveal = None;
             self.measurement_priority = None;
@@ -927,26 +927,13 @@ impl SourceViewport {
         }
     }
 
-    fn occurrence_click(
-        &mut self,
-        point: egui::Pos2,
-        now: f64,
-        byte: usize,
-    ) -> Option<SourceViewAction> {
-        // egui 0.27's global double-click count checks time only. Keep the
-        // source gesture local and use its same six-point / 300 ms tolerances.
-        let count = self
-            .occurrence_clicks
+    fn next_click_count(&self, point: egui::Pos2, now: f64) -> u8 {
+        // Keep source gestures local: egui 0.27's global count checks time only.
+        self.occurrence_clicks
             .filter(|(previous, time, _)| {
                 previous.distance(point) <= 6.0 && now >= *time && now - time < 0.3
             })
-            .map_or(1, |(_, _, count)| count.saturating_add(1));
-        self.occurrence_clicks = Some((point, now, count));
-        match count {
-            1 => Some(SourceViewAction::SelectOccurrences(byte)),
-            2 => Some(SourceViewAction::PinAtByte(byte)),
-            _ => None,
-        }
+            .map_or(1, |(_, _, count)| count.saturating_add(1))
     }
 
     fn row_for_byte(&self, byte: usize) -> Option<(usize, &SourceFragment)> {
@@ -1019,11 +1006,7 @@ impl SourceViewport {
             }))
         };
         self.measurement_priority = None;
-        self.pending_input.clear();
-        self.word_navigation = None;
-        self.pointer = PointerCapture::default();
-        self.dragging = false;
-        self.menu_request = None;
+        self.cancel_deferred_input();
         if self.layout_key.is_some() && self.pending_reveal.is_none() {
             self.pending_reveal = Some((
                 content
@@ -3294,6 +3277,158 @@ mod tests {
     }
 
     #[test]
+    fn repeated_source_clicks_select_words_and_logical_lines_for_exact_copy() {
+        let source = "prefix café_name suffix\r\nnext_line\r\n";
+        for scale in [1.0, 2.0] {
+            for wrap in [false, true] {
+                let ctx = reader_context(scale);
+                let mut reader = Reader::new(source);
+                reader.wrap = wrap;
+                reader.now = Some(0.0);
+                let output = reader.frame(&ctx, vec![]);
+                let (origin, galley) = text_shape(&output, "prefix café_name suffix");
+                let left = galley.pos_from_ccursor(egui::text::CCursor::new(15));
+                let right = galley.pos_from_ccursor(egui::text::CCursor::new(16));
+                let point = origin
+                    + vec2(
+                        left.left() + 0.8 * (right.left() - left.left()),
+                        left.center().y,
+                    );
+                reader.frame(&ctx, pointer(point, true));
+                reader.frame(&ctx, pointer(point, false));
+                reader.now = Some(0.1);
+                reader.frame(&ctx, pointer(point, true));
+                reader.frame(&ctx, pointer(point, false));
+                assert!(matches!(
+                    reader.last_action,
+                    Some(SourceViewAction::PinAtByte(_))
+                ));
+                assert_eq!(
+                    reader
+                        .frame(&ctx, vec![egui::Event::Copy])
+                        .platform_output
+                        .copied_text,
+                    "café_name"
+                );
+                reader.now = Some(0.2);
+                reader.frame(&ctx, pointer(point, true));
+                reader.frame(&ctx, pointer(point, false));
+                assert!(!matches!(
+                    reader.last_action,
+                    Some(SourceViewAction::PinAtByte(_))
+                ));
+                assert_eq!(
+                    reader
+                        .frame(&ctx, vec![egui::Event::Copy])
+                        .platform_output
+                        .copied_text,
+                    "prefix café_name suffix\r\n"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn word_and_line_drags_extend_by_whole_units_in_both_directions() {
+        let source = "first café_name third\r\nsecond_line tail\r\n";
+        for (clicks, reverse, expected) in [
+            (2, false, "café_name third"),
+            (2, true, "first café_name"),
+            (3, false, source),
+            (3, true, source),
+        ] {
+            let ctx = reader_context(1.0);
+            let mut reader = Reader::new(source);
+            let output = reader.frame(&ctx, vec![]);
+            let (first, first_galley) = text_shape(&output, "first café_name third");
+            let (second, second_galley) = text_shape(&output, "second_line tail");
+            let in_word = first
+                + first_galley
+                    .pos_from_ccursor(egui::text::CCursor::new(8))
+                    .center()
+                    .to_vec2();
+            let in_second = second
+                + second_galley
+                    .pos_from_ccursor(egui::text::CCursor::new(4))
+                    .center()
+                    .to_vec2();
+            let (origin, target) = if clicks == 3 {
+                if reverse {
+                    (in_second, in_word)
+                } else {
+                    (in_word, in_second)
+                }
+            } else {
+                (
+                    in_word,
+                    first
+                        + first_galley
+                            .pos_from_ccursor(egui::text::CCursor::new(if reverse {
+                                2
+                            } else {
+                                18
+                            }))
+                            .center()
+                            .to_vec2(),
+                )
+            };
+            for click in 0..clicks - 1 {
+                reader.now = Some(f64::from(click) * 0.1);
+                reader.frame(&ctx, pointer(origin, true));
+                reader.frame(&ctx, pointer(origin, false));
+            }
+            reader.now = Some(f64::from(clicks - 1) * 0.1);
+            reader.frame(&ctx, pointer(origin, true));
+            reader.frame(&ctx, vec![egui::Event::PointerMoved(target)]);
+            reader.frame(&ctx, pointer(target, false));
+            assert_eq!(
+                matches!(reader.last_action, Some(SourceViewAction::PinAtByte(_))),
+                clicks == 2
+            );
+            let selection = reader.viewport.selection.unwrap();
+            assert_eq!(selection.focus < selection.anchor, reverse);
+            assert_eq!(
+                reader
+                    .frame(&ctx, vec![egui::Event::Copy])
+                    .platform_output
+                    .copied_text,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn triple_click_copies_the_full_folded_paragraph_including_hidden_source() {
+        for wrap in [false, true] {
+            let ctx = reader_context(1.0);
+            let source = "fn café() {\r\n secret();\r\n} // 😀 tail\r\nnext();";
+            let mut reader = Reader::new(source);
+            reader.wrap = wrap;
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            let output = reader.frame(&ctx, vec![]);
+            let (origin, galley) = text_shape(&output, "fn café() {} // 😀 tail");
+            let point = origin
+                + galley
+                    .pos_from_ccursor(egui::text::CCursor::new(4))
+                    .center()
+                    .to_vec2();
+            for click in 0..3 {
+                reader.now = Some(f64::from(click) * 0.1);
+                reader.frame(&ctx, pointer(point, true));
+                reader.frame(&ctx, pointer(point, false));
+            }
+            assert_eq!(
+                reader
+                    .frame(&ctx, vec![egui::Event::Copy])
+                    .platform_output
+                    .copied_text,
+                &source[..source.find("next();").unwrap()]
+            );
+        }
+    }
+
+    #[test]
     fn ordinary_click_selects_occurrences_but_drag_selection_does_not() {
         let ctx = egui::Context::default();
         let mut reader = Reader::new("café 😀 value value\n");
@@ -4134,6 +4269,56 @@ mod tests {
         assert!(reader.viewport.pending_input.is_empty());
         assert!(output.platform_output.copied_text.is_empty());
         assert_eq!(reader.column, 0);
+    }
+
+    #[test]
+    fn deferred_word_selection_orders_copy_and_retires_with_the_input_owner() {
+        let text = format!("{} tail", "é".repeat(FRAGMENT_BYTES * 512));
+        let ctx = reader_context(1.0);
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        reader.now = Some(0.0);
+        let output = reader.frame(&ctx, Vec::new());
+        let (origin, galley) = text_shape(&output, &text[..FRAGMENT_BYTES]);
+        let point = origin
+            + galley
+                .pos_from_ccursor(egui::text::CCursor::new(2))
+                .center()
+                .to_vec2();
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        reader.now = Some(0.1);
+        let mut request = pointer(point, true);
+        request.extend(pointer(point, false));
+        request.push(egui::Event::Copy);
+        let output = reader.frame(&ctx, request);
+        assert!(reader.viewport.word_selection.is_some());
+        assert!(output.platform_output.copied_text.is_empty());
+        assert!(reader.viewport.selection.unwrap().range().is_empty());
+        let mut copied = None;
+        for _ in 0..2048 {
+            let output = reader.frame(&ctx, Vec::new());
+            if !output.platform_output.copied_text.is_empty() {
+                copied = Some(output.platform_output.copied_text);
+                break;
+            }
+        }
+        assert_eq!(copied.as_deref(), Some(&text[..text.len() - 5]));
+        assert!(reader.viewport.word_selection.is_none());
+        assert!(reader.viewport.pending_input.is_empty());
+
+        reader.now = Some(1.0);
+        reader.frame(&ctx, pointer(point, true));
+        reader.frame(&ctx, pointer(point, false));
+        reader.now = Some(1.1);
+        reader.frame(&ctx, pointer(point, true));
+        assert!(reader.viewport.word_selection.is_some());
+        ctx.memory_mut(|memory| memory.request_focus(Id::new("selection_other_owner")));
+        let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+        assert!(reader.viewport.word_selection.is_none());
+        assert!(reader.viewport.selection_gesture.is_none());
+        assert!(reader.viewport.pending_input.is_empty());
+        assert!(output.platform_output.copied_text.is_empty());
     }
 
     fn pointer(point: egui::Pos2, pressed: bool) -> Vec<egui::Event> {

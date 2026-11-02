@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Source multi-click selection](rust-source-click-selection.md): word/paragraph
+  selection, whole-unit dragging and cooperative exact copying coexist with pin
+  toggles. Moving existing pin controls into the measured footer keeps the source
+  stationary through a triple click. Core/app/native 1×/2× checks pass.
+
 - [Modal IME ownership](rust-picker-preframe-focus.md#modal-ime-event-ownership):
   composition events join the existing keyboard boundary, preventing background
   field edits and lost Unicode file queries. Same-frame/split/cancel/commit-only

@@ -192,7 +192,6 @@ impl SourceView {
             .or(action.take());
 
             ui.separator();
-            action = show_pin_groups(ui, theme, pin_store).or(action.take());
 
             let changed_lines = line_changes
                 .map(|diff| diff.changed_lines(buffer.revision.unwrap_or(ReviewRevision::After)))

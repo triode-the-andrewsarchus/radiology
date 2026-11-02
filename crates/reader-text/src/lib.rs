@@ -17,7 +17,7 @@ pub use rows::RowHeights;
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 pub use unwrapped::UnwrappedRows;
-pub use words::WordCursor;
+pub use words::{WordCursor, WordRangeCursor};
 
 /// One bounded display fragment of a canonical source line.
 #[derive(Debug, Clone, PartialEq, Eq)]
