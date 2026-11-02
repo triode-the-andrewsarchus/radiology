@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-02 — Code Paths format and private storage foundation (Codex)
+
+Added egui-independent CodePath/CodePathStep records and typed import/store errors.
+The current Swift title + escaped file:function:description format preserves order,
+repeated titles/destinations, stable saved UUIDs, literal description colons/backslashes,
+Unicode/BOM and LF/CRLF/CR. Import is atomic with physical-line diagnostics and an
+exact2MiB UTF-8 input cap. Export uses the authored format without saved coordinates.
+Private version1 archives key canonical attached checkouts, retain IDs/order, filter
+invalid/repeated identities as Swift does and reject corrupt/foreign/unsupported
+storage before any replacement. Missing loads create nothing; settings inside source
+and linked archives are rejected. Borrowed serialization avoids cloning trace data.
+Stores expose synchronous APIs for future worker scheduling/serialized mutations;
+there is no app/sidebar integration claim yet.
+
+Nine new tests include the upstream91-step seL4 import/export round trip, exact size
+boundary, atomic/physical-line errors, scope aliases/isolation, invalid IDs, corrupt
+non-overwrite and source containment. The91 destinations are not resolved yet.
+Shared storage::atomic_write removes duplicated13-line sync/persist sequences from
+this store and Critical Lens overrides; override ordering and domain validation stay
+with their stores. No new dependency, worker pool or parser was added.
+Final workspace:684 app tests pass, seven existing ignored; two binary/13 font/21
+text and52 doctests pass. Strict gates and rendered public API inspection pass.
+Initial Clippy test-only clone-to-slice warning corrected using a borrowed slice.
+Architecture NEUTRAL: +450 NLOC/23 functions/six files; avg/max CCN3.38/132,
+33 high-complexity functions,126 clone groups and one cycle unchanged.
+[Contract and remaining feature matrix](plans/rust-code-paths.md).
+Evidence: ~/.local/state/radiology-qa/code-paths-data-20261102-d0da261.
+Next: declaration/conditional/assembly resolution, then guarded app navigation and
+left-sidebar import/list UI. C++ currently reuses the C grammar and needs fidelity
+verification against the Swift symbol fixtures. Full parity remains active.
+
 ## 2026-11-02 — Compact trait inspector, stable context and verified navigation (Codex)
 
 Connected exact trait context and the precomputed catalog to the existing middle

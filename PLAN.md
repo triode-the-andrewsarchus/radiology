@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Code Paths foundation](plans/rust-code-paths.md) now imports/exports the current
+escaped title/file:function:description format and persists stable ordered records
+outside source, with corruption protection and canonical checkout scopes. The91-step
+upstream trace round-trips. Resolution, guarded app navigation and left-sidebar UI
+remain required next; this is not a completed Code Paths feature.
+
 [Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
 trait/member/impl context to compact source-sorted rows, stable selection, ordinary
 keys and fresh source-verified activation with exact Back. Pane preferences share the

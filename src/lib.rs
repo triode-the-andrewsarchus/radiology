@@ -32,6 +32,7 @@
 
 mod background;
 pub mod bookmarks;
+pub mod code_paths;
 pub mod critical;
 mod desktop;
 pub mod process;
@@ -41,6 +42,7 @@ pub mod search;
 pub mod semantic;
 pub mod session;
 pub mod source;
+mod storage;
 pub mod syntax;
 pub mod theme;
 pub mod ui;

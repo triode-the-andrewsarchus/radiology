@@ -5,7 +5,6 @@ use crate::semantic::indexing::workspace::destination_path;
 use crate::semantic::loader::read_bytes_limited;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -179,18 +178,7 @@ impl OverrideStore {
         if bytes.len() as u64 > MAX_BYTES {
             return Err("Critical marks exceed the 4 MiB limit".into());
         }
-        let parent = path.parent().expect("settings file parent");
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        let mut temporary =
-            tempfile::NamedTempFile::new_in(parent).map_err(|error| error.to_string())?;
-        temporary
-            .write_all(&bytes)
-            .map_err(|error| error.to_string())?;
-        temporary
-            .as_file()
-            .sync_all()
-            .map_err(|error| error.to_string())?;
-        temporary.persist(path).map_err(|error| error.to_string())?;
+        crate::storage::atomic_write(&path, &bytes).map_err(|error| error.to_string())?;
         Ok(true)
     }
 }
