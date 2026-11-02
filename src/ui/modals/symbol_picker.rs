@@ -151,6 +151,7 @@ impl std::fmt::Debug for GoToSymbolModal {
 
 impl GoToSymbolModal {
     /// Renders the picker using shared immutable semantic or document inputs.
+    /// Hosts capture raw input before the frame through [`super::ModalInput`].
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -363,7 +364,7 @@ mod tests {
         syntax::outline::SymbolKind,
         ui::{
             commands::test_key,
-            test_support::{painted_frame, text_center, text_shapes},
+            test_support::{text_center, text_shapes},
         },
     };
     use egui::Event;
@@ -406,11 +407,13 @@ mod tests {
         symbols: &Arc<[DocumentSymbol]>,
         events: Vec<Event>,
     ) -> (egui::FullOutput, Option<ModalAction>) {
-        let mut action = None;
-        let output = painted_frame(ctx, egui::vec2(850.0, 650.0), events, |ui| {
-            action = modal.show(ui.ctx(), &AppTheme::dark(), index, symbols);
-        });
-        (output, action)
+        crate::ui::test_support::hosted_modal_frame(
+            ctx,
+            egui::Id::new(modal.owner).with("input"),
+            egui::vec2(850.0, 650.0),
+            events,
+            |ctx| modal.show(ctx, &AppTheme::dark(), index, symbols),
+        )
     }
 
     fn settled(
@@ -436,7 +439,7 @@ mod tests {
         let empty = symbols(0);
         let mut modal = GoToSymbolModal::default();
         let (output, _) = settled(&ctx, &mut modal, Some(&index), &empty);
-        let position = text_center(&output, "symbol0000");
+        assert!(text_shapes(&output).any(|text| text.galley.job.text == "symbol0000"));
         let expected = ModalAction::JumpToIndexedSymbol(index.search_entries[0].id.clone());
         assert_eq!(
             frame(
@@ -449,6 +452,9 @@ mod tests {
             .1,
             Some(expected.clone())
         );
+        // Closing retires the old lifetime; measure the reopened dialog before clicking.
+        let (output, _) = settled(&ctx, &mut modal, Some(&index), &empty);
+        let position = text_center(&output, "symbol0000");
         assert_eq!(
             frame(
                 &ctx,

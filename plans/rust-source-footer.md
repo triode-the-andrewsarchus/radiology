@@ -19,6 +19,10 @@ The viewport scrollbar/autoscroll regression now derives the outside pointer fro
 its actual canvas edge, replacing the old hard-coded y=345. This preserves the
 behavior being tested after the viewport starts filling its available area.
 
+The four picker failures recorded below describe the footer checkpoint. They are
+now resolved through [shared modal input](rust-picker-preframe-focus.md), restoring
+a full unfiltered green workspace suite.
+
 ## Evidence and limits
 
 - RED: the corrected actual-app regression cannot find Line 2 with the old footer

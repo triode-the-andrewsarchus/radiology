@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-02 — Shared modal pre-frame input and restored picker suite (Codex)
+
+Extracted the app's capture/measurement/replay/Tab/closing cleanup into public
+ui::modals::ModalInput. RadiologyApp delegates to it while retaining backdrop and
+focus-return policy. Direct dialog hosts get the same boundary: capture_input
+before Context::run, show around dialog rendering, one owner per lifetime. Existing
+show APIs remain available; public docs/example explain the host obligation.
+No dependency, worker, second router or sibling changes.
+Authoritative RED reproduces all four inherited picker failures. Both direct picker
+test hosts now use the actual shared boundary before native focus processing, with
+unchanged navigation/query expectations. All 16 pass. The existing keyboard/pointer
+symbol test now measures a reopened lifetime and clicks its current row after the
+first action closes. New raw-host matrix proves opening text/Return/suffix retirement,
+Tab primary/Cancel, Shift+Tab Cancel, empty background editing and owner reset.
+Full workspace: 631 app tests pass, seven ignored, ZERO filtered; two binary,
+13 font, 19 text and 41 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff,
+rendered public API docs and copied standalone resources pass. Native v1 1×/2×
+passes all four dialogs, blocked Sidebar/scroll, pointer Cancel, retained selection,
+light/reopen/fresh controls and seven exact fresh copies per scale. Representative
+captures inspected; fixture/binary hashes unchanged and app/compositor exits zero.
+Final native binary matches copied standalone. No new direct-host native window
+harness is claimed; that boundary is exercised through real Context::run frames.
+Architecture: +129 NLOC/five functions including test support/regression, one shared
+UI file, unchanged max/average CCN, no new hotspot/cycle, health +0.00. Default
+REGRESSION flags three old shifted file-picker test clones; normalized audit matches
+all 109 groups unchanged. Input logic was moved from the app rather than duplicated.
+[Resolved contract and evidence](plans/rust-picker-preframe-focus.md).
+Archive: ~/.local/state/radiology-qa/modal-input-20261102-e3cfeed.
+Broader host/owner/Unicode and final Swift feature/UI/corpus acceptance remain open.
+Full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Measured source footer; inherited picker failures isolated (Codex)
 
 Moved existing source metadata/status/control rendering into a wrapping bottom

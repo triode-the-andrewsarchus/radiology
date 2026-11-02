@@ -24,16 +24,20 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Shared modal input](rust-picker-preframe-focus.md): standalone and direct dialog
+  hosts share pre-frame capture, measurement deferral, Tab ordering and closing
+  cleanup. The four inherited picker failures pass through the actual host contract;
+  the full suite is green again, and the public API/example prepares embedded reuse.
+
 - [Measured source footer](rust-source-footer.md): wrapping metadata owns its
   bottom-panel height; the viewport fills the remainder and Go to Line stays usable.
-  Resize/diagnostic and native old/new 1×/2× evidence passes. Four inherited picker
-  tests are reproduced on the parent tree and remain a required keyboard/focus
-  follow-up; see [investigation](rust-picker-preframe-focus.md).
+  Resize/diagnostic and native old/new 1×/2× evidence passes. The four inherited picker
+  failures found then are resolved by the [shared host input boundary](rust-picker-preframe-focus.md).
 
 - [Bounded toolbar identity](rust-toolbar-identity.md): repository/branch labels now
   reuse measured elision with canonical menu/Copy targets and retained owner color.
   App width/scale/appearance/review matrices and native old/new 1×/2× checks pass;
-  narrow source-footer label overlap remains a concrete follow-up.
+  the exposed narrow-footer overlap is resolved by the measured footer.
 
 - [Contextual refresh](rust-contextual-refresh.md): the repository menu now exposes
   Reload/Refresh PR through the same contextual command as Ctrl+R. Existing host

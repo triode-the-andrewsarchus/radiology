@@ -4,17 +4,21 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Shared modal input](plans/rust-picker-preframe-focus.md) now exposes the app's
+pre-frame capture/replay boundary to direct dialog hosts. Both app and picker
+regressions use it; all four inherited picker failures are resolved, and the full
+workspace suite passes again without exclusions. The standalone app remains
+independent while this additive API prepares safe host reuse.
+
 [Measured source footer](plans/rust-source-footer.md) now wraps metadata in its own
 bottom panel, keeping Go to Line usable in narrow panes. Native old/new 1×/2× and
-resize/diagnostic checks pass. **Four inherited picker tests remain failing** on
-both current and unmodified parent trees; [pre-frame focus investigation](plans/rust-picker-preframe-focus.md)
-records the reproduction, debugger evidence and immediate follow-up. The full
-suite must not be described as green until those failures are resolved.
+resize/diagnostic checks pass. The four inherited picker failures discovered then
+are resolved by the [shared pre-frame input boundary](plans/rust-picker-preframe-focus.md).
 
 [Bounded toolbar identity](plans/rust-toolbar-identity.md) now middle-elides long
 repository/branch names while retaining all controls and canonical commands.
 Actual app checkout/review matrices and native old/new 1×/2× dark/light checks
-pass. Captures identify narrow source-footer overlap as the next UI follow-up.
+pass. The exposed narrow-footer overlap is resolved by the measured footer above.
 
 [Contextual refresh](plans/rust-contextual-refresh.md) now exposes checkout Reload
 in the repository menu, switches to Refresh PR during review, and prevents repeated

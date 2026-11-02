@@ -77,6 +77,7 @@ impl std::fmt::Debug for QuickFilePickerModal {
 impl QuickFilePickerModal {
     /// Renders the picker over a shared immutable repository inventory.
     /// Ranking runs on the existing bounded read pool, never on the UI thread.
+    /// Hosts capture raw input before the frame through [`super::ModalInput`].
     pub fn show(
         &mut self,
         ctx: &Context,
@@ -302,21 +303,13 @@ mod tests {
         files: &Arc<[RepositoryFile]>,
         events: Vec<Event>,
     ) -> (egui::FullOutput, Option<ModalAction>) {
-        let mut action = None;
-        let output = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(850.0, 650.0),
-                )),
-                events,
-                ..Default::default()
-            },
-            |ctx| {
-                action = picker.show(ctx, &AppTheme::dark(), files);
-            },
-        );
-        (output, action)
+        crate::ui::test_support::hosted_modal_frame(
+            ctx,
+            egui::Id::new(picker.owner).with("input"),
+            egui::vec2(850.0, 650.0),
+            events,
+            |ctx| picker.show(ctx, &AppTheme::dark(), files),
+        )
     }
 
     fn settled(

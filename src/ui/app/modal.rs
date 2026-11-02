@@ -1,13 +1,12 @@
 //! Modal action dispatch and the input ownership of a disappearing sheet.
 
 use super::*;
-use crate::ui::commands::keyboard_event;
+use crate::ui::modals::ModalInput;
 
 #[derive(Default)]
 pub(super) struct ModalFocus {
     previous: Option<egui::Id>,
-    input: Vec<egui::Event>,
-    registered: bool,
+    input: ModalInput,
     surface_ready: bool,
 }
 
@@ -15,7 +14,7 @@ impl ModalFocus {
     fn prepare_surface(&mut self, ctx: &Context) -> Option<egui::Id> {
         let backdrop = modal_backdrop(ctx, true);
         // Raise a reused dialog alone once, then raise the pair together.
-        if !self.registered || self.surface_ready {
+        if !self.input.is_registered() || self.surface_ready {
             ctx.move_to_top(backdrop.layer_id);
         } else {
             self.surface_ready = true;
@@ -40,25 +39,7 @@ impl RadiologyApp {
             previous: ctx.memory(|memory| memory.focused()),
             ..Default::default()
         });
-        if !focus.registered {
-            // Its first measurement pass cannot own a pointer gesture yet.
-            input.events.retain(|event| {
-                !matches!(
-                    event,
-                    egui::Event::PointerMoved(_)
-                        | egui::Event::MouseMoved(_)
-                        | egui::Event::PointerButton { .. }
-                        | egui::Event::Scroll(_)
-                        | egui::Event::Zoom(_)
-                        | egui::Event::Touch { .. }
-                        | egui::Event::MouseWheel { .. }
-                )
-            });
-        }
-        focus.input.extend(crate::ui::commands::take_input_actions(
-            &mut input.events,
-            |event| keyboard_event(event).then(|| event.clone()),
-        ));
+        focus.input.capture_input(input);
     }
 
     /// Returns whether a sheet owned this frame, including its closing input.
@@ -74,39 +55,7 @@ impl RadiologyApp {
         });
         let outside_focus = focus.prepare_surface(ctx);
         let previous = focus.previous;
-        if focus.registered {
-            // Tab traversal happens after the modal has rendered its controls.
-            // Keep later editing/submission behind that focus transition.
-            let end = focus
-                .input
-                .iter()
-                .position(|event| {
-                    matches!(
-                        event,
-                        egui::Event::Key {
-                            key: egui::Key::Tab,
-                            pressed: true,
-                            ..
-                        }
-                    )
-                })
-                .map_or(focus.input.len(), |index| index + 1);
-            ctx.input_mut(|input| input.events.extend(focus.input.drain(..end)));
-            if !focus.input.is_empty() {
-                ctx.request_repaint();
-            }
-        } else {
-            // The first window pass can be invisible while egui measures it.
-            ctx.stop_dragging();
-            focus.input.extend(ctx.input_mut(|input| {
-                crate::ui::commands::take_input_actions(&mut input.events, |event| {
-                    keyboard_event(event).then(|| event.clone())
-                })
-            }));
-            focus.registered = true;
-            ctx.request_repaint();
-        }
-        let action = match &mut self.modal {
+        let action = focus.input.show(ctx, |ctx| match &mut self.modal {
             ActiveModal::None => unreachable!(),
             ActiveModal::QuickFilePicker(modal) => modal.show(ctx, &self.theme, &self.all_files),
             ActiveModal::GoToLine(modal) => modal.show(
@@ -125,8 +74,7 @@ impl RadiologyApp {
                 &self.outline_symbols,
             ),
             ActiveModal::PullRequest(modal) => modal.show(ctx, &self.theme),
-        };
-        ctx.input_mut(|input| input.events.retain(|event| !keyboard_event(event)));
+        });
         let Some(action) = action else {
             if let Some(id) = outside_focus {
                 ctx.memory_mut(|memory| memory.request_focus(id));
@@ -134,15 +82,6 @@ impl RadiologyApp {
             return true;
         };
         modal_backdrop(ctx, false);
-        ctx.stop_dragging();
-        // The rest of a closing batch still belongs to the disappearing sheet.
-        // Background widgets must not claim its click, drag, wheel or focus.
-        ctx.input_mut(|input| {
-            input.events.clear();
-            input.pointer = Default::default();
-            input.raw_scroll_delta = egui::Vec2::ZERO;
-            input.smooth_scroll_delta = egui::Vec2::ZERO;
-        });
         let source_navigation = matches!(
             action,
             ModalAction::OpenFile(_)

@@ -1,4 +1,45 @@
-# Picker focus before frame processing — open investigation, 2026-11-02
+# Shared modal input before frame processing — 2026-11-02
+
+## Accepted host contract
+
+The four failures are resolved through a shared public `ui::modals::ModalInput`
+boundary. Hosts own one instance for the dialog lifetime, call `capture_input`
+before egui begins a frame, then render through `show`. The standalone app now
+uses this same implementation, extracted from its previous ModalFocus buffering.
+The class reuses keyboard classification/consumption, initial gesture retirement,
+first-measurement deferral, ordered replay through each Tab, and closing input/
+pointer/scroll cleanup. The app retains backdrop layering and focus-return policy.
+No dependency, worker, late focus repair or second event-routing implementation.
+
+Direct file/symbol host tests now use this public boundary before Context::run,
+rather than handing raw arrows to egui and capturing them only inside picker.show.
+Their original destination/query expectations remain unchanged. A test that reused
+a closed symbol dialog now measures the new lifetime and clicks its current row;
+opening gestures are intentionally retired just as in the standalone app.
+A shared test frame helper avoids duplicating host setup across both picker suites.
+The new raw-host regression checks opening text/Return and trailing-text retirement,
+Tab→primary, Tab→Cancel, Shift+Tab→Cancel, empty background editing, raw-key capture
+and closing-owner reset. The compiled public rustdoc example and rendered API docs
+cover the integration sequence. Existing picker show signatures remain unchanged.
+
+Verification: all 16 file/symbol tests and the new direct-host matrix pass. Full
+workspace now passes 631 app tests (seven ignored, zero filtered), two binary,
+13 font, 19 text and 41 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass;
+copied standalone resource verification passes. Native standalone 1×/2× results
+and final artifact identity are recorded in PROGRESS.md and the evidence archive.
+The original unsupported bare raw-host sequence below remains useful for diagnosis:
+rendering alone cannot retroactively cancel native focus navigation.
+
+Architecture baseline `before-shared-modal-input` at e3cfeed: 87,243 NLOC,
+3,670 functions, average CCN 3.34, max 132 and 109 clones. Final delta +129 NLOC/
+five functions including test support and regression, one shared UI file; maximum/
+average unchanged, no new hotspot/cycle, health +0.00. Default REGRESSION flags
+three old file-picker test clones at shifted lines; normalized file-pair/whitespace-
+stripped-fragment audit matches all 109 groups unchanged. The raw capture/replay/
+cleanup code is moved out of the app, which now delegates, rather than copied.
+
+Evidence: `~/.local/state/radiology-qa/modal-input-20261102-e3cfeed`.
+Broader host/owner/Unicode transitions and final Swift parity acceptance remain open.
 
 ## Reproduction
 
@@ -33,18 +74,18 @@ it in query rendering does not erase native navigation queued at begin_frame.
 
 A trial adding commands::retain_navigation_keys after TextEdit was tested and
 failed the same four cases; it was reverted. Do not repeat that alone as a fix.
-No picker correction is included in the footer commit.
+No picker correction is included in the footer commit; the shared boundary above
+was implemented afterward.
 
-## Next work
+## Boundary requirements motivating the implementation
 
-Audit and reuse the existing app raw_input_hook/modal capture boundary before
-introducing another input mechanism. The standalone app already captures modal
-input before egui processing; direct picker hosts/tests currently supply raw keys
-through Context::run and then capture inside show. Establish the correct reusable
-host contract and preserve opening-frame text, repeated arrows, asynchronous query
+The investigation required auditing and reusing the app raw_input_hook/modal
+capture boundary before introducing another mechanism. The standalone app already captures modal
+input before egui processing; the old direct picker hosts/tests supplied raw keys
+through Context::run and then captured inside show. The shared contract preserves opening-frame text, repeated arrows, asynchronous query
 publication, Tab/Shift+Tab, explicit primary/Cancel Return and Escape. Do not make
 the tests green by changing expected navigation or allowing unrelated button focus.
 
 Evidence is archived with source-footer-20261102-b5b8385: baseline/current test logs,
-DAP failure and GDB route/focus/transfer logs. This is a required keyboard/focus
-follow-up, separate from deferred full accessibility.
+DAP failure and GDB route/focus/transfer logs. The shared input boundary resolves
+this keyboard/focus follow-up; full accessibility retains its deferred scope.

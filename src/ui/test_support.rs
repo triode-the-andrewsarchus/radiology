@@ -229,3 +229,29 @@ pub(crate) fn assert_visible_text(output: &egui::FullOutput, label: &str) {
         "clipped {label}: {rect:?} by {clip:?}"
     );
 }
+
+/// Drives the same pre-frame modal boundary that an embedded reader host must use.
+pub(crate) fn hosted_modal_frame(
+    ctx: &egui::Context,
+    owner: egui::Id,
+    size: egui::Vec2,
+    events: Vec<egui::Event>,
+    mut render: impl FnMut(&egui::Context) -> Option<super::modals::ModalAction>,
+) -> (egui::FullOutput, Option<super::modals::ModalAction>) {
+    let mut modal_input = ctx
+        .data_mut(|data| data.remove_temp::<super::modals::ModalInput>(owner))
+        .unwrap_or_default();
+    let mut raw = egui::RawInput {
+        events,
+        ..Default::default()
+    };
+    modal_input.capture_input(&mut raw);
+    let mut action = None;
+    let output = painted_frame(ctx, size, raw.events, |ui| {
+        action = modal_input.show(ui.ctx(), &mut render);
+    });
+    if action.is_none() {
+        ctx.data_mut(|data| data.insert_temp(owner, modal_input));
+    }
+    (output, action)
+}

@@ -1,6 +1,7 @@
 //! Modal dialog overlays for fuzzy file navigation, line jumping, symbol outlines, and pull request review.
 //!
 //! Provides focused modal popups for keyboard-driven navigation workflows across large codebases.
+//! Hosts use [`ModalInput`] to capture input before egui begins its focus pass.
 
 use crate::semantic::index::SemanticSymbolID;
 use crate::theme::AppTheme;
@@ -22,6 +23,9 @@ pub enum ModalAction {
     /// Dismisses the modal dialog without performing an action.
     Close,
 }
+
+mod input;
+pub use input::ModalInput;
 
 mod file_picker;
 pub use file_picker::QuickFilePickerModal;
