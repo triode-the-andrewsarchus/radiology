@@ -346,6 +346,31 @@ pub(crate) fn retain_navigation_keys(ctx: &egui::Context, id: egui::Id) {
     });
 }
 
+/// Gives self-contained reader widgets stable IDs despite changing siblings.
+///
+/// In egui 0.27, `push_id` scopes persistent IDs but its automatic widget IDs
+/// still follow the parent's position. A fresh UI seeds both from the owner.
+/// Use for reader content outside popup menus.
+pub(crate) fn owned_ui<R>(
+    ui: &mut egui::Ui,
+    owner: impl std::hash::Hash,
+    render: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let mut child = egui::Ui::new(
+        ui.ctx().clone(),
+        ui.layer_id(),
+        ui.make_persistent_id(owner),
+        ui.available_rect_before_wrap(),
+        ui.clip_rect(),
+    );
+    child.set_style(ui.style().clone());
+    child.set_enabled(ui.is_enabled());
+    child.set_visible(ui.is_visible());
+    let result = child.with_layout(*ui.layout(), render).inner;
+    ui.allocate_rect(child.min_rect(), egui::Sense::hover());
+    result
+}
+
 pub(crate) fn row_activated(response: &egui::Response) -> bool {
     // A result can move after egui's hit test; validate the live rectangle.
     response.clicked()

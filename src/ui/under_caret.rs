@@ -10,36 +10,57 @@ pub(super) fn show(
     context: &UnderCaretContext,
     preview: &PreviewPhase,
     expanded: bool,
+    repeats_heading: bool,
 ) -> Option<InspectorAction> {
-    let mut action = None;
-    let name = super::text_fit::middle(
-        ui,
-        &context.name,
-        egui::TextStyle::Body.resolve(ui.style()),
-        theme.text_primary,
-        (ui.available_width() - 2.0 * ui.spacing().button_padding.x).max(0.0),
+    let destination = context.destination.as_ref().map(|target| {
+        (
+            &target.path,
+            [
+                target.range.start_line,
+                target.range.start_col,
+                target.range.end_line,
+                target.range.end_col,
+            ],
+        )
+    });
+    let owner = (
+        &context.id,
+        &context.location,
+        &context.content_digest,
+        destination,
     );
-    if ui.add(egui::Button::new(name).frame(false)).clicked() {
-        ui.memory_mut(|memory| memory.request_focus(ContextInspector::definition_focus_id()));
+    if !repeats_heading {
+        let name = super::text_fit::middle(
+            ui,
+            &context.name,
+            egui::TextStyle::Body.resolve(ui.style()),
+            theme.text_primary,
+            (ui.available_width() - 2.0 * ui.spacing().button_padding.x).max(0.0),
+        );
+        let response = super::commands::owned_ui(ui, ("definition_name", owner), |ui| {
+            ui.add(egui::Button::new(name).frame(false))
+        });
+        if super::commands::row_activated(&response) {
+            ui.memory_mut(|memory| memory.request_focus(ContextInspector::definition_focus_id()));
+        }
     }
-    if let Some(next) = show_location(ui, theme, context) {
-        action = Some(next);
-    }
-    if ui
-        .small_button(if expanded {
+    // A disappearing name must not lend its pressed identity to the location or details.
+    super::commands::owned_ui(ui, ("definition_content", owner), |ui| {
+        let mut action = show_location(ui, theme, context);
+        let response = ui.small_button(if expanded {
             "Hide details"
         } else {
             "Show details"
-        })
-        .clicked()
-    {
-        ui.memory_mut(|memory| memory.request_focus(ContextInspector::definition_focus_id()));
-        action = Some(InspectorAction::ExpandDefinition(!expanded));
-    }
-    if expanded {
-        show_details(ui, theme, context, preview);
-    }
-    action
+        });
+        if super::commands::row_activated(&response) {
+            ui.memory_mut(|memory| memory.request_focus(ContextInspector::definition_focus_id()));
+            action = Some(InspectorAction::ExpandDefinition(!expanded));
+        }
+        if expanded {
+            show_details(ui, theme, context, preview);
+        }
+        action
+    })
 }
 
 fn show_location(
@@ -84,14 +105,11 @@ fn show_location(
             theme.accent,
             ui.available_width(),
         );
-        if ui
-            .add(egui::Link::new(label))
-            .on_hover_text(format!(
-                "Go to {}:{line}. Back returns to the caret.",
-                super::text_fit::bounded(&destination.path)
-            ))
-            .clicked()
-        {
+        let response = ui.add(egui::Link::new(label)).on_hover_text(format!(
+            "Go to {}:{line}. Back returns to the caret.",
+            super::text_fit::bounded(&destination.path)
+        ));
+        if super::commands::row_activated(&response) {
             return Some(InspectorAction::JumpToIndexedLocation {
                 path: destination.path.clone(),
                 range: destination.range.clone(),
@@ -225,59 +243,61 @@ fn show_details(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        semantic::{
-            context::UnderCaretContext, ScipDocument, ScipIndex, ScipSymbolInformation,
-            SemanticIndex,
-        },
-        source::SourceBuffer,
-    };
-    use std::sync::atomic::AtomicBool;
+    use crate::ui::test_support::indexed_under_caret_context;
 
-    fn indexed_context() -> UnderCaretContext {
-        let buffer =
-            SourceBuffer::from_str("source.rs", "fn target() {}\nfn main() { target(); }\n");
-        let symbol = "test cargo app 1 target().";
-        let occurrences = [
-            buffer.text.find("target").unwrap(),
-            buffer.text.rfind("target").unwrap(),
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(index, byte)| {
-            crate::semantic::test_support::occurrence(&buffer, byte..byte + 6, symbol, index == 0)
-        })
-        .collect();
-        let index = SemanticIndex::from_scip(ScipIndex {
-            documents: vec![ScipDocument {
-                relative_path: buffer.path.clone(),
-                position_encoding: 2,
-                occurrences,
-                symbols: vec![ScipSymbolInformation {
-                    symbol: symbol.into(),
-                    kind: 17,
-                    signature: "fn target()".into(),
-                    documentation: vec!["Useful documentation.".into()],
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
-        UnderCaretContext::prepare(
-            &buffer,
-            &index,
-            buffer.text.rfind("target").unwrap(),
-            &AtomicBool::new(false),
-        )
-        .unwrap()
-        .unwrap()
+    #[test]
+    fn definition_controls_retire_presses_when_headings_or_destinations_change() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        let mut context = indexed_under_caret_context();
+        let ctx = egui::Context::default();
+        let frame = |context: &UnderCaretContext, repeated, events| {
+            let mut action = None;
+            let output = painted_frame(&ctx, egui::vec2(300.0, 300.0), events, |ui| {
+                action = show(
+                    ui,
+                    &AppTheme::dark(),
+                    context,
+                    &PreviewPhase::None,
+                    false,
+                    repeated,
+                );
+            });
+            (output, action)
+        };
+        frame(&context, false, vec![]);
+        let output = frame(&context, false, vec![]).0;
+        let position = text_center(&output, &context.name);
+        let mut press = click(position);
+        press.pop();
+        assert_eq!(frame(&context, false, press).1, None);
+        assert_eq!(
+            frame(&context, true, vec![click(position).pop().unwrap()]).1,
+            None
+        );
+        let output = frame(&context, false, vec![]).0;
+        let position = text_center(&output, "source.rs:1");
+        let mut press = click(position);
+        press.pop();
+        assert_eq!(frame(&context, false, press).1, None);
+        context.destination.as_mut().unwrap().path = "moved.rs".into();
+        let (output, action) = frame(&context, false, vec![click(position).pop().unwrap()]);
+        assert_eq!(
+            action, None,
+            "a refreshed destination must retire the old press"
+        );
+        assert_eq!(
+            frame(&context, false, click(text_center(&output, "moved.rs:1"))).1,
+            Some(InspectorAction::JumpToIndexedLocation {
+                path: "moved.rs".into(),
+                range: context.destination.as_ref().unwrap().range.clone()
+            })
+        );
     }
 
     #[test]
     fn compact_states_and_expanded_index_facts_are_distinct() {
-        let mut context = indexed_context();
-        let render = |context: &UnderCaretContext, expanded| {
+        let mut context = indexed_under_caret_context();
+        let render = |context: &UnderCaretContext, expanded, repeated| {
             crate::ui::test_support::painted_text(
                 &egui::Context::default(),
                 egui::vec2(400.0, 500.0),
@@ -288,29 +308,33 @@ mod tests {
                         context,
                         &PreviewPhase::None,
                         expanded,
+                        repeated,
                     );
                 },
             )
             .join("\n")
         };
-        let compact = render(&context, false);
+        let compact = render(&context, false, false);
         assert!(compact.contains("source.rs:1"));
         assert!(!compact.contains("Useful documentation"));
-        let expanded = render(&context, true);
+        let expanded = render(&context, true, false);
         assert!(expanded.contains("Function · 1 indexed reference"));
         assert!(expanded.contains("fn target()") && expanded.contains("Useful documentation"));
+        let repeated = render(&context, true, true);
+        assert!(!repeated.lines().any(|line| line == context.name));
+        assert!(repeated.contains("fn target()") && repeated.contains("Useful documentation"));
         context.is_on_definition = true;
         context.line = 1;
         context.destination = None;
-        assert!(render(&context, false).contains("source.rs:1 · Here"));
+        assert!(render(&context, false, false).contains("source.rs:1 · Here"));
         context.is_on_definition = false;
         context.definition_count = 0;
         context.external_package = Some("dependency 2.3".into());
-        assert!(render(&context, false).contains("dependency 2.3"));
+        assert!(render(&context, false, false).contains("dependency 2.3"));
     }
     #[test]
     fn long_indexed_details_keep_pane_width_and_full_navigation_target() {
-        let mut context = indexed_context();
+        let mut context = indexed_under_caret_context();
         context.name = format!("λ{}_TAIL", "🦀long-identifier".repeat(1000));
         context.enclosing_name = Some(context.name.clone());
         context.external_package = Some(context.name.clone());
@@ -335,7 +359,8 @@ mod tests {
                             events,
                             |ui| {
                                 ui.style_mut().interaction.selectable_labels = false;
-                                action = show(ui, &theme, &context, &PreviewPhase::None, true);
+                                action =
+                                    show(ui, &theme, &context, &PreviewPhase::None, true, false);
                             },
                         )
                     };

@@ -39,6 +39,10 @@ relocation metadata. [Caret-sensitive source command order](plans/rust-source-in
 now repairs the confirmed Ctrl+D/Right/Ctrl+D defect through shared pre-frame
 capture and the existing source queue, with deferred geometry and native 1×/2×
 bookmark/reference/definition acceptance. Broader mixed-owner input remains open.
+[Shared inspector headings](plans/rust-inspector-labels.md#shared-symbol-headings-and-stable-definition-controls--2026-11-01)
+now avoid repeating exact indexed identities while preserving distinct local/global
+symbols. Source-owned widget groups prevent a disappearing heading or refreshed
+destination from stealing a press. Keyboard/details and native 1×/2× checks pass.
 [Declaration empty states](plans/rust-inspector-labels.md#contextual-declaration-absence--2026-11-01)
 now distinguish no file, missing structure and a caret outside declarations, hiding
 unrelated reference diagnostics. Explicit pins survive until Follow Caret; signature

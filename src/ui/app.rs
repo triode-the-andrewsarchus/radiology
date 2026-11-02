@@ -743,6 +743,10 @@ impl RadiologyApp {
                         )
                     });
                     self.sync_outline();
+                    let reference_target = self
+                        .reference_context
+                        .explicit()
+                        .or(self.reference_context.target());
                     if let Some(action) = ContextInspector::show(
                         ui,
                         &self.theme,
@@ -757,15 +761,9 @@ impl RadiologyApp {
                             reference_results: &self.reference_context.results,
                             selected_reference: self.reference_context.selected,
                             reference_disclosures: &self.reference_context.disclosures,
-                            reference_target: self
-                                .reference_context
-                                .explicit()
-                                .or(self.reference_context.target())
-                                .map(|target| target.name.as_str()),
-                            reference_kind: self
-                                .reference_context
-                                .explicit()
-                                .or(self.reference_context.target())
+                            reference_target: reference_target.map(|target| target.name.as_str()),
+                            summary_identity: reference_target.map(|target| &target.id),
+                            reference_kind: reference_target
                                 .and_then(|target| {
                                     self.semantic_index
                                         .as_ref()

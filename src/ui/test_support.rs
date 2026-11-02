@@ -116,3 +116,51 @@ pub(crate) fn text_shapes(
         _ => None,
     })
 }
+
+/// Builds the shared, source-validated definition/reference inspector fixture.
+pub(crate) fn indexed_under_caret_context() -> crate::semantic::context::UnderCaretContext {
+    use crate::{
+        semantic::{
+            context::UnderCaretContext, ScipDocument, ScipIndex, ScipSymbolInformation,
+            SemanticIndex,
+        },
+        source::SourceBuffer,
+    };
+    use std::sync::atomic::AtomicBool;
+    let buffer = SourceBuffer::from_str("source.rs", "fn target() {}\nfn main() { target(); }\n");
+    let symbol = "test cargo app 1 target().";
+    let occurrences = [
+        buffer.text.find("target").unwrap(),
+        buffer.text.rfind("target").unwrap(),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, byte)| {
+        crate::semantic::test_support::occurrence(&buffer, byte..byte + 6, symbol, index == 0)
+    })
+    .collect();
+    let index = SemanticIndex::from_scip(ScipIndex {
+        documents: vec![ScipDocument {
+            relative_path: buffer.path.clone(),
+            position_encoding: 2,
+            occurrences,
+            symbols: vec![ScipSymbolInformation {
+                symbol: symbol.into(),
+                kind: 17,
+                signature: "fn target()".into(),
+                documentation: vec!["Useful documentation.".into()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    UnderCaretContext::prepare(
+        &buffer,
+        &index,
+        buffer.text.rfind("target").unwrap(),
+        &AtomicBool::new(false),
+    )
+    .unwrap()
+    .unwrap()
+}

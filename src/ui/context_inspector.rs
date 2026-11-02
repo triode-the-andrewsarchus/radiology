@@ -62,6 +62,11 @@ pub struct InspectorContent<'a> {
         &'a std::collections::BTreeMap<usize, crate::semantic::disclosure::ReferenceDisclosure>,
     /// Effective automatic or explicitly pinned reference name.
     pub reference_target: Option<&'a str>,
+    /// Exact identity shown in the enclosing-declaration or pinned summary above.
+    ///
+    /// Pass `None` when that summary has no indexed identity. Document-scoped
+    /// local IDs keep same-named symbols in different files distinct.
+    pub summary_identity: Option<&'a crate::semantic::index::SemanticSymbolID>,
     /// SCIP kind of [`Self::reference_target`]; `0` when metadata is absent.
     ///
     /// Resolve document-local symbols using their captured document, independently
@@ -263,6 +268,7 @@ impl ContextInspector {
                         context,
                         content.definition_preview,
                         content.definition_expanded,
+                        content.summary_identity == Some(&context.id),
                     );
                 } else if content.under_caret_loading {
                     ui.colored_label(theme.text_muted, "Loading symbol details…");
@@ -402,42 +408,46 @@ fn region(
 mod tests {
     use super::*;
 
-    fn empty_content<'a>(
-        bookmarks: &'a BookmarkStore,
-        results: &'a ReferenceResults,
-        disclosures: &'a std::collections::BTreeMap<
-            usize,
-            crate::semantic::disclosure::ReferenceDisclosure,
-        >,
-        preview: &'a crate::source::preview::PreviewPhase,
-    ) -> InspectorContent<'a> {
-        InspectorContent {
-            under_caret: None,
-            under_caret_loading: false,
-            under_caret_error: None,
-            definition_preview: preview,
-            definition_expanded: false,
-            declaration: None,
-            buffer: None,
-            reference_results: results,
-            selected_reference: None,
-            reference_disclosures: disclosures,
-            reference_target: None,
-            reference_kind: 0,
-            explicit_references: false,
-            references_loading: false,
-            reference_error: None,
-            references_available: false,
-            outline: &[],
-            outline_loading: false,
-            outline_error: None,
-            test_code: None,
-            bookmarks,
-            scope: Some("Checkout"),
-            bookmarks_enabled: false,
-            can_toggle_bookmark: false,
-            current_bookmarked: false,
-            outline_enabled: false,
+    #[derive(Default)]
+    struct InspectorFixture {
+        bookmarks: BookmarkStore,
+        results: ReferenceResults,
+        disclosures:
+            std::collections::BTreeMap<usize, crate::semantic::disclosure::ReferenceDisclosure>,
+        preview: crate::source::preview::PreviewPhase,
+    }
+
+    impl InspectorFixture {
+        fn content(&self) -> InspectorContent<'_> {
+            InspectorContent {
+                under_caret: None,
+                under_caret_loading: false,
+                under_caret_error: None,
+                definition_preview: &self.preview,
+                definition_expanded: false,
+                declaration: None,
+                buffer: None,
+                reference_results: &self.results,
+                selected_reference: None,
+                reference_disclosures: &self.disclosures,
+                reference_target: None,
+                summary_identity: None,
+                reference_kind: 0,
+                explicit_references: false,
+                references_loading: false,
+                reference_error: None,
+                references_available: false,
+                outline: &[],
+                outline_loading: false,
+                outline_error: None,
+                test_code: None,
+                bookmarks: &self.bookmarks,
+                scope: Some("Checkout"),
+                bookmarks_enabled: false,
+                can_toggle_bookmark: false,
+                current_bookmarked: false,
+                outline_enabled: false,
+            }
         }
     }
 
@@ -463,13 +473,95 @@ mod tests {
     }
 
     #[test]
+    fn definition_heading_reuse_requires_the_exact_global_or_local_identity() {
+        use crate::semantic::index::SemanticSymbolID;
+        use crate::ui::test_support::{
+            click, indexed_under_caret_context, painted_frame, text_center, text_shapes,
+            themed_context,
+        };
+        let base = indexed_under_caret_context();
+        let local_here = SemanticSymbolID::new("local 0", "source.rs");
+        let local_elsewhere = SemanticSymbolID::new("local 0", "other.rs");
+        let fixture = InspectorFixture::default();
+        for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
+            for (header, caret, repeated) in [
+                (None, base.id.clone(), false),
+                (Some(base.id.clone()), base.id.clone(), true),
+                (
+                    Some(SemanticSymbolID::new("other-global", "source.rs")),
+                    base.id.clone(),
+                    false,
+                ),
+                (Some(local_here.clone()), local_here.clone(), true),
+                (Some(local_here.clone()), local_elsewhere.clone(), false),
+            ] {
+                let (ctx, theme) = themed_context(dark, scale);
+                let mut context = base.clone();
+                context.id = caret;
+                let content = InspectorContent {
+                    under_caret: Some(&context),
+                    reference_target: Some(&context.name),
+                    summary_identity: header.as_ref(),
+                    ..fixture.content()
+                };
+                let mut outline = OutlineList::default();
+                let mut frame = |events| {
+                    let mut action = None;
+                    let output = painted_frame(&ctx, egui::vec2(240.0, 300.0), events, |ui| {
+                        action = ContextInspector::render_under_caret_context(
+                            ui,
+                            &theme,
+                            &content,
+                            &mut outline,
+                        );
+                    });
+                    (output, action)
+                };
+                frame(vec![]);
+                let (output, action) = frame(vec![]);
+                assert_eq!(action, None);
+                assert_eq!(
+                    text_shapes(&output).any(|text| text.galley.job.text == context.name),
+                    !repeated
+                );
+                assert!(ctx.used_rect().width() <= 241.0);
+                let (clicked, action) = frame(click(text_center(&output, "source.rs:1")));
+                assert_eq!(
+                    action,
+                    Some(InspectorAction::JumpToIndexedLocation {
+                        path: "source.rs".into(),
+                        range: context.destination.as_ref().unwrap().range.clone(),
+                    })
+                );
+                assert_eq!(
+                    frame(click(text_center(&clicked, "Show details"))).1,
+                    Some(InspectorAction::ExpandDefinition(true))
+                );
+                for (key, expected) in [
+                    (
+                        egui::Key::ArrowRight,
+                        InspectorAction::ExpandDefinition(true),
+                    ),
+                    (
+                        egui::Key::ArrowLeft,
+                        InspectorAction::ExpandDefinition(false),
+                    ),
+                    (egui::Key::Enter, InspectorAction::GoToDefinition),
+                ] {
+                    assert_eq!(
+                        ContextInspector::definition_key(&ctx, key, egui::Modifiers::NONE),
+                        Some(expected)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn declaration_absence_reasons_stay_bounded_without_a_reference_region() {
         let parsed = SourceBuffer::from_str("empty.rs", "// Parsed without declarations\n");
         let plain = SourceBuffer::from_str("notes.md", "Plain text\n");
-        let bookmarks = BookmarkStore::default();
-        let results = ReferenceResults::default();
-        let disclosures = Default::default();
-        let preview = crate::source::preview::PreviewPhase::None;
+        let fixture = InspectorFixture::default();
         for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
             for width in [180.0, 300.0] {
                 for (buffer, loading, error, title, detail) in [
@@ -528,7 +620,7 @@ mod tests {
                         buffer,
                         outline_loading: loading,
                         outline_error: error,
-                        ..empty_content(&bookmarks, &results, &disclosures, &preview)
+                        ..fixture.content()
                     };
                     let mut summary = DeclarationSummary::default();
                     let mut references = Default::default();
@@ -578,14 +670,11 @@ mod tests {
         let theme = AppTheme::dark();
         let buffer = SourceBuffer::from_str("a.rs", "fn alpha(argument: u8) {}\n");
         let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
-        let bookmarks = BookmarkStore::default();
-        let results = ReferenceResults::default();
-        let disclosures = Default::default();
-        let preview = crate::source::preview::PreviewPhase::None;
+        let fixture = InspectorFixture::default();
         let mut content = InspectorContent {
             buffer: Some(&buffer),
             declaration: Some(&symbols[0]),
-            ..empty_content(&bookmarks, &results, &disclosures, &preview)
+            ..fixture.content()
         };
         let mut summary = DeclarationSummary::default();
         let mut references = Default::default();
@@ -624,10 +713,7 @@ mod tests {
             "Structure unavailable: {}",
             "失敗😀 long diagnostic ".repeat(1000)
         );
-        let results = ReferenceResults::default();
-        let bookmarks = BookmarkStore::default();
-        let preview = crate::source::preview::PreviewPhase::None;
-        let disclosures = Default::default();
+        let fixture = InspectorFixture::default();
         for dark in [true, false] {
             for scale in [1.0, 2.0] {
                 for width in [200.0, 300.0] {
@@ -648,7 +734,7 @@ mod tests {
                         let content = InspectorContent {
                             outline_loading: loading,
                             outline_error: error,
-                            ..empty_content(&bookmarks, &results, &disclosures, &preview)
+                            ..fixture.content()
                         };
                         let mut outline = OutlineList::default();
                         let mut render = || {
@@ -710,6 +796,10 @@ mod tests {
                 symbol.selection_range.start,
                 &name,
             ));
+        let fixture = InspectorFixture {
+            bookmarks,
+            ..Default::default()
+        };
         for dark in [true, false] {
             for scale in [1.0, 2.0] {
                 for width in [220.0, 300.0, 420.0] {
@@ -753,12 +843,7 @@ mod tests {
                                                 bookmarks_enabled: true,
                                                 can_toggle_bookmark: true,
                                                 outline_enabled: true,
-                                                ..empty_content(
-                                                    &bookmarks,
-                                                    &ReferenceResults::default(),
-                                                    &Default::default(),
-                                                    &crate::source::preview::PreviewPhase::None,
-                                                )
+                                                ..fixture.content()
                                             },
                                             &mut Default::default(),
                                             &mut Default::default(),

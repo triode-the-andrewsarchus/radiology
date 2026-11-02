@@ -183,3 +183,64 @@ Evidence: `~/.local/state/radiology-qa/declaration-empty-20261101-924bbe3`.
 Broader inspector/input/pinned-review/language corpora, reader/index/PR/cache and
 final Swift visual/feature/standalone/reuse audit remain open. Full accessibility
 and actual sibling integration remain deferred.
+
+
+## Shared symbol headings and stable definition controls — 2026-11-01
+
+Swift UnderCaretDetailView omits its name when the enclosing-declaration or pinned
+reference summary already identifies that exact symbol. Rust now follows this
+rule. Different global IDs and document-scoped local IDs retain their own names,
+even when display names or raw local strings match. Unknown summary identity
+retains the lower name. Location, details, source preview and keyboard navigation
+remain available when the duplicate caption is omitted.
+
+InspectorContent adds the borrowed optional `summary_identity` presentation field.
+Callers pass the indexed identity displayed above, or None when unknown. App
+rendering now derives name, identity and kind from one existing ReferenceTarget
+lookup. This changes the inspector input API, without new storage, query work,
+application state, cache, worker or dependency. The existing indexed-context
+fixture is shared through test_support; one owning inspector fixture replaces
+repeated default input setup. Existing typography roles are unchanged.
+
+A conditional-widget regression caught a real issue before commit: pressing the
+name, hiding it and releasing over the newly positioned location could navigate.
+The widgets had inherited the same automatic egui ID. Definition name and body
+now use separate role/source owners, including symbol, captured location/digest
+and exact destination path/SCIP coordinates. A shared `commands::owned_ui` root
+seeds automatic as well as persistent IDs; egui 0.27 push_id alone does not do so.
+It inherits layout, style, clip, enabled and visible state for reader content.
+The existing live-rectangle activation guard also rejects moved controls. A
+changed destination retires its old press, while a fresh click still navigates.
+No extra gesture cache or separate command path is introduced.
+
+The real app local-symbol test initially paints the pinned name twice; it now
+paints it once and retains a different document's parameter name. A narrow
+dark/light 1×/1.5×/2× matrix covers matching/different/unknown global and local
+identities, exact link actions, details focus and Right/Left/Return commands.
+Expanded signatures/documentation remain present without the name. Comparing only
+raw symbol text fails the different-document regression. The conditional-heading
+press regression fails before widget ownership; its destination replacement and
+fresh-click checks now pass. Final focused under-caret tests pass all three.
+
+Workspace passes 549 app tests (seven ignored), two binary, four font, 13 reader-text
+and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture adds
+179 NLOC including tests and three functions: the shared widget helper and two
+regressions. The helper is CCN 1; under-caret show remains CCN 6 and parent rendering
+remains CCN 15. No new hotspot/cycle/max-CCN or clone group. All 91 baseline clone
+groups remain unchanged after normalized multiset audit; health changes -0.01.
+
+Final native 1×/2× indexed flows show a distinct lower symbol, suppress its name
+after pinning, expand/collapse details, navigate with Return, restore Back, release
+with Follow Caret and suppress the name for an automatic enclosing declaration.
+Navigation retains inspector focus; QA uses Ctrl+Alt+I to return to the reader
+before copying the exact destination name `alpha`. Final Back copies complete
+b.rs bytes. Final binary/fixture hashes, inspected captures and zero exits pass.
+Only `definition-heading-owned` runs are final-build acceptance. Earlier OCR
+failures, an incorrect source-focus assumption and pre-guard binaries are retained
+and excluded. Final QA uses observed pane bounds, normalized control labels,
+distinct source breadcrumbs and exact clipboard payloads.
+
+Evidence: `~/.local/state/radiology-qa/definition-heading-20261101-380dae8`.
+Broader inspector/pinned-review/interaction corpora, reader/language/index/PR/cache
+and final Swift feature/visual/standalone/reuse acceptance remain open. Full
+accessibility and actual sibling integration remain deferred.

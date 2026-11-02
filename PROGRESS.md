@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-01 — Share exact inspector headings and stabilize definition controls (Codex)
+
+The Definition region now omits a name already shown by the exact indexed
+declaration/pin above. Different or unknown identities retain their labels; local
+IDs include their document. InspectorContent.summary_identity is a new borrowed
+optional input, derived with name/kind from one existing ReferenceTarget lookup.
+No new storage, query, application state, worker, cache or dependency. Existing
+metadata roles remain. A shared indexed-symbol fixture and owning inspector
+fixture remove repeated test setup. The app regression initially paints a pinned
+name twice; the identity matrix covers global/local/unknown cases, exact links,
+keyboard disclosure/navigation and retained expanded facts at 1×/1.5×/2×. Raw-ID
+comparison fails the document-scope case independently. A new pointer regression
+reveals name removal can transfer a press into a definition jump. Name/body groups
+now own stable IDs by role, source and exact destination through a shared UI root;
+egui 0.27 push_id only scopes persistent IDs. Existing live-rectangle activation
+also guards moved controls. Heading/destination retirement and fresh clicks pass.
+Workspace passes 549 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests; final focused under-caret tests and strict Clippy/check/build/rustdoc/
+fmt/diff pass. Architecture +179 NLOC including tests, three functions; helper
+CCN 1, show stays 6 and parent stays 15. No new hotspot/cycle/max-CCN/clone group;
+all 91 baseline groups unchanged after full audit, health -0.01. Final native
+1×/2× pin/expand/collapse/Return/Back/Follow Caret/automatic-heading flows pass exact
+destination-name and whole-source copies, fixture/binary hashes and zero exits.
+Inspector focus remains after navigation; the existing inspector shortcut returns
+source focus for Copy. Earlier OCR, focus-assumption and pre-guard-build trials
+are retained and excluded; only owned runs verify the final binary. Broader
+inspector/input/corpus, reader/language/index/PR/cache and final Swift UI/standalone/
+reuse acceptance remain open; accessibility and sibling adoption deferred.
+[Contract/evidence](plans/rust-inspector-labels.md#shared-symbol-headings-and-stable-definition-controls--2026-11-01).
+Archive: ~/.local/state/radiology-qa/definition-heading-20261101-380dae8.
+
 ## 2026-11-01 — Explain declaration absence without misleading reference status (Codex)
 
 The declaration region now follows Swift's No File/No Declaration states with

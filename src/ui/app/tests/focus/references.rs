@@ -201,6 +201,19 @@ fn pinned_metadata_uses_the_captured_local_document_and_current_index() {
         let output = frame(&mut app, &ctx, vec![]);
         assert!(crate::ui::test_support::text_shapes(&output)
             .any(|text| text.galley.job.text == "Variable" && text.pos.y < 120.0));
+        let expected_name = if path == "a.rs" {
+            "local_value"
+        } else {
+            "argument"
+        };
+        assert_eq!(app.under_caret.as_ref().unwrap().name, expected_name);
+        assert_eq!(
+            crate::ui::test_support::text_shapes(&output)
+                .filter(|text| text.pos.x > 800.0 && text.galley.job.text == expected_name)
+                .count(),
+            1,
+            "the same indexed identity should have one inspector heading"
+        );
     }
     assert_eq!(
         app.reference_context
