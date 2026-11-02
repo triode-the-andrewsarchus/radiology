@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Modal IME ownership](plans/rust-picker-preframe-focus.md#modal-ime-event-ownership)
+now routes composition start/update/commit through the shared modal boundary.
+Direct-host and actual-app Japanese file queries preserve background text and
+canonical destinations. Native IME-engine/candidate-panel acceptance remains open.
+
 [Shared modal input](plans/rust-picker-preframe-focus.md) now exposes the app's
 pre-frame capture/replay boundary to direct dialog hosts. Both app and picker
 regressions use it; all four inherited picker failures are resolved, and the full

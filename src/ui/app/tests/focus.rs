@@ -28,6 +28,40 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn composed_file_query_preserves_the_sidebar_search_owner() {
+    let (owner, mut app) = reader();
+    let root = owner.path().join("checkout");
+    repository(&root);
+    std::fs::write(root.join("日本.rs"), "// 日本\n").unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    let ctx = Context::default();
+    app.search_options.query = "keep".into();
+    app.execute_command(&ctx, ToolbarAction::OpenSearch);
+    frame(&mut app, &ctx, vec![]);
+    frame(&mut app, &ctx, vec![]);
+    assert!(ctx.memory(|memory| memory.has_focus(Sidebar::search_query_id())));
+    app.execute_command(&ctx, ToolbarAction::OpenQuickFilePicker);
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            Event::CompositionStart,
+            Event::CompositionUpdate("にほん".into()),
+            Event::CompositionEnd("日本".into()),
+            key(Key::Enter, Modifiers::NONE),
+            Event::CompositionEnd("suffix".into()),
+        ],
+    );
+    assert_eq!(app.search_options.query, "keep");
+    finish_file_picker(&mut app, &ctx);
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("日本.rs"));
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, "// 日本\n");
+    assert_eq!(app.search_options.query, "keep");
+}
+
+#[test]
 fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
     use crate::ui::test_support::{click, text_center, text_shapes};
     for scale in [1.0, 2.0] {

@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-02 — IME composition follows modal ownership (Codex)
+
+Extended existing keyboard_event classification to CompositionStart/Update/End.
+The shared modal boundary and picker replay now own composed text with ordinary
+text/submission; no new state machine, queue, dependency, API or sibling changes.
+Public capture docs explicitly include IME text.
+Both new regressions fail with the old classifier: direct host mutates the previous
+background TextEdit to 日本; the actual app opens a.rs instead of the composed
+日本.rs query. Both pass after the fix. Direct-host cases cover same-frame,
+commit-only, split pre-edit updates, cancel/recompose and post-Return composition
+suffix retirement. App frames verify exact Japanese file bytes and unchanged
+sidebar search. Initial test constructor type inference corrected before RED proof.
+Workspace: 633 app tests pass, seven ignored/zero filtered; two binary, 13 font,
+19 text and 41 doctests pass. The strengthened four-stream matrix and final full
+suite pass. Strict Clippy/check/build/rustdoc/fmt/diff, rendered capture API docs
+and copied standalone resources pass. No native IME engine or OS candidate-panel
+acceptance is claimed; tests exercise actual egui event/TextEdit integration.
+Architecture NEUTRAL: +134 NLOC/two regressions, same files/max/average, 109 clone
+groups, no new hotspot/cycle, health -0.01. Runtime change stays in the existing
+classification match. [Contract/evidence](plans/rust-picker-preframe-focus.md#modal-ime-event-ownership).
+Archive: ~/.local/state/radiology-qa/modal-ime-20261102-4a5cb7c.
+Broader platform/input/Unicode and final Swift feature/UI/corpus acceptance remain
+open. Accessibility and actual sibling adoption retain their deferred scope.
+
 ## 2026-11-02 — Shared modal pre-frame input and restored picker suite (Codex)
 
 Extracted the app's capture/measurement/replay/Tab/closing cleanup into public

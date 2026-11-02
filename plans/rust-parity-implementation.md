@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Modal IME ownership](rust-picker-preframe-focus.md#modal-ime-event-ownership):
+  composition events join the existing keyboard boundary, preventing background
+  field edits and lost Unicode file queries. Same-frame/split/cancel/commit-only
+  streams and standalone query routing pass; native engine acceptance remains open.
+
 - [Shared modal input](rust-picker-preframe-focus.md): standalone and direct dialog
   hosts share pre-frame capture, measurement deferral, Tab ordering and closing
   cleanup. The four inherited picker failures pass through the actual host contract;

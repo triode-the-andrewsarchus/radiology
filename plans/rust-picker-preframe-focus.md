@@ -89,3 +89,38 @@ the tests green by changing expected navigation or allowing unrelated button foc
 Evidence is archived with source-footer-20261102-b5b8385: baseline/current test logs,
 DAP failure and GDB route/focus/transfer logs. The shared input boundary resolves
 this keyboard/focus follow-up; full accessibility retains its deferred scope.
+
+## Modal IME event ownership
+
+On 2026-11-02, the remaining input classifier gap was reproduced: CompositionStart,
+CompositionUpdate and CompositionEnd bypassed keyboard_event, so a direct host's
+previously focused background field received Japanese composition behind a modal.
+The standalone app also selected a.rs instead of the composed 日本.rs query. Both
+regressions fail with the previous classifier and pass after the fix.
+
+The existing classifier now includes those three egui 0.27 event variants. Shared
+modal capture, ordered picker replay, pointer/key handoff and closing cleanup use
+that classifier; there is no new IME state machine, event queue or dependency.
+Composition is delivered to the existing TextEdit implementation. Public modal
+capture documentation now explicitly includes IME text.
+
+The direct Context::run regression keeps a focused background TextEdit, opens the
+file picker, composes 日本 and submits the exact Japanese path. It covers complete
+same-frame composition, commit-only delivery, pre-edit updates across frames, and
+cancel/empty-update followed by a new composition. Composition text following Return
+is retired; background bytes and committed query remain exact. The actual-app
+regression opens the picker from a focused sidebar search, composes/submits the
+Japanese filename and verifies the loaded bytes and unchanged sidebar query.
+
+Workspace: 633 app tests pass, seven ignored/zero filtered; two binary, 13 font,
+19 text and 41 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff, rendered
+public capture docs and copied standalone resources pass. These are actual egui
+composition-event tests; no native IME engine, OS candidate panel or platform
+composition-protocol acceptance is claimed. Broader input/Unicode/platform and
+final Swift acceptance remain open.
+
+Architecture baseline before-modal-ime-input at 4a5cb7c: overall NEUTRAL, +134 NLOC/
+two regression functions, same 517 files, average CCN 3.34/max 132 and 109 clone
+groups. No new hotspot/cycle, health -0.01. Runtime change is confined to the shared
+classification match; test code exercises host isolation and Unicode destinations.
+Evidence: ~/.local/state/radiology-qa/modal-ime-20261102-4a5cb7c.

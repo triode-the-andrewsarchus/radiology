@@ -164,10 +164,18 @@ pub(crate) fn source_command(event: &Event) -> Option<ReaderCommand> {
     })
 }
 
+/// Identifies keyboard, clipboard and composed text owned by the focused control.
 pub(crate) fn keyboard_event(event: &Event) -> bool {
     matches!(
         event,
-        Event::Key { .. } | Event::Text(_) | Event::Paste(_) | Event::Copy | Event::Cut
+        Event::Key { .. }
+            | Event::Text(_)
+            | Event::Paste(_)
+            | Event::Copy
+            | Event::Cut
+            | Event::CompositionStart
+            | Event::CompositionUpdate(_)
+            | Event::CompositionEnd(_)
     )
 }
 

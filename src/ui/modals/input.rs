@@ -32,7 +32,9 @@ pub struct ModalInput {
 }
 
 impl ModalInput {
-    /// Captures keyboard input before egui can turn arrows or Tab into focus moves.
+    /// Captures keyboard and IME text before egui can route them to another owner.
+    ///
+    /// Composed text stays ordered with ordinary text, navigation and submission.
     ///
     /// Initial pointer gestures are retired until the first measurement pass.
     /// Other pointer input remains available to the host's modal surface.
@@ -195,6 +197,100 @@ mod tests {
             assert!(background.is_empty());
             assert!(owner.input.is_empty());
             assert!(!owner.is_registered());
+        }
+    }
+    #[test]
+    fn composed_picker_queries_do_not_edit_the_previous_background_owner() {
+        use crate::{repository::file_node::RepositoryFile, ui::modals::QuickFilePickerModal};
+        use std::sync::Arc;
+        let submit = vec![test_key(Key::Enter), Event::CompositionEnd("suffix".into())];
+        for stream in [
+            vec![
+                vec![
+                    Event::CompositionStart,
+                    Event::CompositionUpdate("に".into()),
+                    Event::CompositionUpdate("にほん".into()),
+                    Event::CompositionEnd("日本".into()),
+                ],
+                Vec::new(),
+                submit.clone(),
+            ],
+            vec![
+                vec![Event::CompositionEnd("日本".into())],
+                Vec::new(),
+                submit.clone(),
+            ],
+            vec![
+                vec![
+                    Event::CompositionStart,
+                    Event::CompositionUpdate("に".into()),
+                ],
+                vec![Event::CompositionUpdate("にほん".into())],
+                vec![Event::CompositionEnd("日本".into())],
+                submit.clone(),
+            ],
+            vec![
+                vec![
+                    Event::CompositionStart,
+                    Event::CompositionUpdate("に".into()),
+                ],
+                vec![
+                    Event::CompositionUpdate(String::new()),
+                    Event::CompositionEnd(String::new()),
+                ],
+                vec![
+                    Event::CompositionStart,
+                    Event::CompositionUpdate("にほん".into()),
+                    Event::CompositionEnd("日本".into()),
+                ],
+                submit,
+            ],
+        ] {
+            let ctx = Context::default();
+            let parent = egui::Id::new("background query");
+            let mut background = String::new();
+            let _ = ctx.run(RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut background).id(parent))
+                        .request_focus();
+                });
+            });
+            let mut owner = ModalInput::default();
+            let mut dialog = QuickFilePickerModal::default();
+            let files: Arc<[RepositoryFile]> = vec![RepositoryFile::new("日本.rs")].into();
+            let mut action = None;
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            let mut frame = 0;
+            while action.is_none() {
+                let events = stream.get(frame).cloned().unwrap_or_default();
+                let mut raw = RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(850.0, 650.0),
+                    )),
+                    events,
+                    ..Default::default()
+                };
+                owner.capture_input(&mut raw);
+                let _ = ctx.run(raw, |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.add(egui::TextEdit::singleline(&mut background).id(parent));
+                    });
+                    action = owner.show(ctx, |ctx| dialog.show(ctx, &AppTheme::dark(), &files));
+                });
+                assert!(
+                    background.is_empty(),
+                    "composition reached the previous text owner: {background:?}"
+                );
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "composed query did not submit"
+                );
+                frame += 1;
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            assert_eq!(action, Some(ModalAction::OpenFile("日本.rs".into())));
+            assert_eq!(dialog.query, "日本");
         }
     }
 }
