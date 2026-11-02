@@ -42,15 +42,15 @@ pub enum SearchError {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SearchOptions {
-    /// Text or regular expression query string.
+    /// Text or regular expression query string; nonempty whitespace is significant.
     pub query: String,
     /// Whether `query` should be treated as a regular expression.
     pub is_regex: bool,
     /// Whether searches should match case exactly.
     pub case_sensitive: bool,
-    /// Optional file inclusion glob pattern (e.g. `"*.rs"`).
+    /// Optional file inclusion glob pattern (e.g. `"*.rs"`), passed without trimming.
     pub include_glob: String,
-    /// Optional file exclusion glob pattern (e.g. `"*.min.js"`).
+    /// Optional file exclusion glob pattern (e.g. `"*.min.js"`), passed without trimming.
     pub exclude_glob: String,
 }
 
@@ -91,14 +91,14 @@ impl SearchOptions {
             args.push("--ignore-case".to_string());
         }
 
-        if !self.include_glob.trim().is_empty() {
+        if !self.include_glob.is_empty() {
             args.push("--glob".to_string());
-            args.push(self.include_glob.trim().to_string());
+            args.push(self.include_glob.clone());
         }
 
-        if !self.exclude_glob.trim().is_empty() {
+        if !self.exclude_glob.is_empty() {
             args.push("--glob".to_string());
-            args.push(format!("!{}", self.exclude_glob.trim()));
+            args.push(format!("!{}", self.exclude_glob));
         }
 
         args.push("--".to_string());
@@ -153,7 +153,7 @@ impl SearchRunner {
         cancel: &AtomicBool,
         mut on_batch: impl FnMut(Vec<SearchMatch>),
     ) -> Result<bool, SearchError> {
-        if options.query.trim().is_empty() {
+        if options.query.is_empty() {
             return Ok(false);
         }
 

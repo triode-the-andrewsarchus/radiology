@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-11-02 — Exact search input checkpoint before upstream rebase (Codex)
+
+Search now preserves whitespace-only queries and passes include/exclude globs
+verbatim, matching Swift. Corrected byte-column documentation. Real-rg service
+tests pass (four tests, including twenty query/glob/start-mode combinations);
+app search tests also pass. Escaped trailing-space glob regression fails with the
+old trimming behavior. Full workspace/native acceptance and architecture comparison
+remain pending: earlier attempts hit full /tmp or incorrect fixture assumptions.
+Checkpointed to preserve this work before the requested main update/rebase.
+[Details](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
+
 ## 2026-11-02 — Search replacement, pending Stop and request presentation (Codex)
 
 Swift search audit confirmed scheduled Rust queries retained obsolete matches,

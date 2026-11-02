@@ -376,7 +376,7 @@ impl Sidebar {
         search: &RepositorySearch,
         edited: bool,
     ) -> bool {
-        let (title, help) = if options.query.trim().is_empty() {
+        let (title, help) = if options.query.is_empty() {
             ("Search the Source", "Find text across this repository.")
         } else if edited || (search.is_searching() && search.matches.is_empty()) {
             ("Searching…", "Searching this repository.")

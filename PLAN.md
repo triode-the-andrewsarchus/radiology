@@ -4,6 +4,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+Exact search inputs are checkpointed for the upstream rebase: whitespace queries
+and globs now match Swift pass-through semantics. Targeted service/app checks pass;
+full/native validation remains pending. See the [search contract](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
+
 [Repository search presentation](plans/rust-repository-search.md) now clears old
 request data immediately, exposes pending progress/Stop and keeps explicit submit/
 cancel ahead of debounce. Empty/error/recovery states and complete diagnostic Copy

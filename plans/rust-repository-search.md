@@ -20,7 +20,7 @@ when options changed in the same frame.
 
 `RepositorySearch::is_searching` reports both scheduled and running work to any host.
 `clear` cancels and clears matches/error/limit, while existing `stop` retains published
-matches. Immediate and scheduled starts reuse `clear`; whitespace-only queries
+matches. Immediate and scheduled starts reuse `clear`; empty queries
 leave no pending request. Existing LatestRead ownership, review leases, cancellation
 and generation/channel retirement remain the mechanism. No new worker, queue,
 dependency or framework coupling was added. The additive public status/reset API
@@ -79,3 +79,22 @@ new/removed groups or production hotspot. Reset and label mechanisms are reused.
 Archive: `~/.local/state/radiology-qa/search-presentation-20261102-f26c8ff`.
 Broader Swift feature/UI/input/indexer corpus and native IME-engine acceptance remain
 open. Actual little-screen-clip adoption stays deferred; Radiology remains standalone.
+
+## Exact search inputs checkpoint
+
+Swift uses isEmpty and passes query/glob strings verbatim. Rust now follows that
+contract instead of trimming. Whitespace-only queries run; genuinely empty queries
+clear the request. Include/exclude patterns retain leading spaces and escaped
+trailing spaces. Ripgrep itself interprets gitignore-style globs: a literal trailing
+space requires escaping, so the app must neither trim nor invent escaping.
+SearchMatch.column documentation now correctly identifies a UTF-8 byte column.
+
+Four service tests pass, including twenty real-rg combinations covering immediate/
+scheduled whitespace, tabs, Unicode whitespace, exact offsets and space-bearing
+filenames/globs. The corrected escaped-glob regression fails with old trimming.
+App search tests pass with a source-only include fixture. Evidence is currently
+under ~/.cache/radiology-qa-exact-search-inputs (service-green-v3.log and glob-red.log).
+Full workspace/native acceptance and complete architecture comparison remain pending
+while the requested upstream rebase takes priority. Earlier failed runs include
+incorrect unescaped-glob fixture assumptions and /tmp exhaustion; they are not
+acceptance evidence.

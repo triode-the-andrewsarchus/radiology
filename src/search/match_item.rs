@@ -22,7 +22,7 @@ pub struct SearchMatch {
     pub path: String,
     /// 1-based line number of the match.
     pub line: usize,
-    /// 1-based character column where the match begins.
+    /// 1-based UTF-8 byte column reported by ripgrep where the match begins.
     pub column: usize,
     /// Absolute UTF-8 byte offset in the matched file.
     pub byte_offset: usize,

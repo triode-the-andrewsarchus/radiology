@@ -53,7 +53,7 @@ impl RepositorySearch {
 
     fn schedule_request(&mut self, request: SearchRequest) {
         self.clear();
-        if !request.options.query.trim().is_empty() {
+        if !request.options.query.is_empty() {
             self.scheduled = Some((request, Instant::now() + Duration::from_millis(150)));
         }
     }
@@ -77,7 +77,7 @@ impl RepositorySearch {
 
     fn start_request(&mut self, request: SearchRequest) {
         self.clear();
-        if request.options.query.trim().is_empty() {
+        if request.options.query.is_empty() {
             return;
         }
         self.running = true;
@@ -219,13 +219,74 @@ mod tests {
         search.schedule(
             dir.path(),
             SearchOptions {
-                query: "  ".into(),
+                query: String::new(),
                 ..Default::default()
             },
         );
         assert!(!search.is_searching());
         assert!(search.error.is_none());
         assert!(!search.poll());
+    }
+
+    #[test]
+    fn whitespace_queries_and_space_bearing_globs_preserve_exact_inputs_and_offsets() {
+        const SPACED: &str = " spaced .rs ";
+        const GLOB: &str = r" spaced .rs\ ";
+        const SPACE_GLOB: &str = r"\ ";
+        let source = "  alpha\tβ\u{2003}end\r\n \t x\r\n";
+        let owner = tempfile::tempdir().unwrap();
+        for path in [SPACED, "ordinary.rs", " "] {
+            std::fs::write(owner.path().join(path), source).unwrap();
+        }
+        let mut failures = Vec::new();
+        for (query, include, exclude, paths) in [
+            ("alpha", GLOB, "", vec![SPACED]),
+            ("alpha", "", GLOB, vec!["ordinary.rs", " "]),
+            ("alpha", SPACE_GLOB, "", vec![" "]),
+            ("alpha", "", SPACE_GLOB, vec![SPACED, "ordinary.rs"]),
+            ("alpha", " ", "", vec![SPACED, "ordinary.rs", " "]),
+            ("alpha", "", " ", vec![]),
+            ("  ", GLOB, "", vec![SPACED]),
+            ("\t", GLOB, "", vec![SPACED]),
+            ("\u{2003}", GLOB, "", vec![SPACED]),
+            (" \t ", GLOB, "", vec![SPACED]),
+        ] {
+            for scheduled in [false, true] {
+                let mut search = RepositorySearch::default();
+                let options = SearchOptions {
+                    query: query.into(),
+                    include_glob: include.into(),
+                    exclude_glob: exclude.into(),
+                    ..Default::default()
+                };
+                if scheduled {
+                    search.schedule(owner.path(), options);
+                } else {
+                    search.start(owner.path(), options);
+                }
+                finish(&mut search);
+                assert!(search.error.is_none(), "{:?}", search.error);
+                let mut actual: Vec<_> = search
+                    .matches
+                    .iter()
+                    .map(|hit| (hit.path.as_str(), hit.byte_offset))
+                    .collect();
+                actual.sort_unstable();
+                let mut expected: Vec<_> = paths
+                    .iter()
+                    .flat_map(|path| {
+                        source
+                            .match_indices(query)
+                            .map(move |(byte, _)| (*path, byte))
+                    })
+                    .collect();
+                expected.sort_unstable();
+                if actual != expected {
+                    failures.push(format!("{query:?}/{include:?}/{exclude:?}/scheduled={scheduled}: {actual:?} != {expected:?}"));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     #[test]

@@ -151,6 +151,33 @@ fn search_query_edits_retire_rows_and_explicit_submit_wins_over_debounce() {
             "explicit submission starts immediately"
         );
         app.repository_search.stop();
+        app.search_options.include_glob = "a.rs".into();
+        app.execute_command(&ctx, ToolbarAction::OpenSearch);
+        frame(&mut app, &ctx, vec![]);
+        let output = frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::A, Modifiers::CTRL | Modifiers::COMMAND),
+                Event::Text(" ".into()),
+            ],
+        );
+        assert_eq!(app.search_options.query, " ");
+        assert!(app.repository_search.is_searching());
+        assert!(!text_shapes(&output).any(|shape| shape.galley.job.text == "Search the Source"));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while app.repository_search.poll() {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(
+            app.repository_search
+                .matches
+                .iter()
+                .map(|hit| hit.byte_offset)
+                .collect::<Vec<_>>(),
+            vec![2, 9]
+        );
     }
 }
 
