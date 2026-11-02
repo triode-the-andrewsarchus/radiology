@@ -50,6 +50,20 @@ fn outline_explanations_follow_the_current_language_and_test_projection() {
             .collect::<Vec<_>>()
             .join("\n");
         assert!(painted.contains(explanation), "{path}: {painted}");
+        crate::ui::test_support::text_center(&output, "No Declaration");
+        let declaration_hint = if path == "README.md" {
+            "This file has no parsed structure."
+        } else {
+            "Place the caret inside a function, type, or other declaration."
+        };
+        assert!(painted.contains(declaration_hint), "{path}: {painted}");
+        assert!(
+            !crate::ui::test_support::text_shapes(&output).any(|text| text
+                .galley
+                .job
+                .text
+                .starts_with("References"))
+        );
         if path == "hidden.rs" {
             assert!(painted.contains("Ctrl+Alt+H"));
             app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
@@ -96,6 +110,9 @@ fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_
         .job
         .text
         .contains("No declarations were found")));
+    crate::ui::test_support::text_center(&output, "No Declaration");
+    assert!(crate::ui::test_support::text_shapes(&output)
+        .any(|text| text.galley.job.text == "This file has no parsed structure."));
     app.execute_command(&ctx, ToolbarAction::ToggleTheme);
     settle(&mut app);
     assert_eq!(app.syntax_error.as_deref(), Some(message));
@@ -110,4 +127,13 @@ fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_
     app.syntax_error = Some(message.into());
     app.reset_repository_state();
     assert!(app.syntax_error.is_none());
+    let output = frame(&mut app, &ctx);
+    crate::ui::test_support::text_center(&output, "No File");
+    assert!(
+        !crate::ui::test_support::text_shapes(&output).any(|text| text
+            .galley
+            .job
+            .text
+            .starts_with("References"))
+    );
 }

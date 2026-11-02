@@ -281,6 +281,32 @@ impl ContextInspector {
         references: &mut crate::ui::reference_list::ReferenceViewport,
         summary: &mut DeclarationSummary,
     ) -> Option<InspectorAction> {
+        if content.declaration.is_none() && !content.explicit_references {
+            *summary = Default::default();
+            let (title, detail) = match content.buffer {
+                None => (
+                    "No File",
+                    "Open a source file to see the declaration around the caret.",
+                ),
+                Some(buffer) => {
+                    let detail = if crate::syntax::LanguageRegistry::for_path(&buffer.path)
+                        .grammar
+                        .is_some()
+                        && content.outline_error.is_none()
+                    {
+                        "Place the caret inside a function, type, or other declaration."
+                    } else if content.outline_loading {
+                        "Reading structure…"
+                    } else {
+                        "This file has no parsed structure."
+                    };
+                    ("No Declaration", detail)
+                }
+            };
+            ui.colored_label(theme.text_muted, title);
+            super::text_fit::explanation(ui, detail, theme.text_secondary);
+            return None;
+        }
         ui.heading("Declaration");
         let mut action = summary.show(
             ui,
@@ -376,6 +402,45 @@ fn region(
 mod tests {
     use super::*;
 
+    fn empty_content<'a>(
+        bookmarks: &'a BookmarkStore,
+        results: &'a ReferenceResults,
+        disclosures: &'a std::collections::BTreeMap<
+            usize,
+            crate::semantic::disclosure::ReferenceDisclosure,
+        >,
+        preview: &'a crate::source::preview::PreviewPhase,
+    ) -> InspectorContent<'a> {
+        InspectorContent {
+            under_caret: None,
+            under_caret_loading: false,
+            under_caret_error: None,
+            definition_preview: preview,
+            definition_expanded: false,
+            declaration: None,
+            buffer: None,
+            reference_results: results,
+            selected_reference: None,
+            reference_disclosures: disclosures,
+            reference_target: None,
+            reference_kind: 0,
+            explicit_references: false,
+            references_loading: false,
+            reference_error: None,
+            references_available: false,
+            outline: &[],
+            outline_loading: false,
+            outline_error: None,
+            test_code: None,
+            bookmarks,
+            scope: Some("Checkout"),
+            bookmarks_enabled: false,
+            can_toggle_bookmark: false,
+            current_bookmarked: false,
+            outline_enabled: false,
+        }
+    }
+
     fn assert_explanation_layout(galley: &egui::Galley, description: &str) {
         assert!(galley.job.text.len() <= 4100);
         assert!(galley.rows.len() <= 3);
@@ -395,6 +460,162 @@ mod tests {
                 "hide-tests recovery shortcut was elided"
             );
         }
+    }
+
+    #[test]
+    fn declaration_absence_reasons_stay_bounded_without_a_reference_region() {
+        let parsed = SourceBuffer::from_str("empty.rs", "// Parsed without declarations\n");
+        let plain = SourceBuffer::from_str("notes.md", "Plain text\n");
+        let bookmarks = BookmarkStore::default();
+        let results = ReferenceResults::default();
+        let disclosures = Default::default();
+        let preview = crate::source::preview::PreviewPhase::None;
+        for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
+            for width in [180.0, 300.0] {
+                for (buffer, loading, error, title, detail) in [
+                    (
+                        None,
+                        false,
+                        None,
+                        "No File",
+                        "Open a source file to see the declaration around the caret.",
+                    ),
+                    (
+                        Some(&parsed),
+                        false,
+                        None,
+                        "No Declaration",
+                        "Place the caret inside a function, type, or other declaration.",
+                    ),
+                    (
+                        Some(&parsed),
+                        true,
+                        None,
+                        "No Declaration",
+                        "Place the caret inside a function, type, or other declaration.",
+                    ),
+                    (
+                        Some(&plain),
+                        false,
+                        None,
+                        "No Declaration",
+                        "This file has no parsed structure.",
+                    ),
+                    (
+                        Some(&plain),
+                        true,
+                        None,
+                        "No Declaration",
+                        "Reading structure…",
+                    ),
+                    (
+                        Some(&parsed),
+                        false,
+                        Some("Parser failed"),
+                        "No Declaration",
+                        "This file has no parsed structure.",
+                    ),
+                    (
+                        Some(&parsed),
+                        true,
+                        Some("Parser failed"),
+                        "No Declaration",
+                        "Reading structure…",
+                    ),
+                ] {
+                    let (ctx, theme) = crate::ui::test_support::themed_context(dark, scale);
+                    let content = InspectorContent {
+                        buffer,
+                        outline_loading: loading,
+                        outline_error: error,
+                        ..empty_content(&bookmarks, &results, &disclosures, &preview)
+                    };
+                    let mut summary = DeclarationSummary::default();
+                    let mut references = Default::default();
+                    let mut render = || {
+                        crate::ui::test_support::painted_frame(
+                            &ctx,
+                            egui::vec2(width, 140.0),
+                            vec![],
+                            |ui| {
+                                assert_eq!(
+                                    ContextInspector::render_declaration_context(
+                                        ui,
+                                        &theme,
+                                        &content,
+                                        &mut references,
+                                        &mut summary
+                                    ),
+                                    None
+                                );
+                            },
+                        )
+                    };
+                    render();
+                    let output = render();
+                    crate::ui::test_support::text_center(&output, title);
+                    let shapes = crate::ui::test_support::text_shapes(&output).collect::<Vec<_>>();
+                    assert!(!shapes.iter().any(|text| text
+                        .galley
+                        .job
+                        .text
+                        .starts_with("References")));
+                    let explanation = shapes
+                        .iter()
+                        .find(|text| text.galley.job.text.starts_with(detail))
+                        .unwrap();
+                    assert_explanation_layout(&explanation.galley, detail);
+                    assert!(ctx.used_rect().width() <= width + 1.0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn leaving_a_declaration_retires_its_signature_disclosure() {
+        use crate::ui::test_support::{painted_frame, text_shapes};
+        let ctx = egui::Context::default();
+        let theme = AppTheme::dark();
+        let buffer = SourceBuffer::from_str("a.rs", "fn alpha(argument: u8) {}\n");
+        let symbols = crate::syntax::outline::SymbolExtractor::extract(&buffer);
+        let bookmarks = BookmarkStore::default();
+        let results = ReferenceResults::default();
+        let disclosures = Default::default();
+        let preview = crate::source::preview::PreviewPhase::None;
+        let mut content = InspectorContent {
+            buffer: Some(&buffer),
+            declaration: Some(&symbols[0]),
+            ..empty_content(&bookmarks, &results, &disclosures, &preview)
+        };
+        let mut summary = DeclarationSummary::default();
+        let mut references = Default::default();
+        let mut frame = |content: &InspectorContent<'_>, events| {
+            painted_frame(&ctx, egui::vec2(300.0, 300.0), events, |ui| {
+                ContextInspector::render_declaration_context(
+                    ui,
+                    &theme,
+                    content,
+                    &mut references,
+                    &mut summary,
+                );
+            })
+        };
+        frame(&content, vec![]);
+        frame(
+            &content,
+            vec![crate::ui::commands::test_key(egui::Key::Tab)],
+        );
+        let expanded = frame(
+            &content,
+            vec![crate::ui::commands::test_key(egui::Key::Space)],
+        );
+        assert!(text_shapes(&expanded).any(|text| text.galley.job.text.starts_with("fn alpha")));
+        content.declaration = None;
+        let absent = frame(&content, vec![]);
+        crate::ui::test_support::text_center(&absent, "No Declaration");
+        content.declaration = Some(&symbols[0]);
+        let returned = frame(&content, vec![]);
+        assert!(!text_shapes(&returned).any(|text| text.galley.job.text.starts_with("fn alpha")));
     }
 
     #[test]
@@ -425,32 +646,9 @@ mod tests {
                             |_| {},
                         );
                         let content = InspectorContent {
-                            under_caret: None,
-                            under_caret_loading: false,
-                            under_caret_error: None,
-                            definition_preview: &preview,
-                            definition_expanded: false,
-                            declaration: None,
-                            buffer: None,
-                            reference_results: &results,
-                            selected_reference: None,
-                            reference_disclosures: &disclosures,
-                            reference_target: None,
-                            reference_kind: 0,
-                            explicit_references: false,
-                            references_loading: false,
-                            reference_error: None,
-                            references_available: false,
-                            outline: &[],
                             outline_loading: loading,
                             outline_error: error,
-                            test_code: None,
-                            bookmarks: &bookmarks,
-                            scope: Some("Checkout"),
-                            bookmarks_enabled: false,
-                            can_toggle_bookmark: false,
-                            current_bookmarked: false,
-                            outline_enabled: false,
+                            ..empty_content(&bookmarks, &results, &disclosures, &preview)
                         };
                         let mut outline = OutlineList::default();
                         let mut render = || {
@@ -546,35 +744,21 @@ mod tests {
                                             ui,
                                             &theme,
                                             InspectorContent {
-                                                under_caret: None,
-                                                under_caret_loading: false,
-                                                under_caret_error: None,
-                                                definition_preview:
-                                                    &crate::source::preview::PreviewPhase::None,
-                                                definition_expanded: false,
                                                 declaration: Some(symbol),
                                                 buffer: Some(&buffer),
-                                                reference_results: &ReferenceResults::default(),
-                                                selected_reference: None,
-                                                reference_disclosures: &Default::default(),
-                                                reference_target: None,
-                                                reference_kind: 0,
-                                                explicit_references: false,
-                                                references_loading: false,
-                                                reference_error: None,
-                                                references_available: false,
                                                 outline: &symbols,
-                                                outline_loading: false,
-                                                outline_error: None,
-                                                test_code: None,
-                                                bookmarks: &bookmarks,
                                                 scope: Some(
                                                     &"Review scope with long title".repeat(200),
                                                 ),
                                                 bookmarks_enabled: true,
                                                 can_toggle_bookmark: true,
-                                                current_bookmarked: false,
                                                 outline_enabled: true,
+                                                ..empty_content(
+                                                    &bookmarks,
+                                                    &ReferenceResults::default(),
+                                                    &Default::default(),
+                                                    &crate::source::preview::PreviewPhase::None,
+                                                )
                                             },
                                             &mut Default::default(),
                                             &mut Default::default(),

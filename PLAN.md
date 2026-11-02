@@ -39,6 +39,10 @@ relocation metadata. [Caret-sensitive source command order](plans/rust-source-in
 now repairs the confirmed Ctrl+D/Right/Ctrl+D defect through shared pre-frame
 capture and the existing source queue, with deferred geometry and native 1×/2×
 bookmark/reference/definition acceptance. Broader mixed-owner input remains open.
+[Declaration empty states](plans/rust-inspector-labels.md#contextual-declaration-absence--2026-11-01)
+now distinguish no file, missing structure and a caret outside declarations, hiding
+unrelated reference diagnostics. Explicit pins survive until Follow Caret; signature
+disclosure retires with its declaration. Narrow frames and eight native cases pass.
 [Bookmark empty states](plans/rust-bookmark-pane.md#empty-scope-guidance-and-readable-unavailable-states--2026-11-01)
 now distinguish absent repositories from empty checkout/PR scopes, preserve readable
 guidance while Add is unavailable, and restore the explanation after last removal.

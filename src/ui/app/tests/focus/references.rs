@@ -221,9 +221,17 @@ fn pinned_metadata_uses_the_captured_local_document_and_current_index() {
     let output = frame(&mut app, &ctx, vec![]);
     assert!(crate::ui::test_support::text_shapes(&output)
         .any(|text| text.galley.job.text == "Kind 9001" && text.pos.y < 120.0));
+    app.jump_to_location("a.rs", buffers[0].line_count(), buffers[0].text.len());
+    settle(&mut app);
+    let output = frame(&mut app, &ctx, vec![]);
+    crate::ui::test_support::text_center(&output, "Follow Caret");
+    assert!(!crate::ui::test_support::text_shapes(&output)
+        .any(|text| text.galley.job.text == "No Declaration"));
     app.follow_reference_caret();
     settle(&mut app);
     let output = frame(&mut app, &ctx, vec![]);
+    crate::ui::test_support::text_center(&output, "No Declaration");
     assert!(!crate::ui::test_support::text_shapes(&output)
-        .any(|text| text.galley.job.text == "Kind 9001"));
+        .any(|text| text.galley.job.text == "Kind 9001"
+            || text.galley.job.text.starts_with("References")));
 }

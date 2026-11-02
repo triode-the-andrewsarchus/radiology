@@ -129,3 +129,57 @@ Broader modal/global keyboard ordering, pinned-review/mixed-language/error and
 lifecycle visuals, reader/large-file/performance/grammar/index/PR/cache acceptance
 and final Swift/reuse audit remain open. Full accessibility and actual sibling
 adoption remain deferred; standalone builds and keyboard behavior stay required.
+
+
+## Contextual declaration absence — 2026-11-01
+
+Swift's DeclarationRegionView renders No File/No Declaration with an honest reason
+unless an enclosing declaration or explicit reference target exists. Rust now
+follows this rule instead of always showing Declaration, References · 0 and an
+index-availability message. No File explains how to open source. Parsed source
+outside a declaration explains where to place the caret; unsupported/failed
+structure reports that structure is absent, or Reading structure while preparing.
+Accepted parsed source keeps its caret guidance while another source prepares.
+
+The existing accepted buffer, language registry, parser error and preparation
+state supply the reason without new persistent state or background work. Shared
+bounded explanations retain Body/Small roles. Explicit reference pins keep their
+summary/results and Follow Caret regardless of the enclosing declaration. Releasing
+the pin outside a declaration returns to the empty state. Losing a declaration
+resets the existing signature disclosure, matching Swift ContextModel retirement.
+No new production function, dependency, cache, worker or public API.
+
+Existing real app outline cases now check declaration absence for Rust/Kotlin
+without declarations, Markdown examples and hidden-test projections; normal
+parser-failure publication and repository reset check No Declaration/No File.
+The local-symbol metadata test retains an explicit pin after leaving its function,
+then verifies Follow Caret removes both the pin and reference region. New narrow
+180/300-point dark/light 1×/1.5×/2× fixtures cover no source, unsupported/failed
+structure, loading and accepted parsed source with three-row bounds. A keyboard
+disclosure test expands a signature, leaves its declaration and returns collapsed.
+An existing app case fails before the repair; removing disclosure retirement
+independently fails the new regression. Restored inspector tests pass all eight.
+Shared borrowed InspectorContent setup replaces repeated fixture construction.
+
+Workspace passes 547 app tests (seven ignored), two binary, four font, 13 reader-text
+and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture adds
+215 NLOC including tests and three test functions/fixtures. Declaration rendering
+is CCN 8; no new hotspot, cycle or maximum complexity. Full normalized clone audit
+retains all 91 baseline groups with no addition/removal; the raw touched-file flag
+is unchanged reference-test content. Aggregate health changes -0.02.
+
+Eight native private-window cases at 1×/2× cover no repository/source, Markdown
+without a structural parser, parsed Rust outside/inside/outside a function, and
+a controlled imported index. A pinned alpha target remains visible after Ctrl+End
+places the caret beyond beta's parsed range; Follow Caret restores No Declaration
+with caret guidance and no reference region. All loaded cases copy their complete
+source exactly. Captures, final binary/fixture hashes and zero child exits pass.
+Initial QA reused the startup initial.png filename, allowing its asynchronous
+replacement to race OCR and produce stale No File observations. Those trials are
+retained and excluded. Final capture names are unique and the controller polls
+for required/forbidden region text before accepting each transition.
+
+Evidence: `~/.local/state/radiology-qa/declaration-empty-20261101-924bbe3`.
+Broader inspector/input/pinned-review/language corpora, reader/index/PR/cache and
+final Swift visual/feature/standalone/reuse audit remain open. Full accessibility
+and actual sibling integration remain deferred.

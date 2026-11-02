@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-01 — Explain declaration absence without misleading reference status (Codex)
+
+The declaration region now follows Swift's No File/No Declaration states with
+bounded opening/caret/structure/preparation guidance. It omits References when
+neither a declaration nor explicit pin exists. Existing accepted source, registry
+and parser status provide the reason; accepted parsed source keeps its caret
+explanation during preparation. Pins retain summary/results outside declarations;
+Follow Caret releases them into the empty state. Existing signature disclosure
+resets on declaration loss. No new production function, API, state, dependency,
+worker or cache. Shared InspectorContent test setup replaces repeated constructors.
+Existing app regressions cover Rust/Kotlin/Markdown/hidden-test absence, parser
+failure, repository reset and pinned metadata/Follow Caret. New component cases
+cover narrow themes/scales and keyboard signature retirement. Old rendering fails
+the app absence test; removing retirement fails independently; restored inspector
+tests pass eight. Workspace passes 547 app tests (seven ignored), two binary, four
+font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture +215 NLOC including tests, three test functions/fixtures, declaration
+render CCN 8; no new hotspot/cycle/max-CCN or clone group. All 91 baseline clones
+remain unchanged after audit; health -0.02. Eight native 1×/2× no-file/plain/parsed/
+indexed flows pass region transitions, explicit pin beyond the parsed function,
+Follow Caret and exact source copy. Captures, fixture/binary hashes and zero child
+exits verified. Earlier startup screenshot filename reuse raced OCR; excluded
+trials are retained. Final captures use unique names and observed state gates.
+Broader inspector/input/language/reader/index/PR/cache corpus and final Swift UI/
+standalone/reuse acceptance remain open; full accessibility and sibling adoption
+deferred. [Contract/evidence](plans/rust-inspector-labels.md#contextual-declaration-absence--2026-11-01).
+Archive: ~/.local/state/radiology-qa/declaration-empty-20261101-924bbe3.
+
 ## 2026-11-01 — Explain absent and empty bookmark scopes accurately (Codex)
 
 Bookmarks now shows No Repository until an accepted root exists, then No Bookmarks
