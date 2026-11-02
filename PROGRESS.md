@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-02 — Exact trait implementation catalog foundation (Codex)
+
+Added lightweight/shared-parse Rust impl facts and a reusable source-backed trait
+catalog. Exact nonlocal/nondefinition SCIP terminal-token ranges resolve aliases,
+qualified/blanket/negative impls without spelling joins or relationships. Rows retain
+full-source digests; activation re-reads storage and rejects same-length changes.
+Coverage distinguishes unresolved, stale/excluded, unreadable, malformed, unindexed
+and unknown-inventory cases; imports explicitly retain unknown freshness. Optional
+versioned private cache keys actual bytes/semantic roles/ranges/encoding; warm reads
+still verify source. Corrupt/unwritable caches affect speed only; in-root cache writes
+and external checkout symlink reads are rejected. No added dependency or worker pool.
+Real upstream SCIP fixture (no relationships) proves expected identities/rows and
+no duplicate blocks. Tests cover warm0-parse/two-hit reuse, per-file invalidation,
+UTF8/16/32 exact coordinates, ambiguous/local/definition/overlap rejection, parser
+recovery, cancellation and stale activation. A cache-failure fixture initially
+compared against the pre-edit digest; corrected to compare the recovered current
+source result, preserving the full-row equality assertion.
+Final: 661 app tests pass, seven existing ignored; two binary/13 font/21 text,48
+doctests and strict gates pass. Rendered public APIs inspected. Architecture NEUTRAL:
++898 NLOC/29 functions/four files, avg/max/hotspots/clones/cycles unchanged. Initial
+build-loop hotspot/test clone removed through record cache eligibility and exact
+alias-coordinate fixture reuse. [Contract/evidence](plans/rust-trait-catalog.md).
+Archive: ~/.local/state/radiology-qa/trait-catalog-20261102-597fcc0.
+This is the data foundation, not completed trait UI parity: automatic enrichment on
+generation/cache/import publication, trait/member/impl context, compact rows, keys
+and guarded activation remain required next. The full parity goal stays active.
+
 ## 2026-11-02 — Persistent Context pane controls and stable region ownership (Codex)
 
 Added egui-independent InspectorPanes/InspectorPane values in session settings. Old/

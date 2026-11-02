@@ -551,6 +551,8 @@ impl SymbolSearch {
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
+    /// Explicit Rust impl lookup enriched before publication by source-aware hosts.
+    pub trait_implementations: std::sync::Arc<super::trait_impls::TraitImplementationIndex>,
     /// Package ownership derived once during background index construction.
     pub repository_packages: HashSet<String>,
     /// Default column encoding for documents without an explicit encoding.

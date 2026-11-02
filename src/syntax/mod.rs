@@ -14,6 +14,7 @@ pub mod occurrences;
 pub mod outline;
 mod queries;
 mod review_folds;
+pub mod rust_impls;
 pub mod test_detector;
 
 pub use folds::{FoldDetector, FoldKind, FoldRange, FoldStore};
@@ -73,6 +74,8 @@ impl<'a> AnalysisControl<'a> {
 pub struct DocumentSyntax {
     /// Full outline, unaffected by source presentation filters.
     pub symbols: Vec<DocumentSymbol>,
+    /// Explicit Rust trait impls from the same parse, independent of semantic availability.
+    pub rust_trait_impls: rust_impls::RustTraitImpls,
     /// Native parser or outline-query failure for a registered language; fallback rows may remain.
     ///
     /// Unsupported formats and recoverable errors inside a returned syntax tree
@@ -130,12 +133,15 @@ impl DocumentSyntax {
         let occurrences =
             occurrences::SyntacticOccurrences::from_tree(buffer, grammar, root, &control);
         control.check()?;
+        let rust_trait_impls =
+            rust_impls::RustTraitImpls::from_tree(buffer, grammar, root, &control)?;
         let native_highlights = std::sync::Arc::new(
             native_highlights::NativeHighlights::from_tree(buffer, grammar, root, &control),
         );
         control.check()?;
         Ok(Self {
             symbols,
+            rust_trait_impls,
             tests,
             calls,
             folds,
@@ -158,6 +164,10 @@ impl DocumentSyntax {
         Ok(Self {
             symbols,
             parse_error,
+            rust_trait_impls: rust_impls::RustTraitImpls {
+                has_errors: language.grammar == Some(SupportedGrammar::Rust),
+                ..Default::default()
+            },
             ..Self::default()
         })
     }

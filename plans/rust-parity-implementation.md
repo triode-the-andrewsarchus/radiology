@@ -27,6 +27,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Trait catalog foundation](rust-trait-catalog.md): explicit structural extraction,
+  exact semantic joins, source-bound rows, coverage and derived cache are verified.
+  Index publication, trait context, compact UI and activation wiring remain pending.
+
 - [Inspector pane preferences](rust-inspector-panes.md): persistent settings, shared
   checked menus, dynamic regions, recovery/focus retirement and stable scrolling.
   Trait preference/middle-slot policy is ready; actual trait results remain pending.
