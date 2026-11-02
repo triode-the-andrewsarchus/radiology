@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-02 — Modified source clicks retain native selection and press policy (Codex)
+
+All source presses now share the existing click sequence. Captured press modifiers
+stay with the gesture: Shift keeps its anchor through word/paragraph extension,
+Alt/Shift double-clicks retain occurrence pinning and primary-command gestures never
+pin. Releasing modifiers before mouse-up no longer changes the owning policy.
+Definition navigation only applies to the first primary click; late semantic data
+cannot hijack the second click. Existing Linux shortcut exclusions stay intact.
+No new helper/router/public API/dependency/UI/type change or sibling edits.
+The initial Shift regression fails before repair; the final existing matrix now
+covers seven modifier combinations × scales × wrapping without duplicated setup.
+Existing indexed-click tests add Ctrl/primary late-definition publication, exact
+Copy and positive CaretMoved checks. Workspace: 638 app tests pass, seven ignored,
+zero filtered; two binary, 13 font, 21 text and 42 doctests pass. Strengthened late
+case, strict Clippy/check/build/rustdoc/fmt/diff and copied resources pass.
+Native old/current 1×/2× text fixtures prove seven repaired exact fresh copies per
+scale; Rust fixtures prove six copies and modifier-aware pin presence per scale.
+Final hashes unchanged, child exits zero, representative captures inspected.
+Architecture +47 NLOC, no new files/functions/hotspot/cycle, avg/max unchanged,
+health -0.01. Initial test clones removed; normalized comparison proves all 110
+clone groups unchanged. Default REGRESSION reports only a shifted old fixture clone.
+[Contract/evidence](plans/rust-source-click-selection.md#modified-source-gestures--2026-11-02).
+Archive: ~/.local/state/radiology-qa/modified-clicks-20261102-3842ed1.
+Broader Swift feature/UI/input/corpus and native IME-engine acceptance remain open;
+full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Source word/paragraph selection with stable pin controls (Codex)
 
 Restored Swift's native multi-click selection behavior: double-click words,

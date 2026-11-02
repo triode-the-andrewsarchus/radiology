@@ -394,6 +394,7 @@ impl SourceViewport {
                             origin,
                             clicked: byte,
                             clicks,
+                            modifiers: pointer.modifiers,
                         },
                     );
                     if pointer.fragment.is_some()
@@ -468,7 +469,7 @@ impl SourceViewport {
 
     fn pointer_unit(&self, pointer: PointerEvent) -> (SelectionUnit, u8) {
         match pointer.kind {
-            PointerKind::Press if pointer.modifiers == Modifiers::NONE => {
+            PointerKind::Press => {
                 let count = self.next_click_count(pointer.screen, pointer.time);
                 (
                     match count {
@@ -479,7 +480,7 @@ impl SourceViewport {
                     count,
                 )
             }
-            PointerKind::Press | PointerKind::Context => (SelectionUnit::Character, 0),
+            PointerKind::Context => (SelectionUnit::Character, 0),
             _ => self
                 .selection_gesture
                 .as_ref()
@@ -495,13 +496,17 @@ impl SourceViewport {
         content: &mut CanvasContent<'_>,
         pointer: PointerEvent,
         byte: usize,
-        gesture: SelectionGesture,
+        mut gesture: SelectionGesture,
     ) -> Option<SourceViewAction> {
         let mut caret = byte;
         match pointer.kind {
             PointerKind::Press => {
                 let modifiers = pointer.modifiers;
-                if (modifiers.ctrl || modifiers.command) && !modifiers.alt && !modifiers.shift {
+                if gesture.clicks == 1
+                    && (modifiers.ctrl || modifiers.command)
+                    && !modifiers.alt
+                    && !modifiers.shift
+                {
                     if let Some(target) = content.definition_at_byte(byte) {
                         self.dragging = false;
                         self.occurrence_clicks = None;
@@ -511,11 +516,11 @@ impl SourceViewport {
                 }
                 self.begin_selection(content, byte, modifiers.shift, false);
                 let range = gesture.origin.clone();
-                self.occurrence_clicks = (modifiers == Modifiers::NONE).then_some((
-                    pointer.screen,
-                    pointer.time,
-                    gesture.clicks,
-                ));
+                self.occurrence_clicks = Some((pointer.screen, pointer.time, gesture.clicks));
+                if modifiers.shift {
+                    let anchor = self.selection?.anchor;
+                    gesture.origin = anchor..anchor;
+                }
                 self.selection_gesture = Some(gesture);
                 caret = self.extend_pointer_selection(range)?;
                 self.dragging = true;
@@ -524,12 +529,7 @@ impl SourceViewport {
                 caret = self.extend_pointer_selection(gesture.origin)?;
             }
             PointerKind::Release { click } if self.dragging => {
-                return self.finish_pointer_selection(
-                    content,
-                    gesture.origin,
-                    click,
-                    pointer.modifiers,
-                );
+                return self.finish_pointer_selection(content, gesture.origin, click);
             }
             PointerKind::Context => {
                 self.begin_selection(content, byte, pointer.modifiers.shift, true);

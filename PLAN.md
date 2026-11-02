@@ -8,6 +8,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 word/paragraph selection and whole-unit dragging with occurrence pinning. Pin
 controls live in the measured footer so they do not move text under the pointer.
 Core/app/native 1×/2× checks preserve Unicode and original CRLF copy.
+[Modified gestures](plans/rust-source-click-selection.md#modified-source-gestures--2026-11-02)
+now preserve Shift anchors and press ownership, retain Alt/Shift pinning, and keep
+primary-command multi-click selection separate from first-click definition navigation.
 
 [Modal IME ownership](plans/rust-picker-preframe-focus.md#modal-ime-event-ownership)
 now routes composition start/update/commit through the shared modal boundary.

@@ -3277,53 +3277,78 @@ mod tests {
     }
 
     #[test]
-    fn repeated_source_clicks_select_words_and_logical_lines_for_exact_copy() {
+    fn repeated_source_clicks_keep_selection_units_modifiers_and_exact_copy() {
         let source = "prefix café_name suffix\r\nnext_line\r\n";
-        for scale in [1.0, 2.0] {
-            for wrap in [false, true] {
-                let ctx = reader_context(scale);
-                let mut reader = Reader::new(source);
-                reader.wrap = wrap;
-                reader.now = Some(0.0);
-                let output = reader.frame(&ctx, vec![]);
-                let (origin, galley) = text_shape(&output, "prefix café_name suffix");
-                let left = galley.pos_from_ccursor(egui::text::CCursor::new(15));
-                let right = galley.pos_from_ccursor(egui::text::CCursor::new(16));
-                let point = origin
-                    + vec2(
-                        left.left() + 0.8 * (right.left() - left.left()),
-                        left.center().y,
-                    );
-                reader.frame(&ctx, pointer(point, true));
-                reader.frame(&ctx, pointer(point, false));
-                reader.now = Some(0.1);
-                reader.frame(&ctx, pointer(point, true));
-                reader.frame(&ctx, pointer(point, false));
-                assert!(matches!(
-                    reader.last_action,
-                    Some(SourceViewAction::PinAtByte(_))
-                ));
-                assert_eq!(
-                    reader
-                        .frame(&ctx, vec![egui::Event::Copy])
-                        .platform_output
-                        .copied_text,
-                    "café_name"
-                );
-                reader.now = Some(0.2);
-                reader.frame(&ctx, pointer(point, true));
-                reader.frame(&ctx, pointer(point, false));
-                assert!(!matches!(
-                    reader.last_action,
-                    Some(SourceViewAction::PinAtByte(_))
-                ));
-                assert_eq!(
-                    reader
-                        .frame(&ctx, vec![egui::Event::Copy])
-                        .platform_output
-                        .copied_text,
-                    "prefix café_name suffix\r\n"
-                );
+        for modifiers in [
+            Modifiers::NONE,
+            Modifiers::SHIFT,
+            Modifiers::ALT,
+            Modifiers::CTRL,
+            Modifiers::COMMAND,
+            Modifiers::CTRL | Modifiers::SHIFT,
+            Modifiers::ALT | Modifiers::SHIFT,
+        ] {
+            for scale in [1.0, 2.0] {
+                for wrap in [false, true] {
+                    let ctx = reader_context(scale);
+                    let mut reader = Reader::new(source);
+                    reader.wrap = wrap;
+                    reader.now = Some(0.0);
+                    let output = reader.frame(&ctx, vec![]);
+                    let (origin, galley) = text_shape(&output, "prefix café_name suffix");
+                    let left = galley.pos_from_ccursor(egui::text::CCursor::new(15));
+                    let right = galley.pos_from_ccursor(egui::text::CCursor::new(16));
+                    let point = origin
+                        + vec2(
+                            left.left() + 0.8 * (right.left() - left.left()),
+                            left.center().y,
+                        );
+                    for count in 1..=3 {
+                        reader.now = Some(f64::from(count) * 0.1);
+                        let mut events = pointer(point, true);
+                        if let egui::Event::PointerButton {
+                            modifiers: actual, ..
+                        } = &mut events[1]
+                        {
+                            *actual = modifiers;
+                        }
+                        reader.frame(&ctx, events);
+                        // Mouse-down owns selection and pin policy even if the modifier is released first.
+                        reader.frame(&ctx, pointer(point, false));
+                        if count == 2 {
+                            assert_eq!(
+                                matches!(reader.last_action, Some(SourceViewAction::PinAtByte(_))),
+                                !modifiers.ctrl && !modifiers.command,
+                                "{modifiers:?}"
+                            );
+                            assert_eq!(
+                                reader
+                                    .frame(&ctx, vec![egui::Event::Copy])
+                                    .platform_output
+                                    .copied_text,
+                                if modifiers.shift {
+                                    "prefix café_name"
+                                } else {
+                                    "café_name"
+                                },
+                                "{modifiers:?}"
+                            );
+                        } else if count == 3 {
+                            assert!(!matches!(
+                                reader.last_action,
+                                Some(SourceViewAction::PinAtByte(_))
+                            ));
+                            assert_eq!(
+                                reader
+                                    .frame(&ctx, vec![egui::Event::Copy])
+                                    .platform_output
+                                    .copied_text,
+                                "prefix café_name suffix\r\n",
+                                "{modifiers:?}"
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -4448,6 +4473,8 @@ mod tests {
             ("before", Modifiers::CTRL, false),
             ("stale", Modifiers::CTRL, false),
             ("unresolved", Modifiers::CTRL, false),
+            ("late", Modifiers::CTRL, false),
+            ("late", Modifiers::COMMAND, false),
             ("valid", Modifiers::CTRL | Modifiers::SHIFT, false),
             ("valid", Modifiers::CTRL | Modifiers::ALT, false),
         ] {
@@ -4475,7 +4502,8 @@ mod tests {
                 }],
                 ..Default::default()
             });
-            if case == "unresolved" {
+            let late_index = (case == "late").then(|| index.clone());
+            if case == "unresolved" || case == "late" {
                 index.definitions.clear();
             }
             if case == "stale" {
@@ -4508,6 +4536,13 @@ mod tests {
             {
                 *actual = modifiers;
             }
+            if let Some(index) = late_index {
+                reader.now = Some(0.0);
+                reader.frame(&ctx, events.clone());
+                reader.frame(&ctx, pointer(point, false));
+                reader.set_index(index);
+                reader.now = Some(0.1);
+            }
             reader.frame(&ctx, events);
             if expected {
                 assert_eq!(
@@ -4534,6 +4569,20 @@ mod tests {
                         Some(SourceViewAction::CaretMoved { .. })
                     ),
                     "{case}"
+                );
+            }
+            if case == "late" {
+                reader.frame(&ctx, pointer(point, false));
+                assert!(matches!(
+                    reader.last_action,
+                    Some(SourceViewAction::CaretMoved { .. })
+                ));
+                assert_eq!(
+                    reader
+                        .frame(&ctx, vec![egui::Event::Copy])
+                        .platform_output
+                        .copied_text,
+                    "helper"
                 );
             }
         }

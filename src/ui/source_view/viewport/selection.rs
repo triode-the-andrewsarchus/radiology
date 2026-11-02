@@ -14,6 +14,7 @@ pub(super) struct SelectionGesture {
     pub origin: Range<usize>,
     pub clicked: usize,
     pub clicks: u8,
+    pub modifiers: Modifiers,
 }
 
 impl SelectionGesture {
@@ -99,7 +100,6 @@ impl SourceViewport {
         content: &mut CanvasContent<'_>,
         range: Range<usize>,
         click: bool,
-        modifiers: Modifiers,
     ) -> Option<SourceViewAction> {
         let byte = range.start;
         let caret = self.extend_pointer_selection(range)?;
@@ -108,17 +108,16 @@ impl SourceViewport {
         let selected = self
             .selection
             .is_some_and(|selection| !selection.range().is_empty());
-        if !click || modifiers != Modifiers::NONE {
+        let primary = original.modifiers.ctrl || original.modifiers.command;
+        if !click {
             self.occurrence_clicks = None;
         }
         let moved = move_caret(content, caret);
         Some(match original.clicks {
-            2 if original.unit == SelectionUnit::Word => {
+            2 if original.unit == SelectionUnit::Word && !primary => {
                 SourceViewAction::PinAtByte(original.clicked)
             }
-            1 if click && !selected && modifiers == Modifiers::NONE => {
-                SourceViewAction::SelectOccurrences(byte)
-            }
+            1 if click && !selected && !primary => SourceViewAction::SelectOccurrences(byte),
             _ => moved,
         })
     }

@@ -38,9 +38,9 @@ The existing local six-point/300ms click tolerance remains in effect.
 
 Occurrence callbacks use the original clicked byte, independently of the selected
 range's focus. Double-drag still toggles the original occurrence, while a triple
-click leaves its pin unchanged. Existing modified-click and definition-navigation
-behavior remains available; exhaustive modifier/native-platform gesture acceptance
-is outside this particular check.
+click leaves its pin unchanged. The initial plain-gesture change retained existing modified-click behavior; the
+follow-up modifier audit and repair are recorded below. Exhaustive native-platform
+gesture acceptance remains outside these representative checks.
 
 An actual-app test exposed an additional integration defect: the first pin inserted
 a row above the source, so the third click reached different UI. The existing pin
@@ -92,3 +92,52 @@ Evidence archive: `~/.local/state/radiology-qa/click-selection-20261102-0d6e39a`
 Broader Swift feature/UI/corpus audit and native IME-engine acceptance remain open;
 this gesture fix does not establish complete parity. Full accessibility and actual
 little-screen-clip integration retain their explicitly deferred scope.
+
+## Modified source gestures — 2026-11-02
+
+A follow-up audit found that Rust reset click counts for every modified press and
+release. Swift's mouse handler delegates those presses to native text selection:
+its command branch suppresses occurrence callbacks, while Shift/Option gestures
+retain them. Rust's modifier restriction prevented word/paragraph selection, and
+it evaluated occurrence policy using mouse-up flags rather than the owning press.
+
+All source presses now participate in the existing local click sequence. The
+existing gesture stores its captured press modifiers. Shift keeps the existing
+selection anchor when extending by words/paragraphs; releasing the modifier before
+mouse-up does not change the gesture. Alt and Shift double-clicks retain pinning.
+Primary-command gestures select text without pinning. Definition navigation is
+limited to the first primary click, including when semantic data arrives between
+clicks; subsequent clicks select text instead. The established Linux Ctrl/primary
+mapping and Alt/Shift exclusion for definition navigation remain unchanged.
+There is no new input mechanism, public API, helper, dependency or UI/type change.
+
+The initial modifier regression failed on Shift's missing double-click pin. It was
+then folded into the existing multi-click matrix to reuse the same fixture and
+right-half-of-final-glyph probe. The matrix now covers seven modifier combinations,
+1×/2×, wrap on/off, exact Unicode/CRLF copying and modifier release before mouse-up.
+The existing indexed-click matrix additionally checks late definition publication
+for Ctrl and primary-command presses, with a positive CaretMoved assertion after
+release and exact `helper` Copy. Existing single-click navigation cases still pass.
+
+Workspace: 638 app tests pass, seven ignored/zero filtered; two binary, 13 font,
+21 text and 42 doctests pass. The strengthened late-definition case passes after
+the full run. Strict Clippy/check/build/rustdoc with shaping, fmt/diff and copied
+standalone resources pass. Native previous/current binaries at 1×/2× reproduce
+seven old incorrect selections and verify seven new exact fresh clipboard results
+per scale. Separate Rust fixtures verify six exact copies and the expected pin
+presence/absence through Shift/Alt/Ctrl word/paragraph gestures at each scale.
+Captures are inspected, fixture/binary hashes stay unchanged, and all final child
+processes exit zero.
+
+Architecture baseline `before-modified-source-clicks` at `3842ed1`: +47 NLOC,
+unchanged files/functions/average/max complexity and dependency cycles; health
+approximately -0.01. Initial new test duplication was removed by extending the
+existing matrix and strengthening the late-definition action assertion. Default
+comparison still labels the shifted old long-word fixture clone a REGRESSION;
+complete normalized comparison proves all 110 clone groups unchanged, zero new or
+removed groups. No production hotspot was introduced.
+
+Evidence: `~/.local/state/radiology-qa/modified-clicks-20261102-3842ed1`.
+This proves the documented portable modifier policy, not every platform's inherited
+text interaction. Broader feature/UI/corpus and native IME-engine acceptance remain
+open; full accessibility and actual sibling adoption remain deferred.
