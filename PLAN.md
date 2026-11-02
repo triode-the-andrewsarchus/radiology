@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Symbol search groundwork](plans/rust-symbol-picker.md) now provides bounded,
+cancellable ranking with definition counts and shared immutable outlines. The
+picker UI integration, Swift's 200-result limit and Unicode length ordering remain
+pending; no visible symbol-picker improvement is claimed yet.
+
 [File picker parity](plans/rust-file-picker.md) now connects shared immutable
 inventories and cancellable background ranking to the Swift-style 100-result UI,
 filename/directory rows, counts, empty states and Open/Cancel. Ordered keys,

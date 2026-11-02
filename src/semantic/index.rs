@@ -267,6 +267,8 @@ pub struct SymbolSearchMatch {
     pub path: String,
     /// 1-based definition line number.
     pub line: usize,
+    /// Total number of definitions across the repository.
+    pub definition_count: usize,
     /// Ranking tier (0: exact, 1: prefix, 2: initials/component, 3: subsequence fuzzy).
     pub tier: usize,
 }
@@ -275,6 +277,9 @@ pub struct SymbolSearchMatch {
 pub struct SymbolSearch;
 
 impl SymbolSearch {
+    /// Maximum workspace results shown by the Swift-compatible symbol picker.
+    pub const VISIBLE_LIMIT: usize = 200;
+
     /// Ranks `entries` against `query`, returning at most `limit` matches.
     #[must_use]
     pub fn rank(
@@ -282,46 +287,61 @@ impl SymbolSearch {
         entries: &[SymbolSearchEntry],
         limit: usize,
     ) -> Vec<SymbolSearchMatch> {
-        let trimmed = query.trim();
-        if trimmed.is_empty() {
-            return entries
-                .iter()
-                .take(limit)
-                .map(|e| SymbolSearchMatch {
-                    id: e.id.clone(),
-                    name: e.name.clone(),
-                    kind: e.kind,
-                    path: e.path.clone(),
-                    line: e.line,
-                    tier: 4,
-                })
-                .collect();
+        Self::rank_cancellable(query, entries, limit, || false).expect("uncancelled symbol search")
+    }
+
+    pub(crate) fn rank_cancellable(
+        query: &str,
+        entries: &[SymbolSearchEntry],
+        limit: usize,
+        cancelled: impl Fn() -> bool,
+    ) -> Option<Vec<SymbolSearchMatch>> {
+        if cancelled() {
+            return None;
         }
-        let needle = trimmed.to_lowercase();
-        let mut matches = Vec::new();
-        for entry in entries {
-            if let Some(tier) = Self::tier(&entry.name, &needle) {
-                matches.push(SymbolSearchMatch {
+        if limit == 0 {
+            return Some(Vec::new());
+        }
+        let needle = query.trim().to_lowercase();
+        let mut best: Vec<(&SymbolSearchEntry, usize)> =
+            Vec::with_capacity(limit.min(entries.len()));
+        for (index, entry) in entries.iter().enumerate() {
+            if index % 128 == 0 && cancelled() {
+                return None;
+            }
+            if needle.is_empty() {
+                best.push((entry, 4));
+                if best.len() == limit {
+                    break;
+                }
+            } else if let Some(tier) = Self::tier(&entry.name, &needle) {
+                // Insertion after equal keys preserves the old stable-sort order.
+                let at = best.partition_point(|(other, rank)| {
+                    (*rank, other.name.len(), &other.name, &other.path)
+                        <= (tier, entry.name.len(), &entry.name, &entry.path)
+                });
+                if at < limit {
+                    best.insert(at, (entry, tier));
+                    best.truncate(limit);
+                }
+            }
+        }
+        if cancelled() {
+            return None;
+        }
+        Some(
+            best.into_iter()
+                .map(|(entry, tier)| SymbolSearchMatch {
                     id: entry.id.clone(),
                     name: entry.name.clone(),
                     kind: entry.kind,
                     path: entry.path.clone(),
                     line: entry.line,
+                    definition_count: entry.definition_count,
                     tier,
-                });
-            }
-        }
-
-        matches.sort_by(|a, b| {
-            a.tier
-                .cmp(&b.tier)
-                .then_with(|| a.name.len().cmp(&b.name.len()))
-                .then_with(|| a.name.cmp(&b.name))
-                .then_with(|| a.path.cmp(&b.path))
-        });
-
-        matches.truncate(limit);
-        matches
+                })
+                .collect(),
+        )
     }
 
     fn tier(name: &str, needle: &str) -> Option<usize> {
@@ -1053,6 +1073,75 @@ mod tests {
         assert!(matches
             .iter()
             .any(|m| m.name == "CustomerAccountLifecycle" && m.tier == 2));
+    }
+
+    #[test]
+    fn bounded_symbol_ranking_matches_stable_full_sort_and_preserves_definition_metadata() {
+        let entries = (0..4096)
+            .map(|n| SymbolSearchEntry {
+                id: SemanticSymbolID::new(format!("symbol{n}"), ""),
+                name: [
+                    "calc",
+                    "calculate_total",
+                    "CustomerAccountLifecycle",
+                    "local",
+                    "café",
+                    "名calc",
+                ][n % 6]
+                    .into(),
+                path: format!("src/file{}.rs", n % 13),
+                line: n + 1,
+                kind: 17,
+                definition_count: n % 3 + 1,
+            })
+            .collect::<Vec<_>>();
+        for query in ["", "calc", "cal", "c_t", "cc", "café", "nomatch"] {
+            let mut expected: Vec<_> = entries
+                .iter()
+                .filter_map(|entry| {
+                    let tier = if query.is_empty() {
+                        Some(4)
+                    } else {
+                        SymbolSearch::tier(&entry.name, query)
+                    }?;
+                    Some((entry, tier))
+                })
+                .collect();
+            if !query.is_empty() {
+                expected.sort_by_key(|(entry, tier)| {
+                    (*tier, entry.name.len(), &entry.name, &entry.path)
+                });
+            }
+            for limit in [0, 1, SymbolSearch::VISIBLE_LIMIT, 5000] {
+                let actual = SymbolSearch::rank(query, &entries, limit);
+                let expected: Vec<_> = expected.iter().take(limit).collect();
+                assert_eq!(actual.len(), expected.len(), "{query}, {limit}");
+                for (actual, (entry, tier)) in actual.iter().zip(expected) {
+                    assert_eq!(
+                        (
+                            &actual.id,
+                            actual.line,
+                            actual.definition_count,
+                            actual.tier
+                        ),
+                        (&entry.id, entry.line, entry.definition_count, *tier)
+                    );
+                }
+            }
+        }
+        let checks = std::cell::Cell::new(0);
+        assert!(SymbolSearch::rank_cancellable("cal", &entries, 200, || {
+            checks.set(checks.get() + 1);
+            checks.get() == 3
+        })
+        .is_none());
+        assert_eq!(
+            checks.get(),
+            3,
+            "cancel after partial ranking without publishing it"
+        );
+        assert!(SymbolSearch::rank_cancellable("", &entries, 200, || true).is_none());
+        assert_eq!(SymbolSearch::rank("cal", &entries, 1)[0].name, "calc");
     }
     #[test]
     fn generated_coordinates_require_exact_buffer_and_destination_bytes() {

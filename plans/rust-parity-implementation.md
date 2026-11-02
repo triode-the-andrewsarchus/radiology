@@ -24,6 +24,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Symbol search foundation](rust-symbol-picker.md): bounded cancellable ranking,
+  definition-count metadata and immutable outlines. UI integration and Unicode
+  ordering acceptance remain pending.
+
 - [File picker](rust-file-picker.md): immutable inventories, cancellable background
   ranking, 100 results with truthful totals, bounded filename/directory rows,
   empty states, Open/Cancel, ordered keyboard navigation/reveal and retired pointer

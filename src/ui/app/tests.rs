@@ -417,7 +417,7 @@ fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
     let text = "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }";
     let buffer = SourceBuffer::from_str("pins.rs", text);
     let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
-    app.outline_symbols = syntax.symbols;
+    app.outline_symbols = syntax.symbols.into();
     app.syntactic_occurrences = syntax.occurrences;
     app.open_buffer = Some(Arc::new(buffer));
     app.pin_at_byte(text.find("value").unwrap());

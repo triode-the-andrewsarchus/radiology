@@ -114,8 +114,8 @@ pub struct RadiologyApp {
     pub fold_error: Option<String>,
     /// Fold store tracking collapsed line numbers.
     pub fold_store: FoldStore,
-    /// Tree-sitter document outline symbols.
-    pub outline_symbols: Vec<DocumentSymbol>,
+    /// Shared immutable Tree-sitter outline for the accepted source.
+    pub outline_symbols: Arc<[DocumentSymbol]>,
     /// Native parser failure belonging to the displayed immutable source.
     pub syntax_error: Option<String>,
     /// Inline-test visibility independent of manual folds.
@@ -293,7 +293,7 @@ impl RadiologyApp {
             fold_ranges: Vec::new(),
             fold_error: None,
             fold_store: FoldStore::new(),
-            outline_symbols: Vec::new(),
+            outline_symbols: Default::default(),
             syntax_error: None,
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
@@ -512,7 +512,7 @@ impl RadiologyApp {
         self.fold_store = FoldStore::default();
         self.fold_ranges.clear();
         self.fold_error = None;
-        self.outline_symbols.clear();
+        self.outline_symbols = Default::default();
         self.syntax_error = None;
         self.highlighted_lines.clear();
         self.reference_context = Default::default();
@@ -764,7 +764,7 @@ impl RadiologyApp {
                     let (enclosing_sym, _enclosing_line) = if let Some(buf) = &self.open_buffer {
                         let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
                         let mut enclosing = Vec::new();
-                        for sym in &self.outline_symbols {
+                        for sym in self.outline_symbols.iter() {
                             sym.breadcrumbs(caret_byte, &mut enclosing);
                         }
                         let sym = enclosing.last().cloned();
@@ -866,7 +866,7 @@ impl RadiologyApp {
                     }
                     let mut enclosing = Vec::new();
                     let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-                    for sym in &self.outline_symbols {
+                    for sym in self.outline_symbols.iter() {
                         sym.breadcrumbs(caret_byte, &mut enclosing);
                     }
 

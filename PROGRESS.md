@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-11-02 — Bounded cancellable symbol ranking and shared outlines (Codex)
+
+Ranking retains only the requested candidates, with stable equal-key order and
+unchanged synchronous APIs. Cancellation drops partial work; result metadata now
+retains definition counts. Accepted outlines use immutable Arc snapshots, ready
+for worker reuse. Swift's 200-result constant is added but not wired to the old
+100-result UI yet. One differential matrix covers 4,096 entries, seven queries,
+four limits, identities/lines/counts, ties and cancellation. Fresh workspace: 591
+app tests, seven ignored, two binary, four font, 13 text and 37 doctests; strict
+gates pass. Architecture default REGRESSION flags old clones in an edited test;
+all 109 groups are unchanged by full normalized audit. +85 NLOC/two functions,
+max new CCN 11, no new hotspot/cycle. No native UI change claimed; picker integration
+and Unicode grapheme length ordering remain pending. [Contract/evidence](plans/rust-symbol-picker.md).
+Archive: ~/.local/state/radiology-qa/symbol-foundation-20261102-0652005.
+Broader parity remains open; accessibility/sibling adoption deferred.
+
 ## 2026-11-02 — Background file picker with Swift-style results and controls (Codex)
 
 The file picker now searches on the existing bounded read pool, retiring stale

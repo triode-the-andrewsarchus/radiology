@@ -10,7 +10,7 @@ impl RadiologyApp {
         let automatic = self.semantic_inputs.as_ref().and_then(|inputs| {
             let byte = inputs.buffer.byte_offset(self.caret_line, self.caret_col);
             let mut enclosing = Vec::new();
-            for symbol in &self.outline_symbols {
+            for symbol in self.outline_symbols.iter() {
                 symbol.breadcrumbs(byte, &mut enclosing);
             }
             ReferenceTarget::declaration(&inputs.index, &inputs.buffer, enclosing.last()?)
