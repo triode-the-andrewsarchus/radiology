@@ -3,6 +3,7 @@
 use super::bookmark_list::{BookmarkAction, BookmarkList};
 use super::outline_list::{OutlineAction, OutlineList};
 use crate::bookmarks::store::BookmarkStore;
+use crate::semantic::availability::SemanticAvailability;
 use crate::semantic::reference_results::ReferenceResults;
 use crate::source::SourceBuffer;
 use crate::syntax::outline::DocumentSymbol;
@@ -78,8 +79,8 @@ pub struct InspectorContent<'a> {
     pub references_loading: bool,
     /// Recoverable reference-worker failure.
     pub reference_error: Option<&'a str>,
-    /// Whether this revision has a semantic reference index.
-    pub references_available: bool,
+    /// Source coverage and index lifecycle, shared with the Outline status.
+    pub semantic_availability: SemanticAvailability<'a>,
     /// Original structural symbols in source order.
     pub outline: &'a [DocumentSymbol],
     /// Source and structure are being prepared; previously accepted content may remain.
@@ -227,7 +228,25 @@ impl ContextInspector {
             )
         });
         let heading = if has_details { "Definition" } else { "Outline" };
-        ui.label(RichText::new(heading).strong());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(heading).strong());
+            if let Some(detail) = content.semantic_availability.header_detail() {
+                let galley = super::text_fit::middle(
+                    ui,
+                    detail,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    theme.text_secondary,
+                    ui.available_width(),
+                );
+                ui.add(egui::Label::new(galley))
+                    .on_hover_text(super::text_fit::bounded(
+                        content
+                            .semantic_availability
+                            .explanation()
+                            .unwrap_or(detail),
+                    ));
+            }
+        });
         if !has_details {
             if content.outline_loading {
                 ui.horizontal(|ui| {
@@ -241,15 +260,14 @@ impl ContextInspector {
                     return None;
                 }
             }
-            if content.buffer.is_none() && content.outline_loading {
-                return None;
-            }
             if content.buffer.is_none() {
-                super::text_fit::explanation(
-                    ui,
-                    "Open a source file to see its declarations.",
-                    theme.text_secondary,
-                );
+                if !content.outline_loading {
+                    super::text_fit::explanation(
+                        ui,
+                        "Open a source file to see its declarations.",
+                        theme.text_secondary,
+                    );
+                }
                 return None;
             }
             return ui
@@ -337,20 +355,23 @@ impl ContextInspector {
         references: &mut crate::ui::reference_list::ReferenceViewport,
     ) -> Option<InspectorAction> {
         let mut action = None;
+        let status = reference_status(content);
+        let heading = if status.is_some() {
+            "References".to_owned()
+        } else {
+            format!("References · {}", content.reference_results.reference_count)
+        };
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(format!(
-                    "References · {}",
-                    content.reference_results.reference_count
-                ))
-                .strong(),
-            );
+            ui.label(RichText::new(heading).strong());
             if content.explicit_references && ui.small_button("Follow Caret").clicked() {
                 action = Some(InspectorAction::FollowCaret);
             }
         });
-        if content.references_available && content.reference_target.is_some() {
+        if content.semantic_availability == SemanticAvailability::Available
+            && content.reference_target.is_some()
+            && content.reference_error.is_none()
+        {
             if let Some(next) = references.show_coverage(
                 ui,
                 theme,
@@ -360,23 +381,18 @@ impl ContextInspector {
                 action = Some(InspectorAction::Reference(next));
             }
         }
-        let status = if let Some(error) = content.reference_error {
-            Some(error)
-        } else if content.references_loading && content.reference_results.hits.is_empty() {
-            Some("Loading references…")
-        } else if !content.references_available {
-            Some("Semantic data unavailable for this revision.")
-        } else if content.reference_target.is_none() {
-            Some("No exact indexed declaration here.")
-        } else {
-            None
-        };
-        if let Some(status) = status {
+        if let Some((title, status)) = status {
             ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .id_source("reference_status")
                 .show(ui, |ui| {
-                    ui.colored_label(theme.text_muted, status);
+                    ui.label(RichText::new(title).strong());
+                    if content.reference_error.is_some() {
+                        // Preserve the complete worker diagnostic in the scrollable region.
+                        ui.colored_label(theme.text_muted, status);
+                    } else {
+                        super::text_fit::explanation(ui, status, theme.text_secondary);
+                    }
                 });
         } else if let Some(next) = references.show(
             ui,
@@ -389,6 +405,27 @@ impl ContextInspector {
         }
         action
     }
+}
+
+// Keep status precedence separate from presentation and preserve worker diagnostics.
+fn reference_status<'a>(content: &InspectorContent<'a>) -> Option<(&'static str, &'a str)> {
+    if let Some(error) = content.reference_error {
+        return Some(("References unavailable", error));
+    }
+    if let Some(reason) = content.semantic_availability.explanation() {
+        return Some((
+            content
+                .semantic_availability
+                .header_detail()
+                .unwrap_or("No File"),
+            reason,
+        ));
+    }
+    if content.references_loading && content.reference_results.hits.is_empty() {
+        return Some(("Finding references…", "References are being prepared."));
+    }
+    content.reference_target.is_none().then_some(("Not in the index",
+        "The index records no symbol for this declaration. It may be inactive in the indexed configuration (for example, a cfg-gated item), or the indexer does not name this construct."))
 }
 
 // Panel layout owns its extent; clipped child content cannot enlarge a sibling region.
@@ -436,7 +473,7 @@ mod tests {
                 explicit_references: false,
                 references_loading: false,
                 reference_error: None,
-                references_available: false,
+                semantic_availability: SemanticAvailability::NoFile,
                 outline: &[],
                 outline_loading: false,
                 outline_error: None,
@@ -470,6 +507,92 @@ mod tests {
                 "hide-tests recovery shortcut was elided"
             );
         }
+    }
+
+    #[test]
+    fn reference_and_outline_status_share_source_coverage_without_false_zero_results() {
+        use crate::ui::test_support::{painted_frame, text_shapes, themed_context};
+        let fixture = InspectorFixture::default();
+        let buffer = SourceBuffer::from_str("a.rs", "fn alpha() {}\n");
+        for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
+            for availability in [
+                SemanticAvailability::RepositoryNotIndexed("The index could not be read."),
+                SemanticAvailability::Indexing,
+                SemanticAvailability::FileNotIndexed,
+                SemanticAvailability::SourceChanged,
+                SemanticAvailability::RevisionNotIndexed,
+            ] {
+                let (ctx, theme) = themed_context(dark, scale);
+                let content = InspectorContent {
+                    buffer: Some(&buffer),
+                    semantic_availability: availability,
+                    reference_target: Some("alpha"),
+                    ..fixture.content()
+                };
+                let mut viewport = crate::ui::reference_list::ReferenceViewport::default();
+                let mut outline = OutlineList::default();
+                painted_frame(&ctx, egui::vec2(240.0, 400.0), vec![], |_| {});
+                let output = painted_frame(&ctx, egui::vec2(240.0, 400.0), vec![], |ui| {
+                    ContextInspector::render_under_caret_context(
+                        ui,
+                        &theme,
+                        &content,
+                        &mut outline,
+                    );
+                    ContextInspector::render_reference_context(ui, &theme, &content, &mut viewport);
+                });
+                let texts = text_shapes(&output)
+                    .map(|t| t.galley.job.text.clone())
+                    .collect::<Vec<_>>();
+                let heading = availability.header_detail().unwrap();
+                assert_eq!(
+                    texts.iter().filter(|t| t.as_str() == heading).count(),
+                    2,
+                    "{texts:?}"
+                );
+                assert!(
+                    texts
+                        .iter()
+                        .any(|t| t == availability.explanation().unwrap()),
+                    "{texts:?}"
+                );
+                assert!(
+                    !texts.iter().any(|t| t.contains("No references shown")),
+                    "{texts:?}"
+                );
+                for text in text_shapes(&output) {
+                    assert!(
+                        text.galley.size().x <= 224.5,
+                        "scale={scale} dark={dark} width={} {:?} layout={:?}: {texts:?}",
+                        text.galley.size().x,
+                        text.galley.job.text,
+                        text.galley.job.wrap
+                    );
+                }
+            }
+        }
+        let mut content = InspectorContent {
+            semantic_availability: SemanticAvailability::Available,
+            ..fixture.content()
+        };
+        assert_eq!(reference_status(&content).unwrap().0, "Not in the index");
+        assert!(reference_status(&content).unwrap().1.contains("cfg-gated"));
+        content.reference_target = Some("alpha");
+        assert!(reference_status(&content).is_none()); // A real loaded zero uses coverage.
+        content.references_loading = true;
+        assert_eq!(reference_status(&content).unwrap().0, "Finding references…");
+        content.reference_error = Some("full worker failure details");
+        assert_eq!(
+            reference_status(&content),
+            Some(("References unavailable", "full worker failure details"))
+        );
+        let (ctx, theme) = themed_context(true, 1.0);
+        let mut viewport = crate::ui::reference_list::ReferenceViewport::default();
+        let texts = crate::ui::test_support::painted_text(&ctx, egui::vec2(240.0, 400.0), |ui| {
+            ContextInspector::render_reference_context(ui, &theme, &content, &mut viewport);
+        });
+        assert!(texts.iter().any(|t| t == "full worker failure details"));
+        assert!(!texts.iter().any(|t| t.contains("No references shown")));
     }
 
     #[test]

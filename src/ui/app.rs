@@ -773,7 +773,13 @@ impl RadiologyApp {
                             explicit_references: self.reference_context.explicit().is_some(),
                             references_loading: self.reference_context.is_query_running(),
                             reference_error: self.reference_context.error.as_deref(),
-                            references_available: self.reference_context.available(),
+                            semantic_availability:
+                                crate::semantic::availability::SemanticAvailability::from_services(
+                                    self.open_buffer.as_deref(),
+                                    self.semantic_index.as_deref(),
+                                    &self.index_generator,
+                                    &self.index_importer,
+                                ),
                             outline: &self.outline_symbols,
                             outline_loading: self.is_source_loading(),
                             outline_error: self.syntax_error.as_deref(),

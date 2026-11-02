@@ -137,3 +137,82 @@ fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_
             .starts_with("References"))
     );
 }
+
+#[test]
+fn semantic_explanations_follow_index_coverage_source_identity_and_revision() {
+    let (_dir, mut app) = reader_with_reference_index();
+    let ctx = Context::default();
+    app.show_inspector = true;
+    let original = app.semantic_index.clone().unwrap();
+    let rendered_text = |app: &mut RadiologyApp| {
+        frame(app, &ctx);
+        let output = frame(app, &ctx);
+        crate::ui::test_support::text_shapes(&output)
+            .map(|t| t.galley.job.text.clone())
+            .collect::<Vec<_>>()
+    };
+    for (index, revision, expected) in [
+        (None, None, "No semantic index"),
+        (
+            Some(Arc::new(crate::semantic::SemanticIndex::default())),
+            None,
+            "No semantic index",
+        ),
+        (
+            Some(Arc::new(crate::semantic::SemanticIndex::from_scip(
+                ScipIndex {
+                    documents: vec![ScipDocument {
+                        relative_path: "other.rs".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+            ))),
+            None,
+            "File not indexed",
+        ),
+        (
+            {
+                let mut stale = (*original).clone();
+                stale
+                    .source_digests
+                    .insert("a.rs".into(), "different bytes".into());
+                Some(Arc::new(stale))
+            },
+            None,
+            "Source changed",
+        ),
+        (
+            Some(original.clone()),
+            Some(ReviewRevision::Before),
+            "Before not indexed",
+        ),
+    ] {
+        app.semantic_index = index;
+        Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = revision;
+        app.refresh_symbol_context();
+        settle(&mut app);
+        let texts = rendered_text(&mut app);
+        assert_eq!(
+            texts.iter().filter(|t| t.as_str() == expected).count(),
+            2,
+            "{texts:?}"
+        );
+        assert!(
+            !texts.iter().any(|t| t.contains("No references shown")),
+            "{texts:?}"
+        );
+    }
+    app.semantic_index = Some(original);
+    Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = None;
+    app.refresh_symbol_context();
+    settle(&mut app);
+    let texts = rendered_text(&mut app);
+    assert!(
+        !texts.iter().any(
+            |t| ["No semantic index", "Source changed", "Before not indexed"].contains(&t.as_str())
+        ),
+        "{texts:?}"
+    );
+    assert!(app.reference_context.target().is_some());
+}

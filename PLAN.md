@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Semantic availability](plans/rust-semantic-availability.md) now shares missing-index,
+file-coverage, exact-source and Before reasons between References and the lower
+Outline hint. Retained usable indexes survive replacement work/failure; worker
+errors no longer show false zero coverage. App/component and eight native 1×/2×
+checks pass. Broader corpus and final parity acceptance remain open.
+
 [Large-source reader performance](plans/rust-reader-performance.md) now records
 exact-byte 6 MB/Back acceptance, profiling, lazy per-grammar query initialization
 and shared sparse Unicode coordinates. Unwrapped destinations now reveal before

@@ -102,6 +102,7 @@ impl ReferenceContext {
     pub fn is_query_running(&self) -> bool {
         self.job.is_running()
     }
+    #[cfg(test)]
     pub fn available(&self) -> bool {
         self.inputs.is_some()
     }

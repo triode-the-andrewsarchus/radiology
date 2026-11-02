@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-01 — Share source-specific semantic availability across inspector regions (Codex)
+
+References and Outline now share a toolkit-independent borrowed availability model:
+missing/empty index, indexing, uncovered file, changed generated source and PR
+Before. Retained usable indexes take priority over replacement loading/failure;
+unverified imports retain unknown freshness. Existing lifecycle diagnostics and
+cancellation reasons remain available. The inspector's coarse boolean becomes a
+typed availability input; no new worker/cache/persistent state/dependency. Fitted
+Small hints and bounded explanations reuse existing mechanisms. Unindexed parsed
+declarations receive the configuration/indexer explanation; worker failures retain
+full scrollable diagnostics and omit false zero coverage. Unproven counts no longer
+appear in unavailable/loading/error headings. App transitions and narrow theme/
+scale components pass; workspace passes 553 app tests (seven ignored), two binary,
+four font, 13 text and 36 doctests with eight test threads. Initial default-thread
+run hit an unchanged source-loader five-second deadline; full rerun passes. Strict
+Clippy/check/build/rustdoc/fmt/diff pass. Architecture +451 NLOC including tests,
+nine functions; resolver CCN 8, binding 3, reference render 11, status 5; app render
+stays 36, lower region 15. No new hotspot/cycle/max-CCN/clone group; all 91 baseline
+clones unchanged after full audit, health -0.01. Eight native 1×/2× absent/empty/
+uncovered/malformed-import cases pass matching headings, structure, exact copy,
+fixture/binary hashes and zero exits. 2× uncovered capture visually checked.
+Broader inspector/input/corpus, reader/language/index/PR/cache and final Swift UI/
+standalone/reuse acceptance remain open; accessibility and sibling adoption deferred.
+[Contract/evidence](plans/rust-semantic-availability.md).
+Archive: ~/.local/state/radiology-qa/semantic-availability-20261101-08d1c49.
+
+
 ## 2026-11-01 — Share exact inspector headings and stabilize definition controls (Codex)
 
 The Definition region now omits a name already shown by the exact indexed

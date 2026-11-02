@@ -141,6 +141,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
+[Shared semantic availability](rust-semantic-availability.md) now distinguishes
+missing/empty indexes, file coverage, changed generated source and Before across
+References/Outline, with retained-index and native 1×/2× evidence. Broader semantic
+status, diagnostic presentation and corpus acceptance remain part of the audit.
+
 - [Real Rust/TypeScript/Go/Python/Kotlin/Java/C/C++ lifecycle acceptance](rust-real-indexer-acceptance.md) now passes through shared production-path checks, including Kotlin-to-Java navigation. All six adapter families now have small real-tool lifecycle evidence. Android/AGP, broader C/C++ build-database discovery and other corpora remain open.
 - Finish semantic context/cache reuse work;
   complete index lifecycle with all Swift project strategies,
