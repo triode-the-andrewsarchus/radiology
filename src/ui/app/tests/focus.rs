@@ -1,5 +1,6 @@
 //! Real app frames exercise modal/canvas focus rather than a parallel test renderer.
 use super::*;
+mod files;
 mod ownership;
 mod references;
 use egui::{Event, Key, Modifiers};

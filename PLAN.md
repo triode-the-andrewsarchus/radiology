@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Files navigation](plans/rust-files-navigation.md) now follows committed source
+jumps, preserves passive scrolling and shows the confirmed current document through
+filters. Selected-row clicks retain caret/history/revision; Before file-manager
+handoffs reuse the pinned revision cache. Full validation is recorded in PROGRESS.
+
 [Current-function folding](plans/rust-current-function-fold.md) adds source-local x
 and opens destination bodies on committed jumps. App/native 1×/2×, strict gates,
 44 doctests and full workspace checks pass.

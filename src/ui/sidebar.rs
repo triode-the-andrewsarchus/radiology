@@ -51,7 +51,85 @@ pub enum SidebarAction {
 /// Renders the collapsible left sidebar panel in the Radiology desktop UI.
 pub struct Sidebar;
 
+#[derive(Clone, Default)]
+struct FilesReveal {
+    path: Option<String>,
+    revision: Option<crate::source::ReviewRevision>,
+    filters: SourceFilters,
+    active: bool,
+    frame: u64,
+    pending: bool,
+}
+
+impl FilesReveal {
+    fn id() -> egui::Id {
+        egui::Id::new("radiology_files_reveal")
+    }
+}
+
 impl Sidebar {
+    /// Requests one centered reveal after an accepted source navigation.
+    ///
+    /// Hosts should call this for explicit same-file jumps as well as new files.
+    /// Passive caret movement should not request a reveal. Filters, disclosure
+    /// choices and source bytes remain owned by the host; Before labels apply only
+    /// to the matching selected row.
+    ///
+    /// ```
+    /// use radiology::ui::sidebar::Sidebar;
+    /// let ctx = egui::Context::default();
+    /// // After accepting a jump, before rendering Sidebar::show:
+    /// Sidebar::request_file_reveal(&ctx, "src/main.rs", None);
+    /// ```
+    pub fn request_file_reveal(
+        ctx: &egui::Context,
+        path: &str,
+        revision: Option<crate::source::ReviewRevision>,
+    ) {
+        ctx.data_mut(|data| {
+            let mut state = data
+                .get_temp::<FilesReveal>(FilesReveal::id())
+                .unwrap_or_default();
+            state.path = Some(path.into());
+            state.revision = revision;
+            state.pending = true;
+            data.insert_temp(FilesReveal::id(), state);
+        });
+    }
+
+    fn prepare_files(
+        ui: &Ui,
+        selected: Option<&str>,
+        filters: &SourceFilters,
+        expanded: &mut HashSet<String>,
+    ) {
+        let mut state = ui
+            .ctx()
+            .data(|data| data.get_temp::<FilesReveal>(FilesReveal::id()))
+            .unwrap_or_default();
+        let changed = state.path.as_deref() != selected;
+        state.pending |= changed
+            || state.filters != *filters
+            || !state.active
+            || state.frame.saturating_add(1) < ui.ctx().frame_nr();
+        if changed {
+            state.revision = None;
+        }
+        state.path = selected.map(str::to_owned);
+        state.filters = filters.clone();
+        state.frame = ui.ctx().frame_nr();
+        state.active = true;
+        if state.pending {
+            let mut parent = selected;
+            while let Some((path, _)) = parent.and_then(|path| path.rsplit_once('/')) {
+                expanded.insert(path.to_owned());
+                parent = Some(path);
+            }
+        }
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(FilesReveal::id(), state));
+    }
+
     pub(crate) fn search_query_id() -> egui::Id {
         egui::Id::new("radiology_repository_search_query")
     }
@@ -99,7 +177,14 @@ impl Sidebar {
                 },
                 search.matches.len()
             ),
-            SidebarTab::Files => format!("{visible_count} of {total_count} files"),
+            SidebarTab::Files => format!(
+                "{visible_count} of {total_count} files{}",
+                if selected_path.is_some_and(|path| !filters.includes_path(path)) {
+                    " · current file revealed"
+                } else {
+                    ""
+                }
+            ),
         };
         egui::TopBottomPanel::bottom("repository_footer").show_inside(ui, |ui| {
             ui.colored_label(theme.text_secondary, count);
@@ -116,18 +201,21 @@ impl Sidebar {
                 {
                     action = Some(SidebarAction::FiltersChanged);
                 }
-                if selected_path.is_some_and(|path| !filters.includes_path(path)) {
-                    ui.colored_label(
-                        theme.text_muted,
-                        "The open file is excluded by these filters.",
-                    );
-                }
+                Self::prepare_files(ui, selected_path, filters, expanded_dirs);
                 if file_tree.is_empty() && total_count > 0 {
                     action = Self::filtered_empty(ui, theme);
                 }
                 ScrollArea::vertical()
+                    .animated(false)
                     .id_source("repository_files")
-                    .show(ui, |ui| {
+                    .show_viewport(ui, |ui, viewport| {
+                        // First-frame content size is unknown to egui. Use the real
+                        // viewport even before overflow was measured for centering.
+                        let screen_viewport = egui::Rect::from_min_size(
+                            ui.min_rect().min + viewport.min.to_vec2(),
+                            viewport.size(),
+                        );
+                        ui.set_clip_rect(ui.clip_rect().intersect(screen_viewport));
                         for node in file_tree {
                             if let Some(next) = Self::render_tree_node(
                                 ui,
@@ -149,6 +237,14 @@ impl Sidebar {
             SidebarTab::Search => {
                 action = Self::search(ui, theme, search_options, search);
             }
+        }
+        if *active_tab != SidebarTab::Files {
+            ui.ctx().data_mut(|data| {
+                if let Some(mut state) = data.get_temp::<FilesReveal>(FilesReveal::id()) {
+                    state.active = false;
+                    data.insert_temp(FilesReveal::id(), state);
+                }
+            });
         }
         action
     }
@@ -520,55 +616,111 @@ impl Sidebar {
                 }
             }
         } else {
-            let is_selected = selected_path == Some(&node.path);
-            let is_changed = changed_paths.contains(node.path.as_str());
-            let bg = if is_selected {
-                theme.accent.linear_multiply(0.25)
-            } else {
-                Color32::TRANSPARENT
-            };
-
-            let resp = egui::Frame::none()
-                .fill(bg)
-                .inner_margin(egui::Margin::symmetric(4.0, 2.0))
-                .rounding(3.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add_space((indent + 12.0).min((ui.available_width() - 54.0).max(0.0)));
-                        Icon::Code.ui(ui, 11.0, theme.text_muted);
-                        ui.add_space(2.0);
-                        let width =
-                            (ui.available_width() - 6.0 - ui.spacing().item_spacing.x).max(0.0);
-                        let label = super::text_fit::middle(
-                            ui,
-                            &node.name,
-                            egui::TextStyle::Monospace.resolve(ui.style()),
-                            theme.text_primary,
-                            width,
-                        );
-                        ui.add(egui::Label::new(label)).on_hover_text(&node.path);
-                        let (name_rect, _) =
-                            ui.allocate_exact_size(egui::vec2(6.0, 6.0), egui::Sense::hover());
-                        if is_changed {
-                            ui.painter()
-                                .circle_filled(name_rect.center(), 2.5, theme.accent);
-                        }
-                    });
-                })
-                .response;
-
-            let interact_resp = resp
-                .interact(egui::Sense::click())
-                .on_hover_text(&node.path);
-            action = Self::row_menu(&interact_resp, &node.path);
-
-            if interact_resp.clicked() {
-                action = Some(SidebarAction::OpenFile(node.path.clone()));
-            }
+            action = Self::render_file_row(
+                ui,
+                theme,
+                node,
+                selected_path == Some(&node.path),
+                changed_paths.contains(node.path.as_str()),
+                indent,
+            );
         }
 
         action
     }
+    fn render_file_row(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        node: &FileNode,
+        is_selected: bool,
+        is_changed: bool,
+        indent: f32,
+    ) -> Option<SidebarAction> {
+        let mut action;
+        let reveal = ui
+            .ctx()
+            .data(|data| data.get_temp::<FilesReveal>(FilesReveal::id()))
+            .unwrap_or_default();
+        let before = is_selected
+            && reveal.path.as_deref() == Some(&node.path)
+            && reveal.revision == Some(crate::source::ReviewRevision::Before);
+        let bg = if is_selected {
+            theme.accent.linear_multiply(0.25)
+        } else {
+            Color32::TRANSPARENT
+        };
+
+        let resp = egui::Frame::none()
+            .fill(bg)
+            .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+            .rounding(3.0)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space((indent + 12.0).min((ui.available_width() - 54.0).max(0.0)));
+                    Icon::Code.ui(ui, 11.0, theme.text_muted);
+                    ui.add_space(2.0);
+                    let width = (ui.available_width()
+                        - 6.0
+                        - ui.spacing().item_spacing.x
+                        - if before {
+                            ui.fonts(|fonts| {
+                                fonts
+                                    .layout_no_wrap(
+                                        "Before".into(),
+                                        egui::TextStyle::Small.resolve(ui.style()),
+                                        theme.text_secondary,
+                                    )
+                                    .size()
+                                    .x
+                            }) + ui.spacing().item_spacing.x
+                        } else {
+                            0.0
+                        })
+                    .max(0.0);
+                    let label = super::text_fit::middle(
+                        ui,
+                        &node.name,
+                        egui::TextStyle::Monospace.resolve(ui.style()),
+                        theme.text_primary,
+                        width,
+                    );
+                    ui.add(egui::Label::new(label)).on_hover_text(&node.path);
+                    if before {
+                        ui.label(
+                            egui::RichText::new("Before")
+                                .small()
+                                .color(theme.text_secondary),
+                        );
+                    }
+                    let (name_rect, _) =
+                        ui.allocate_exact_size(egui::vec2(6.0, 6.0), egui::Sense::hover());
+                    if is_changed {
+                        ui.painter()
+                            .circle_filled(name_rect.center(), 2.5, theme.accent);
+                    }
+                });
+            })
+            .response;
+
+        let interact_resp = resp
+            .interact(egui::Sense::click())
+            .on_hover_text(&node.path);
+        action = Self::row_menu(&interact_resp, &node.path);
+
+        if is_selected && reveal.pending {
+            interact_resp.scroll_to_me(Some(egui::Align::Center));
+            ui.ctx().data_mut(|data| {
+                let mut state = reveal;
+                state.pending = false;
+                data.insert_temp(FilesReveal::id(), state);
+            });
+        }
+        if interact_resp.clicked() && !is_selected {
+            action = Some(SidebarAction::OpenFile(node.path.clone()));
+        }
+        action
+    }
+
     fn row_menu(response: &egui::Response, path: &str) -> Option<SidebarAction> {
         #[derive(Clone)]
         enum FileMenuAction {
@@ -679,7 +831,7 @@ mod tests {
                     &AppTheme::dark(),
                     &tree[0],
                     &mut HashSet::new(),
-                    Some(&path),
+                    None,
                     &HashSet::new(),
                     0,
                 );

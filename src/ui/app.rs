@@ -86,10 +86,11 @@ pub struct RadiologyApp {
     git_error: Option<String>,
     /// Shared immutable candidate inventory for the accepted repository or review.
     pub all_files: Arc<[RepositoryFile]>,
-    /// Hierarchical directory tree of filtered files.
+    /// Filtered Files tree, or flat path rows while a query is active.
     pub file_tree: Vec<FileNode>,
     /// Set of expanded directory paths.
     pub expanded_dirs: HashSet<String>,
+    files_reveal_pending: bool,
     /// Relative path of the currently selected file.
     pub selected_path: Option<String>,
     /// Loaded source buffer for the active file.
@@ -284,6 +285,7 @@ impl RadiologyApp {
             all_files: Default::default(),
             file_tree: Vec::new(),
             expanded_dirs: HashSet::new(),
+            files_reveal_pending: true,
             selected_path: None,
             open_buffer: None,
             caret_line: 1,
@@ -381,10 +383,45 @@ impl RadiologyApp {
         }
     }
 
-    /// Rebuilds the hierarchical file tree applying active filters.
+    /// Rebuilds Files rows, temporarily retaining the confirmed loaded document.
     pub fn refresh_file_tree(&mut self) {
-        let filtered = self.session.source_filters.filter_files(&self.all_files);
-        self.file_tree = FileNode::build_tree(&filtered);
+        let mut filtered = self.session.source_filters.filter_files(&self.all_files);
+        if let Some(buffer) = &self.open_buffer {
+            if !filtered.iter().any(|file| file.path == buffer.path) {
+                filtered.push(RepositoryFile::new(&buffer.path));
+            }
+        }
+        self.file_tree = if self.session.source_filters.path_query.is_empty() {
+            FileNode::build_tree(&filtered)
+        } else {
+            filtered.sort_by_key(|file| file.path.to_lowercase());
+            filtered
+                .into_iter()
+                .map(|file| {
+                    let name = file.path.clone();
+                    FileNode {
+                        name,
+                        ..FileNode::new_file(file)
+                    }
+                })
+                .collect()
+        };
+        self.files_reveal_pending = true;
+    }
+
+    fn prepare_files_sidebar(&mut self, ctx: &Context) -> (usize, usize) {
+        let visible_count = self.file_tree.iter().map(FileNode::file_count).sum();
+        let outside_snapshot = self
+            .open_buffer
+            .as_ref()
+            .is_some_and(|buffer| !self.all_files.iter().any(|file| file.path == buffer.path));
+        let total_count = self.all_files.len() + usize::from(outside_snapshot);
+        if std::mem::take(&mut self.files_reveal_pending) {
+            if let Some(buffer) = &self.open_buffer {
+                Sidebar::request_file_reveal(ctx, &buffer.path, buffer.revision);
+            }
+        }
+        (visible_count, total_count)
     }
 
     /// Requests a file while keeping the current document usable until publication.
@@ -503,6 +540,7 @@ impl RadiologyApp {
         self.all_files = Default::default();
         self.file_tree.clear();
         self.expanded_dirs.clear();
+        self.files_reveal_pending = true;
         self.selected_path = None;
         self.open_buffer = None;
         self.history.clear();
@@ -692,12 +730,7 @@ impl RadiologyApp {
                     ui.style_mut().interaction.selectable_labels = false;
                     let prev_tab = self.sidebar_tab;
                     let previous_options = self.search_options.clone();
-                    let visible_count = self
-                        .session
-                        .source_filters
-                        .filter_files(&self.all_files)
-                        .len();
-                    let total_count = self.all_files.len();
+                    let (visible_count, total_count) = self.prepare_files_sidebar(ctx);
                     let action = Sidebar::show(
                         ui,
                         &self.theme,

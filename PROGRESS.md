@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-02 — Files reveal, current-document exceptions and Before handoffs (Codex)
+
+Files now follows committed/new/same-file navigation, expands only ancestors, centers
+once and retains manual scroll/disclosures during passive caret movement. Returning
+from Search or a hidden sidebar reveals again. Added a documented direct-host reveal
+request; app uses one pending transaction signal. First-paint viewport clipping was
+corrected after a roughly 60-point centering failure. Tests establish egui zoom before
+mount and allow wheel smoothing; clip-margin reflow stays within part of one row.
+Filtered/query presentation adds only the confirmed loaded document, including deleted
+Before/unlisted files; underlying inventory, filters, search/Changes/picker inputs stay
+unchanged. Query rows show full paths; Before has a measured secondary caption.
+Selected-row clicks no longer reopen source/reset exact caret, revision or history.
+File-manager handoff now materializes Before through existing verified cache/writer
+lock/lease; real Git checks cache reuse, tamper repair, cancellation and checkout safety.
+Final: 648 app tests pass, seven existing ignored; two binary/13 font/21 text tests,
+45 doctests, strict gates and rendered API docs pass. Native previous/current 1×/2×
+confirms old missing rows and new centered/filter-exception rows, exact 30-byte
+Unicode/CRLF Copy and light appearance. OCR-only failures retained; thresholding and
+zero-glyph normalization fix the driver, captures manually inspected. Final hashes
+unchanged and all owned app/compositor exits zero. Native fixture covers checkout;
+deleted Before is proven by real-Git app/service tests, not claimed as native coverage.
+Architecture +406 NLOC/11 functions/one test file, avg3.37→3.38, max132 and hotspots/
+cycles unchanged. All125 normalized clone groups unchanged; default REGRESSION flags
+shifted old clones and fluctuating untouched Python chokepoints. [Contract/review](plans/rust-files-navigation.md).
+Archive: ~/.local/state/radiology-qa/files-navigation-20261102-7ebb233.
+Next: inspector pane preferences, followed by traits/Code Paths/indexing personalities
+and remaining broad parity/corpus acceptance. Full accessibility and sibling adoption
+remain deferred; the app stays standalone.
+
 ## 2026-11-02 — Current-function x and committed destination expansion (Codex)
 
 Ported upstream named-function folding with existing syntax breadcrumbs, exact body

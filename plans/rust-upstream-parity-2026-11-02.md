@@ -16,7 +16,7 @@ rebase does not mean the Rust app implements the new Swift capabilities.
 | Priority | Capability and Swift contract | Current Rust assessment / acceptance work |
 | --- | --- | --- |
 | 1 | Current-function folding: unmodified source-focused x toggles the innermost named function, no repeats/IME/field interception. Committed jumps expand its body and ancestors, including late syntax; previews and refreshes preserve manual folds. | [Ported](rust-current-function-fold.md): source x, named-body targeting, hidden-parent recovery and committed destination expansion reuse syntax/fold/navigation. Full app/workspace, native 1×/2× and composition/repeat/rehighlight checks pass. [Reference](function-fold-key.md). |
-| 1 | Files tracks committed navigation: expand ancestors, highlight and center current file, explicit same-file jump recenters, ordinary caret motion retains manual scroll. Temporarily reveal the active document even when filters/listing exclude it, including Before-only paths. | Rust has Files filters/tree and currently reports excluded open files. Audit/reuse tree and source navigation state rather than create another file model. Preserve query/filters/canonical destinations and ensure selection synchronization never reopens source. [Reference](files-sidebar-navigation.md). |
+| 1 | Files tracks committed navigation: expand ancestors, highlight and center current file, explicit same-file jump recenters, ordinary caret motion retains manual scroll. Temporarily reveal the active document even when filters/listing exclude it, including Before-only paths. | [Ported](rust-files-navigation.md): accepted/current-file reveal, flat query exceptions, passive scroll retention, selected-row preservation and pinned Before file-manager handoff reuse existing trees, filters, source transactions and verified revision cache. [Reference](files-sidebar-navigation.md). |
 | 2 | Configurable Context panes: persistent References, Definition/Outline, Trait Implementations and Bookmarks choices; Show All recovery; enabled panes reclaim space; enabling from View reopens hidden inspector without resetting state. | Whole-inspector visibility exists; independent pane configuration and trait-dependent middle slot need implementation/audit. Keep one preferences model and current scroll/selection ownership. [Reference](inspector-pane-controls.md). |
 | 2 | Rust trait implementations: semantic trait identity at caret/enclosing trait/impl, grouped source rows, positive/negative counts, coverage gaps, stable selection and guarded exact navigation. | SCIP relationship decoding exists, but no trait catalog, worker or pane was found. Reuse semantic identities, syntax and cancellable reads. Port the new real SCIP fixture and context tests; never infer completeness from missing rows. [Reference](rust-trait-implementations.md). |
 | 3 | Code Paths: atomic UTF-8 import ≤2 MB, title then escaped file:function:description; canonical-repository persistence shared with attached PRs, copy/delete/trace picker, numbered steps, error recovery. Dedicated left tab beside Files/Search/Changes and import/show shortcuts. | No Rust Code Path model/store/parser/UI found. Build reusable data/resolution services and use existing modal input, sessions, repository containment and navigation. Corrupt storage must remain visible and must not be overwritten silently. [Reference](code-paths.md). |
@@ -27,8 +27,9 @@ rebase does not mean the Rust app implements the new Swift capabilities.
 
 ## Execution and validation
 
-Exact-search full/native acceptance and current-function folding are complete.
-Next implement Files navigation/reveal, then the remaining priorities above in
+Exact-search acceptance, current-function folding and Files navigation/reveal are
+complete for the documented contracts. Next implement inspector pane preferences,
+then the remaining priorities above in
 coherent commits, pushing each. Establish architecture baselines
 and search reuse before new mechanisms; compare afterward. Keep standalone builds
 and shared reader APIs suitable for later little-screen-clip adoption; no sibling

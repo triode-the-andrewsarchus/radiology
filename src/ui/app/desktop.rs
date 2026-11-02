@@ -8,11 +8,22 @@ impl RadiologyApp {
             return;
         };
         let review = self.review.clone();
+        let revision = self
+            .open_buffer
+            .as_ref()
+            .filter(|buffer| buffer.path == path)
+            .and_then(|buffer| buffer.revision)
+            .unwrap_or(ReviewRevision::After);
         self.reveal_job.spawn(move |cancel| {
+            let (root, tree_lease) = match &review {
+                Some(review) => review.reveal_tree(revision, cancel)?,
+                None => (root, None),
+            };
             let result = crate::desktop::prepare_reveal(&root, &path).and_then(|command| {
                 crate::desktop::show_items(&command, cancel, std::time::Duration::from_secs(5))
             });
-            // Keep a private After tree alive until the desktop acknowledges it.
+            // Keep the exact pinned revision alive until the desktop acknowledges it.
+            drop(tree_lease);
             drop(review);
             result
         });

@@ -198,3 +198,39 @@ fn pinned_blob_reads_are_bounded_cancellable_and_verify_size_metadata() {
         assert!(error.contains(expected), "{error}");
     }
 }
+
+#[test]
+fn file_manager_before_tree_reuses_verified_base_and_retains_pinned_ownership() {
+    let (_owner, root, review) = fixture();
+    let status = git(&root, &["status", "--porcelain"]);
+    let cancel = AtomicBool::new(false);
+    let (before, lease) = review.reveal_tree(ReviewRevision::Before, &cancel).unwrap();
+    assert!(lease.is_some());
+    assert_eq!(std::fs::read(before.join("removed.rs")).unwrap(), b"old\n");
+    assert_eq!(
+        std::fs::read(before.join("a file.rs")).unwrap(),
+        b"one\ntwo\nthree\n"
+    );
+    assert!(!before.join("added.rs").exists());
+    let (again, second_lease) = review.reveal_tree(ReviewRevision::Before, &cancel).unwrap();
+    assert_eq!(again, before);
+    assert!(second_lease.is_some());
+    crate::desktop::prepare_reveal(&before, "removed.rs").unwrap();
+    std::fs::write(before.join("removed.rs"), "tampered\n").unwrap();
+    let (repaired, repaired_lease) = review.reveal_tree(ReviewRevision::Before, &cancel).unwrap();
+    assert_ne!(repaired, before);
+    assert!(repaired_lease.is_some());
+    assert_eq!(
+        std::fs::read(repaired.join("removed.rs")).unwrap(),
+        b"old\n"
+    );
+    let (after, _) = review.reveal_tree(ReviewRevision::After, &cancel).unwrap();
+    assert_eq!(after, review.head_root);
+    assert!(!after.join("removed.rs").exists());
+    assert_eq!(git(&root, &["status", "--porcelain"]), status);
+    let stopped = AtomicBool::new(true);
+    assert!(review
+        .reveal_tree(ReviewRevision::Before, &stopped)
+        .unwrap_err()
+        .contains("cancelled"));
+}

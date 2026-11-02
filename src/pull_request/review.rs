@@ -55,6 +55,32 @@ pub(crate) struct SnapshotInputs {
 }
 
 impl ReviewSnapshot {
+    /// Keeps the selected pinned revision materialized for a desktop handoff.
+    pub(crate) fn reveal_tree(
+        &self,
+        revision: ReviewRevision,
+        cancel: &AtomicBool,
+    ) -> Result<(PathBuf, Option<std::sync::Arc<tree_cache::TreeLease>>), String> {
+        let control = ReviewControl::new(cancel);
+        control.check()?;
+        if revision == ReviewRevision::After {
+            return Ok((self.head_root.clone(), self._tree_lease.clone()));
+        }
+        let cache = self
+            .object_dir
+            .parent()
+            .ok_or("Private store has no parent")?;
+        let writer = StoreLease::acquire(cache, &control)?;
+        let control = ReviewControl {
+            lease: Some(writer.file()),
+            ..control
+        };
+        let store = GitStore(control.git(&self.object_dir));
+        let mut tree = tree_cache::PreparedTree::prepare(&store, &self.base, &control)?;
+        tree.commit(&control)?;
+        Ok((tree.path.clone(), Some(tree.lease.clone())))
+    }
+
     pub(crate) fn head_inputs(&self, cancel: &AtomicBool) -> Result<SnapshotInputs, String> {
         let control = ReviewControl::new(cancel);
         let store = GitStore(control.git(&self.object_dir));

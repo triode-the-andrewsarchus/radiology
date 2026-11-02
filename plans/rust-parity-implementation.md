@@ -27,6 +27,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Files navigation](rust-files-navigation.md): one-shot centered reveal and parent
+  expansion, temporary current-document filter/listing exceptions, flat query rows,
+  selected-row preservation and exact Before file-manager trees.
+
 - [Current-function folding](rust-current-function-fold.md): source-local x, exact
   named-body targeting, hidden-parent expansion, composition/repeat ownership and
   body expansion on committed navigation. Full workspace, native 1×/2×, strict

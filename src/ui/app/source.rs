@@ -327,6 +327,7 @@ impl RadiologyApp {
         self.highlighted_lines = prepared.highlights;
         self.line_changes = prepared.changes;
         self.open_buffer = Some(prepared.buffer);
+        self.refresh_file_tree();
         self.refresh_critical_projection();
         self.error = None;
         let destination_byte = prepared.destination.byte_offset;
@@ -366,6 +367,7 @@ impl RadiologyApp {
             return;
         };
         let byte = location.byte_offset;
+        self.files_reveal_pending = true;
         if intent.reveal {
             self.test_code.reveal_byte(buffer, byte);
         }
