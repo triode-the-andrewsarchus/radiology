@@ -97,6 +97,64 @@ fn welcome_recent_paths_stay_compact_and_open_their_canonical_repository() {
 }
 
 #[test]
+fn search_query_edits_retire_rows_and_explicit_submit_wins_over_debounce() {
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    for scale in [1.0, 2.0] {
+        let (_owner, mut app) = reader_with_source("// needle café\r\n");
+        app.jump_to_location("a.rs", 1, 3);
+        settle(&mut app);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        app.execute_command(&ctx, ToolbarAction::OpenSearch);
+        let output = frame(&mut app, &ctx, vec![]);
+        assert!(text_shapes(&output).any(|shape| shape.galley.job.text == "Search the Source"));
+        app.search_options.query = "needle".into();
+        app.start_repository_search();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while app.repository_search.poll() {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(app.repository_search.matches.len(), 1);
+        let output = frame(&mut app, &ctx, vec![]);
+        let old_row = text_center(&output, "a.rs:1");
+        let mut events = vec![
+            key(Key::A, Modifiers::CTRL | Modifiers::COMMAND),
+            Event::Text("missing".into()),
+        ];
+        events.extend(click(old_row));
+        let output = frame(&mut app, &ctx, events);
+        assert_eq!(app.search_options.query, "missing");
+        assert!(app.repository_search.matches.is_empty());
+        assert!(app.repository_search.is_searching());
+        // The app stages the later pointer boundary into the next real frame.
+        frame(&mut app, &ctx, vec![]);
+        assert!(!app.is_source_loading());
+        assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+        assert_eq!((app.caret_line, app.caret_col), (1, 3));
+        assert_eq!(app.history.current().unwrap().byte_offset, 3);
+        assert!(!text_shapes(&output).any(|shape| shape.galley.job.text == "a.rs:1"));
+        app.execute_command(&ctx, ToolbarAction::OpenSearch);
+        frame(&mut app, &ctx, vec![]);
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::A, Modifiers::CTRL | Modifiers::COMMAND),
+                Event::Text("needle".into()),
+                key(Key::Enter, Modifiers::NONE),
+            ],
+        );
+        assert_eq!(app.search_options.query, "needle");
+        assert!(
+            app.repository_search.running,
+            "explicit submission starts immediately"
+        );
+        app.repository_search.stop();
+    }
+}
+
+#[test]
 fn composed_file_query_preserves_the_sidebar_search_owner() {
     let (owner, mut app) = reader();
     let root = owner.path().join("checkout");

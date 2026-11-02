@@ -52,8 +52,10 @@ impl RepositorySearch {
     }
 
     fn schedule_request(&mut self, request: SearchRequest) {
-        self.stop();
-        self.scheduled = Some((request, Instant::now() + Duration::from_millis(150)));
+        self.clear();
+        if !request.options.query.trim().is_empty() {
+            self.scheduled = Some((request, Instant::now() + Duration::from_millis(150)));
+        }
     }
 
     /// Starts a checkout request immediately and retires superseded publication.
@@ -74,10 +76,7 @@ impl RepositorySearch {
     }
 
     fn start_request(&mut self, request: SearchRequest) {
-        self.stop();
-        self.matches.clear();
-        self.error = None;
-        self.limited = false;
+        self.clear();
         if request.options.query.trim().is_empty() {
             return;
         }
@@ -103,6 +102,37 @@ impl RepositorySearch {
                 });
             let _ = sender.send(SearchEvent::Finished(result));
         });
+    }
+
+    /// Returns whether a request is waiting for its debounce or running its worker.
+    ///
+    /// Hosts use this for progress and Stop controls, including before ripgrep starts.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::search::{RepositorySearch, SearchOptions};
+    /// let mut search = RepositorySearch::default();
+    /// search.schedule(std::path::Path::new("."), SearchOptions {
+    ///     query: "needle".into(), ..Default::default()
+    /// });
+    /// assert!(search.is_searching());
+    /// search.clear();
+    /// assert!(!search.is_searching());
+    /// ```
+    #[must_use]
+    pub fn is_searching(&self) -> bool {
+        self.running || self.scheduled.is_some()
+    }
+
+    /// Cancels work and clears results, errors and the result-limit indication.
+    ///
+    /// Unlike [`Self::stop`], this retires the previous request's presentation.
+    pub fn clear(&mut self) {
+        self.stop();
+        self.matches.clear();
+        self.error = None;
+        self.limited = false;
     }
 
     /// Cancels work and retires its receiver while keeping already published matches.
@@ -186,6 +216,16 @@ mod tests {
         finish(&mut search);
         assert!(search.error.is_some());
         assert!(search.matches.is_empty());
+        search.schedule(
+            dir.path(),
+            SearchOptions {
+                query: "  ".into(),
+                ..Default::default()
+            },
+        );
+        assert!(!search.is_searching());
+        assert!(search.error.is_none());
+        assert!(!search.poll());
     }
 
     #[test]
@@ -200,6 +240,8 @@ mod tests {
         };
         search.schedule_review(snapshot, options.clone());
         assert!(weak.upgrade().is_some(), "debounced work owns its tree");
+        assert!(search.is_searching());
+        assert!(!search.running);
         finish(&mut search);
         assert!(search.error.is_none(), "{:?}", search.error);
         assert_eq!(search.matches.len(), 1);
@@ -220,8 +262,18 @@ mod tests {
         let (_other, _, snapshot) = crate::pull_request::review::tests::fixture();
         let snapshot = Arc::new(snapshot);
         let weak = Arc::downgrade(&snapshot);
+        search.error = Some("obsolete query error".into());
+        search.limited = true;
         search.schedule_review(snapshot, options);
+        assert!(
+            search.matches.is_empty(),
+            "pending query must not expose old matches"
+        );
+        assert!(search.error.is_none());
+        assert!(!search.limited);
         search.stop();
+        assert!(!search.is_searching());
+        assert!(!search.poll());
         assert!(
             weak.upgrade().is_none(),
             "retired debounce releases its lease"

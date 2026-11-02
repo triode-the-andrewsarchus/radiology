@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Repository search presentation](rust-repository-search.md): option edits retire
+  stale rows/errors immediately; scheduled work exposes Stop/progress; explicit
+  submission/cancel takes precedence. Empty/error/recovery messages and bounded,
+  completely copyable diagnostics pass service/app/native checks.
+
 - [Welcome recent paths](rust-pane-labels.md#welcome-recent-paths--2026-11-02): all
   eight entries fit at minimum window size through the shared measured label
   policy, preserving exact open targets. App/native scale/appearance checks pass.

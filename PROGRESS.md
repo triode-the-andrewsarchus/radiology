@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-02 — Search replacement, pending Stop and request presentation (Codex)
+
+Swift search audit confirmed scheduled Rust queries retained obsolete matches,
+errors and cap flags while hiding Stop. Authoritative pinned-review RED reproduces
+old rows surviving replacement. Shared RepositorySearch now exposes is_searching
+and clear; both start paths reuse clear, blank queries retain no pending request,
+and Stop still preserves published matches. Existing workers/channels/leases remain.
+App option scheduling precedes explicit actions, so Go/Enter and Stop win. Sidebar
+edits suppress old rows immediately, exposes pending progress/Stop, and presents
+empty/searching/no-match/error states. Errors use bounded shared explanations plus
+complete Copy Error. No new worker/queue/dependency/state or sibling changes.
+Actual-app source/caret/history and edited-submit tests pass at 1×/2×; component
+checks pending Stop, bounded error and full copy. Initial test fixtures corrected
+native primary-command flags, app pointer-frame staging and accepted source state.
+The first full run found an old preview selector now also matching the fixture's
+nonempty query; it now selects the actual needle café previews without weakening
+truncation/count/navigation expectations. Final: 641 app tests pass, seven ignored,
+zero filtered; two binary, 13 font, 21 text and 43 doctests. Strict gates, rendered
+public API docs and copied resources pass. Native old/current 1×/2× confirms missing
+old guidance, new progress/Stop with controlled process termination, exact source
+Copy, complete 10,098-byte real-rg diagnostic Copy, recovery/light/clearing. Captures
+inspected, final hashes unchanged and all child exits zero.
+Architecture +170 NLOC/five functions, avg/max/files/cycles unchanged, health <0.01.
+Default REGRESSION flags one shifted old row clone; normalized audit proves all
+110 clone groups unchanged, no new hotspot. [Contract/evidence](plans/rust-repository-search.md).
+Archive: ~/.local/state/radiology-qa/search-presentation-20261102-f26c8ff.
+Broader Swift feature/UI/input/corpus and native IME-engine acceptance remain open;
+full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Compact welcome recent repositories (Codex)
 
 Swift WelcomeView audit found wrapping Rust links could put later recent targets

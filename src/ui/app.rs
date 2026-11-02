@@ -698,7 +698,7 @@ impl RadiologyApp {
                         .filter_files(&self.all_files)
                         .len();
                     let total_count = self.all_files.len();
-                    if let Some(action) = Sidebar::show(
+                    let action = Sidebar::show(
                         ui,
                         &self.theme,
                         &mut self.sidebar_tab,
@@ -713,7 +713,12 @@ impl RadiologyApp {
                         visible_count,
                         total_count,
                         self.branch_name.as_deref(),
-                    ) {
+                    );
+                    if previous_options != self.search_options {
+                        self.schedule_repository_search();
+                        ctx.request_repaint_after(std::time::Duration::from_millis(150));
+                    }
+                    if let Some(action) = action {
                         match action {
                             SidebarAction::RevealInFileManager(path) => {
                                 self.reveal_in_file_manager(path)
@@ -735,20 +740,12 @@ impl RadiologyApp {
                                 self.start_repository_search();
                             }
                             SidebarAction::StopSearch => self.repository_search.stop(),
-                            SidebarAction::ClearSearch => {
-                                self.repository_search.stop();
-                                self.repository_search.matches.clear();
-                            }
+                            SidebarAction::ClearSearch => self.repository_search.clear(),
                             SidebarAction::FiltersChanged => self.filters_changed(),
                             SidebarAction::ShowAllFiles => {
                                 self.execute_command(ctx, ToolbarAction::ShowAllFiles)
                             }
                         }
-                    }
-
-                    if previous_options != self.search_options {
-                        self.schedule_repository_search();
-                        ctx.request_repaint_after(std::time::Duration::from_millis(150));
                     }
 
                     if prev_tab != SidebarTab::Changes && self.sidebar_tab == SidebarTab::Changes {

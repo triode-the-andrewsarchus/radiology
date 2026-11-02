@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Repository search presentation](plans/rust-repository-search.md) now clears old
+request data immediately, exposes pending progress/Stop and keeps explicit submit/
+cancel ahead of debounce. Empty/error/recovery states and complete diagnostic Copy
+pass service/app/native 1×/2× checks.
+
 [Welcome recent paths](plans/rust-pane-labels.md#welcome-recent-paths--2026-11-02)
 now reuse measured middle elision so all eight entries fit at minimum window size.
 Pointer opening preserves exact Unicode/newline directory names; app and native

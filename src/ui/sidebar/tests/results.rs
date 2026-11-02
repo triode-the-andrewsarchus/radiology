@@ -102,7 +102,10 @@ impl Results {
                             SidebarTab::Search => Sidebar::search(
                                 ui,
                                 &theme,
-                                &mut SearchOptions::default(),
+                                &mut SearchOptions {
+                                    query: "needle".into(),
+                                    ..Default::default()
+                                },
                                 &self.search,
                             ),
                             SidebarTab::Files => unreachable!(),
@@ -201,7 +204,7 @@ fn fitted_results_keep_exact_navigation_and_binary_change_metadata() {
             let mut previews = 0;
             for shape in &output.shapes {
                 if let egui::Shape::Text(text) = &shape.shape {
-                    if text.galley.job.text.starts_with("needle") {
+                    if text.galley.job.text.starts_with("needle café ") {
                         previews += 1;
                         assert!(text.galley.elided, "long previews should signal truncation");
                         assert!(text.galley.rows.len() <= 2);
@@ -283,4 +286,46 @@ fn result_rows_retire_pressed_targets_when_results_reorder() {
             "keyboard activation should remain available"
         );
     }
+}
+
+#[test]
+fn search_status_exposes_pending_stop_empty_results_and_bounded_copyable_errors() {
+    use crate::ui::test_support::{text_center, text_shapes};
+    let mut fixture = Results::new();
+    let ctx = egui::Context::default();
+    fixture.search.schedule(
+        std::path::Path::new("."),
+        SearchOptions {
+            query: "needle".into(),
+            ..Default::default()
+        },
+    );
+    let (output, _, _) = fixture.frame(&ctx, SidebarTab::Search, 180.0, vec![]);
+    assert!(text_shapes(&output).any(|shape| shape.galley.job.text == "Searching…"));
+    let stop = text_center(&output, "Stop");
+    assert_eq!(
+        fixture
+            .frame(&ctx, SidebarTab::Search, 180.0, click(stop))
+            .1,
+        Some(SidebarAction::StopSearch)
+    );
+    fixture.search.stop();
+    let (output, _, _) = fixture.frame(&ctx, SidebarTab::Search, 180.0, vec![]);
+    assert!(text_shapes(&output).any(|shape| shape.galley.job.text == "No Matches"));
+    let error = format!(
+        "regex error: {}\ncomplete diagnostic tail",
+        "café".repeat(2000)
+    );
+    fixture.search.error = Some(error.clone());
+    let (output, _, pane) = fixture.frame(&ctx, SidebarTab::Search, 180.0, vec![]);
+    assert!(text_shapes(&output).any(|shape| shape.galley.job.text == "Search Unavailable"));
+    for text in
+        text_shapes(&output).filter(|shape| shape.galley.job.text.starts_with("regex error:"))
+    {
+        assert!(text.galley.rows.len() <= 3);
+        assert!(text.galley.size().x <= pane.width());
+    }
+    let copy = text_center(&output, "Copy Error");
+    let (output, _, _) = fixture.frame(&ctx, SidebarTab::Search, 180.0, click(copy));
+    assert_eq!(output.platform_output.copied_text, error);
 }

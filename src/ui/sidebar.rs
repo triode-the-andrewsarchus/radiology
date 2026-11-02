@@ -90,7 +90,15 @@ impl Sidebar {
         ui.separator();
         let count = match active_tab {
             SidebarTab::Changes => changes.file_count_label(),
-            SidebarTab::Search => format!("{} matches", search.matches.len()),
+            SidebarTab::Search => format!(
+                "{}{} matches",
+                if search.is_searching() {
+                    "Searching… "
+                } else {
+                    ""
+                },
+                search.matches.len()
+            ),
             SidebarTab::Files => format!("{visible_count} of {total_count} files"),
         };
         egui::TopBottomPanel::bottom("repository_footer").show_inside(ui, |ui| {
@@ -308,6 +316,7 @@ impl Sidebar {
                 .id(Self::search_query_id())
                 .hint_text("Search repository"),
         );
+        let mut edited = response.changed();
         if response.lost_focus()
             && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
         {
@@ -315,24 +324,29 @@ impl Sidebar {
             action = Some(SidebarAction::StartSearch);
         }
         ui.horizontal(|ui| {
-            ui.checkbox(&mut options.case_sensitive, "Case");
-            ui.checkbox(&mut options.is_regex, "Regex");
+            edited |= ui.checkbox(&mut options.case_sensitive, "Case").changed();
+            edited |= ui.checkbox(&mut options.is_regex, "Regex").changed();
             if ui.button("Go").clicked() {
                 action = Some(SidebarAction::StartSearch);
             }
-            if search.running && ui.button("Stop").clicked() {
+            if search.is_searching() && ui.button("Stop").clicked() {
                 action = Some(SidebarAction::StopSearch);
             }
         });
-        ui.add(
-            TextEdit::singleline(&mut options.include_glob).hint_text("Include glob, e.g. *.rs"),
-        );
-        ui.add(
-            TextEdit::singleline(&mut options.exclude_glob)
-                .hint_text("Exclude glob, e.g. tests/**"),
-        );
-        if let Some(error) = &search.error {
-            ui.colored_label(Color32::from_rgb(220, 90, 60), error);
+        edited |= ui
+            .add(
+                TextEdit::singleline(&mut options.include_glob)
+                    .hint_text("Include glob, e.g. *.rs"),
+            )
+            .changed();
+        edited |= ui
+            .add(
+                TextEdit::singleline(&mut options.exclude_glob)
+                    .hint_text("Exclude glob, e.g. tests/**"),
+            )
+            .changed();
+        if Self::search_status(ui, theme, options, search, edited) {
+            return action;
         }
         if search.limited {
             ui.label("First 5,000 matches. Narrow the query to see more.");
@@ -353,6 +367,34 @@ impl Sidebar {
                 }
             });
         action
+    }
+
+    fn search_status(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        options: &SearchOptions,
+        search: &RepositorySearch,
+        edited: bool,
+    ) -> bool {
+        let (title, help) = if options.query.trim().is_empty() {
+            ("Search the Source", "Find text across this repository.")
+        } else if edited || (search.is_searching() && search.matches.is_empty()) {
+            ("Searching…", "Searching this repository.")
+        } else if let Some(error) = &search.error {
+            ui.colored_label(theme.text_secondary, "Search Unavailable");
+            super::text_fit::explanation(ui, error, theme.text_secondary);
+            if ui.small_button("Copy Error").clicked() {
+                ui.output_mut(|output| output.copied_text = error.clone());
+            }
+            return true;
+        } else if search.matches.is_empty() {
+            ("No Matches", "Try another query or adjust the options.")
+        } else {
+            return false;
+        };
+        ui.colored_label(theme.text_secondary, title);
+        ui.colored_label(theme.text_muted, help);
+        true
     }
 
     fn search_row(
