@@ -164,7 +164,8 @@ pub struct RadiologyApp {
     bookmark_list: crate::ui::bookmark_list::BookmarkList,
     outline_list: crate::ui::outline_list::OutlineList,
     declaration_summary: crate::ui::context_inspector::DeclarationSummary,
-    reader_input: Vec<egui::Event>,
+    // Protected keys paired with their original per-frame event ordinals.
+    reader_input: Vec<(usize, egui::Event)>,
     deferred_input: Vec<egui::Event>,
     /// Active pull request summary during PR review.
     pub active_pr: Option<PullRequestSummary>,
@@ -528,8 +529,18 @@ impl RadiologyApp {
 
     /// Dispatches consumed shortcuts through the same commands used by menus.
     pub fn handle_shortcuts(&mut self, ctx: &Context) {
-        let mut events = std::mem::take(&mut self.reader_input);
-        events.extend(ctx.input_mut(|input| std::mem::take(&mut input.events)));
+        let captured = std::mem::take(&mut self.reader_input);
+        let retained = ctx.input_mut(|input| std::mem::take(&mut input.events));
+        let mut events = Vec::with_capacity(captured.len() + retained.len());
+        let mut retained = retained.into_iter();
+        for (position, event) in captured {
+            // Restore protected keys between the pointer/other events that stayed
+            // with egui. Merge once in original order, without shifting the tail.
+            let count = position.saturating_sub(events.len());
+            events.extend(retained.by_ref().take(count));
+            events.push(event);
+        }
+        events.extend(retained);
         self.dispatch_key_events(ctx, &mut events);
         ctx.input_mut(|input| input.events = events);
     }

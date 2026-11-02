@@ -115,3 +115,54 @@ Evidence: `~/.local/state/radiology-qa/source-global-input-20261101-5cc24d2`.
 Broader mixed-owner/command/pointer corpora, reader performance, grammar/index,
 PR/cache and final Swift UI/standalone/reuse acceptance remain open. Full
 accessibility and actual sibling adoption remain deferred.
+
+## Preserve source pointer/keyboard interleaving through capture — 2026-11-01
+
+The full-app RawInput regression confirms that pre-frame keyboard capture moved
+all protected keys ahead of retained pointer events. Clicking a new source line
+then Ctrl+D therefore saved the old byte 3 instead of the clicked byte 26. The
+viewport's existing ordered gesture queue could not recover the original order.
+
+Protected events now carry their original per-frame ordinals. `handle_shortcuts`
+merges them back between retained egui events in one linear pass before using the
+existing dispatcher. Pointer events still reach egui's normal input processing;
+source commands, gesture measurement/deferment and canonical byte navigation keep
+their existing owners. The ordinal is metadata in the existing vector, not a new
+queue/cache/service. Public APIs, dependencies and UI layout are unchanged. The
+installed egui 0.27 input implementation clones raw events in original order,
+which is the reconstruction boundary used here. Keyboard-only/prepared input and
+mixed-owner staging retain their existing policy.
+
+New real-app cases cover click then bookmark, bookmark then click, click/select/
+copy and drag/copy at 1×/1.5×/2× with Unicode and CRLF. Assertions cover exact stored
+bytes, caret positions, copy payload and absence of extra source-only staging.
+Indexed cases at 1×/2× verify clicked Find References, F12's exact destination and
+Back's clicked departure. Fixtures reveal the body before locating its actual
+painted token. Shared warm/focus setup and measured source-galley positions avoid
+repeated scaffolding and guessed coordinates. An initial cursor API borrow error
+and hidden-body lookup are excluded setup trials; the valid old-code regression
+fails on byte 3 versus 26.
+
+Workspace passes 561 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture NEUTRAL:
++148 NLOC including tests, four test/helper functions, no new product function or
+queue. `handle_shortcuts` CCN 1→2, capture remains 7; no new hotspot/max-CCN/cycle.
+Shared setup and grouped exact-location assertions remove the initially added
+test clones. All 91 baseline clone groups match the final normalized multiset;
+health changes -0.01.
+
+Four final native 1×/2× flows verify both bookmark orders with exact persisted
+byte/line/column, Unicode suffix and drag copies, clicked explicit references,
+clicked definition token/whole-source copies and exact Back restoration. Binary/
+fixture hashes match and all final children exit zero. The initial indexed native
+check expected Shift+End to stop before a folded body; it correctly copied the
+30-byte folded canonical span. Those trials are excluded. Final caret checks copy
+five explicit characters before whole-file/history checks. Native event grouping
+is not logged; the RawInput tests prove same-batch ordering.
+
+Archive: `~/.local/state/radiology-qa/source-interleave-20261101-ea18ae3`. Accepted
+native roots are only `source-interleave-{1.0,2.0}-loaded` and
+`source-interleave-caret-{1.0,2.0}-indexed`. Broader mixed-owner/menu/overlay,
+wrap/zoom/fold/deferred-layout and corpus acceptance remain open, alongside the
+language/index/PR/cache/UI/final Swift/standalone/reuse audit. Full accessibility
+and actual sibling adoption remain deferred.

@@ -72,14 +72,17 @@ impl RadiologyApp {
         {
             return;
         }
+        let mut position = 0;
         self.reader_input
             .extend(crate::ui::commands::take_input_actions(
                 &mut input.events,
                 |event| {
+                    let original_position = position;
+                    position += 1;
                     // Tab stays with egui's native traversal; owned keys cannot move focus first.
                     (crate::ui::commands::keyboard_event(event)
                         && !matches!(event, Event::Key { key: Key::Tab, .. }))
-                    .then(|| event.clone())
+                    .then(|| (original_position, event.clone()))
                 },
             ));
     }

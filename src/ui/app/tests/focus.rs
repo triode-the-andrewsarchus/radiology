@@ -420,3 +420,144 @@ fn bookmark_empty_states_follow_repository_source_and_last_entry_transitions() {
         assert!(app.bookmarks.bookmarks.is_empty());
     }
 }
+
+fn focused_source_frame(app: &mut RadiologyApp, scale: f32) -> (Context, egui::FullOutput) {
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    frame(app, &ctx, vec![]);
+    app.source_viewport.request_focus(&ctx);
+    let output = frame(app, &ctx, vec![]);
+    (ctx, output)
+}
+
+fn source_text_point(
+    ctx: &Context,
+    output: &egui::FullOutput,
+    needle: &str,
+    offset: usize,
+) -> egui::Pos2 {
+    let rect = ctx
+        .read_response(crate::ui::source_view::SourceViewport::focus_id())
+        .unwrap()
+        .rect;
+    let text = crate::ui::test_support::text_shapes(output)
+        .find(|text| rect.contains(text.pos) && text.galley.job.text.contains(needle))
+        .unwrap();
+    let byte = text.galley.job.text.find(needle).unwrap() + offset;
+    let cursor = text.galley.from_ccursor(egui::text::CCursor::new(
+        text.galley.job.text[..byte].chars().count(),
+    ));
+    text.pos + text.galley.pos_from_cursor(&cursor).center().to_vec2()
+}
+
+#[test]
+fn source_pointer_and_keyboard_batches_preserve_bookmark_and_copy_order() {
+    for scale in [1.0, 1.5, 2.0] {
+        for case in ["bookmark-after", "bookmark-before", "copy", "drag-copy"] {
+            let (_dir, mut app) = reader_with_source("// é🦀漢字 FIRST\r\n// café SECOND\r\n");
+            app.jump_to_location("a.rs", 1, 3);
+            settle(&mut app);
+            let (ctx, output) = focused_source_frame(&mut app, scale);
+            let start = source_text_point(&ctx, &output, "café", 0);
+            let end = source_text_point(&ctx, &output, "SECOND", "SECOND".len());
+            let target = app.open_buffer.as_ref().unwrap().text.find("café").unwrap();
+            let mut events = crate::ui::test_support::click(start);
+            match case {
+                "bookmark-after" => events.push(key(Key::D, Modifiers::CTRL)),
+                "bookmark-before" => events.insert(0, key(Key::D, Modifiers::CTRL)),
+                "copy" => events.extend([key(Key::End, Modifiers::SHIFT), Event::Copy]),
+                "drag-copy" => {
+                    events.pop();
+                    events.extend([
+                        Event::PointerMoved(end),
+                        Event::PointerButton {
+                            pos: end,
+                            button: egui::PointerButton::Primary,
+                            pressed: false,
+                            modifiers: Modifiers::NONE,
+                        },
+                        Event::Copy,
+                    ]);
+                }
+                _ => unreachable!(),
+            }
+            let mut copied = frame(&mut app, &ctx, events).platform_output.copied_text;
+            assert!(
+                app.deferred_input.is_empty(),
+                "source-only input acquired extra latency"
+            );
+            for _ in 0..3 {
+                let output = frame(&mut app, &ctx, vec![]);
+                if !output.platform_output.copied_text.is_empty() {
+                    copied = output.platform_output.copied_text;
+                }
+            }
+            match case {
+                "bookmark-after" | "bookmark-before" => {
+                    assert_eq!(app.bookmarks.bookmarks.len(), 1);
+                    assert_eq!(
+                        app.bookmarks.bookmarks[0].byte_offset,
+                        if case == "bookmark-after" { target } else { 3 },
+                        "{scale}x {case}"
+                    );
+                    assert_eq!((app.caret_line, app.caret_col), (2, 3));
+                }
+                _ => assert_eq!(copied, "café SECOND", "{scale}x {case}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn indexed_commands_after_a_source_click_resolve_the_clicked_symbol_and_history() {
+    for scale in [1.0, 2.0] {
+        for command in [ToolbarAction::FindReferences, ToolbarAction::GoToDefinition] {
+            let (_dir, mut app) = reader_with_reference_index();
+            app.jump_to_location("b.rs", 1, 4);
+            settle(&mut app);
+            let buffer = app.open_buffer.as_ref().unwrap();
+            app.fold_store.reveal_byte(
+                buffer.text.find("alpha").unwrap(),
+                buffer,
+                &app.fold_ranges,
+            );
+            let (ctx, output) = focused_source_frame(&mut app, scale);
+            let point = source_text_point(&ctx, &output, "alpha", 0);
+            let mut events = crate::ui::test_support::click(point);
+            events.push(match command {
+                ToolbarAction::FindReferences => key(
+                    Key::R,
+                    Modifiers {
+                        ctrl: true,
+                        alt: true,
+                        ..Default::default()
+                    },
+                ),
+                _ => key(Key::F12, Modifiers::NONE),
+            });
+            frame(&mut app, &ctx, events);
+            for _ in 0..3 {
+                frame(&mut app, &ctx, vec![]);
+            }
+            settle(&mut app);
+            if command == ToolbarAction::FindReferences {
+                assert_eq!(app.reference_context.explicit().unwrap().name, "alpha");
+                assert_eq!(
+                    (app.selected_path.as_deref(), app.caret_line, app.caret_col),
+                    (Some("b.rs"), 2, 4)
+                );
+            } else {
+                assert_eq!(
+                    (app.selected_path.as_deref(), app.caret_line, app.caret_col),
+                    (Some("a.rs"), 1, 3)
+                );
+                app.execute_command(&ctx, ToolbarAction::NavigateBack);
+                settle(&mut app);
+                assert_eq!(
+                    (app.selected_path.as_deref(), app.caret_line, app.caret_col),
+                    (Some("b.rs"), 2, 4)
+                );
+            }
+        }
+    }
+}

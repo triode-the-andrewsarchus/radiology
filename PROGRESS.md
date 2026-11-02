@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-01 — Preserve original source gesture order across keyboard capture (Codex)
+
+Protected keys now retain per-frame ordinals and merge linearly between retained
+egui events before existing dispatch. Old capture prepended all keys: the valid
+real-app click/Ctrl+D regression saves byte 3 instead of clicked byte 26. Source
+queue, pointer framework input, canonical coordinates, public APIs and dependencies
+remain shared; no new queue, persistent state or service. Three-scale Unicode/CRLF cases cover
+both bookmark orders, click/select/copy and drag/copy without extra source staging.
+Indexed 1×/2× cases verify clicked references, exact F12 and Back departure. Shared
+warm/focus setup and measured-galley points replace duplicate fixture code. Initial
+cursor borrow and hidden-body lookup failures are excluded setup evidence.
+Workspace passes 561 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture NEUTRAL:
++148 NLOC including tests, four test/helper functions; shortcut CCN 1→2, capture 7,
+no new hotspot/max-CCN/cycle, all 91 clone groups unchanged, health -0.01. Four final
+native loaded/indexed 1×/2× flows pass exact persisted bookmark bytes/columns,
+Unicode/drag copies, clicked reference/definition token/whole-file and Back copies,
+fixture/binary hashes and zero exits. Earlier indexed copy checks selected the
+canonical folded span with Shift+End; final explicit-character checks avoid that
+assumption. Native frame grouping is not logged; RawInput proves same-batch order.
+Broad mixed-owner/menu/overlay/wrap/zoom/deferred-layout/corpus, language/index/PR/
+cache/UI and final Swift/standalone/reuse acceptance remain open; accessibility
+and actual sibling adoption deferred.
+[Contract/evidence](plans/rust-source-input-order.md#preserve-source-pointerkeyboard-interleaving-through-capture--2026-11-01).
+Archive: ~/.local/state/radiology-qa/source-interleave-20261101-ea18ae3.
+
+
 ## 2026-11-01 — Respect foreground layers during source input handoff (Codex)
 
 The source-only fast path now checks the source response layer as well as its

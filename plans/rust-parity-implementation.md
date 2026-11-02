@@ -141,6 +141,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
+[Source pointer/key capture order](rust-source-input-order.md#preserve-source-pointerkeyboard-interleaving-through-capture--2026-11-01)
+now repairs the confirmed bookmark-before-click reorder, with exact copy/drag/
+semantic/history checks and native 1×/2× evidence. Broader mixed-owner/menu/overlay
+and wrap/zoom/deferred-layout acceptance remain open.
+
 [Layer-aware source ownership](rust-keyboard-owner-order.md#layer-aware-source-ownership--2026-11-01)
 now repairs the confirmed hosted floating-field Select All defect without changing
 source coordinates or adding state. Source-only raw input interleaving and broader
