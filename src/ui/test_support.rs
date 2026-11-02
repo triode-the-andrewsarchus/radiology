@@ -31,6 +31,23 @@ pub(crate) fn painted_frame(
     )
 }
 
+/// Drives asynchronous picker publication through actual frames with a deadline.
+pub(crate) fn settled_modal(
+    mut frame: impl FnMut() -> (egui::FullOutput, Option<super::modals::ModalAction>, bool),
+) -> (egui::FullOutput, Option<super::modals::ModalAction>) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut frames = 0;
+    loop {
+        frames += 1;
+        let (output, action, idle) = frame();
+        if action.is_some() || (frames >= 2 && idle) {
+            return (output, action);
+        }
+        assert!(std::time::Instant::now() < deadline, "modal did not settle");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 /// Finds a rendered label's center for pointer-driven acceptance checks.
 pub(crate) fn text_center(output: &egui::FullOutput, label: &str) -> egui::Pos2 {
     text_shapes(output)

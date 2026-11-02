@@ -91,3 +91,13 @@ No additional dependency or worker pool is introduced.
 Evidence: `~/.local/state/radiology-qa/file-picker-foundation-20261102-699a55e`.
 Full accessibility and actual sibling integration remain deferred; broader parity
 remains open.
+
+## Shared picker components — 2026-11-02
+
+The symbol-picker integration now reuses the file picker's ordered input, window,
+query/body/footer geometry, measured two-line rows and scrolling through concrete
+shared components. Selected details use primary text color; other rows retain
+muted metadata. All seven file-picker regressions and fresh native v6 flows at
+1×/2× pass, including seven exact source copies each. See the
+[symbol-picker integration evidence](rust-symbol-picker.md#integration-verification)
+for the final binary, full test totals and architecture audit.

@@ -21,19 +21,74 @@ reference across 4,096 entries, seven query patterns and limits 0/1/200/5000,
 including tied names/paths, Unicode, identity, line and definition counts. It also
 cancels after partial ranking and verifies that a fresh search succeeds.
 
-## Remaining picker work
+## Picker integration accepted — 2026-11-02
 
-Move current workspace/outline search off rendering using the existing LatestRead
-pool and shared immutable inputs. Reuse ordered keyboard handling from the file
-picker; add Swift's 200-result workspace limit, kind/definition metadata, bounded
-two-line rows, empty states and footer Go/Cancel. Protect pointer ownership and
-retire query/index/source replacement results. Preserve the useful Rust document
-outline fallback and all its navigable symbols. Check source focus and exact
-semantic destinations through real app frames and native UI at both scales.
+The picker now owns a cancellable LatestRead request over either the accepted
+`Arc<SemanticIndex>` or `Arc<[DocumentSymbol]>`. Query and inventory changes retire
+both publication and queued activation; closing cancels pending work. Searches run
+on the existing bounded read pool, with cached results between changes. Public
+`GoToSymbolModal::show` now accepts `Option<&Arc<SemanticIndex>>` and a shared
+outline; clones retain query/selection but start independent jobs and popup IDs.
 
-The foundation intentionally preserves the existing UTF-8 byte-length tie break.
-Swift counts extended grapheme clusters; Unicode name-length ordering still needs
-correction and specific acceptance before claiming symbol-search parity.
+Workspace results use Swift's 200-result limit. Body names, Small kind/definition
+counts, and a bounded second path/line row replace the old single-line layout.
+The 620×430 popup adds No Symbols/No Matches, loading/failure states, an accurate
+shown-result count with index/document context, Cancel and Go. The document-outline
+fallback retains all its navigable declarations, including the existing 1,000-row
+virtualization case. This useful Rust extension is preserved. Selected secondary
+text uses the primary color for readability, while font size retains hierarchy.
+
+Both pickers now use concrete shared components for window/query/body/footer,
+fixed-height measured rows, selection reveal, ordered keyboard input and closing
+lifecycle. Their domain searches and destinations remain separate. Shared input
+handles every repeated arrow, processes text before the next navigation key,
+waits for that query before Return and drops closing suffixes. Row ownership
+includes the popup and request generation, so release after index/source/query
+replacement cannot activate a newly displayed destination.
+
+Symbol-name length ranking now counts extended grapheme clusters, matching
+Swift's Character count. The existing locked unicode-segmentation 1.13.3 package
+is now a direct dependency; no package version changes. CJK, decomposed accents,
+ZWJ families and flags rank ahead of longer ASCII names. Canonical-equivalence
+matching, grapheme prefix/subsequence boundaries and broader Unicode ordering
+remain acceptance work; this is not a claim of full Unicode symbol-search parity.
+
+## Integration verification
+
+Seven symbol-picker regressions preserve the former semantic keyboard/pointer,
+same-frame query/Return and 1,000-symbol document cases, then add the 200-result
+limit/metadata, 128 repeated arrows/closing suffixes, in-flight retirement,
+empty/long Unicode rows at both scales and request-owned pointer releases. A new
+semantic regression checks Swift-style grapheme lengths. Shared file-picker
+regressions also pass, including selection clipping and failure/retry.
+
+Fresh final workspace: 596 application tests passed, seven ignored; two binary,
+four font, 13 text and 37 doctests passed. Strict Clippy, all-target check, binary
+build, rustdoc with warnings denied, formatting and diff checks pass. A test-only
+Clippy constructor warning was corrected before final verification. A copied
+standalone executable also passes resource verification from a fresh directory.
+
+Native symbol v2 runs at 1× and 2× use a real imported SCIP fixture: 200 results,
+selection 128, exact destination line copy, Back, selection 150 narrowed to symbol7
+plus Return, duplicate-definition metadata, Escape/Cancel source focus, No Matches,
+long Unicode name/path fitting, then light-theme pointer Go. Six exact line copies
+per run verify caret destinations rather than only the file path. A tight binary
+OCR crop verifies two definitions; full captures are inspected. File-picker v6
+regression runs at both scales pass all former flows and seven exact source copies
+each. All four final runs retain unchanged binary/fixture hashes and zero child
+exits. Initial symbol v1 full-row OCR misses are excluded; its capture also prompted
+the selected metadata color correction before final v2 runs.
+
+Architecture against `before-symbol-picker-ui`: default REGRESSION, +457 NLOC,
+26 functions/two focused modules, max new CCN 15, no new hotspot/cycle, health +0.02.
+Initial duplicate rendering/lifecycle logic was removed through actual shared
+components. Full normalized audit shows three removed old test clones and three
+new boilerplate groups: imports, the shared begin/Escape call-site guard and
+cancellation-test assertions. Total stays 109; none duplicates ranking or row
+rendering. The warning is retained rather than changing analysis scope or removing
+needed guards/assertions to affect the metric.
+
+Evidence: `~/.local/state/radiology-qa/symbol-picker-ui-20261102-a4579f2`.
 
 Broader application parity remains open. Full accessibility and actual sibling
 integration remain deferred.

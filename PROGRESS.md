@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-02 — Background symbol picker and shared navigation popup components (Codex)
+
+Workspace/document searches now retain immutable inputs on the existing read pool,
+retiring stale query/index/source work and queued activation. Swift-style 200
+workspace results, kind/definition metadata, bounded two-line rows, No Symbols/
+No Matches, loading/failure, Go/Cancel and request-owned pointer rows are connected.
+All document declarations remain navigable. Both pickers share actual window/query/
+body/footer/row/scroll/input components; selected details regain readable primary
+text. Repeated arrows, narrowed Return, closing suffixes and focus are covered.
+Name-length ranking now uses Swift-style graphemes via the already locked
+unicode-segmentation version; no version updates. Fresh final workspace: 596 app
+tests, seven ignored, two binary, four font, 13 text and 37 doctests; strict gates
+and copied standalone verification pass. Native symbol v2 and file v6 at 1×/2× all pass: six exact destination line
+copies per symbol run, seven source copies per file run, metadata OCR, Back,
+Cancel/Escape, long names/paths, light pointer Go/Open, unchanged hashes and zero
+exits. Captures inspected; early symbol v1 OCR misses excluded. Architecture
+default REGRESSION: three new boilerplate clones (imports, shared begin guard,
+cancellation assertions) replace three old test clones, total 109. Shared rendering
+and lifecycle remove initial real duplication; +457 NLOC/26 functions/two modules,
+max new CCN 15, no new hotspot/cycle, health +0.02. [Contract/evidence](plans/rust-symbol-picker.md).
+Archive: ~/.local/state/radiology-qa/symbol-picker-ui-20261102-a4579f2.
+Broader Unicode matching/application parity remain open; full accessibility and
+actual sibling adoption deferred.
+
 ## 2026-11-02 — Bounded cancellable symbol ranking and shared outlines (Codex)
 
 Ranking retains only the requested candidates, with stable equal-key order and

@@ -24,9 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
-- [Symbol search foundation](rust-symbol-picker.md): bounded cancellable ranking,
-  definition-count metadata and immutable outlines. UI integration and Unicode
-  ordering acceptance remain pending.
+- [Symbol picker integration](rust-symbol-picker.md): cancellable background
+  ranking, 200 workspace results, kind/definition metadata, bounded rows, empty
+  states, Go/Cancel and generation-owned pointer activation. Shared file/symbol
+  picker components and both native 1×/2× workflows pass. Grapheme lengths match
+  Swift; broader Unicode matching acceptance remains open.
 
 - [File picker](rust-file-picker.md): immutable inventories, cancellable background
   ranking, 100 results with truthful totals, bounded filename/directory rows,

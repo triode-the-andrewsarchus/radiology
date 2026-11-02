@@ -63,7 +63,7 @@ impl RadiologyApp {
                 ctx,
                 &self.theme,
                 self.semantic_index
-                    .as_deref()
+                    .as_ref()
                     .filter(|_| self.active_revision != Some(ReviewRevision::Before)),
                 &self.outline_symbols,
             ),

@@ -1,6 +1,9 @@
 //! Query-scoped file search with immutable inputs and retired worker publication.
 
-use super::ModalAction;
+use super::{
+    picker::{self, PickerInput, PickerRow},
+    ModalAction,
+};
 use crate::{
     background::LatestRead,
     repository::{
@@ -10,9 +13,8 @@ use crate::{
     theme::AppTheme,
     ui::{commands, icons::Icon, text_fit},
 };
-use egui::{Context, Event, Key};
+use egui::{Context, Key};
 use std::{
-    collections::VecDeque,
     sync::{atomic::Ordering, Arc},
     time::Duration,
 };
@@ -31,8 +33,7 @@ pub struct QuickFilePickerModal {
     worker: LatestRead<Option<QuickFileSearchResponse>>,
     results: Option<QuickFileSearchResponse>,
     failed: bool,
-    input: VecDeque<Event>,
-    navigation: VecDeque<Key>,
+    input: PickerInput,
     reveal: bool,
     focused: bool,
 }
@@ -47,8 +48,7 @@ impl Default for QuickFilePickerModal {
             worker: LatestRead::default(),
             results: None,
             failed: false,
-            input: VecDeque::new(),
-            navigation: VecDeque::new(),
+            input: PickerInput::default(),
             reveal: true,
             focused: false,
         }
@@ -83,116 +83,63 @@ impl QuickFilePickerModal {
         theme: &AppTheme,
         files: &Arc<[RepositoryFile]>,
     ) -> Option<ModalAction> {
-        self.input.extend(ctx.input_mut(|input| {
-            commands::take_input_actions(&mut input.events, |event| {
-                commands::keyboard_event(event).then(|| event.clone())
-            })
-        }));
-        if self
-            .input
-            .iter()
-            .any(|event| control(event) == Some(Key::Escape))
-        {
-            return self.finish(Some(ModalAction::Close));
+        let key = self.input.begin(ctx, &mut self.worker);
+        if key == Some(Key::Escape) {
+            return Some(ModalAction::Close);
         }
-        let key = self.prepare_input(ctx);
-        let mut action = None;
-        egui::Window::new("Go to File")
-            .id(egui::Id::new(self.owner))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
-            .fixed_size(egui::vec2(620.0, 430.0))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    Icon::Search.ui(ui, 14.0, theme.text_muted);
-                    let id = ui.make_persistent_id("query");
-                    if !self.focused {
-                        ui.memory_mut(|memory| memory.request_focus(id));
-                        self.focused = ui.is_visible();
-                    }
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.query)
-                            .id(id)
-                            .hint_text("Type a filename or fuzzy path…")
-                            .desired_width(ui.available_width()),
-                    );
-                });
-                self.search(ctx, files);
-                if let Some(key) = key.filter(|_| !self.failed) {
-                    self.navigation.push_back(key);
-                }
-                action = self.apply_navigation();
-                ui.separator();
-                let footer_height =
-                    ui.spacing().interact_size.y + ui.spacing().item_spacing.y + 8.0;
-                let body_height = (ui.available_height() - footer_height).max(40.0);
-                ui.allocate_ui(egui::vec2(ui.available_width(), body_height), |ui| {
-                    ui.set_min_height(body_height);
-                    if let Some(result) = &self.results {
-                        if result.files.is_empty() {
-                            ui.label(if self.query.trim().is_empty() {
-                                "No Files"
-                            } else {
-                                "No Matches"
-                            });
-                            ui.label(if self.query.trim().is_empty() {
-                                "This repository contains no files."
-                            } else {
-                                "Try fewer characters or a different order."
-                            });
-                        } else {
-                            if let Some(clicked) = self.rows(ui, theme) {
-                                action = Some(clicked);
-                            }
-                        }
-                    } else {
-                        ui.label(if self.failed {
-                            "File search failed. Change the query to retry."
-                        } else {
-                            "Searching…"
-                        });
-                    }
-                });
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.add(egui::Label::new(
-                        egui::RichText::new(self.footer())
-                            .small()
-                            .color(theme.text_muted),
-                    ));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add_enabled(self.selected_file().is_some(), egui::Button::new("Open"))
-                            .clicked()
-                        {
-                            action = self.selected_file().map(ModalAction::OpenFile);
-                        }
-                        if ui.button("Cancel").clicked() {
-                            action = Some(ModalAction::Close);
-                        }
-                    });
-                });
-            });
-        if !self.input.is_empty() {
-            ctx.request_repaint();
-        }
-        self.finish(action)
-    }
 
-    // Deliver text before its next navigation key, preserving mixed event order.
-    // Enter is a publication barrier: its suffix waits until that query resolves.
-    fn prepare_input(&mut self, ctx: &Context) -> Option<Key> {
-        if self.navigation.contains(&Key::Enter) {
-            return None;
-        }
-        while let Some(event) = self.input.pop_front() {
-            if let Some(key) = control(&event) {
-                return Some(key);
+        let mut action = None;
+        picker::window("Go to File", self.owner).show(ctx, |ui| {
+            picker::query(
+                ui,
+                &mut self.focused,
+                &mut self.query,
+                Icon::Search,
+                "Type a filename or fuzzy path…",
+                theme.text_muted,
+            );
+            self.search(ctx, files);
+            if let Some(key) = key.filter(|_| !self.failed) {
+                self.input.navigation.push_back(key);
             }
-            ctx.input_mut(|input| input.events.push(event));
-        }
-        None
+            action = self.apply_navigation();
+            picker::body(ui, |ui| {
+                if let Some(result) = &self.results {
+                    if result.files.is_empty() {
+                        ui.label(if self.query.trim().is_empty() {
+                            "No Files"
+                        } else {
+                            "No Matches"
+                        });
+                        ui.label(if self.query.trim().is_empty() {
+                            "This repository contains no files."
+                        } else {
+                            "Try fewer characters or a different order."
+                        });
+                    } else {
+                        if let Some(clicked) = self.rows(ui, theme) {
+                            action = Some(clicked);
+                        }
+                    }
+                } else {
+                    ui.label(if self.failed {
+                        "File search failed. Change the query to retry."
+                    } else {
+                        "Searching…"
+                    });
+                }
+            });
+            if let Some(button) = picker::footer(
+                ui,
+                theme,
+                &self.footer(),
+                "Open",
+                self.selected_file().map(ModalAction::OpenFile),
+            ) {
+                action = Some(button);
+            }
+        });
+        self.input.finish(ctx, &mut self.worker, action)
     }
 
     fn search(&mut self, ctx: &Context, files: &Arc<[RepositoryFile]>) {
@@ -203,7 +150,7 @@ impl QuickFilePickerModal {
             if self.requested.is_some() {
                 self.selected_idx = 0;
             }
-            self.navigation.clear();
+            self.input.navigation.clear();
             self.results = None;
             self.failed = false;
             self.reveal = true;
@@ -228,7 +175,7 @@ impl QuickFilePickerModal {
             }
             Ok(Some(None)) | Err(_) => {
                 self.failed = true;
-                self.navigation.clear();
+                self.input.navigation.clear();
             }
             Ok(None) => {}
         }
@@ -240,7 +187,7 @@ impl QuickFilePickerModal {
     fn apply_navigation(&mut self) -> Option<ModalAction> {
         let count = self.results.as_ref()?.files.len();
         self.selected_idx = self.selected_idx.min(count.saturating_sub(1));
-        while let Some(key) = self.navigation.pop_front() {
+        while let Some(key) = self.input.navigation.pop_front() {
             if key == Key::Enter {
                 return self.selected_file().map(ModalAction::OpenFile);
             }
@@ -290,17 +237,9 @@ impl QuickFilePickerModal {
 
     fn rows(&mut self, ui: &mut egui::Ui, theme: &AppTheme) -> Option<ModalAction> {
         let result = self.results.as_ref()?;
-        let height = ui.text_style_height(&egui::TextStyle::Body)
-            + ui.text_style_height(&egui::TextStyle::Small)
-            + 10.0;
+        let height = PickerRow::height(ui);
         let id = egui::Id::new("file_results");
-        let mut scroll = egui::ScrollArea::vertical()
-            .id_source(id)
-            .auto_shrink([false, false]);
-        if self.reveal {
-            scroll = commands::reveal_list_row(ui, scroll, id, Some(self.selected_idx), height);
-            self.reveal = false;
-        }
+        let scroll = picker::scroll(ui, id, self.selected_idx, &mut self.reveal);
         let mut action = None;
         scroll.show_rows(ui, height, result.files.len(), |ui, rows| {
             for index in rows {
@@ -321,34 +260,6 @@ impl QuickFilePickerModal {
         });
         action
     }
-
-    fn finish(&mut self, action: Option<ModalAction>) -> Option<ModalAction> {
-        if action.is_some() {
-            self.worker.stop();
-            self.input.clear();
-            self.navigation.clear();
-        }
-        action
-    }
-}
-
-fn control(event: &Event) -> Option<Key> {
-    match event {
-        Event::Key {
-            key,
-            pressed: true,
-            modifiers,
-            ..
-        } if modifiers.is_none()
-            && matches!(
-                key,
-                Key::ArrowDown | Key::ArrowUp | Key::Enter | Key::Escape
-            ) =>
-        {
-            Some(*key)
-        }
-        _ => None,
-    }
 }
 
 fn file_row(
@@ -358,43 +269,17 @@ fn file_row(
     selected: bool,
     height: f32,
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), height),
-        egui::Sense::click(),
-    );
-    if selected || response.hovered() {
-        ui.painter().rect_filled(
-            rect,
-            4.0,
-            theme
-                .accent
-                .linear_multiply(if selected { 0.2 } else { 0.1 }),
-        );
-    }
     let (directory, name) = file
         .path
         .rsplit_once('/')
         .unwrap_or((&file.path, &file.path));
-    let text_rect = rect.shrink2(egui::vec2(8.0, 4.0));
-    let name = text_fit::middle(
-        ui,
-        name,
-        egui::TextStyle::Body.resolve(ui.style()),
-        theme.text_primary,
-        text_rect.width(),
-    );
-    let directory = text_fit::middle(
-        ui,
-        directory,
-        egui::TextStyle::Small.resolve(ui.style()),
-        theme.text_muted,
-        text_rect.width(),
-    );
-    let top = text_rect.left_top();
-    let lower = top + egui::vec2(0.0, name.size().y + 2.0);
-    ui.painter().galley(top, name, theme.text_primary);
-    ui.painter().galley(lower, directory, theme.text_muted);
-    response.on_hover_text(text_fit::bounded(&file.path))
+    PickerRow {
+        title: name,
+        detail: directory,
+        metadata: "",
+    }
+    .show(ui, theme, selected, height)
+    .on_hover_text(text_fit::bounded(&file.path))
 }
 
 #[cfg(test)]
@@ -404,7 +289,7 @@ mod tests {
         commands::test_key,
         test_support::{text_center, text_shapes},
     };
-    use std::time::Instant;
+    use egui::Event;
 
     fn files(count: usize) -> Arc<[RepositoryFile]> {
         (0..count)
@@ -440,19 +325,14 @@ mod tests {
         picker: &mut QuickFilePickerModal,
         files: &Arc<[RepositoryFile]>,
     ) -> (egui::FullOutput, Option<ModalAction>) {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let mut frames = 0;
-        loop {
-            frames += 1;
+        crate::ui::test_support::settled_modal(|| {
             let result = frame(ctx, picker, files, vec![]);
-            if result.1.is_some()
-                || (frames >= 2 && !picker.worker.is_running() && picker.input.is_empty())
-            {
-                return result;
-            }
-            assert!(Instant::now() < deadline, "picker did not settle");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+            (
+                result.0,
+                result.1,
+                !picker.worker.is_running() && picker.input.events.is_empty(),
+            )
+        })
     }
 
     #[test]
@@ -534,7 +414,7 @@ mod tests {
             Some(ModalAction::OpenFile("src/file0028.rs".into()))
         );
         assert_eq!(picker.query, "");
-        assert!(picker.input.is_empty());
+        assert!(picker.input.events.is_empty());
     }
 
     #[test]

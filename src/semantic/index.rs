@@ -1,5 +1,7 @@
 //! Repository semantic symbol index, definition lookup, and reference discovery.
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::semantic::scip_proto::{
     ProtobufError, ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation,
 };
@@ -303,25 +305,26 @@ impl SymbolSearch {
             return Some(Vec::new());
         }
         let needle = query.trim().to_lowercase();
-        let mut best: Vec<(&SymbolSearchEntry, usize)> =
+        let mut best: Vec<(&SymbolSearchEntry, usize, usize)> =
             Vec::with_capacity(limit.min(entries.len()));
         for (index, entry) in entries.iter().enumerate() {
             if index % 128 == 0 && cancelled() {
                 return None;
             }
             if needle.is_empty() {
-                best.push((entry, 4));
+                best.push((entry, 4, 0));
                 if best.len() == limit {
                     break;
                 }
             } else if let Some(tier) = Self::tier(&entry.name, &needle) {
                 // Insertion after equal keys preserves the old stable-sort order.
-                let at = best.partition_point(|(other, rank)| {
-                    (*rank, other.name.len(), &other.name, &other.path)
-                        <= (tier, entry.name.len(), &entry.name, &entry.path)
+                let length = entry.name.graphemes(true).count();
+                let at = best.partition_point(|(other, rank, other_length)| {
+                    (*rank, *other_length, &other.name, &other.path)
+                        <= (tier, length, &entry.name, &entry.path)
                 });
                 if at < limit {
-                    best.insert(at, (entry, tier));
+                    best.insert(at, (entry, tier, length));
                     best.truncate(limit);
                 }
             }
@@ -331,7 +334,7 @@ impl SymbolSearch {
         }
         Some(
             best.into_iter()
-                .map(|(entry, tier)| SymbolSearchMatch {
+                .map(|(entry, tier, _)| SymbolSearchMatch {
                     id: entry.id.clone(),
                     name: entry.name.clone(),
                     kind: entry.kind,
@@ -1109,7 +1112,12 @@ mod tests {
                 .collect();
             if !query.is_empty() {
                 expected.sort_by_key(|(entry, tier)| {
-                    (*tier, entry.name.len(), &entry.name, &entry.path)
+                    (
+                        *tier,
+                        entry.name.graphemes(true).count(),
+                        &entry.name,
+                        &entry.path,
+                    )
                 });
             }
             for limit in [0, 1, SymbolSearch::VISIBLE_LIMIT, 5000] {
@@ -1142,6 +1150,24 @@ mod tests {
         );
         assert!(SymbolSearch::rank_cancellable("", &entries, 200, || true).is_none());
         assert_eq!(SymbolSearch::rank("cal", &entries, 1)[0].name, "calc");
+    }
+
+    #[test]
+    fn symbol_name_length_uses_swift_character_counts_instead_of_utf8_bytes() {
+        for name in ["a漢", "ae\u{301}", "a👩‍👩‍👦", "a🇺🇸"] {
+            let entries = ["aaaa", name]
+                .into_iter()
+                .map(|name| SymbolSearchEntry {
+                    id: SemanticSymbolID::new(name, ""),
+                    name: name.into(),
+                    kind: 17,
+                    path: "src/a.rs".into(),
+                    line: 1,
+                    definition_count: 1,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(SymbolSearch::rank("a", &entries, 1)[0].name, name);
+        }
     }
     #[test]
     fn generated_coordinates_require_exact_buffer_and_destination_bytes() {
