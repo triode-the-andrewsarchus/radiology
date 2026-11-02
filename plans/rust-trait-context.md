@@ -1,7 +1,8 @@
 # Rust trait context identity
 
-The reusable semantic resolver is implemented. App lifecycle/selection and inspector
-presentation/navigation are still pending; this does not claim a visible trait pane.
+The reusable resolver and app lifecycle/selection/presentation/navigation are now
+implemented. See the [inspector contract](rust-trait-inspector.md) for current app
+and native acceptance; the resolver checkpoint below remains historical evidence.
 
 `semantic::trait_context::trait_at_byte` accepts an immutable source buffer, its
 already-parsed DocumentSyntax, the accepted SemanticIndex, canonical caret byte and
@@ -34,9 +35,10 @@ separate cohesive operations; source/index mapping and outline breadcrumbs reuse
 existing mechanisms. No new dependency, parser, worker pool or UI abstraction.
 
 Evidence: ~/.local/state/radiology-qa/trait-context-20261102-b40280d.
-Next: connect this resolver to accepted app source/index lifecycle; retain selection
-within the same trait and clear it on root/index/trait changes; render the compact
-middle pane with ordinary keys and source-verified navigation/history guards.
+The later [inspector integration](rust-trait-inspector.md) connects this resolver to
+accepted source/index lifecycle, retained same-trait selection, compact middle-slot
+rows, ordinary keys and source-verified navigation/history guards. TraitStructure
+also accepts separately retained outline/impl facts from the same source parse.
 
 Validation:667 app tests pass with seven existing ignored, plus two binary/13 font/
 21 text tests. The final local-declaration refinement also passes all three context

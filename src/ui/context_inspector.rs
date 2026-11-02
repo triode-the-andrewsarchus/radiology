@@ -16,6 +16,8 @@ pub use declaration_summary::DeclarationSummary;
 /// Navigation and management events from the inspector.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InspectorAction {
+    /// Selects or activates a contextual Rust trait implementation.
+    Implementation(crate::ui::trait_implementations::TraitAction),
     /// Applies a shared reader presentation command.
     Command(crate::ui::commands::ReaderCommand),
     /// Opens the exact semantic definition under the source caret.

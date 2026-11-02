@@ -139,6 +139,7 @@ impl RadiologyApp {
             source.destination.byte_offset = caret;
             self.pin_store = pins;
             self.pending_navigation = Some(source::PendingNavigation {
+                trait_owner: None,
                 request: source_request(candidate, &source.buffer),
                 intent: source::NavigationIntent {
                     record_history: true,

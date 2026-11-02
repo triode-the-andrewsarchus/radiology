@@ -4,20 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[Trait catalog foundation](plans/rust-trait-catalog.md) now resolves explicit Rust
-impls from exact SCIP token identities, with source-verified activation and a warm
-cache. Generation, semantic-cache restore and imports now enrich on their existing
-workers before publication. Compiler-fixture/encoding/freshness and worker tests
-pass. The actual trait inspector/context/navigation feature remains pending.
-
-[Trait context identity](plans/rust-trait-context.md) now follows exact trait names,
-enclosing declarations/members and explicit impl bodies using accepted parsed facts.
-Its reusable resolver is tested; app lifecycle/selection and pane wiring remain next.
-
-[Inspector pane preferences](plans/rust-inspector-panes.md) now persist app-wide,
-share checked Panes/View menus, reclaim layout space and recover from all-hidden
-state. Stable region IDs preserve scrolling, selections and source state. Native
-1×/2× restart checks pass; actual trait results remain the next feature.
+[Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
+trait/member/impl context to compact source-sorted rows, stable selection, ordinary
+keys and fresh source-verified activation with exact Back. Pane preferences share the
+existing middle slot. App/workspace/strict gates and native previous/current1×/2×
+checks pass, including stale edits, pinned After, narrow/large lists and exact Copy.
+[Catalog](plans/rust-trait-catalog.md), [context](plans/rust-trait-context.md) and
+[pane preferences](plans/rust-inspector-panes.md) remain reusable standalone APIs.
 
 [Files navigation](plans/rust-files-navigation.md) now follows committed source
 jumps, preserves passive scrolling and shows the confirmed current document through

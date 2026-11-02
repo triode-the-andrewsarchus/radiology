@@ -7,6 +7,7 @@ impl RadiologyApp {
     pub fn refresh_symbol_context(&mut self) {
         self.sync_outline();
         self.refresh_under_caret_context();
+        self.refresh_trait_context();
         let automatic = self.semantic_inputs.as_ref().and_then(|inputs| {
             let byte = inputs.buffer.byte_offset(self.caret_line, self.caret_col);
             let mut enclosing = Vec::new();
@@ -58,6 +59,8 @@ impl RadiologyApp {
 impl RadiologyApp {
     pub(super) fn reset_previews(&mut self) {
         self.semantic_inputs = None;
+        self.trait_context = Default::default();
+        self.trait_list = Default::default();
         self.definition_preview = Default::default();
         self.definition_identity = None;
         self.under_caret = None;

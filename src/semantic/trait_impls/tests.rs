@@ -17,6 +17,20 @@ pub(crate) fn fixture() -> (tempfile::TempDir, SourceRead, ScipIndex, Vec<String
     (owner, SourceRead::Checkout(root), raw, paths)
 }
 
+pub(crate) fn imported_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
+    let (owner, source, _, _) = fixture();
+    let SourceRead::Checkout(root) = source else {
+        unreachable!()
+    };
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("Tests/RadiologyTests/Fixtures/scip-rust-traits/index.scip"),
+        root.join("index.scip"),
+    )
+    .unwrap();
+    (owner, root)
+}
+
 fn build(
     index: &SemanticIndex,
     source: &SourceRead,

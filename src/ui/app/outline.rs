@@ -5,7 +5,8 @@ use crate::ui::outline_list::{OutlineAction, OutlineList};
 
 impl RadiologyApp {
     pub(super) fn outline_available(&self) -> bool {
-        self.source_location_ready()
+        self.definition_pane_visible()
+            && self.source_location_ready()
             && self.under_caret.is_none()
             && !self.under_caret_job.is_running()
             && self.under_caret_error.is_none()

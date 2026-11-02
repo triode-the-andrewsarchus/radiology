@@ -20,13 +20,37 @@ pub(crate) fn menu(panes: InspectorPanes) -> Vec<MenuItem<ReaderCommand>> {
 }
 
 impl ContextInspector {
-    /// Renders only enabled regions, retaining each host-owned viewport and selection.
-    ///
-    /// Returns shared presentation commands for the host to persist. Trait results
-    /// will occupy the definition slot when supplied by the trait-context feature;
-    /// this renderer currently presents references, definition/outline and bookmarks.
+    /// Renders the existing reference, definition/outline and bookmark regions.
     #[allow(clippy::too_many_arguments)]
     pub fn show_with_panes(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        content: InspectorContent<'_>,
+        references: &mut crate::ui::reference_list::ReferenceViewport,
+        bookmarks: &mut BookmarkList,
+        outline: &mut OutlineList,
+        declaration: &mut DeclarationSummary,
+        panes: &InspectorPanes,
+    ) -> Option<InspectorAction> {
+        Self::show_with_traits(
+            ui,
+            theme,
+            content,
+            references,
+            bookmarks,
+            outline,
+            declaration,
+            panes,
+            None,
+        )
+    }
+
+    /// Renders only enabled regions, retaining each host-owned viewport and selection.
+    ///
+    /// Returns shared commands for the host to persist. A supplied trait context
+    /// occupies the existing middle slot; hidden state remains owned by the host.
+    #[allow(clippy::too_many_arguments)]
+    pub fn show_with_traits(
         ui: &mut Ui,
         theme: &AppTheme,
         mut content: InspectorContent<'_>,
@@ -35,12 +59,20 @@ impl ContextInspector {
         outline: &mut OutlineList,
         declaration: &mut DeclarationSummary,
         panes: &InspectorPanes,
+        mut traits: Option<(
+            &crate::semantic::trait_context::TraitImplementationContext,
+            &mut crate::ui::trait_implementations::TraitImplementationList,
+        )>,
     ) -> Option<InspectorAction> {
         let mut action = header(ui, theme, *panes);
         if !panes.references {
             content.summary_identity = None;
         }
-        let visible = panes.visible(false);
+        let visible = panes.visible(
+            traits
+                .as_ref()
+                .is_some_and(|(context, _)| context.target().is_some()),
+        );
         if visible.is_empty() {
             return empty_panes(ui, theme, *panes).or(action);
         }
@@ -99,7 +131,10 @@ impl ContextInspector {
                     InspectorPane::Definition => {
                         Self::render_under_caret_context(ui, theme, &content, outline)
                     }
-                    InspectorPane::Implementations => None,
+                    InspectorPane::Implementations => traits
+                        .as_mut()
+                        .and_then(|(context, list)| list.show(ui, theme, context))
+                        .map(InspectorAction::Implementation),
                 }) {
                     action = Some(next);
                 }

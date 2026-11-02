@@ -59,10 +59,13 @@ impl RadiologyApp {
 
     pub(super) fn inspector_has_focus(&self, ctx: &Context) -> bool {
         self.show_inspector
-            && ((self.session.inspector_panes.references && self.reference_viewport.has_focus(ctx))
+            && ((self.trait_pane_visible()
+                && crate::ui::trait_implementations::TraitImplementationList::has_focus(ctx))
+                || (self.session.inspector_panes.references
+                    && self.reference_viewport.has_focus(ctx))
                 || (self.session.inspector_panes.bookmarks
                     && crate::ui::bookmark_list::BookmarkList::has_focus(ctx))
-                || (self.session.inspector_panes.definition
+                || (self.definition_pane_visible()
                     && (crate::ui::outline_list::OutlineList::has_focus(ctx)
                         || ctx.memory(|memory| {
                             memory.has_focus(ContextInspector::definition_focus_id())
@@ -137,9 +140,10 @@ impl RadiologyApp {
         if !self.show_inspector {
             return false;
         }
-        if (self.session.inspector_panes.bookmarks && self.handle_bookmark_key(ctx, key, modifiers))
-            || (self.session.inspector_panes.definition
-                && self.handle_outline_key(ctx, key, modifiers))
+        if self.handle_trait_key(ctx, key, modifiers)
+            || (self.session.inspector_panes.bookmarks
+                && self.handle_bookmark_key(ctx, key, modifiers))
+            || (self.definition_pane_visible() && self.handle_outline_key(ctx, key, modifiers))
         {
             return true;
         }
@@ -155,9 +159,7 @@ impl RadiologyApp {
             return true;
         }
         if let Some(action) = self
-            .session
-            .inspector_panes
-            .definition
+            .definition_pane_visible()
             .then(|| ContextInspector::definition_key(ctx, key, modifiers))
             .flatten()
         {
@@ -169,6 +171,7 @@ impl RadiologyApp {
 
     pub(super) fn handle_inspector_action(&mut self, ctx: &Context, action: InspectorAction) {
         match action {
+            InspectorAction::Implementation(action) => self.handle_trait_action(action),
             InspectorAction::Command(command) => self.execute_command(ctx, command),
             InspectorAction::Reference(action) => self.handle_reference_action(action),
             InspectorAction::FollowCaret => self.follow_reference_caret(),

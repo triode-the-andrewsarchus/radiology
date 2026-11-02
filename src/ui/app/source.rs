@@ -15,6 +15,7 @@ pub(super) struct NavigationIntent {
 pub(super) struct PendingNavigation {
     pub(super) request: SourceLoadRequest,
     pub(super) intent: NavigationIntent,
+    pub(super) trait_owner: Option<super::traits::TraitNavigationOwner>,
 }
 
 impl RadiologyApp {
@@ -150,7 +151,10 @@ impl RadiologyApp {
     }
 
     fn report_source_error(&mut self, target: Option<&SourceTarget>, message: String) {
-        if let Some(SourceTarget::Bookmark(bookmark)) = target {
+        if matches!(target, Some(SourceTarget::ByteRange { .. })) {
+            self.trait_context.navigation_error = Some(message);
+            self.show_inspector = true;
+        } else if let Some(SourceTarget::Bookmark(bookmark)) = target {
             if self.bookmarks.index_of(bookmark.id).is_some() {
                 self.bookmark_list.navigation_failed(bookmark.id, message);
                 self.show_inspector = true;
@@ -212,7 +216,11 @@ impl RadiologyApp {
             self.highlighter.clone(),
             self.theme.is_dark,
         );
-        self.pending_navigation = Some(PendingNavigation { request, intent });
+        self.pending_navigation = Some(PendingNavigation {
+            request,
+            intent,
+            trait_owner: None,
+        });
         self.error = None;
     }
 
@@ -258,6 +266,7 @@ impl RadiologyApp {
         if self.is_critical_loading() {
             ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
+        self.retire_trait_navigation();
         if let Some(result) = self.source_loader.poll() {
             match result {
                 Ok(prepared) if prepared.dark_mode != self.theme.is_dark => {
@@ -283,6 +292,7 @@ impl RadiologyApp {
     }
 
     pub(super) fn publish_source(&mut self, prepared: PreparedSource) {
+        self.retire_trait_navigation();
         let Some(pending) = self.pending_navigation.take() else {
             if self
                 .open_buffer
@@ -307,6 +317,7 @@ impl RadiologyApp {
         self.commit_departure(pending.intent);
         self.selected_path = Some(prepared.buffer.path.clone());
         self.active_revision = prepared.buffer.revision;
+        self.rust_trait_impls = syntax.rust_trait_impls;
         self.call_sites = Arc::new(syntax.calls);
         self.syntactic_occurrences = syntax.occurrences;
         self.native_highlights = syntax.native_highlights;

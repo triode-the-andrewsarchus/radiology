@@ -4,6 +4,7 @@ mod files;
 mod ownership;
 mod panes;
 mod references;
+mod traits;
 use egui::{Event, Key, Modifiers};
 
 fn key(key: Key, modifiers: Modifiers) -> Event {

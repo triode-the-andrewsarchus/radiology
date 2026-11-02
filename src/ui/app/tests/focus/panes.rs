@@ -7,6 +7,14 @@ fn has(output: &egui::FullOutput, label: &str) -> bool {
     text_shapes(output).any(|text| text.galley.job.text == label)
 }
 
+pub(super) fn set_mask(app: &mut RadiologyApp, ctx: &Context, mask: usize) {
+    for (bit, pane) in InspectorPane::ALL.into_iter().enumerate() {
+        if app.session.inspector_panes.enabled(pane) != (mask & (1 << bit) != 0) {
+            app.execute_command(ctx, ToolbarAction::ToggleInspectorPane(pane));
+        }
+    }
+}
+
 #[test]
 fn inspector_pane_matrix_preserves_source_and_context_while_reclaiming_regions() {
     for scale in [1.0, 2.0] {
@@ -23,11 +31,7 @@ fn inspector_pane_matrix_preserves_source_and_context_while_reclaiming_regions()
         let target = app.reference_context.explicit().cloned();
         let references = app.reference_context.results.hits.clone();
         for mask in 0..16 {
-            for (bit, pane) in InspectorPane::ALL.into_iter().enumerate() {
-                if app.session.inspector_panes.enabled(pane) != (mask & (1 << bit) != 0) {
-                    app.execute_command(&ctx, ToolbarAction::ToggleInspectorPane(pane));
-                }
-            }
+            set_mask(&mut app, &ctx, mask);
             frame(&mut app, &ctx, vec![]);
             let output = frame(&mut app, &ctx, vec![]);
             let panes = app.session.inspector_panes;

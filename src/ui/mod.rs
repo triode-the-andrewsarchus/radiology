@@ -39,3 +39,5 @@ pub use modals::{
 pub use sidebar::{Sidebar, SidebarAction, SidebarTab};
 pub use source_view::{SourceView, SourceViewAction, SourceViewContent, SourceViewport};
 pub use toolbar::{Toolbar, ToolbarAction};
+
+pub mod trait_implementations;

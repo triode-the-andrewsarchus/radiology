@@ -25,7 +25,7 @@ fn advance(
     ReviewSnapshot::prepare(root, summary, &owner.join("cache")).unwrap()
 }
 
-fn open_review(
+pub(super) fn open_review(
     root: &Path,
     review: ReviewSnapshot,
     revision: ReviewRevision,

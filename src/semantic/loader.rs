@@ -330,13 +330,7 @@ mod trait_publication_tests {
     use super::*;
     #[test]
     fn imported_trait_catalog_is_prepared_before_poll_and_reuses_only_private_cache() {
-        let (owner, source, _, _) = crate::semantic::trait_impls::tests::fixture();
-        let crate::source::loader::SourceRead::Checkout(root) = source else {
-            unreachable!()
-        };
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("Tests/RadiologyTests/Fixtures/scip-rust-traits/index.scip");
-        std::fs::copy(fixture, root.join("index.scip")).unwrap();
+        let (owner, root) = crate::semantic::trait_impls::tests::imported_fixture();
         std::fs::write(root.join("inactive.rs"), "// unindexed\n").unwrap();
         let cache = owner.path().join("cache");
         let mut importer = IndexImporter::default();

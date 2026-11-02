@@ -1,5 +1,51 @@
 # Progress
 
+## 2026-11-02 — Compact trait inspector, stable context and verified navigation (Codex)
+
+Connected exact trait context and the precomputed catalog to the existing middle
+Context slot. Source publication retains parsed impl facts; borrowed TraitStructure
+avoids reparsing/cloning a full syntax snapshot. Reusable TraitImplementationContext
+retains rows/selection within one root/index/trait and clears ownership on changes.
+Before context is empty. Dense22-point virtualized rows show primary type, secondary
+basename:line, negative labels, counts and gap-only warning/help, with no grouping,
+disclosures/previews, extra split or routine footer. Existing Panes/View preferences
+restore Definition/Outline when appropriate and retire hidden keyboard owners.
+Primary click/context menu/Return activates; Up/Down/Home/End select, Escape clears.
+
+Activation reuses SourceLoader/LatestRead and the atomic history transaction. New
+digest-bound ByteRange validates a nonempty strict UTF-8 range and forces fresh reads,
+including the open file. Canonical containment is shared with catalog reads so an
+identical-byte external symlink cannot bypass the original trait resolver contract.
+Pending root/index/full-row guards reject late publication; pinned reviews read After
+Git objects and retain leases. Failure preserves source/caret/history; Back restores
+the exact latest departure. Legacy inspector APIs forward to the same renderer;
+model/list/key APIs remain independently reusable without a sibling dependency.
+
+Final workspace:675 app tests pass, seven existing ignored; two binary/13 font/21
+text and50 doctests pass. Strict gates pass; final same-open-file/context-menu
+extensions also pass all six targeted app trait regressions. Actual frames cover primary/key/Back flow, all16
+pane combinations, negative/empty/Before contexts, stable selection, row/index
+retirement, stale retry and same-open-file edits. Real Git proves pinned After reads
+under changed checkout/materialization. Identical-byte external symlink is rejected.
+Production list test virtualizes1,000 rows across220/280/420 widths,1×/2×, dark/light.
+Native old/current1×/2× passes navigation/keys/Back, stale error, negative/empty/
+same-named traits, pane hide/restore, light appearance and exact539-byte Unicode
+Copy. Accepted binary/fixture hashes unchanged; all owned native children exit zero.
+Captures and rendered public API contracts/examples inspected. Earlier driver OCR/
+focus-timing failures are retained; measured row/Panes geometry and a painted source
+frame resolve them. No failed native run is represented as accepted.
+
+Architecture +963 NLOC/35 functions/five files, avg/max CCN3.38/132,33 high-complexity
+functions/one cycle unchanged. One added50-token clone is only compatibility-API
+parameter declarations; no rendering body/algorithm duplicated. Raw comparator says
+REGRESSION for that signature and an unchanged focus-test fragment; normalized audit
+confirms the sole new signature clone. Accepted deliberately for host compatibility,
+with no metric-gaming parameter/utility churn. [Contract/review](plans/rust-trait-inspector.md).
+Archive: ~/.local/state/radiology-qa/trait-inspector-20261102-ed9cba3.
+Next: Code Paths, then C/C++ fallback, indexing personalities/seL4, shortcut help and
+broader compiler/IME/corpus parity acceptance. Full parity remains active; full
+accessibility and actual sibling adoption stay deferred.
+
 ## 2026-11-02 — Reusable exact Rust trait context resolution (Codex)
 
 Added semantic::trait_context::trait_at_byte using the accepted source's parsed

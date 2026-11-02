@@ -46,6 +46,26 @@ impl SourceRead {
         )
     }
 
+    pub(crate) fn read_contained_cancellable(
+        &self,
+        location: &SourceLocation,
+        cancel: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<Arc<SourceBuffer>, String> {
+        check_source(cancel, deadline)?;
+        if let Self::Checkout(root) = self {
+            let root = root.canonicalize().map_err(|error| error.to_string())?;
+            let resolved = root
+                .join(&location.path)
+                .canonicalize()
+                .map_err(|error| error.to_string())?;
+            if !resolved.starts_with(root) {
+                return Err("Source path leaves the repository".into());
+            }
+        }
+        self.read_cancellable(location, cancel, deadline)
+    }
+
     pub(crate) fn read_cancellable(
         &self,
         location: &SourceLocation,
@@ -117,6 +137,13 @@ pub enum SourceTarget {
         /// Exact source identity when supplied by a generated index.
         content_digest: Option<String>,
     },
+    /// Exact canonical source range, requiring a full-source digest match.
+    ByteRange {
+        /// Nonempty original UTF-8 range; activation uses its first byte.
+        range: std::ops::Range<usize>,
+        /// SHA-256 identity of the entire original source buffer.
+        content_digest: String,
+    },
     /// Persisted anchor relocation against the newly read exact source.
     Bookmark(SourceBookmark),
 }
@@ -127,6 +154,10 @@ impl SourceTarget {
         match self {
             Self::Encoded {
                 content_digest: Some(expected),
+                ..
+            }
+            | Self::ByteRange {
+                content_digest: expected,
                 ..
             } => expected == buffer.content_digest(),
             _ => true,
@@ -158,6 +189,16 @@ impl SourceTarget {
             } => buffer
                 .byte_offset_encoded(*line, *column, *encoding)
                 .ok_or("Indexed source position is not valid in this snapshot")?,
+            Self::ByteRange { range, .. } => {
+                if range.is_empty()
+                    || range.end > buffer.byte_len()
+                    || !buffer.text.is_char_boundary(range.start)
+                    || !buffer.text.is_char_boundary(range.end)
+                {
+                    return Err("Indexed source range is not valid in this snapshot".into());
+                }
+                range.start
+            }
             Self::Bookmark(bookmark) => {
                 return bookmark
                     .resolve_cancellable(buffer, cancelled)
@@ -256,9 +297,15 @@ fn prepare(
     let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
     let check = || check_source(cancel, deadline);
     check()?;
-    let buffer = request
-        .source
-        .read_cancellable(&request.location, cancel, deadline)?;
+    let buffer = if matches!(request.target, SourceTarget::ByteRange { .. }) {
+        request
+            .source
+            .read_contained_cancellable(&request.location, cancel, deadline)
+    } else {
+        request
+            .source
+            .read_cancellable(&request.location, cancel, deadline)
+    }?;
     prepare_loaded(request, buffer, highlighter, dark_mode, cancel, deadline)
 }
 
@@ -566,5 +613,35 @@ mod tests {
             .is_err())
             .unwrap_err()
             .contains("cancelled"));
+    }
+}
+
+#[cfg(test)]
+mod byte_range_tests {
+    use super::*;
+
+    #[test]
+    fn digest_bound_ranges_reject_stale_clamped_empty_and_invalid_utf8_destinations() {
+        let buffer = SourceBuffer::from_str("a.rs", "// 🦀\r\nimpl Trait for Type {}\r\n");
+        let start = buffer.text.find("impl").unwrap();
+        let target = |range| SourceTarget::ByteRange {
+            range,
+            content_digest: buffer.content_digest().into(),
+        };
+        assert_eq!(
+            target(start..start + 4)
+                .resolve(&buffer)
+                .unwrap()
+                .byte_offset,
+            start
+        );
+        for invalid in [start..start, 4..7, start..buffer.byte_len() + 1] {
+            assert!(target(invalid).resolve(&buffer).is_err());
+        }
+        let changed = SourceBuffer::from_str("a.rs", &buffer.text.replace("Type", "Else"));
+        assert!(target(start..start + 4)
+            .resolve(&changed)
+            .unwrap_err()
+            .contains("source bytes changed"));
     }
 }

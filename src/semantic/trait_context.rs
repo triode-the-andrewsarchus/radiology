@@ -3,9 +3,30 @@
 use super::{index::SemanticSymbolID, reference_results::check_cancel, SemanticIndex};
 use crate::{
     source::{ReviewRevision, SourceBuffer},
-    syntax::{DocumentSyntax, LanguageRegistry, SupportedGrammar, SymbolKind},
+    syntax::{DocumentSymbol, DocumentSyntax, LanguageRegistry, SupportedGrammar, SymbolKind},
 };
 use std::{collections::HashSet, ops::Range, sync::atomic::AtomicBool};
+
+mod model;
+pub use model::TraitImplementationContext;
+
+/// Borrowed structure from the same accepted immutable source snapshot.
+/// Hosts retaining separate outline and impl facts can avoid rebuilding a syntax snapshot.
+pub struct TraitStructure<'a> {
+    /// Full source outline, independent of presentation filters.
+    pub symbols: &'a [DocumentSymbol],
+    /// Explicit trait impls parsed from those exact source bytes.
+    pub implementations: &'a crate::syntax::rust_impls::RustTraitImpls,
+}
+
+impl<'a> From<&'a DocumentSyntax> for TraitStructure<'a> {
+    fn from(syntax: &'a DocumentSyntax) -> Self {
+        Self {
+            symbols: &syntax.symbols,
+            implementations: &syntax.rust_trait_impls,
+        }
+    }
+}
 
 /// Finds the trait under the caret or enclosing a member or explicit impl body.
 ///
@@ -36,14 +57,15 @@ use std::{collections::HashSet, ops::Range, sync::atomic::AtomicBool};
 ///
 /// # Errors
 /// Returns an error if canceled, without returning partial context.
-pub fn trait_at_byte(
+pub fn trait_at_byte<'a>(
     buffer: &SourceBuffer,
-    syntax: &DocumentSyntax,
+    syntax: impl Into<TraitStructure<'a>>,
     index: &SemanticIndex,
     byte: usize,
     cancel: &AtomicBool,
 ) -> Result<Option<SemanticSymbolID>, String> {
     check_cancel(cancel)?;
+    let syntax = syntax.into();
     if buffer.revision == Some(ReviewRevision::Before)
         || !index.matches_buffer(buffer)
         || LanguageRegistry::for_path(&buffer.path).grammar != Some(SupportedGrammar::Rust)
@@ -55,7 +77,7 @@ pub fn trait_at_byte(
         return Ok(Some(id));
     }
     let mut enclosing = Vec::new();
-    for symbol in &syntax.symbols {
+    for symbol in syntax.symbols {
         check_cancel(cancel)?;
         symbol.breadcrumbs(byte, &mut enclosing);
     }
@@ -66,7 +88,7 @@ pub fn trait_at_byte(
         }
     }
     let implementation = syntax
-        .rust_trait_impls
+        .implementations
         .implementations
         .iter()
         .filter(|item| item.byte_range.contains(&byte))

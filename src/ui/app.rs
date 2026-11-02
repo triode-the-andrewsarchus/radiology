@@ -15,6 +15,7 @@ mod reviews;
 mod source;
 #[cfg(test)]
 mod tests;
+mod traits;
 
 use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 use std::collections::HashSet;
@@ -125,6 +126,9 @@ pub struct RadiologyApp {
     pub pin_store: OccurrencePinStore,
     /// SCIP semantic index if loaded.
     pub semantic_index: Option<Arc<SemanticIndex>>,
+    trait_context: crate::semantic::trait_context::TraitImplementationContext,
+    trait_list: crate::ui::trait_implementations::TraitImplementationList,
+    rust_trait_impls: crate::syntax::rust_impls::RustTraitImpls,
     call_sites: Arc<crate::syntax::calls::CallSites>,
     syntactic_occurrences: crate::syntax::occurrences::SyntacticOccurrences,
     native_highlights: Arc<crate::syntax::native_highlights::NativeHighlights>,
@@ -303,6 +307,9 @@ impl RadiologyApp {
             test_code: Default::default(),
             pin_store: OccurrencePinStore::new(),
             semantic_index: None,
+            trait_context: Default::default(),
+            trait_list: Default::default(),
+            rust_trait_impls: Default::default(),
             call_sites: Default::default(),
             syntactic_occurrences: Default::default(),
             native_highlights: Default::default(),
@@ -612,6 +619,7 @@ impl RadiologyApp {
 
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
+        self.retire_hidden_trait_focus(ctx);
         self.stage_pointer_keys(ctx, input);
         super::commands::take_context_menu_input(ctx, input);
         self.take_modal_input(ctx, input);
@@ -656,6 +664,7 @@ impl RadiologyApp {
         self.poll_git_refresh(ctx);
         self.poll_reveal(ctx);
         self.poll_index(ctx);
+        self.retire_hidden_trait_focus(ctx);
         if self.repository_search.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
@@ -824,7 +833,7 @@ impl RadiologyApp {
                         .reference_context
                         .explicit()
                         .or(self.reference_context.target());
-                    if let Some(action) = ContextInspector::show_with_panes(
+                    if let Some(action) = ContextInspector::show_with_traits(
                         ui,
                         &self.theme,
                         InspectorContent {
@@ -873,6 +882,7 @@ impl RadiologyApp {
                         &mut self.outline_list,
                         &mut self.declaration_summary,
                         &self.session.inspector_panes,
+                        Some((&self.trait_context, &mut self.trait_list)),
                     ) {
                         self.handle_inspector_action(ctx, action);
                     }

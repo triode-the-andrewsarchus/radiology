@@ -2,8 +2,8 @@
 
 This is the shared data foundation for the upstream trait implementation feature.
 The catalog/extraction/cache/resolver APIs and background index-publication
-enrichment are implemented and verified. Caret-context selection and the inspector
-list remain required; the trait UI is not available yet.
+enrichment are implemented and verified. The [trait inspector](rust-trait-inspector.md)
+now supplies caret-context selection, compact rows, keys and guarded navigation.
 
 ## Source and identity contract
 
@@ -27,7 +27,7 @@ flag and full-source SHA-256. `resolve` re-reads the selected storage, validates
 entire digest and range, and returns canonical bytes/revision; same-length changes
 are rejected. Checkout symlinks leaving the root are rejected before source reads.
 Pinned reads request After directly from owned Git objects. Before context must be
-cleared by the future UI/model rather than mapped against After semantics.
+cleared by the inspector model rather than mapped against After semantics.
 
 `SemanticIndex` has an immutable Arc catalog slot, unprepared by default. This keeps
 one accepted semantic snapshot and prepares direct-host reuse; merely constructing
@@ -139,6 +139,6 @@ no changes were made to that Swift-side Python script. This is a documented tool
 classification limitation, not a claim that the raw comparator returned NEUTRAL.
 
 Validation and raw evidence are archived at
-~/.local/state/radiology-qa/trait-publication-20261102-50f6250. Trait/member/impl
-context, compact inspector rows, keyboard selection and guarded app activation
-remain required next. This unit changes publication, with no native UI claim.
+~/.local/state/radiology-qa/trait-publication-20261102-50f6250. The later [inspector integration](rust-trait-inspector.md) supplies trait/member/impl
+context, compact rows, keys and guarded activation. This publication checkpoint
+itself has no native UI claim.

@@ -349,21 +349,7 @@ fn read(
     path: &str,
     cancel: &AtomicBool,
 ) -> Result<std::sync::Arc<SourceBuffer>, String> {
-    check(cancel)?;
-    if !SourceLocation::is_repository_path(path) {
-        return Err("Invalid implementation source path".into());
-    }
-    if let SourceRead::Checkout(root) = source {
-        let root = root.canonicalize().map_err(|error| error.to_string())?;
-        let resolved = root
-            .join(path)
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        if !resolved.starts_with(root) {
-            return Err("Implementation source leaves the repository".into());
-        }
-    }
-    source.read_cancellable(
+    source.read_contained_cancellable(
         &location(source, path),
         cancel,
         Instant::now() + SOURCE_READ_TIMEOUT,
