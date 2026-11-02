@@ -48,6 +48,7 @@ pub struct SourceViewport {
     viewport_size: Option<egui::Vec2>,
     scrollbars: Vec<Rect>,
     pending_input: VecDeque<SourceInput>,
+    word_navigation: Option<((usize, bool), reader_text::WordCursor)>,
     pointer: PointerCapture,
     menu_request: Option<egui::Pos2>,
     context_byte: Option<usize>,
@@ -280,6 +281,7 @@ impl SourceViewport {
             self.rows = RowHeights::default();
             self.layout_key = None;
             self.pending_input.clear();
+            self.word_navigation = None;
             self.pointer = PointerCapture::default();
             self.dragging = false;
             self.menu_request = None;
@@ -1018,6 +1020,7 @@ impl SourceViewport {
         };
         self.measurement_priority = None;
         self.pending_input.clear();
+        self.word_navigation = None;
         self.pointer = PointerCapture::default();
         self.dragging = false;
         self.menu_request = None;
@@ -1162,6 +1165,29 @@ impl SourceViewport {
         let target = match (key, modifiers.ctrl || modifiers.command) {
             (Key::Home, true) => 0,
             (Key::End, true) => buffer.byte_len(),
+            (Key::ArrowLeft | Key::ArrowRight, true) => {
+                self.word_target(buffer, byte, key == Key::ArrowRight)?
+            }
+            (Key::ArrowUp | Key::ArrowDown, true) => {
+                let edge = if key == Key::ArrowUp {
+                    Key::Home
+                } else {
+                    Key::End
+                };
+                let boundary =
+                    keyboard_target(edge, byte, buffer, &self.fragments, &self.visible, 1);
+                let from = if byte == boundary {
+                    let step = if key == Key::ArrowUp {
+                        Key::ArrowLeft
+                    } else {
+                        Key::ArrowRight
+                    };
+                    keyboard_target(step, byte, buffer, &self.fragments, &self.visible, 1)
+                } else {
+                    byte
+                };
+                keyboard_target(edge, from, buffer, &self.fragments, &self.visible, 1)
+            }
             _ => self.movement_target(ui, content, font, width, height, key)?,
         };
         if modifiers.shift {
@@ -1176,6 +1202,31 @@ impl SourceViewport {
         }
         *content.target = Some(buffer.line_at_byte(target));
         Some(move_caret(content, target))
+    }
+
+    fn word_target(&mut self, buffer: &SourceBuffer, byte: usize, forward: bool) -> Option<usize> {
+        let key = (byte, forward);
+        if self
+            .word_navigation
+            .as_ref()
+            .is_none_or(|(old, _)| *old != key)
+        {
+            self.word_navigation = Some((
+                key,
+                reader_text::WordCursor::new(&self.fragments, byte, forward),
+            ));
+        }
+        let started = std::time::Instant::now();
+        let (_, cursor) = self.word_navigation.as_mut()?;
+        loop {
+            if let Some(target) = cursor.advance(&buffer.text, &self.fragments) {
+                self.word_navigation = None;
+                return Some(target);
+            }
+            if started.elapsed() >= std::time::Duration::from_millis(2) {
+                return None;
+            }
+        }
     }
 
     // Geometry-dependent navigation is separate from selection and canonical
@@ -1512,7 +1563,17 @@ fn source_input(event: &egui::Event) -> Option<SourceInput> {
         return None;
     };
     if modifiers.command || modifiers.ctrl {
-        if !modifiers.alt && matches!(key, Key::Home | Key::End) {
+        if !modifiers.alt
+            && matches!(
+                key,
+                Key::Home
+                    | Key::End
+                    | Key::ArrowLeft
+                    | Key::ArrowRight
+                    | Key::ArrowUp
+                    | Key::ArrowDown
+            )
+        {
             return Some(SourceInput::Move(*key, *modifiers));
         }
         if modifiers.alt || modifiers.shift {
@@ -1697,6 +1758,7 @@ fn keyboard_target(
                 end
             }
         }
+        Key::ArrowRight if position + 1 == visible.len() => byte,
         Key::ArrowRight => {
             parts[visible[(position + 1).min(visible.len() - 1)]]
                 .bytes
@@ -3757,6 +3819,185 @@ mod tests {
             assert!(reader.viewport.selection.is_none());
             assert!(output.platform_output.copied_text.is_empty());
         }
+    }
+
+    #[test]
+    fn word_keys_select_unicode_identifiers_and_atomic_symbols_without_changing_bytes() {
+        let select_word = vec![
+            key(Key::ArrowRight, Modifiers::CTRL | Modifiers::SHIFT),
+            egui::Event::Copy,
+        ];
+        let text = "foo_bar café e\u{301} 漢字 👨‍👩‍👧‍👦 1️⃣ 👍🏽 🇺🇸 ... tail";
+        for scale in [1.0, 1.5, 2.0] {
+            for wrap in [false, true] {
+                let ctx = reader_context(scale);
+                let mut reader = Reader::new(text);
+                reader.wrap = wrap;
+                reader.frame(&ctx, Vec::new());
+                for token in [
+                    "foo_bar",
+                    "café",
+                    "e\u{301}",
+                    "漢字",
+                    "👨‍👩‍👧‍👦",
+                    "1️⃣",
+                    "👍🏽",
+                    "🇺🇸",
+                    "tail",
+                ] {
+                    let start = text.find(token).unwrap();
+                    reader.column = reader.source.column_at_byte(start);
+                    reader.target = Some(1);
+                    reader.viewport.select(start..start);
+                    reader.frame(&ctx, Vec::new());
+                    let output = reader.frame(&ctx, select_word.clone());
+                    assert_eq!(output.platform_output.copied_text, token);
+                    assert_eq!(
+                        reader.source.byte_offset(reader.line, reader.column),
+                        start + token.len()
+                    );
+                    reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::CTRL)]);
+                    assert_eq!(reader.source.byte_offset(reader.line, reader.column), start);
+                    assert!(reader.viewport.selection.is_none());
+                }
+                for keycode in [Key::ArrowRight, Key::ArrowDown] {
+                    reader.frame(
+                        &ctx,
+                        vec![
+                            key(Key::End, Modifiers::CTRL),
+                            key(keycode, Modifiers::CTRL),
+                            key(Key::ArrowRight, Modifiers::NONE),
+                        ],
+                    );
+                    assert_eq!(
+                        reader.source.byte_offset(reader.line, reader.column),
+                        text.len()
+                    );
+                }
+                assert_eq!(reader.source.text, text);
+            }
+        }
+        for (text, start) in [("one\r\n", 3), ("\r\n", 0), ("\n\r\n", 0)] {
+            let ctx = reader_context(1.0);
+            let mut reader = Reader::new(text);
+            reader.column = start;
+            reader.frame(&ctx, Vec::new());
+            let output = reader.frame(&ctx, select_word.clone());
+            assert_eq!(output.platform_output.copied_text, text[start..]);
+            assert_eq!(
+                reader.source.byte_offset(reader.line, reader.column),
+                text.len()
+            );
+        }
+    }
+
+    #[test]
+    fn paragraph_keys_follow_logical_rows_across_wrap_fragments_blank_lines_and_folds() {
+        let text = format!("{}\r\n\r\nlast 1️⃣", "a".repeat(FRAGMENT_BYTES + 25));
+        let blank = text.find("\r\n").unwrap() + 2;
+        let last = blank + 2;
+        let folded = "fn f() {\r\n hidden();\r\n} tail\r\nnext";
+        let source = SourceBuffer::from_str("fixture.rs", folded);
+        let ranges = crate::syntax::DocumentSyntax::analyze(&source).folds;
+        for wrap in [false, true] {
+            let ctx = reader_context(1.5);
+            let mut reader = Reader::new(&text);
+            reader.wrap = wrap;
+            reader.line = 3;
+            reader.column = 3;
+            reader.frame(&ctx, Vec::new());
+            for expected in [last, blank, 0] {
+                reader.frame(&ctx, vec![key(Key::ArrowUp, Modifiers::CTRL)]);
+                assert_eq!(
+                    reader.source.byte_offset(reader.line, reader.column),
+                    expected
+                );
+            }
+            for expected in [blank - 2, blank, text.len()] {
+                let output = reader.frame(
+                    &ctx,
+                    vec![
+                        key(Key::ArrowDown, Modifiers::CTRL | Modifiers::SHIFT),
+                        egui::Event::Copy,
+                    ],
+                );
+                assert_eq!(
+                    reader.source.byte_offset(reader.line, reader.column),
+                    expected
+                );
+                assert_eq!(output.platform_output.copied_text, text[..expected]);
+            }
+            let mut reader = Reader::new(folded);
+            reader.wrap = wrap;
+            reader.ranges = ranges.clone();
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.frame(&ctx, Vec::new());
+            let output = reader.frame(
+                &ctx,
+                vec![
+                    key(Key::ArrowDown, Modifiers::CTRL | Modifiers::SHIFT),
+                    egui::Event::Copy,
+                ],
+            );
+            assert_eq!(
+                output.platform_output.copied_text,
+                &folded[..folded.find("\r\nnext").unwrap()]
+            );
+            assert!(!reader.folds.folded_ranges.is_empty());
+        }
+    }
+
+    #[test]
+    fn deferred_word_movement_orders_copy_and_retires_with_the_input_owner() {
+        let text = format!("{} tail", "é".repeat(FRAGMENT_BYTES * 512));
+        let ctx = reader_context(1.0);
+        let mut reader = Reader::new(&text);
+        reader.wrap = false;
+        reader.frame(&ctx, Vec::new());
+        let request = vec![
+            key(Key::ArrowRight, Modifiers::CTRL | Modifiers::SHIFT),
+            key(Key::D, Modifiers::CTRL),
+            egui::Event::Copy,
+        ];
+        let output = reader.frame(&ctx, request.clone());
+        assert!(output.platform_output.copied_text.is_empty());
+        assert!(reader.viewport.word_navigation.is_some());
+        assert_eq!(reader.column, 0);
+        let mut copied = None;
+        let mut ordered_command = false;
+        for _ in 0..2048 {
+            let output = reader.frame(&ctx, Vec::new());
+            if matches!(
+                reader.last_action,
+                Some(SourceViewAction::ReaderCommand(
+                    crate::ui::commands::ReaderCommand::ToggleBookmark
+                ))
+            ) {
+                assert_eq!(
+                    reader.source.byte_offset(reader.line, reader.column),
+                    text.len() - 5
+                );
+                assert!(output.platform_output.copied_text.is_empty());
+                ordered_command = true;
+            }
+            if !output.platform_output.copied_text.is_empty() {
+                copied = Some(output.platform_output.copied_text);
+                break;
+            }
+        }
+        assert!(ordered_command);
+        assert_eq!(copied.as_deref(), Some(&text[..text.len() - 5]));
+        assert!(reader.viewport.word_navigation.is_none());
+        assert!(reader.viewport.pending_input.is_empty());
+        reader.frame(&ctx, vec![key(Key::Home, Modifiers::CTRL)]);
+        reader.frame(&ctx, request);
+        assert!(reader.viewport.word_navigation.is_some());
+        ctx.memory_mut(|memory| memory.request_focus(Id::new("word_other_owner")));
+        let output = reader.frame(&ctx, Vec::new());
+        assert!(reader.viewport.word_navigation.is_none());
+        assert!(reader.viewport.pending_input.is_empty());
+        assert!(output.platform_output.copied_text.is_empty());
+        assert_eq!(reader.column, 0);
     }
 
     fn pointer(point: egui::Pos2, pressed: bool) -> Vec<egui::Event> {

@@ -547,7 +547,7 @@ impl RadiologyApp {
     pub(super) fn source_location_ready(&self) -> bool {
         self.repository_interaction_ready()
             && self.open_buffer.is_some()
-            && !self.is_source_loading()
+            && self.pending_navigation.is_none()
     }
 
     /// Dispatches consumed shortcuts through the same commands used by menus.

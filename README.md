@@ -69,7 +69,9 @@ The primary workflows are:
 
 In the Rust app, **Ctrl+Home / Ctrl+End** move to the start/end of the source
 document. Add **Shift** to extend selection from its original anchor. Copy retains
-the original bytes, including CRLF and folded code.
+the original bytes, including CRLF and folded code. **Ctrl+Left/Right** move over
+Unicode source words/symbols; **Ctrl+Up/Down** reach logical paragraph boundaries.
+Add **Shift** to extend selection. See [source navigation](plans/rust-source-word-navigation.md).
 
 | Shortcut | Action |
 | --- | --- |

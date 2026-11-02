@@ -2410,6 +2410,39 @@ fn unavailable_navigation_shortcuts_do_not_open_empty_dialogs_or_search() {
 }
 
 #[test]
+fn appearance_work_keeps_accepted_source_commands_available_and_retires_on_navigation() {
+    let (_dir, mut app) = reader_at_indexed_call();
+    let ctx = Context::default();
+    let buffer = app.open_buffer.clone().unwrap();
+    let departure = (app.caret_line, app.caret_col);
+    app.queue_rehighlight();
+    assert!(app.is_source_loading());
+    for command in [
+        ToolbarAction::OpenGoToLine,
+        ToolbarAction::FindInFile,
+        ToolbarAction::ToggleBookmark,
+        ToolbarAction::CollapseFunctions,
+    ] {
+        assert!(
+            app.command_enabled(&command),
+            "appearance disabled {command:?}"
+        );
+    }
+    app.execute_command(&ctx, ToolbarAction::OpenGoToLine);
+    assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
+    app.modal = ActiveModal::None;
+    settle(&mut app);
+    assert!(Arc::ptr_eq(&buffer, app.open_buffer.as_ref().unwrap()));
+    assert_eq!((app.caret_line, app.caret_col), departure);
+    app.queue_rehighlight();
+    app.open_file("a.rs");
+    assert!(app.pending_navigation.is_some());
+    assert!(!app.command_enabled(&ToolbarAction::OpenGoToLine));
+    settle(&mut app);
+    assert!(app.command_enabled(&ToolbarAction::OpenGoToLine));
+}
+
+#[test]
 fn navigation_availability_tracks_accepted_source_and_exact_semantic_target() {
     let (_dir, mut app) = reader_at_indexed_call();
     let ctx = Context::default();

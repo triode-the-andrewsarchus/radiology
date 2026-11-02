@@ -9,6 +9,7 @@ mod find;
 mod projection;
 mod rows;
 mod unwrapped;
+mod words;
 pub use coordinates::{ColumnEncoding, CoordinateIndex};
 pub use find::{FindOptions, MatchSpool};
 pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
@@ -16,6 +17,7 @@ pub use rows::RowHeights;
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 pub use unwrapped::UnwrappedRows;
+pub use words::WordCursor;
 
 /// One bounded display fragment of a canonical source line.
 #[derive(Debug, Clone, PartialEq, Eq)]

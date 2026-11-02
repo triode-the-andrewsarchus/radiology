@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-02 — Cooperative source word/paragraph keys and recolor availability (Codex)
+
+Shared reader-text WordCursor visits one bounded projected fragment per advance;
+the viewport schedules it under two milliseconds, retaining origin/direction and
+retiring progress with source/projection/layout/input ownership. Ctrl+Left/Right
+move through Unicode identifier runs and atomic symbols; Ctrl+Up/Down use projected
+logical row edges, with Shift extension and canonical copy. Ordered bookmark/Copy
+wait for a complete word destination. Plain Right at EOF no longer jumps backward.
+Native 2× testing exposed recolor jobs disabling source commands; availability
+now follows pending navigation over the accepted buffer, with its own regression.
+Workspace: 611 app tests pass, seven ignored; two binary, 13 font, 19 text, 40
+doctests pass. Strict Clippy/check/rustdoc/build/fmt/diff, rendered API docs,
+independent offline CPU host (16 jobs, no app/GUI) and final copied resource checks
+pass. Native old control proves ignored keys. Final v8 1×/2× each pass 25 exact
+copies including Unicode/emoji, CRLF, folds/blank rows, long-word bookmark/Copy,
+EOF, modal ownership, light and wrap; captures, hashes and zero exits checked.
+Early after-runs retained as recolor-defect evidence. Architecture: +497 NLOC/13
+functions/one module, no new hotspot/cycle, health -0.03. Default REGRESSION flags
+four old app-test clones; normalized audit matches all 109 groups unchanged.
+[Contract/evidence/remaining audit](plans/rust-source-word-navigation.md).
+Archive: ~/.local/state/radiology-qa/word-keys-20261102-01dda3f.
+Locale-specific inherited bindings, broader selection/focus and general Unicode/UI
+rendering remain in the full parity/corpus audit; accessibility/adoption deferred.
+
 ## 2026-11-02 — Ordered source document-edge keys (Codex)
 
 Ctrl+Home/End (and primary-command equivalents) now move to canonical document
@@ -375,7 +399,7 @@ retirement, exact indexed definition commits and Follow Caret, unchanged binary/
 fixture hashes and zero exits; dark/light captures inspected. Early keyboard/min
 scroll/fixture and OCR/wait trials are excluded. Architecture +183 NLOC including
 tests, two functions, no new hotspot/max-CCN/cycle; all 91 clones unchanged by full
-audit, health -0.02. Automated regression warning only touches the old modal/ref
+audit, health -0.03. Automated regression warning only touches the old modal/ref
 test clone. Broader inspector, language/corpus, reader/index/PR/cache/UI and final
 Swift/standalone/reuse acceptance remain open; accessibility and adoption deferred.
 [Contract and evidence](plans/rust-inspector-region-sizing.md).
@@ -640,7 +664,7 @@ tests pass eight. Workspace passes 547 app tests (seven ignored), two binary, fo
 font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
 Architecture +215 NLOC including tests, three test functions/fixtures, declaration
 render CCN 8; no new hotspot/cycle/max-CCN or clone group. All 91 baseline clones
-remain unchanged after audit; health -0.02. Eight native 1×/2× no-file/plain/parsed/
+remain unchanged after audit; health -0.03. Eight native 1×/2× no-file/plain/parsed/
 indexed flows pass region transitions, explicit pin beyond the parsed function,
 Follow Caret and exact source copy. Captures, fixture/binary hashes and zero child
 exits verified. Earlier startup screenshot filename reuse raced OCR; excluded

@@ -159,7 +159,9 @@ Archive: `~/.local/state/radiology-qa/source-composition-20261102-1444bf2`.
 
 The confirmed source compound-emoji defect is integrated and accepted. General
 Unicode shaping/bidi, compound emoji in other UI labels/previews, source
-word/paragraph navigation and the broader Swift parity/corpus review remain open. The shaper is
+inherited text bindings and the broader Swift parity/corpus review remain open.
+[Word/paragraph navigation](rust-source-word-navigation.md) is now integrated with
+bounded work and native acceptance. The shaper is
 intentionally bounded to supported single-glyph clusters; unsupported text keeps
 the existing scalar fallback. Full accessibility and actual sibling adoption
 remain deferred. The existing broad requirement ledger stays authoritative.

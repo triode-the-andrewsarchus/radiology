@@ -61,6 +61,7 @@ impl PointerCapture {
 impl SourceViewport {
     pub(crate) fn cancel_deferred_input(&mut self) {
         self.pending_input.clear();
+        self.word_navigation = None;
         self.pointer = PointerCapture::default();
         self.dragging = false;
         self.occurrence_clicks = None;

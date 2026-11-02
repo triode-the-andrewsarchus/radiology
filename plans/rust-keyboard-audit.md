@@ -268,6 +268,7 @@ composed emoji. Actual source captures are inspected; fixture/binary hashes rema
 unchanged and every final process exits zero.
 
 Evidence: `~/.local/state/radiology-qa/document-keys-20261102-fc4908d`.
-Word/paragraph navigation, broader enabled/focus transitions, Unicode UI text and
+[Word/paragraph navigation](rust-source-word-navigation.md) now has cooperative
+shared movement and native acceptance. Broader enabled/focus transitions, Unicode UI text and
 the full Swift feature/UI/corpus review remain open. Full accessibility and actual
 sibling integration remain deferred.
