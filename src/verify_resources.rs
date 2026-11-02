@@ -14,7 +14,7 @@ const NATIVE: &[(&str, &str, bool)] = &[
     ("probe.ts", "export function probe(value: number): number {\n return target(value);\n}\n", true),
     ("probe.tsx", "export function probe(value: number) {\n return <section title={target(value)}>hello</section>;\n}\n", true),
     ("probe.swift", "func probe(_ value: Int) -> Int {\n return target(value)\n}\n", true),
-    ("probe.kt", "fun probe(value: Int): Int {\n return target(value)\n}\n", true),
+    ("probe.kt", "fun probe(value: Int): Int {\n return target(value)\n}\ninterface Reader { fun read(): Int }\nclass Store { class Inner { val café = 1 } }\n", true),
     ("probe.c", "int target(int);\nint probe(int value) {\n return target(value);\n}\n", false),
 ];
 

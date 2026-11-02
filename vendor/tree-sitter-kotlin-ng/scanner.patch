@@ -1,0 +1,12 @@
+--- upstream/src/scanner.c
++++ src/scanner.c
+@@ -158,4 +158,8 @@
+             switch (lexer->lookahead) {
++                // The final class member needs no explicit separator before its brace.
++                case '}':
++                    lexer->result_symbol = CLASS_MEMBER_SEMI;
++                    return valid_symbols[CLASS_MEMBER_SEMI];
+                 case '!':
+-                    skip(lexer);
++                    advance(lexer);
+                     goto continue_not_is_from_semi;

@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Kotlin scanner parity](rust-kotlin-scanner.md) closes the compact-member defect
+  and omitted bang range in the native grammar, removing the Rust color workaround.
+  Pinned corpus, malformed controls, raw ranges, native before/after and standalone
+  resource acceptance pass; broader language corpus acceptance remains open.
+
 - [Native repository drops](rust-repository-drop.md) now match Swift’s first-URL
   folder/file-parent opening through the existing repository transaction. Native
   Wayland delivery, cancellation/failure retention, bounded offers and actual
@@ -100,8 +105,9 @@ actual sibling adoption/integration is deferred until the user requests it.
   and closure signature headers share the same existing parser/query paths.
 - [Native Swift/Kotlin declaration queries](rust-native-outline-parity.md) now cover
   protocol requirements, lifecycle routines, Kotlin properties, enum cases and
-  named companions with exact names, signatures and hierarchy. Broader grammar
-  acceptance remains open, including compact Kotlin interface member separators.
+  named companions with exact names, signatures and hierarchy. The
+  [compact-member scanner defect](rust-kotlin-scanner.md) is now repaired;
+  broader grammar acceptance remains open.
 - Native Swift/Kotlin grammars, nested declaration outlines and source-span folds
   are registered and tested; detailed highlighting/query coverage remains open.
 - Conservative AST test detection and independent Hide Tests projection are

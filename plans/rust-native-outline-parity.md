@@ -78,6 +78,10 @@ roots; existing presentation roles and typography were reused without a new scal
 
 ## Remaining grammar acceptance
 
+The specific compact-member defect below is repaired by the
+[2026-11-02 scanner patch](rust-kotlin-scanner.md), with complete raw trees and
+pinned upstream corpus coverage. The following records the earlier finding.
+
 The linked kotlin-ng 1.1.0 grammar reports a missing `_class_member_semi` for valid
 compact `interface Reader { fun read(value: Int): Int }`. The newline form and
 explicit `;` form parse without errors; compact enum declarations also parse.
@@ -152,5 +156,6 @@ This closes the listed declaration gaps, not broad grammar/corpus or whole-app
 parity. The native resized inspector also exposes an existing minimum-height
 cleanup: the References heading can clip when the declaration region is shrunk.
 That sizing defect is now repaired by [compact summaries and bounded regions](rust-inspector-region-sizing.md). Broader reader/index/PR/cache/UI acceptance remains open. The linked
-compact Kotlin interface limitation remains unchanged. The app stays independent;
+compact Kotlin interface limitation was subsequently repaired by the
+[scanner patch](rust-kotlin-scanner.md). The app stays independent;
 full accessibility and actual sibling adoption remain deferred.

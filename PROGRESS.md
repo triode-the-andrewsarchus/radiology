@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-02 — Repair Kotlin compact members and native operator ranges (Codex)
+
+A pinned local Kotlin scanner patch now accepts legal final members before class
+braces and retains the full !is token range. The Rust highlight workaround is
+removed; no source rewrite or warning suppression. Eight compact forms preserve
+exact declarations/facts in LF/CRLF, five malformed controls retain errors, raw
+operator ranges pass, and all 22 pinned upstream corpus trees match in both line
+endings. Old grammar negatives reproduce both defects. Generated parser bytes stay
+unchanged, compressed to 1.09 MB and expanded only into Cargo OUT_DIR; source/
+license/archive hashes and a small scanner diff are retained. Workspace passes
+581 app tests, seven ignored, supporting tests and 37 doctests; final strengthened
+binary probes, strict gates and copied standalone verification pass. A native old
+control reproduces the warning/lost outline; two final 1×/2× runs verify repaired
+facts, exact CRLF/Unicode/member copies, real-error warning, Back, themes, unchanged
+hashes and zero exits. Architecture default REGRESSION exposes vendored upstream
+code: max CCN 132 (original 131), 19 vendor-only clone groups, +1,675 NLOC. All 91
+existing clones remain; application-only delta is +140 NLOC/three test functions,
+with no new hotspot or cycle. Matching generated headers/data are retained for
+provenance rather than changing analysis scope. Broader parity remains open;
+accessibility and actual sibling adoption remain deferred.
+[Contract/evidence](plans/rust-kotlin-scanner.md).
+Archive: ~/.local/state/radiology-qa/kotlin-scanner-20261102-0e13c7a.
+
 ## 2026-11-02 — Open repositories from native file/folder drops (Codex)
 
 Closes a missing Swift RootView interaction: the first folder opens directly and

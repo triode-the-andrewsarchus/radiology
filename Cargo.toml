@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/reader-text", "crates/reader-fonts"]
 resolver = "2"
+exclude = ["vendor/tree-sitter-kotlin-ng"]
 
 [package]
 name = "radiology"
@@ -62,6 +63,6 @@ raw-window-handle = "0.6"
 wayland-client = "0.31"
 wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
 
-# Optional patch for Wayland window sizing on egui 0.27 if needed
+# Pinned native scanner fixes; see vendor/tree-sitter-kotlin-ng/PROVENANCE.md.
 [patch.crates-io]
-# egui-winit = { path = "/home/vcarlson/little-screen-clip/vendor/egui-winit" }
+tree-sitter-kotlin-ng = { path = "vendor/tree-sitter-kotlin-ng" }

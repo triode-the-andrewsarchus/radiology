@@ -1,0 +1,30 @@
+{
+  "crate": "tree-sitter-kotlin-ng",
+  "version": "1.1.0",
+  "revision": "77dd60ea0a9003ce062c9728a513ffe1aaff8c82",
+  "crate_sha256": "e800ebbda938acfbf224f4d2c34947a31994b1295ee6e819b65226c7b51b4450",
+  "files_sha256": {
+    "src/parser.c": "9ff65161845b9e9c9d62c12e9a4e4b8d8628bdc31c681ec7e6b4bd3bd6444cb3",
+    "src/scanner.c": "164c2bb928d23765ed38c3a322deaef9b52d6e147cec7cdf45add90d4fa6101c",
+    "src/node-types.json": "0f21509031ad37902dc05d5828f178fed3545c466ffcf38ef30d969cb64e8e9d",
+    "grammar.js": "1f6260635f96071fe1a164a3acbdaaf9d670dc2b35766e438c91f58ed2d50a7f",
+    "bindings/rust/lib.rs": "1e3ede5fbdb4106d84452424d796facd175b130e0c55d6b3887809e9642d0fcc",
+    "test/corpus/semi.txt": "a3d2fa88fa330956755a0a88a2473e2d42fea0e54e4fe32df8dc7ed0c61d5895",
+    "test/corpus/expressions.txt": "01496546f1d2cadfe1e32d979c083544717781e8ac25405287be4420058a48fd",
+    "test/corpus/declarations.txt": "0be32b2b517c2f60b4b5f71e62142706c99cfe179319fed52448c873a7615b4d",
+    "src/tree_sitter/parser.h": "a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a",
+    "Cargo.toml.orig": "01257b59d82a946bd4a4ee7fd3e63ee80ecf405ed3df22f5ee1b0e7f1f2ccb23",
+    "bindings/rust/build.rs": "8f497bb1459c09529efecfb9ae0dbc6e6f3c5892911e535f6551e15337d2cd6c",
+    "README.md": "f70427a2d63503273c0fc0d48eb8e460f966e9af017efa5629c4121b7048f164"
+  },
+  "parser_gzip_sha256": "e4b759f1918895760b7c7550ffcf4ce377fa0cb943129316c1f32ad1d435723a",
+  "modified_files": [
+    "Cargo.toml",
+    "bindings/rust/build.rs",
+    "src/scanner.c"
+  ],
+  "omitted_unused_headers": [
+    "src/tree_sitter/alloc.h",
+    "src/tree_sitter/array.h"
+  ]
+}

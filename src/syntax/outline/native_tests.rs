@@ -252,3 +252,139 @@ fn python_queries_include_module_values_and_type_aliases() {
     assert_eq!(symbols[0].kind, SymbolKind::Variable);
     assert_eq!(symbols[1].kind, SymbolKind::TypeAlias);
 }
+
+#[test]
+fn kotlin_compact_members_keep_clean_trees_and_exact_declaration_ranges() {
+    for (source, expected) in [
+        (
+            "interface Reader { fun read(value: Int): Int }",
+            vec!["Reader", "read"],
+        ),
+        (
+            "class Reader { fun read(value: Int): Int { return value } }",
+            vec!["Reader", "read"],
+        ),
+        ("class Reader { val café = 1 }", vec!["Reader", "café"]),
+        (
+            "enum class Reader { A; fun read() = 1 }",
+            vec!["Reader", "A", "read"],
+        ),
+        (
+            "class Reader { class Inner { val value = 1 } }",
+            vec!["Reader", "Inner", "value"],
+        ),
+        (
+            "interface Reader { fun read(): Int; fun two(): Int }",
+            vec!["Reader", "read", "two"],
+        ),
+        (
+            "class Reader { val café = 1 /* final member */ }",
+            vec!["Reader", "café"],
+        ),
+        (
+            "class Reader { fun run() {\n call()\n} }",
+            vec!["Reader", "run"],
+        ),
+    ] {
+        for crlf in [false, true] {
+            let source = if crlf {
+                source.replace('\n', "\r\n")
+            } else {
+                source.to_owned()
+            };
+            let (buffer, symbols) = declarations("Reader.kt", &source);
+            assert_eq!(
+                flattened(&symbols)
+                    .iter()
+                    .map(|symbol| symbol.name.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            let syntax = DocumentSyntax::analyze(&buffer);
+            assert!(!syntax.calls.parse_errors && syntax.folds_supported);
+            if source.contains("call()") {
+                assert_eq!(syntax.calls.sites.len(), 1);
+                assert!(syntax
+                    .folds
+                    .iter()
+                    .any(|fold| fold.kind == crate::syntax::FoldKind::Callable));
+            }
+        }
+    }
+}
+
+#[test]
+fn kotlin_compact_member_recovery_still_reports_actual_syntax_errors() {
+    for source in [
+        "interface Reader { fun read(value: ): Int }",
+        "interface Reader { fun read(value: Int): Int",
+        "class Reader { val value = }",
+        "class Reader { fun run() { call( } }",
+        "interface Reader { fun read(): Int fun two(): Int }",
+    ] {
+        let buffer = SourceBuffer::from_str("Broken.kt", source);
+        let syntax = DocumentSyntax::analyze(&buffer);
+        assert!(
+            syntax.calls.parse_errors,
+            "must retain diagnostics for {source}"
+        );
+    }
+}
+
+#[test]
+fn kotlin_pinned_upstream_corpus_keeps_its_expected_named_trees() {
+    let header = regex::Regex::new(r"(?m)^={3,}\n([^\n]+)\n={3,}\n").unwrap();
+    let field = regex::Regex::new(r"\b[a-z_]+:\s+").unwrap();
+    let compact = |value: &str| {
+        value
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+    };
+    let mut count = 0;
+    for (name, fixture) in [
+        (
+            "declarations",
+            include_str!("../../../vendor/tree-sitter-kotlin-ng/test/corpus/declarations.txt"),
+        ),
+        (
+            "expressions",
+            include_str!("../../../vendor/tree-sitter-kotlin-ng/test/corpus/expressions.txt"),
+        ),
+        (
+            "semi",
+            include_str!("../../../vendor/tree-sitter-kotlin-ng/test/corpus/semi.txt"),
+        ),
+    ] {
+        let cases = header.captures_iter(fixture).collect::<Vec<_>>();
+        assert!(!cases.is_empty(), "{name}");
+        for (index, case) in cases.iter().enumerate() {
+            let end = cases
+                .get(index + 1)
+                .map_or(fixture.len(), |next| next.get(0).unwrap().start());
+            let (source, expected) = fixture[case.get(0).unwrap().end()..end]
+                .split_once("\n---\n")
+                .unwrap();
+            for crlf in [false, true] {
+                let source = if crlf {
+                    source.replace('\n', "\r\n")
+                } else {
+                    source.to_owned()
+                };
+                let tree = crate::syntax::SupportedGrammar::Kotlin
+                    .parse(source.as_bytes())
+                    .unwrap();
+                let actual = tree.root_node().to_sexp();
+                assert_eq!(
+                    compact(&field.replace_all(&actual, "")),
+                    compact(expected),
+                    "{name}/{} CRLF={crlf}",
+                    &case[1]
+                );
+            }
+            count += 1;
+        }
+    }
+    assert_eq!(count, 22, "pinned upstream corpus must retain every case");
+    println!("accepted {count} pinned Kotlin corpus cases in LF and CRLF");
+}

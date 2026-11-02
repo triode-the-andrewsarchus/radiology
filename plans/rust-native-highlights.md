@@ -279,3 +279,11 @@ role counts, fixture/source/binary hashes, action logs, grammar probe, negative
 and final logs, standalone resource report, architecture/clone audit and source
 diff are retained. Broader corpus/grammar and final whole-app parity remain open;
 full accessibility and actual sibling adoption remain deferred.
+
+
+## Native Kotlin scanner follow-up — 2026-11-02
+
+[The pinned scanner patch](rust-kotlin-scanner.md) now supplies complete compact
+class-member trees and exact raw !is ranges. It supersedes the Rust capture-span
+correction described above, which is removed. Color roles and retained recoloring
+continue through the same shared path; real malformed-source warnings remain.

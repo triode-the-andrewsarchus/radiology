@@ -222,6 +222,21 @@ fn kotlin_native_nodes_supply_type_property_constant_and_annotation_roles() {
             source.to_owned()
         };
         let buffer = SourceBuffer::from_str("a.kt", &text);
+        let tree = SupportedGrammar::Kotlin.parse(&buffer.data).unwrap();
+        for operator in ["!is", "!in", "as?"] {
+            let start = text.find(operator).unwrap();
+            let range = start..start + operator.len();
+            let node = tree
+                .root_node()
+                .descendant_for_byte_range(range.start, range.end)
+                .unwrap();
+            assert_eq!(
+                node.kind(),
+                operator,
+                "raw token must own every operator byte"
+            );
+            assert_eq!(node.byte_range(), range);
+        }
         let syntax = super::super::DocumentSyntax::analyze(&buffer);
         assert!(!syntax.calls.parse_errors && syntax.parse_error.is_none());
         let facts = syntax.native_highlights;

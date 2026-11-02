@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Kotlin scanner parity](plans/rust-kotlin-scanner.md) now repairs compact final
+members and raw negated-type-check ranges in the pinned grammar. The former Rust
+highlight workaround is removed; valid compact declarations regain their facts,
+while malformed source still warns. Pinned corpus, raw ranges, native before/after
+and standalone packaging checks pass. Broader parity remains open.
+
 [Native repository drops](plans/rust-repository-drop.md) now open folders or a
 dropped file’s parent through the existing asynchronous repository transaction.
 The standalone Wayland receiver fills winit’s missing delivery path; actual
@@ -12,9 +18,9 @@ can use the public drop method without native frontend state. Broader parity
 remains open.
 
 [Kotlin annotation/operator colors](plans/rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02)
-now match bundled Swift roles for file annotations and negated operators, with a
-scoped correction for kotlin-ng’s omitted bang range. Exact token/source checks,
-two native 1×/2× retained recoloring flows and standalone verification pass.
+now match bundled Swift roles for file annotations and negated operators, with the
+[scanner correction](plans/rust-kotlin-scanner.md) now replacing the earlier Rust
+span workaround. Exact token/source checks, two native 1×/2× retained recoloring flows and standalone verification pass.
 Broader grammar/corpus and full parity remain open.
 
 [Indexing language coverage](plans/rust-index-language-coverage.md) now reports
@@ -51,8 +57,8 @@ stop before their bodies. Broader language corpus acceptance remains open.
 
 [Swift/Kotlin native outlines](plans/rust-native-outline-parity.md) now use the
 bundled symbol queries for exact lifecycle, protocol, property, enum-case and
-companion declarations. Broader grammar/corpus acceptance remains open, including
-a confirmed compact Kotlin interface parser limitation.
+companion declarations. The [compact Kotlin scanner defect](plans/rust-kotlin-scanner.md)
+is now repaired; broader grammar/corpus acceptance remains open.
 
 [Source pointer/key interleaving](plans/rust-source-input-order.md#preserve-source-pointerkeyboard-interleaving-through-capture--2026-11-01)
 now restores captured keys at their original event positions, so clicks, drags,
