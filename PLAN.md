@@ -4,9 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[File picker groundwork](plans/rust-file-picker.md) shares immutable inventories
-and supports cancellable ranking. Tests and strict gates pass; the picker UI
-and asynchronous integration remain pending.
+[File picker parity](plans/rust-file-picker.md) now connects shared immutable
+inventories and cancellable background ranking to the Swift-style 100-result UI,
+filename/directory rows, counts, empty states and Open/Cancel. Ordered keys,
+keyboard reveal, narrow-query Return and source focus pass automated and native
+1×/2× checks. Broader application parity remains open.
 
 [JSX dialect routing](plans/rust-jsx-dialect.md) now follows Swift’s JavaScript
 grammar and metadata, keeping TSX separate. Typed JSX warns under `.jsx` while

@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-11-02 — Background file picker with Swift-style results and controls (Codex)
+
+The file picker now searches on the existing bounded read pool, retiring stale
+query/inventory publications and closing work. Swift-style 620×430 layout shows
+100 virtualized filename/directory rows, truthful totals/limit notice, bounded
+Unicode labels, No Files/No Matches, failure/retry and Open/Cancel. Ordered input
+preserves mixed typing/arrows/Return, clamps before activation, reveals selection
+and discards closing suffixes. Row ownership prevents stale pointer releases.
+Seven new regressions and existing real-app source/history/find focus checks pass;
+fresh workspace: 590 app tests, seven ignored, two binary, four font, 13 text and
+37 doctests. Strict gates pass. Native accepted v4 1× and v5 2× verify seven exact
+copies each, beyond-12 selection, narrowed Return, long paths, Cancel/Escape focus,
+light pointer Open, unchanged hashes and zero exits; captures inspected. Earlier
+QA OCR/filename failures are excluded. Architecture default REGRESSION flags
+shifted old clone locations; normalized audit proves zero added, one removed
+(110→109), +605 NLOC/23 functions/one focused module, max new CCN 14, no new
+hotspot/cycle, health +0.13. [Contract/evidence](plans/rust-file-picker.md).
+Archive: ~/.local/state/radiology-qa/file-picker-ui-20261102-ec900a8.
+Broader parity remains open; full accessibility and actual sibling adoption deferred.
+
 ## 2026-11-02 — Shared file inventories and cancellable ranking (Codex)
 
 Repository/review inventories now publish immutable Arc snapshots; failed or

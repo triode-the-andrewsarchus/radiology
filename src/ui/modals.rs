@@ -2,8 +2,6 @@
 //!
 //! Provides focused modal popups for keyboard-driven navigation workflows across large codebases.
 
-use crate::repository::file_node::RepositoryFile;
-use crate::repository::quick_search::QuickFileSearch;
 use crate::semantic::index::{SemanticIndex, SemanticSymbolID};
 use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
@@ -27,103 +25,8 @@ pub enum ModalAction {
     Close,
 }
 
-/// Modal dialog for fuzzy file path search and navigation (Ctrl/Cmd+K).
-#[derive(Debug, Clone, Default)]
-pub struct QuickFilePickerModal {
-    /// Current search query string typed by the user.
-    pub query: String,
-    /// Currently highlighted index in the matched results list.
-    pub selected_idx: usize,
-}
-
-impl QuickFilePickerModal {
-    /// Renders the quick file picker dialog and handles arrow key and enter selections.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - EGUI context for global window rendering and keyboard input.
-    /// * `theme` - Visual color palette.
-    /// * `files` - List of all repository files available for fuzzy matching.
-    pub fn show(
-        &mut self,
-        ctx: &Context,
-        theme: &AppTheme,
-        files: &[RepositoryFile],
-    ) -> Option<ModalAction> {
-        let mut action = None;
-
-        Window::new("Go to File")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 100.0))
-            .fixed_size(egui::vec2(550.0, 380.0))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    Icon::Search.ui(ui, 14.0, theme.text_muted);
-                    let id = ui.make_persistent_id("file_picker_query");
-                    ui.memory_mut(|memory| memory.request_focus(id));
-                    let edit = TextEdit::singleline(&mut self.query)
-                        .id(id)
-                        .hint_text("Type a filename or fuzzy path...")
-                        .desired_width(ui.available_width() - 20.0);
-                    ui.add(edit);
-                });
-
-                ui.separator();
-
-                let results = QuickFileSearch::search(files, &self.query, 12);
-
-                if ctx.input(|i| i.key_pressed(Key::ArrowDown))
-                    && self.selected_idx + 1 < results.files.len()
-                {
-                    self.selected_idx += 1;
-                }
-                if ctx.input(|i| i.key_pressed(Key::ArrowUp)) && self.selected_idx > 0 {
-                    self.selected_idx -= 1;
-                }
-                if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                    if let Some(res) = results.files.get(self.selected_idx) {
-                        action = Some(ModalAction::OpenFile(res.path.clone()));
-                    }
-                }
-                if ctx.input(|i| i.key_pressed(Key::Escape)) {
-                    action = Some(ModalAction::Close);
-                }
-
-                if self.selected_idx >= results.files.len() && !results.files.is_empty() {
-                    self.selected_idx = 0;
-                }
-
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (idx, res) in results.files.iter().enumerate() {
-                        let is_selected = idx == self.selected_idx;
-                        let bg = if is_selected {
-                            theme.accent.linear_multiply(0.2)
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        };
-
-                        let item_resp = egui::Frame::none()
-                            .fill(bg)
-                            .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                            .rounding(4.0)
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new(&res.path).monospace());
-                                });
-                            })
-                            .response;
-
-                        if item_resp.interact(egui::Sense::click()).clicked() {
-                            action = Some(ModalAction::OpenFile(res.path.clone()));
-                        }
-                    }
-                });
-            });
-
-        action
-    }
-}
+mod file_picker;
+pub use file_picker::QuickFilePickerModal;
 
 /// Modal dialog for directly jumping to a specific line number (Ctrl/Cmd+L).
 #[derive(Debug, Clone, Default)]

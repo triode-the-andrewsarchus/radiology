@@ -42,7 +42,7 @@ fn opening_file_modal_accepts_the_following_text_and_return_in_order() {
             key(Key::Enter, Modifiers::NONE),
         ],
     );
-    frame(&mut app, &ctx, vec![]); // Complete the modal's registration pass and replay its queued input.
+    finish_file_picker(&mut app, &ctx); // Register, replay and accept the async query before loading.
     settle(&mut app);
     assert!(matches!(app.modal, ActiveModal::None));
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));

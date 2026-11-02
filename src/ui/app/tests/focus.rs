@@ -41,6 +41,19 @@ fn frame_with_overlay(
     })
 }
 
+// Async file search publishes through real app frames before file loading begins.
+fn finish_file_picker(app: &mut RadiologyApp, ctx: &Context) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while matches!(app.modal, ActiveModal::QuickFilePicker(_)) {
+        frame(app, ctx, vec![]);
+        assert!(
+            std::time::Instant::now() < deadline,
+            "file picker did not commit"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 fn source_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
     let (dir, mut app) = opened_repository();
     app.open_file("a.rs");
@@ -159,6 +172,7 @@ fn first_file_modal_keeps_canvas_focus_while_loading_without_stealing_later_find
     frame(&mut app, &ctx, vec![key(Key::K, Modifiers::CTRL)]);
     frame(&mut app, &ctx, vec![Event::Text("a.rs".into())]);
     frame(&mut app, &ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+    finish_file_picker(&mut app, &ctx);
     assert!(app.source_viewport.has_focus(&ctx));
     settle(&mut app);
     frame(&mut app, &ctx, vec![]);
