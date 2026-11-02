@@ -99,9 +99,18 @@ impl RadiologyApp {
         if let Some(request) = self.index_request() {
             self.index_generator.start_cached(request);
         } else if self.review.is_none() {
-            if let Some(root) = &self.repository_root {
-                self.index_importer.start(root.clone());
-            }
+            self.import_repository_index();
+        }
+    }
+
+    fn import_repository_index(&mut self) {
+        if let Some(root) = &self.repository_root {
+            self.index_importer.start_with_cache(
+                root.clone(),
+                self.session
+                    .repository_cache(root)
+                    .map(|cache| cache.join("indexes")),
+            );
         }
     }
 
@@ -240,9 +249,7 @@ impl RadiologyApp {
                 CacheLoadStatus::Missing | CacheLoadStatus::Failed(_)
             )
         {
-            if let Some(root) = &self.repository_root {
-                self.index_importer.start(root.clone());
-            }
+            self.import_repository_index();
         }
     }
 

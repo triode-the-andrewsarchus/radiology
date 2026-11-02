@@ -35,6 +35,45 @@ pub struct GenerationRequest {
 }
 
 impl GenerationRequest {
+    pub(super) fn prepare_index(
+        &self,
+        scip: ScipIndex,
+        source_digests: HashMap<String, String>,
+        paths: &[String],
+        cancel: &AtomicBool,
+    ) -> Result<SemanticIndex, String> {
+        let mut index = SemanticIndex::from_scip_cancellable(scip, || {
+            cancel.load(std::sync::atomic::Ordering::Relaxed)
+        })
+        .map_err(|error| error.to_string())?;
+        index.source_digests = source_digests;
+        self.enrich_traits(&mut index, paths, cancel)?;
+        Ok(index)
+    }
+
+    pub(super) fn enrich_traits(
+        &self,
+        index: &mut SemanticIndex,
+        paths: &[String],
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        let source = self.review.as_ref().map_or_else(
+            || crate::source::loader::SourceRead::Checkout(self.root.clone()),
+            |review| crate::source::loader::SourceRead::Review(review.clone()),
+        );
+        let cache = super::cache::directory(self).ok();
+        let catalog = crate::semantic::trait_impls::TraitImplementationIndex::build(
+            index,
+            &source,
+            Some(paths),
+            cache.as_deref(),
+            &HashSet::new(),
+            cancel,
+        )?;
+        index.trait_implementations = Arc::new(catalog);
+        Ok(())
+    }
+
     pub(super) fn inventory(&self, cancel: &AtomicBool) -> Result<InputInventory, String> {
         inspect_inputs(&self.root, self.review.as_deref(), cancel)
     }
@@ -448,12 +487,7 @@ fn generate(
     let index = if merged.documents.is_empty() {
         None
     } else {
-        let mut index = SemanticIndex::from_scip_cancellable(merged, || {
-            cancel.load(std::sync::atomic::Ordering::Relaxed)
-        })
-        .map_err(|error| error.to_string())?;
-        index.source_digests = source_digests;
-        Some(index)
+        Some(request.prepare_index(merged, source_digests, &inventory.paths, cancel)?)
     };
     Ok(GeneratedIndex { index, report })
 }

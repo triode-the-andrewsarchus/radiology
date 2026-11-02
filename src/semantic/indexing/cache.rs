@@ -3,7 +3,7 @@
 use super::inventory::{check_cancel, InputInventory};
 use super::service::{GeneratedIndex, GenerationReport, GenerationRequest};
 use super::workspace::IndexingWorkspace;
-use crate::semantic::{ScipIndex, SemanticIndex};
+use crate::semantic::ScipIndex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -39,7 +39,7 @@ pub(super) fn directory(request: &GenerationRequest) -> Result<PathBuf, String> 
     Ok(parent)
 }
 
-fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
+pub(super) fn path(request: &GenerationRequest) -> Result<PathBuf, String> {
     let parent = directory(request)?;
     Ok(parent.join(key(&request.identity_root()?, request.revision())))
 }
@@ -113,7 +113,7 @@ fn stage<T: Serialize>(
     Ok(temporary)
 }
 
-/// Loads persisted semantic data without running tools or writing any files.
+/// Loads persisted semantic data without running tools, refreshing its private trait cache.
 ///
 /// Exact input fingerprints qualify as current. Changed inputs retain the original
 /// source digests and receive an explicit stale report, so destination reads still
@@ -161,11 +161,8 @@ fn restore(
     }
     check_cancel(cancel)?;
     entry.report.cached = true;
-    let mut index = SemanticIndex::from_scip_cancellable(entry.scip, || {
-        cancel.load(std::sync::atomic::Ordering::Relaxed)
-    })
-    .map_err(|error| error.to_string())?;
-    index.source_digests = entry.source_digests;
+    let index =
+        request.prepare_index(entry.scip, entry.source_digests, &inventory.paths, cancel)?;
     check_cancel(cancel)?;
     Ok(GeneratedIndex {
         index: Some(index),

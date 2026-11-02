@@ -6,8 +6,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 [Trait catalog foundation](plans/rust-trait-catalog.md) now resolves explicit Rust
 impls from exact SCIP token identities, with source-verified activation and a warm
-cache. Compiler-fixture/encoding/freshness tests and full gates pass. Publication
-wiring and the actual trait inspector/context/navigation feature remain pending.
+cache. Generation, semantic-cache restore and imports now enrich on their existing
+workers before publication. Compiler-fixture/encoding/freshness and worker tests
+pass. The actual trait inspector/context/navigation feature remains pending.
 
 [Inspector pane preferences](plans/rust-inspector-panes.md) now persist app-wide,
 share checked Panes/View menus, reclaim layout space and recover from all-hidden

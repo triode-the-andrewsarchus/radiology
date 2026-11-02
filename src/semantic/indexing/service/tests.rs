@@ -276,7 +276,7 @@ fn generates_isolated_projects_with_encoded_scoped_documents_and_partial_failure
     assert!(!fixture.source.join("rust/artifact.bin").exists());
     assert!(!fixture.source.join("web/artifact.bin").exists());
     let persisted: Vec<_> = fs::read_dir(&fixture.cache).unwrap().collect();
-    assert_eq!(persisted.len(), 3); // merged cache, project namespace and stable lease
+    assert_eq!(persisted.len(), 4); // merged + trait caches, project namespace and stable lease
     assert!(fixture.cache.join("projects").is_dir());
     assert!(cache_file(&fixture).is_file());
     assert!(generated.report.cache_warning.is_none());
@@ -419,14 +419,7 @@ fn python_project_identity_uses_original_name_instead_of_random_workspace_name()
 }
 
 fn cache_file(fixture: &Fixture) -> PathBuf {
-    fs::read_dir(&fixture.cache)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .find(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "json")
-        })
-        .expect("persisted index")
+    super::super::cache::path(&fixture.request()).expect("persisted index path")
 }
 
 #[test]
@@ -475,7 +468,7 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     );
     assert!(index.matches_buffer(&SourceBuffer::from_str("lib.rs", "a")));
     assert_eq!(fs::read(cache_file(&fixture)).unwrap(), original_bytes);
-    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 3);
+    assert_eq!(fs::read_dir(&fixture.cache).unwrap().count(), 4);
 
     fs::write(fixture.source.join("new.rb"), "puts 'hello'\n").unwrap();
     let updated = super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
@@ -844,4 +837,142 @@ fn cancelled_pinned_generation_releases_its_live_snapshot_and_publishes_no_cache
         .path()
         .extension()
         .is_some_and(|extension| extension == "json")));
+}
+
+#[test]
+fn generation_and_cache_publish_verified_trait_catalogs_without_rerunning_tools() {
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("Tests/RadiologyTests/Fixtures/scip-rust-traits");
+    let lib = fs::read_to_string(fixture_root.join("src/lib.rs")).unwrap();
+    let implementations = fs::read_to_string(fixture_root.join("src/implementations.rs")).unwrap();
+    let fixture = Fixture::new(&[
+        (
+            "Cargo.toml",
+            "[package]\nname='trait_fixture'\nversion='0.1.0'\n",
+        ),
+        ("src/lib.rs", &lib),
+        ("src/implementations.rs", &implementations),
+        ("src/inactive.rs", "// not emitted\n"),
+    ]);
+    fixture.tool(Indexer::Rust, &[], "");
+    fs::copy(
+        fixture_root.join("index.scip"),
+        fixture.bin.join(format!("{}.scip", Indexer::Rust.id())),
+    )
+    .unwrap();
+    let generated = run(fixture.request());
+    let index = generated.index.unwrap();
+    let catalog = &index.trait_implementations;
+    assert!(catalog.is_prepared && !catalog.unverified_semantics);
+    assert_eq!(catalog.parsed_document_count, 2);
+    assert_eq!(catalog.unindexed_file_count, Some(1));
+    assert_eq!(catalog.by_trait.values().map(Vec::len).sum::<usize>(), 5);
+    fs::remove_file(fixture.bin.join(Indexer::Rust.id())).unwrap();
+    fs::remove_file(fixture.cache.join("rust-trait-implementations.json")).unwrap();
+    let cancel = AtomicBool::new(false);
+    let restored = super::super::cache::load(&fixture.request(), &cancel)
+        .unwrap()
+        .unwrap();
+    assert!(restored.report.cached && restored.report.stale_reason.is_none());
+    let restored = restored.index.unwrap();
+    assert_eq!(restored.trait_implementations.parsed_document_count, 2);
+    assert_eq!(restored.trait_implementations.by_trait, catalog.by_trait);
+    let warm = super::super::cache::load(&fixture.request(), &cancel)
+        .unwrap()
+        .unwrap()
+        .index
+        .unwrap();
+    assert_eq!(warm.trait_implementations.cached_document_count, 2);
+    fs::write(
+        fixture.source.join("src/implementations.rs"),
+        implementations.replace("Alpha", "Gamma"),
+    )
+    .unwrap();
+    let stale = super::super::cache::load(&fixture.request(), &cancel)
+        .unwrap()
+        .unwrap();
+    assert!(stale.report.stale_reason.is_some());
+    let stale = stale.index.unwrap();
+    assert!(stale.trait_implementations.by_trait.is_empty());
+    assert_eq!(
+        stale.trait_implementations.excluded_paths,
+        ["src/implementations.rs"]
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.source.join("src/lib.rs")).unwrap(),
+        lib
+    );
+}
+
+#[test]
+fn trait_enrichment_uses_pinned_after_objects_and_retains_the_review_lease() {
+    let before = "trait Trait {}\nimpl Trait for Before {}\n";
+    let after = "trait Trait {}\nimpl Trait for After {}\n";
+    let (owner, attached, review) =
+        crate::pull_request::review::tests::fixture_with_sources(before, after);
+    let review = Arc::new(review);
+    let buffer = review
+        .read("a file.rs", crate::source::ReviewRevision::After)
+        .unwrap();
+    let start = after.rfind("Trait").unwrap();
+    let mut index = SemanticIndex::from_scip(ScipIndex {
+        documents: vec![crate::semantic::ScipDocument {
+            relative_path: "a file.rs".into(),
+            position_encoding: 2,
+            occurrences: vec![crate::semantic::test_support::occurrence(
+                &buffer,
+                start..start + 5,
+                "scip test fixture 1 Trait#",
+                false,
+            )],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    index
+        .source_digests
+        .insert(buffer.path.clone(), buffer.content_digest().to_owned());
+    fs::write(
+        review.head_root.join("a file.rs"),
+        "tampered materialized bytes\n",
+    )
+    .unwrap();
+    let request = GenerationRequest {
+        attached_root: attached,
+        root: review.head_root.clone(),
+        review: Some(review.clone()),
+        reuse: false,
+        cache: owner.path().join("derived"),
+        tools: ToolDirectory {
+            managed: None,
+            home: None,
+            search_path: vec![],
+        },
+        timeout: Duration::from_secs(5),
+        limits: Default::default(),
+    };
+    request
+        .enrich_traits(&mut index, &["a file.rs".into()], &AtomicBool::new(false))
+        .unwrap();
+    let row = index
+        .trait_implementations
+        .by_trait
+        .values()
+        .next()
+        .unwrap()
+        .first()
+        .unwrap();
+    assert_eq!(row.target_type, "After");
+    assert!(!index.trait_implementations.unverified_semantics);
+    let location = row
+        .resolve(
+            &crate::source::loader::SourceRead::Review(review),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+    assert_eq!(
+        location.revision,
+        Some(crate::source::ReviewRevision::After)
+    );
+    assert_eq!(location.byte_offset, after.find("impl").unwrap());
 }

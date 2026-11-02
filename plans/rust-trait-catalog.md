@@ -1,9 +1,9 @@
 # Explicit Rust trait implementation catalog
 
 This is the shared data foundation for the upstream trait implementation feature.
-The catalog/extraction/cache/resolver APIs are implemented and verified. Automatic
-index-publication enrichment, caret-context selection and the inspector list are
-still required; this commit does not claim the trait UI is available.
+The catalog/extraction/cache/resolver APIs and background index-publication
+enrichment are implemented and verified. Caret-context selection and the inspector
+list remain required; the trait UI is not available yet.
 
 ## Source and identity contract
 
@@ -101,3 +101,44 @@ preference and slot policy already exist; see `rust-inspector-panes.md`.
 
 Evidence: ~/.local/state/radiology-qa/trait-catalog-20261102-597fcc0.
 The broader goal stays in `rust-upstream-parity-2026-11-02.md` and the parity ledger.
+
+
+## Background publication — 2026-11-02
+
+Generated and restored indexes now pass through one request-owned preparation
+operation: decode/map SCIP, attach original source digests, then prepare the trait
+catalog before the existing LatestRead worker can publish. Enrichment uses checkout
+storage or pinned After Git objects from the request's owned review snapshot. Its
+optional cache uses the established private-cache containment checks; failure to
+obtain a derived-cache directory does not turn a usable index into a load failure.
+The persisted semantic format and provenance checks are unchanged.
+
+IndexImporter performs the same enrichment inside its existing import worker.
+The additive start_with_cache API accepts an optional private cache; start remains
+supported without a cache. App import/fallback paths share the same cache policy.
+Imports retain unknown source freshness and report that limitation in their catalog;
+failed inventory discovery leaves coverage unknown rather than asserting zero gaps.
+Source parsing and inventory discovery do not run in the UI renderer. Existing
+worker retirement/publication guards and pinned snapshot leases remain in force.
+
+Three added tests exercise the actual importer job/poll boundary; controlled tool
+output containing the real upstream compiler fixture; cold/warm semantic-cache
+restore after removing the tool executable; same-length source edits; and pinned
+After object reads despite tampered materialized source. The controlled adapter is
+not a fresh compiler-run claim. Legacy cache tests now account for the derived JSON
+and resolve the exact semantic-cache path instead of selecting arbitrary JSON.
+
+Architecture baseline before-trait-publication at50f6250: +243 NLOC, +7 functions,
+no new files; average/max CCN3.38/132,33 high-complexity functions,125 clone groups
+and one dependency cycle remain unchanged. Initial UI import duplication and the
+added generation complexity were removed with shared import/preparation operations.
+The default comparison still reports REGRESSION for an unchanged six-line test
+clone and an alternating chokepoint in untouched sel4_scip_union.py. Normalized
+clone path/fragment/token comparison proves zero added/removed clone identities;
+no changes were made to that Swift-side Python script. This is a documented tool
+classification limitation, not a claim that the raw comparator returned NEUTRAL.
+
+Validation and raw evidence are archived at
+~/.local/state/radiology-qa/trait-publication-20261102-50f6250. Trait/member/impl
+context, compact inspector rows, keyboard selection and guarded app activation
+remain required next. This unit changes publication, with no native UI claim.

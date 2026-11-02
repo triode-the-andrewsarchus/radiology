@@ -1,7 +1,7 @@
 use super::*;
 use crate::semantic::ScipIndex;
 
-fn fixture() -> (tempfile::TempDir, SourceRead, ScipIndex, Vec<String>) {
+pub(crate) fn fixture() -> (tempfile::TempDir, SourceRead, ScipIndex, Vec<String>) {
     let owner = tempfile::tempdir().unwrap();
     let root = owner.path().join("source");
     std::fs::create_dir_all(root.join("src")).unwrap();

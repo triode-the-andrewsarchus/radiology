@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-02 — Trait catalogs prepared before index publication (Codex)
+
+Generation and semantic-cache restore now share request-owned semantic preparation,
+including source digests and trait enrichment before existing worker publication.
+Imports enrich on their existing worker through additive start_with_cache; legacy
+start remains usable without cache. App fallback paths share the same private-cache
+policy. Pinned review enrichment reads After Git objects and retains snapshot leases;
+import freshness remains unknown. Optional derived-cache failures affect speed only.
+Three new regressions prove real importer poll publication, compiler-fixture adapter
+output, tool-free cold/warm restore, stale edits and pinned object reads despite
+materialized tampering. Two inherited cache-count assertions needed the added JSON;
+the cache helper now reuses the exact production semantic-cache path.
+Final workspace:664 app tests pass, seven existing ignored; two binary/13 font/21
+text and48 doctests pass. Strict gates pass. Initial generation hotspot and UI import
+duplication removed; +243 NLOC/+7 functions, avg/max CCN3.38/132,33 high-complexity
+functions,125 clones/one cycle unchanged. Raw comparator flags an unchanged test
+clone and unstable chokepoint ranking in untouched sel4_scip_union.py; normalized
+clone identities prove zero new/removed clones. [Contract](plans/rust-trait-catalog.md#background-publication--2026-11-02).
+Evidence: ~/.local/state/radiology-qa/trait-publication-20261102-50f6250.
+No native UI claim: trait/member/impl context, compact pane, keyboard selection and
+guarded app activation still remain. Full parity work stays active.
+
 ## 2026-11-02 — Exact trait implementation catalog foundation (Codex)
 
 Added lightweight/shared-parse Rust impl facts and a reusable source-backed trait

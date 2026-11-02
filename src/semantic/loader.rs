@@ -53,8 +53,15 @@ pub struct IndexImporter {
 impl IndexImporter {
     /// Starts importing `index.scip`, falling back to `.scip` in `root`.
     pub fn start(&mut self, root: PathBuf) {
+        self.start_with_cache(root, None);
+    }
+
+    /// Imports and enriches on the existing worker, optionally reusing a private trait cache.
+    /// The cache must be outside the repository; import freshness remains unknown.
+    pub fn start_with_cache(&mut self, root: PathBuf, cache: Option<PathBuf>) {
         self.status = IndexImportStatus::Loading;
-        self.job.spawn(move |cancel| import(&root, cancel));
+        self.job
+            .spawn(move |cancel| import(&root, cache.as_deref(), cancel));
     }
 
     /// Stops a pending import without invalidating already published data.
@@ -104,7 +111,11 @@ impl IndexImporter {
     }
 }
 
-fn import(root: &Path, cancel: &AtomicBool) -> Result<Option<ImportedIndex>, String> {
+fn import(
+    root: &Path,
+    cache: Option<&Path>,
+    cancel: &AtomicBool,
+) -> Result<Option<ImportedIndex>, String> {
     let mut failures = Vec::new();
     for path in [root.join("index.scip"), root.join(".scip")] {
         if cancel.load(Ordering::Relaxed) {
@@ -112,13 +123,23 @@ fn import(root: &Path, cancel: &AtomicBool) -> Result<Option<ImportedIndex>, Str
         }
         match read_scip(&path, cancel) {
             Ok(Some(scip)) => {
-                return Ok(Some(ImportedIndex {
-                    index: SemanticIndex::from_scip_cancellable(scip, || {
-                        cancel.load(Ordering::Relaxed)
-                    })
-                    .map_err(|error| error.to_string())?,
-                    path,
-                }))
+                let mut index =
+                    SemanticIndex::from_scip_cancellable(scip, || cancel.load(Ordering::Relaxed))
+                        .map_err(|error| error.to_string())?;
+                let inventory =
+                    super::indexing::inventory::InputInventory::discover(root, cancel).ok();
+                index.trait_implementations =
+                    std::sync::Arc::new(super::trait_impls::TraitImplementationIndex::build(
+                        &index,
+                        &crate::source::loader::SourceRead::Checkout(root.to_owned()),
+                        inventory
+                            .as_ref()
+                            .map(|inventory| inventory.paths.as_slice()),
+                        cache,
+                        &std::collections::HashSet::new(),
+                        cancel,
+                    )?);
+                return Ok(Some(ImportedIndex { index, path }));
             }
             Ok(None) => {}
             Err(error) => failures.push(format!("{}: {error}", path.display())),
@@ -284,22 +305,84 @@ mod tests {
     fn missing_empty_oversized_and_escaping_indexes_are_distinct() {
         let root = tempfile::tempdir().unwrap();
         let cancel = AtomicBool::new(false);
-        assert!(import(root.path(), &cancel).unwrap().is_none());
+        assert!(import(root.path(), None, &cancel).unwrap().is_none());
         let path = root.path().join("index.scip");
         std::fs::write(&path, []).unwrap();
-        assert!(import(root.path(), &cancel)
+        assert!(import(root.path(), None, &cancel)
             .unwrap_err()
             .contains("no documents"));
         write_index(&path, "../outside.rs");
-        assert!(import(root.path(), &cancel)
+        assert!(import(root.path(), None, &cancel)
             .unwrap_err()
             .contains("invalid repository-relative"));
         std::fs::File::create(&path)
             .unwrap()
             .set_len(MAX_INDEX_BYTES + 1)
             .unwrap();
-        assert!(import(root.path(), &cancel)
+        assert!(import(root.path(), None, &cancel)
             .unwrap_err()
             .contains("256 MiB"));
+    }
+}
+
+#[cfg(test)]
+mod trait_publication_tests {
+    use super::*;
+    #[test]
+    fn imported_trait_catalog_is_prepared_before_poll_and_reuses_only_private_cache() {
+        let (owner, source, _, _) = crate::semantic::trait_impls::tests::fixture();
+        let crate::source::loader::SourceRead::Checkout(root) = source else {
+            unreachable!()
+        };
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("Tests/RadiologyTests/Fixtures/scip-rust-traits/index.scip");
+        std::fs::copy(fixture, root.join("index.scip")).unwrap();
+        std::fs::write(root.join("inactive.rs"), "// unindexed\n").unwrap();
+        let cache = owner.path().join("cache");
+        let mut importer = IndexImporter::default();
+        let finish = |importer: &mut IndexImporter| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                if let Some(index) = importer.poll() {
+                    return index;
+                }
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+        importer.start_with_cache(root.clone(), Some(cache.clone()));
+        let cold = finish(&mut importer);
+        assert!(
+            cold.trait_implementations.is_prepared
+                && cold.trait_implementations.unverified_semantics
+        );
+        assert_eq!(cold.trait_implementations.parsed_document_count, 2);
+        assert_eq!(cold.trait_implementations.unindexed_file_count, Some(1));
+        assert_eq!(
+            cold.trait_implementations
+                .by_trait
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+            5
+        );
+        assert!(matches!(
+            importer.status(),
+            IndexImportStatus::Imported { documents: 2, .. }
+        ));
+        importer.start_with_cache(root.clone(), Some(cache));
+        let warm = finish(&mut importer);
+        assert_eq!(warm.trait_implementations.cached_document_count, 2);
+        assert_eq!(
+            warm.trait_implementations.by_trait,
+            cold.trait_implementations.by_trait
+        );
+        importer.start(root.clone());
+        let uncached = finish(&mut importer);
+        assert_eq!(uncached.trait_implementations.parsed_document_count, 2);
+        assert!(!root.join("rust-trait-implementations.json").exists());
+        importer.start_with_cache(root, Some(owner.path().join("cache")));
+        importer.stop();
+        assert!(importer.poll().is_none());
     }
 }
