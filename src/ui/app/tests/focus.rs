@@ -28,6 +28,129 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    for scale in [1.0, 2.0] {
+        for diagnostics in [false, true] {
+            let (owner, mut app) = reader();
+            let root = owner.path().join("checkout");
+            std::fs::create_dir(&root).unwrap();
+            std::fs::write(root.join("a.rs"), "// one\n// café two\n// three\n").unwrap();
+            app.open_repository(&root);
+            settle(&mut app);
+            let byte = app.open_buffer.as_ref().unwrap().byte_offset(2, 4);
+            app.jump_to_location("a.rs", 2, byte);
+            settle(&mut app);
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            if diagnostics {
+                app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+                settle(&mut app);
+                app.syntax_error = Some("fixture structure failure".into());
+                app.fold_error = Some("fixture fold failure".into());
+                app.syntactic_occurrences.error = Some("fixture occurrence failure".into());
+                Arc::make_mut(&mut app.native_highlights).error =
+                    Some("fixture highlight failure".into());
+            }
+            let mut first_height = None;
+            for width in [800.0, 1100.0, 1400.0, 800.0] {
+                let size = egui::vec2(width, 800.0);
+                for _ in 0..4 {
+                    frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                }
+                let output = frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                let canvas = ctx
+                    .read_response(crate::ui::source_view::SourceViewport::focus_id())
+                    .unwrap()
+                    .rect;
+                let footer_bounds = egui::Rect::from_min_max(
+                    egui::pos2(
+                        canvas.left() - crate::ui::source_view::SourceView::GUTTER_WIDTH,
+                        canvas.bottom(),
+                    ),
+                    egui::pos2(canvas.right(), size.y),
+                );
+                let mut rectangles = Vec::new();
+                let mut labels = vec![
+                    "Rust",
+                    "4 lines",
+                    "Line 2",
+                    "No Index",
+                    "UTF-8",
+                    "Read Only",
+                ];
+                if diagnostics {
+                    labels.extend([
+                        "Structure unavailable",
+                        "Folding unavailable",
+                        "Occurrence highlighting unavailable",
+                        "Basic syntax colors",
+                    ]);
+                }
+                for label in labels {
+                    let text = text_shapes(&output)
+                        .find(|text| text.galley.job.text == label)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "missing {label}; caret {:?}; texts {:?}",
+                                (app.caret_line, app.caret_col),
+                                text_shapes(&output)
+                                    .map(|text| &text.galley.job.text)
+                                    .collect::<Vec<_>>()
+                            )
+                        });
+                    for row in text
+                        .galley
+                        .rows
+                        .iter()
+                        .filter(|row| !row.visuals.mesh.vertices.is_empty())
+                    {
+                        let rect = row.visuals.mesh_bounds.translate(text.pos.to_vec2());
+                        assert!(
+                            footer_bounds.contains_rect(rect),
+                            "{label}: {rect:?} outside footer {footer_bounds:?}"
+                        );
+                        for previous in &rectangles {
+                            assert!(
+                                !rect.intersects(*previous),
+                                "footer overlap {label}: {rect:?} with {previous:?}"
+                            );
+                        }
+                        rectangles.push(rect);
+                    }
+                }
+                if width == 800.0 {
+                    let initial = first_height.get_or_insert(canvas.height());
+                    assert!(
+                        (canvas.height() - *initial).abs() <= 1.0,
+                        "footer failed to settle after resizing"
+                    );
+                }
+                let original = app.open_buffer.clone().unwrap();
+                frame_sized(
+                    &mut app,
+                    &ctx,
+                    click(text_center(&output, "Line 2")),
+                    size,
+                    |_| {},
+                );
+                frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
+                frame_sized(
+                    &mut app,
+                    &ctx,
+                    vec![key(Key::Escape, Modifiers::NONE)],
+                    size,
+                    |_| {},
+                );
+                assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &original));
+                assert_eq!((app.caret_line, app.caret_col), (2, 4));
+            }
+        }
+    }
+}
+
+#[test]
 fn long_toolbar_identity_keeps_controls_visible_and_repository_copy_canonical() {
     use crate::ui::test_support::{click, text_center, text_shapes};
     let (_owner, root, review) = crate::pull_request::review::tests::fixture();

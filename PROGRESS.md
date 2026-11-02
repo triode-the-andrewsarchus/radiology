@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-11-02 — Measured source footer; inherited picker failures isolated (Codex)
+
+Moved existing source metadata/status/control rendering into a wrapping bottom
+panel that owns its height. Removed viewport's fixed 28-point footer reservation;
+Go to Line action survives breadcrumb publication. Existing statuses, diagnostics,
+revision, encoding, read-only state and typography remain available. Autoscroll
+regression now derives its outside pointer from actual geometry. No new state/
+worker/dependency/API or sibling changes.
+One new actual-app matrix covers normal/degraded metadata, 1×/2×, dark/light,
+800→1100→1400→800 resizing, drawable row bounds/non-overlap, source/caret retention
+and pointer Go to Line/Cancel. Fixtures corrected gutter/byte-offset/empty-row
+assumptions and settle theme recoloring before height comparisons. Native v5 old/
+v6 final rebuilt-new 1×/2× proves old overlap/hidden control and new metadata, pointer Go to Line,
+line-250 navigation/exact fresh Copy and light appearance. Final hashes unchanged,
+app/compositor exits zero; captures inspected. Earlier OCR/coordinate/crop harness
+attempts retained. [Contract/evidence](plans/rust-source-footer.md).
+Full suite is NOT green: four existing file/symbol picker tests fail identically on
+clean b5b8385. GDB shows queued native ArrowDown focus movement before picker event
+replay; a late filter trial failed and was reverted. DAP wrapper/args attempt also
+recorded. [Required next investigation](plans/rust-picker-preframe-focus.md).
+Explicitly excluding those four, 626 app tests pass (seven ignored/four filtered),
+plus two binary, 13 font, 19 text and 40 doctests. Initial concurrent full run also
+hit a source-query timeout; final unaffected suite uses four test threads. Strict
+Clippy/check/build/rustdoc/fmt/diff and copied standalone resources pass.
+Architecture overall NEUTRAL: +118 NLOC/two functions including tests, one UI file,
+max/average unchanged, 109 clones, no new production hotspot/cycle. SourceView::show
+CCN 9→2; footer CCN 8. The tool flags the new matrix test's necessary case/geometry
+complexity; no production metric workaround added.
+Archive: ~/.local/state/radiology-qa/source-footer-20261102-b5b8385.
+Parent worktree ~/.cache/radiology-footer-baseline retained for picker reproduction.
+Picker pre-frame ownership is the immediate follow-up; broader UI/input/language/
+indexer corpora and final Swift acceptance remain open. Accessibility/adoption
+remain deferred.
+
 ## 2026-11-02 — Bounded repository/branch toolbar labels (Codex)
 
 Reused text_fit middle elision for the repository button (Swift's 140 points with

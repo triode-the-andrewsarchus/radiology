@@ -127,7 +127,7 @@ impl CanvasGeometry {
         };
         let font = FontId::monospace(font_size);
         let minimum_height = ui.fonts(|fonts| fonts.row_height(&font)) + 4.0;
-        let height = (ui.available_height() - 28.0).max(40.0);
+        let height = ui.available_height().max(40.0);
         let width = if content.wrap {
             (ui.available_width()
                 - SourceView::GUTTER_WIDTH
@@ -2412,7 +2412,14 @@ mod tests {
         reader.viewport.scroll_y = 0.0;
         reader.frame(&ctx, vec![]);
         reader.frame(&ctx, pointer(pos2(150.0, 18.0), true));
-        let outside = pos2(150.0, 345.0);
+        let outside = pos2(
+            150.0,
+            ctx.read_response(SourceViewport::focus_id())
+                .unwrap()
+                .rect
+                .bottom()
+                + 20.0,
+        );
         reader.frame(&ctx, vec![egui::Event::PointerMoved(outside)]);
         let focus = reader.viewport.selection.unwrap().focus;
         for _ in 0..5 {

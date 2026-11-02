@@ -24,6 +24,12 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Measured source footer](rust-source-footer.md): wrapping metadata owns its
+  bottom-panel height; the viewport fills the remainder and Go to Line stays usable.
+  Resize/diagnostic and native old/new 1×/2× evidence passes. Four inherited picker
+  tests are reproduced on the parent tree and remain a required keyboard/focus
+  follow-up; see [investigation](rust-picker-preframe-focus.md).
+
 - [Bounded toolbar identity](rust-toolbar-identity.md): repository/branch labels now
   reuse measured elision with canonical menu/Copy targets and retained owner color.
   App width/scale/appearance/review matrices and native old/new 1×/2× checks pass;

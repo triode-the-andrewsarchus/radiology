@@ -15,6 +15,7 @@ use crate::theme::AppTheme;
 use crate::ui::icons::Icon;
 mod breadcrumbs;
 mod destination;
+mod footer;
 mod viewport;
 use egui::{pos2, Color32, Rect, RichText, Ui};
 use viewport::CanvasContent;
@@ -146,24 +147,18 @@ impl SourceView {
         content: SourceViewContent<'_>,
         viewport: &mut SourceViewport,
     ) -> Option<SourceViewAction> {
+        let mut action = footer::show(ui, theme, &content);
         let SourceViewContent {
             mode,
             mark_context,
-            mark_error,
             projection,
             annotations,
             hover_inputs,
-            critical_status,
             buffer,
             highlighted_lines,
             caret_line,
             caret_col,
             fold_ranges,
-            structure_error,
-            partial_structure,
-            fold_error,
-            occurrence_error,
-            highlight_error,
             fold_store,
             line_changes,
             file_change,
@@ -171,14 +166,12 @@ impl SourceView {
             wrap_lines,
             enclosing_symbols,
             scroll_to_line,
-            has_semantic_index,
             keyboard_enabled,
             find,
             font_size,
             test_code,
+            ..
         } = content;
-        let mut action = None;
-
         ui.vertical(|ui| {
             // Header / Breadcrumbs Bar
             ui.add_space(4.0);
@@ -195,7 +188,8 @@ impl SourceView {
                         .iter()
                         .any(|fold| fold.kind == crate::syntax::folds::FoldKind::Callable),
                 },
-            );
+            )
+            .or(action.take());
 
             ui.separator();
             action = show_pin_groups(ui, theme, pin_store).or(action.take());
@@ -235,83 +229,6 @@ impl SourceView {
             ) {
                 action = Some(event);
             }
-
-            // Status Bar at bottom (matching screenshot: "Rust · 815 lines" on left,
-            // "ⓘ Semantic data · Line 564 · After · UTF-8 · Read Only" on right)
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.add_space(8.0);
-                let language = crate::syntax::language::LanguageRegistry::for_path(&buffer.path);
-                let lang_label = language.display_name;
-                ui.colored_label(theme.text_secondary, lang_label);
-                ui.colored_label(theme.text_muted, "·");
-                ui.colored_label(
-                    theme.text_secondary,
-                    format!("{} lines", buffer.line_count()),
-                );
-                let structure_status = structure_error
-                    .map(|error| ("Structure unavailable", error))
-                    .or_else(|| partial_structure.then_some((
-                        "Partial structure",
-                        "This file does not fully parse, so highlighting, the outline and other structural results may be incomplete. Source remains available.",
-                    )));
-                let errors = [
-                    ("Mark settings unavailable", mark_error),
-                    ("Folding unavailable", fold_error),
-                    ("Occurrence highlighting unavailable", occurrence_error),
-                    ("Basic syntax colors", highlight_error),
-                ]
-                .into_iter()
-                .filter_map(|(label, error)| error.map(|error| (label, error)));
-                for (label, error) in structure_status.into_iter().chain(errors) {
-                    ui.colored_label(theme.text_secondary, label)
-                        .on_hover_text(error);
-                }
-                let test_status = test_code.status();
-                for status in critical_status.into_iter().chain(test_status.as_deref()) {
-                    ui.colored_label(theme.text_muted, "·");
-                    ui.colored_label(theme.text_muted, status);
-                }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(8.0);
-                    ui.colored_label(theme.text_muted, "Read Only");
-                    ui.colored_label(theme.text_muted, "·");
-                    ui.colored_label(theme.text_muted, "UTF-8");
-
-                    if let Some(rev) = buffer.revision {
-                        ui.colored_label(theme.text_muted, "·");
-                        ui.colored_label(theme.accent, rev.title());
-                    }
-
-                    ui.colored_label(theme.text_muted, "·");
-                    let line_btn = ui.add(
-                        egui::Button::new(
-                            RichText::new(format!("Line {}", *caret_line))
-                                .size(11.5)
-                                .color(theme.text_secondary),
-                        )
-                        .frame(false),
-                    );
-                    if line_btn.on_hover_text("Go to Line (Ctrl+L)").clicked() {
-                        action = Some(SourceViewAction::OpenGoToLine);
-                    }
-
-                    ui.colored_label(theme.text_muted, "·");
-                    if has_semantic_index {
-                        ui.colored_label(Color32::from_rgb(34, 197, 94), "Semantic data");
-                    } else {
-                        ui.colored_label(
-                            theme.text_muted,
-                            if buffer.revision == Some(ReviewRevision::Before) {
-                                "Not Indexed (Before)"
-                            } else {
-                                "No Index"
-                            },
-                        );
-                    }
-                });
-            });
         });
 
         action

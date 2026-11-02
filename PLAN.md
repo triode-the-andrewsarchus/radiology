@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Measured source footer](plans/rust-source-footer.md) now wraps metadata in its own
+bottom panel, keeping Go to Line usable in narrow panes. Native old/new 1×/2× and
+resize/diagnostic checks pass. **Four inherited picker tests remain failing** on
+both current and unmodified parent trees; [pre-frame focus investigation](plans/rust-picker-preframe-focus.md)
+records the reproduction, debugger evidence and immediate follow-up. The full
+suite must not be described as green until those failures are resolved.
+
 [Bounded toolbar identity](plans/rust-toolbar-identity.md) now middle-elides long
 repository/branch names while retaining all controls and canonical commands.
 Actual app checkout/review matrices and native old/new 1×/2× dark/light checks
