@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-01 — Bound bookmark anchors and cancel relocation scans (Codex)
+
+Creation now omits anchor/context lines over the existing 2,000-byte limit.
+Unchanged bytes still navigate exactly; changed source without a bounded anchor
+fails without changing the accepted reader. SourceTarget propagates the worker's
+cancellation/deadline predicate into relocation, which checks every 256 lines and
+retains at most two raw/two contextual candidates. Strict saved-column conversion
+rejects invalid positions. Existing constructors, coordinates, worker and storage
+remain shared; no new dependency/cache/worker/public API. Five tests and shared
+reader setup cover limits/Unicode/CRLF, ambiguity, cancellation propagation and
+failure isolation. Old creation/scan/target paths fail separately. Workspace passes
+535 app tests (seven ignored), two binary, four font, 13 text and 36 doctests;
+strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture adds 174 NLOC including
+tests; constructor CCN 1, resolver CCN 15, no new hotspot/cycle/max-CCN increase.
+Aggregate health drops 1.24 for the necessary additional policy; raw clone warnings
+are audited against the existing baseline.
+Native 2× preserves a 6,291,502-byte source with a 366-byte bookmark record and
+visible error after a controlled disk edit. Source/config/final binary hashes
+and zero exits verified. Native 1× reveals a separate defect: pending reveal
+settling clears a newer Select All selection between keys. Two unprofiled Copy
+failures and a reproducing GDB trace are retained; a delayed GDB run passes.
+Fix selection retirement before new source input next, then repeat the complete
+unprofiled native flow. No claim of full native Copy acceptance in this round.
+Other reader/command/grammar/index/PR/cache/corpus/Swift UI/standalone-reuse
+acceptance remains open; full accessibility and actual sibling adoption deferred.
+[Contract and debugger evidence](plans/rust-bookmark-pane.md#bounded-anchors-and-cancellable-relocation--2026-11-01).
+Archive: ~/.local/state/radiology-qa/bounded-bookmark-20261101-8918bfb.
+
 ## 2026-11-01 — Preserve caret-sensitive commands in the source input queue (Codex)
 
 Bookmark, Definition and References now observe preceding source movement and

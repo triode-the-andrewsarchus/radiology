@@ -134,6 +134,14 @@ impl SourceTarget {
     }
 
     pub(crate) fn resolve(&self, buffer: &SourceBuffer) -> Result<SourceLocation, String> {
+        self.resolve_cancellable(buffer, || false)
+    }
+
+    fn resolve_cancellable(
+        &self,
+        buffer: &SourceBuffer,
+        cancelled: impl FnMut() -> bool,
+    ) -> Result<SourceLocation, String> {
         if !self.accepts_source_identity(buffer) {
             return Err(
                 "Indexed source bytes changed; regenerate the index before navigating".into(),
@@ -150,7 +158,11 @@ impl SourceTarget {
             } => buffer
                 .byte_offset_encoded(*line, *column, *encoding)
                 .ok_or("Indexed source position is not valid in this snapshot")?,
-            Self::Bookmark(bookmark) => return bookmark.resolve(buffer).map_err(str::to_string),
+            Self::Bookmark(bookmark) => {
+                return bookmark
+                    .resolve_cancellable(buffer, cancelled)
+                    .map_err(str::to_string)
+            }
         };
         Ok(buffer.location_at_byte(byte))
     }
@@ -261,7 +273,9 @@ pub(crate) fn prepare_loaded(
     let check = || check_source(cancel, deadline);
     let cancelled = || check().is_err();
     check()?;
-    let destination = request.target.resolve(&buffer)?;
+    let destination = request.target.resolve_cancellable(&buffer, cancelled);
+    check()?;
+    let destination = destination?;
     let syntax = (!matches!(request.source, SourceRead::Buffer(_)))
         .then(|| DocumentSyntax::analyze_cancellable(&buffer, cancelled));
     check()?;
@@ -518,5 +532,34 @@ mod tests {
             .read_cancellable(&location, &AtomicBool::new(false), Instant::now())
             .unwrap_err();
         assert!(error.contains("timed out"));
+    }
+
+    #[test]
+    fn bookmark_target_propagates_source_retirement_during_anchor_scanning() {
+        let original = SourceBuffer::from_str("a.rs", "needle\n");
+        let target = SourceTarget::Bookmark(SourceBookmark::new(&original, 0, "needle"));
+        let changed =
+            SourceBuffer::from_str("a.rs", &format!("{}needle\n", "other\n".repeat(50000)));
+        let cancel = AtomicBool::new(false);
+        let mut checks = 0;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let result = target.resolve_cancellable(&changed, || {
+            checks += 1;
+            if checks == 3 {
+                cancel.store(true, Ordering::Relaxed);
+            }
+            check_source(&cancel, deadline).is_err()
+        });
+        assert!(result.unwrap_err().contains("cancelled"));
+        assert!(cancel.load(Ordering::Relaxed));
+        assert!(checks <= 4);
+        assert!(target
+            .resolve_cancellable(&changed, || check_source(
+                &AtomicBool::new(false),
+                Instant::now()
+            )
+            .is_err())
+            .unwrap_err()
+            .contains("cancelled"));
     }
 }

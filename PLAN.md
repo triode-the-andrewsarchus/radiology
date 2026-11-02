@@ -39,6 +39,10 @@ relocation metadata. [Caret-sensitive source command order](plans/rust-source-in
 now repairs the confirmed Ctrl+D/Right/Ctrl+D defect through shared pre-frame
 capture and the existing source queue, with deferred geometry and native 1×/2×
 bookmark/reference/definition acceptance. Broader mixed-owner input remains open.
+[Bounded bookmark relocation](plans/rust-bookmark-pane.md#bounded-anchors-and-cancellable-relocation--2026-11-01)
+now omits oversized anchors, bounds candidate retention and propagates worker
+cancellation. Native testing confirms a separate pending-reveal bug that clears
+a newer Select All range; selection retirement is the next repair.
 [Bounded Changes and Search results](plans/rust-result-pane-labels.md) now retain
 pane widths, Swift-style preview limits and exact navigation/interaction targets.
 [Inspector labels and signature disclosure](plans/rust-inspector-labels.md) now

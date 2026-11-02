@@ -50,6 +50,14 @@ fn repository(root: &Path) {
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
 }
 
+fn reader_with_source(text: &str) -> (tempfile::TempDir, RadiologyApp) {
+    let (dir, mut app) = reader();
+    std::fs::write(dir.path().join("a.rs"), text).unwrap();
+    app.open_repository(dir.path());
+    settle(&mut app);
+    (dir, app)
+}
+
 fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
     repository(dir.path());
@@ -2495,4 +2503,25 @@ fn removed_bookmark_retires_pending_navigation_without_changing_source_or_histor
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert_eq!(format!("{:?}", app.history), history);
     assert!(app.error.is_none());
+}
+
+#[test]
+fn changed_source_without_a_bounded_bookmark_anchor_preserves_the_accepted_reader() {
+    let original = format!("// {}\r\n", "é🦀漢字 ".repeat(1000));
+    let (dir, mut app) = reader_with_source(&original);
+    app.jump_to_location("a.rs", 1, 3);
+    settle(&mut app);
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+    let bookmarks = app.bookmarks.bookmarks.clone();
+    assert!(bookmarks[0].anchor.is_none());
+    let buffer = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    std::fs::write(dir.path().join("a.rs"), format!("{original}// changed\r\n")).unwrap();
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    settle(&mut app);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(format!("{:?}", app.history), history);
+    assert_eq!(app.bookmarks.bookmarks, bookmarks);
+    assert!(app.error.as_deref().unwrap().contains("anchor"));
 }

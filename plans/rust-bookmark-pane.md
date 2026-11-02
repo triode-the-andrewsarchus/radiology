@@ -186,3 +186,55 @@ movement and explicit/implicit focus. Native 1×/2× rapid sequences and real-ap
 command boundary; explicit navigation retires later source commands.
 [Implementation, command boundaries, validation and limits](rust-source-input-order.md#caret-sensitive-reader-commands-share-source-order--2026-11-01).
 Other mixed-owner/pointer/command corpus and full parity acceptance remain open.
+
+
+## Bounded anchors and cancellable relocation — 2026-11-01
+
+Swift omits anchor/context lines over its display-line limit and checks task
+cancellation every 256 lines. Rust previously copied entire source lines into
+bookmark records and scanned matches without cancellation. Creation now shares a
+bounded-line helper using the existing 2,000-byte limit, including UTF-8/CRLF
+boundaries. Unchanged source still resolves its exact byte even with no anchor;
+changed source with an omitted/oversized anchor fails conservatively.
+
+Relocation checks cancellation at entry, every 256 lines and before publication.
+The existing source worker supplies its cancellation/deadline predicate through
+SourceTarget; its post-resolution check preserves cancelled/timed-out diagnostics.
+Public resolve remains compatible. The scan retains at most two raw and two
+context-qualified candidates, instead of all matching lines. Two qualified matches
+prove ambiguity immediately. A unique raw match still wins without requiring
+context; multiple matches require one complete bounded-context match. Omitted
+oversized context cannot prove uniqueness. Saved scalar columns use existing strict
+coordinate conversion, rejecting invalid columns instead of clamping silently.
+
+Five new tests cover byte limits, legacy oversized anchors, unchanged-source
+navigation, contextual ambiguity, Unicode columns, cancellation before exact and
+mid-scan resolution, source-target propagation and failed navigation preserving
+source/history/bookmarks. Restoring old creation or removing scan/source-target
+cancellation separately fails regressions. A shared reader fixture replaces new
+duplicated test setup. Workspace passes 535 app tests (seven ignored), two binary,
+four font, 13 reader-text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff
+pass. Architecture adds 174 NLOC including tests/fixture; no new hotspot/cycle or
+maximum-CCN increase. Raw touched-file clone warnings are audited against baseline.
+The constructor CCN falls to 1; cancellable resolution is CCN 15. The aggregate
+health score falls by 1.24 with the additional cancellation/context policy; no
+artificial code moves or new dependency/cache/worker/public API are introduced.
+
+A 6,291,502-byte native fixture at 2× writes a 366-byte bookmark JSON record, returns
+to exact unchanged bytes without an anchor, reports the changed-source anchor
+error, and preserves the complete accepted source while private disk bytes differ.
+The fixture is intentionally edited then restored; before/modified/restored hashes
+are recorded. Final binary hashes and zero exits pass. At 1× the record and error
+checks pass, but the subsequent Select All/Copy fails twice without a debugger.
+A delayed debugger run passes. A second GDB trace from before the error transition
+reproduces failure: source retains keyboard ownership, but Copy receives selection
+None. The previous reveal's committed flag clears a newer Select All range while
+its geometry settles. This is a separate confirmed reader-selection lifecycle bug;
+these bookmark changes do not claim to repair it. Traces, failed runs and the
+small-reader focus probe are retained. Fix selection retirement at the new
+navigation boundary before accepting the complete unprofiled 1× flow.
+
+Evidence: `~/.local/state/radiology-qa/bounded-bookmark-20261101-8918bfb`.
+Broader reader timing/interaction, bookmark-region diagnostics, grammar/index/PR/
+cache corpus and final Swift UI/standalone/reuse acceptance remain open. Full
+accessibility and actual sibling integration remain deferred.

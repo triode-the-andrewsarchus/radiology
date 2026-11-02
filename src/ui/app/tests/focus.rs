@@ -249,10 +249,7 @@ fn focused_toolbar_menu_keeps_global_definition_shortcuts_available() {
 fn source_commands_preserve_coalesced_bookmark_move_and_copy_order() {
     for scale in [1.0, 1.5, 2.0] {
         for focused in [false, true] {
-            let (dir, mut app) = reader();
-            std::fs::write(dir.path().join("a.rs"), "// é🦀漢字 SAME_LINE\r\n").unwrap();
-            app.open_repository(dir.path());
-            settle(&mut app);
+            let (_dir, mut app) = reader_with_source("// é🦀漢字 SAME_LINE\r\n");
             app.jump_to_location("a.rs", 1, 3);
             settle(&mut app);
             let ctx = Context::default();
