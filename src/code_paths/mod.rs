@@ -6,6 +6,7 @@
 
 mod parser;
 pub mod resolver;
+pub mod session;
 mod source_text;
 pub mod store;
 pub use parser::{ImportError, MAX_IMPORT_BYTES};
