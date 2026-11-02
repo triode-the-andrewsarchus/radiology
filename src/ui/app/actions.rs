@@ -107,7 +107,7 @@ impl RadiologyApp {
             OpenQuickFilePicker => {
                 self.modal = ActiveModal::QuickFilePicker(QuickFilePickerModal::default())
             }
-            OpenGoToLine => self.modal = ActiveModal::GoToLine(GoToLineModal::default()),
+            OpenGoToLine => self.modal = ActiveModal::GoToLine(GoToLineModal::new(self.caret_line)),
             OpenGoToSymbol => self.modal = ActiveModal::GoToSymbol(GoToSymbolModal::default()),
             OpenPRDialog => self.show_pull_request_prompt(),
             OpenPullRequest(number) => self.open_pull_request(number),

@@ -19,15 +19,185 @@ fn frame(app: &mut RadiologyApp, ctx: &Context, events: Vec<Event>) -> egui::Ful
     frame_with_overlay(app, ctx, events, |_| {})
 }
 
+fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Context) {
+    let (dir, mut app) = reader_with_source(text);
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    frame(&mut app, &ctx, vec![]);
+    (dir, app, ctx)
+}
+
+#[test]
+fn modal_tabs_cycle_only_enabled_controls_and_batch_cancel_returns_to_source() {
+    for command in [
+        ToolbarAction::OpenGoToLine,
+        ToolbarAction::OpenQuickFilePicker,
+        ToolbarAction::OpenGoToSymbol,
+        ToolbarAction::OpenPRDialog,
+    ] {
+        let text = "// first\r\n// café 1️⃣\r\n// last";
+        let (_dir, mut app, ctx) = scaled_reader(text, 1.0);
+        let buffer = app.open_buffer.clone().unwrap();
+        let range = buffer.line_byte_range(2);
+        app.navigate(buffer.location_at_byte(range.end), true);
+        app.source_viewport.select(range.clone());
+        app.source_viewport.request_focus(&ctx);
+        app.execute_command(&ctx, command);
+        for _ in 0..6 {
+            frame(&mut app, &ctx, vec![]);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert!(!matches!(app.modal, ActiveModal::None));
+        if let ActiveModal::GoToLine(modal) = &app.modal {
+            assert_eq!(modal.line_str, "2");
+        }
+        let query = ctx.memory(|memory| memory.focused()).unwrap();
+        let layer = ctx.read_response(query).unwrap().layer_id;
+        let mut cycle = Vec::new();
+        loop {
+            frame(&mut app, &ctx, vec![key(Key::Tab, Modifiers::NONE)]);
+            let focus = ctx.memory(|memory| memory.focused()).unwrap();
+            assert_eq!(ctx.read_response(focus).unwrap().layer_id, layer);
+            if focus == query {
+                break;
+            }
+            assert!(!cycle.contains(&focus));
+            cycle.push(focus);
+            assert!(cycle.len() <= 2);
+        }
+        assert!(!cycle.is_empty());
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::Tab, Modifiers::SHIFT),
+                key(Key::Enter, Modifiers::NONE),
+                key(Key::ArrowRight, Modifiers::NONE),
+            ],
+        );
+        for _ in 0..3 {
+            frame(&mut app, &ctx, vec![]);
+        }
+        assert!(matches!(app.modal, ActiveModal::None));
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), range.end);
+        assert!(app.source_viewport.has_focus(&ctx));
+        assert_eq!(
+            frame(&mut app, &ctx, vec![Event::Copy])
+                .platform_output
+                .copied_text,
+            text[range]
+        );
+    }
+}
+
+#[test]
+fn line_dialog_validates_signed_input_clamps_and_keeps_invalid_edits_focused() {
+    for (value, expected) in [
+        ("", None),
+        ("bad", None),
+        ("9223372036854775808", None),
+        ("-3", Some(1)),
+        ("0", Some(1)),
+        ("99", Some(3)),
+        (" +2 ", Some(2)),
+    ] {
+        let (_dir, mut app) = reader_with_source("// first\r\n// second\r\n// last");
+        let ctx = Context::default();
+        frame(&mut app, &ctx, vec![]);
+        app.jump_to_location("a.rs", 2, 13);
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![key(Key::L, Modifiers::CTRL)]);
+        frame(&mut app, &ctx, vec![]);
+        let history = app.history.current().cloned();
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::A, Modifiers::CTRL),
+                key(Key::Backspace, Modifiers::NONE),
+                Event::Paste(value.into()),
+                key(Key::Enter, Modifiers::NONE),
+            ],
+        );
+        if let Some(line) = expected {
+            assert!(matches!(app.modal, ActiveModal::None), "{value}");
+            assert_eq!((app.caret_line, app.caret_col), (line, 0), "{value}");
+        } else {
+            assert!(matches!(app.modal, ActiveModal::GoToLine(_)), "{value}");
+            assert_eq!(app.history.current(), history.as_ref());
+            let output = frame(&mut app, &ctx, vec![]);
+            assert!(ctx.wants_keyboard_input());
+            let field = ctx
+                .read_response(ctx.memory(|memory| memory.focused()).unwrap())
+                .unwrap()
+                .rect
+                .center();
+            let go = crate::ui::test_support::text_center(&output, "Go");
+            frame(&mut app, &ctx, crate::ui::test_support::click(go));
+            assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
+            frame(&mut app, &ctx, crate::ui::test_support::click(field));
+            frame(
+                &mut app,
+                &ctx,
+                vec![
+                    key(Key::A, Modifiers::CTRL),
+                    Event::Text("3".into()),
+                    key(Key::Enter, Modifiers::NONE),
+                ],
+            );
+            assert!(matches!(app.modal, ActiveModal::None));
+            assert_eq!((app.caret_line, app.caret_col), (3, 0));
+        }
+    }
+}
+
+#[test]
+fn line_dialog_opening_batch_submits_the_edited_number_and_retires_later_keys() {
+    for scale in [1.0, 1.5, 2.0] {
+        for paste in [false, true] {
+            let text = "// first\r\n// café\r\n// last";
+            let (_dir, mut app, ctx) = scaled_reader(text, scale);
+            let buffer = app.open_buffer.clone().unwrap();
+            app.navigate(buffer.location_at_byte(3), true);
+            app.source_viewport.request_focus(&ctx);
+            frame(
+                &mut app,
+                &ctx,
+                vec![
+                    key(Key::L, Modifiers::CTRL),
+                    key(Key::A, Modifiers::CTRL),
+                    if paste {
+                        Event::Paste("3".into())
+                    } else {
+                        Event::Text("3".into())
+                    },
+                    key(Key::Enter, Modifiers::NONE),
+                    key(Key::ArrowRight, Modifiers::NONE),
+                    Event::Copy,
+                ],
+            );
+            for _ in 0..3 {
+                frame(&mut app, &ctx, vec![]);
+            }
+            assert!(
+                matches!(app.modal, ActiveModal::None),
+                "scale={scale}, paste={paste}"
+            );
+            assert_eq!((app.caret_line, app.caret_col), (3, 0));
+            assert!(Arc::ptr_eq(&buffer, app.open_buffer.as_ref().unwrap()));
+            assert!(app.source_viewport.has_focus(&ctx));
+            app.execute_command(&ctx, ToolbarAction::NavigateBack);
+            assert_eq!((app.caret_line, app.caret_col), (1, 3));
+        }
+    }
+}
+
 #[test]
 fn accepted_navigation_collapses_endpoint_selections_before_later_source_input() {
     let text = "// café 1️⃣\r\n// second 👍🏽\r\n// last";
     let first_end = text.find('\r').unwrap();
     for scale in [1.0, 1.5, 2.0] {
-        let (_dir, mut app) = reader_with_source(text);
-        let ctx = Context::default();
-        ctx.set_pixels_per_point(scale);
-        frame(&mut app, &ctx, vec![]);
+        let (_dir, mut app, ctx) = scaled_reader(text, scale);
         let buffer = app.open_buffer.clone().unwrap();
         for wrap in [false, true] {
             app.session.wrap_lines = wrap;
@@ -358,9 +528,7 @@ fn repository_reset_retires_modal_input_and_its_return_owner() {
     assert!(input.events.is_empty());
     app.reset_repository_state();
     assert!(app.modal_focus.is_none());
-    app.modal = ActiveModal::GoToLine(GoToLineModal {
-        line_str: "1".into(),
-    });
+    app.modal = ActiveModal::GoToLine(GoToLineModal::new(1));
     frame(&mut app, &ctx, vec![]);
     assert!(matches!(app.modal, ActiveModal::GoToLine(_)));
     assert!(!app.source_viewport.has_focus(&ctx));

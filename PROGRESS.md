@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-02 — Current-line prompt and shared modal Tab/Return ownership (Codex)
+
+Go to Line now prefills/selects the current line, focuses once on a visible pass,
+validates signed input, clamps source bounds and disables invalid Go with guidance.
+Command and source-footer opening share dispatch. Line and PR prompts reuse the
+file/symbol picker footer. Scoped Tab/Shift+Tab cycles enabled query/primary/Cancel
+controls; app input replays through each Tab before later editing/submission, and
+picker Return follows the focused button. Closing input is retired and source
+selection/focus restored. Three new actual-app regressions cover all four owners,
+cycles/disabled controls, batch Cancel, invalid correction/pointer rejection,
+Unicode/CRLF, opening typed/pasted submission, history and scales. Existing prefix
+test now enters invalid text before Return because the new valid prefill should
+submit. Shared scaled-reader fixture removes duplicate setup.
+Workspace: 619 app tests pass, seven ignored; two binary, 13 font, 19 text and
+40 doctests pass. Strict Clippy/check/rustdoc/build/fmt/diff, rendered constructor
+docs and copied standalone resources pass. Native v1 old/new 1×/2× controls pass:
+old empty-prefill/ignored-Tab proof; new 14 exact fresh copies per scale over line
+validation/default/replacement, four-owner cancellation and light appearance.
+Captures inspected, hashes unchanged and all final child exits zero.
+Architecture: +280 NLOC/seven functions including tests, no new hotspot/cycle,
+health -0.02. Default REGRESSION flags four existing clones; normalized comparison
+matches all 109 groups unchanged. Initial new test duplication removed. No Cargo
+or dependency changes. [Contract/review/evidence](plans/rust-line-dialog-focus.md).
+Archive: ~/.local/state/radiology-qa/line-dialog-20261102-12e1269.
+The earlier intermittent empty-field capture remains unexplained; it motivated
+this audit but is not evidence of a reproduced batching defect. Broader modal/
+native bindings, Unicode/UI/type spacing and final Swift/corpus audit remain open.
+
 ## 2026-11-02 — Plain source arrows collapse selections to their edges (Codex)
 
 Plain Left/Right now resolve a nonempty selection's canonical lower/upper edge,

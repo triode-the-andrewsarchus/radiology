@@ -976,7 +976,7 @@ impl RadiologyApp {
                                 self.apply_critical_mark(edit);
                             }
                             SourceViewAction::OpenGoToLine => {
-                                self.modal = ActiveModal::GoToLine(GoToLineModal::default());
+                                self.execute_command(ctx, ToolbarAction::OpenGoToLine);
                             }
                         }
                     }

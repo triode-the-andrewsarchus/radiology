@@ -15,6 +15,8 @@ fn modal_prefix_prevents_later_reference_or_caller_navigation() {
             &ctx,
             vec![
                 key(Key::L, Modifiers::CTRL),
+                key(Key::A, Modifiers::CTRL),
+                Event::Text("invalid".into()),
                 key(Key::ArrowDown, Modifiers::NONE),
                 key(Key::Enter, Modifiers::NONE),
             ],

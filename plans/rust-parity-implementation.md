@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Go to Line and modal focus](rust-line-dialog-focus.md): selected current-line
+  prefill, signed bounds/validation and shared footer chrome; all four dialogs now
+  cycle enabled controls and route batched Tab/Return through the active owner.
+  App/component/native old/new 1×/2× checks pass.
+
 - [Plain horizontal selection collapse](rust-navigation-selection.md#plain-horizontal-selection-collapse--2026-11-02):
   Left/Right now collapse a nonempty selection to its canonical edge, independent
   of direction, with fresh Shift/Copy, folds and unmeasured fragments covered.

@@ -90,7 +90,7 @@ impl QuickFilePickerModal {
 
         let mut action = None;
         picker::window("Go to File", self.owner).show(ctx, |ui| {
-            picker::query(
+            let query = picker::query(
                 ui,
                 &mut self.focused,
                 &mut self.query,
@@ -99,9 +99,7 @@ impl QuickFilePickerModal {
                 theme.text_muted,
             );
             self.search(ctx, files);
-            if let Some(key) = key.filter(|_| !self.failed) {
-                self.input.navigation.push_back(key);
-            }
+            self.input.route(ctx, key, &query, !self.failed);
             action = self.apply_navigation();
             picker::body(ui, |ui| {
                 if let Some(result) = &self.results {
@@ -135,6 +133,7 @@ impl QuickFilePickerModal {
                 &self.footer(),
                 "Open",
                 self.selected_file().map(ModalAction::OpenFile),
+                query.id,
             ) {
                 action = Some(button);
             }

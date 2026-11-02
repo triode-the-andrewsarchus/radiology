@@ -56,6 +56,31 @@ impl PickerInput {
         self.navigation.clear();
     }
 
+    pub(super) fn route(
+        &mut self,
+        ctx: &Context,
+        key: Option<Key>,
+        query: &egui::Response,
+        enabled: bool,
+    ) {
+        let Some(key) = key else {
+            return;
+        };
+        if key == Key::Enter && !query.has_focus() && !query.lost_focus() {
+            ctx.input_mut(|input| {
+                input.events.push(Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                })
+            });
+        } else if enabled {
+            self.navigation.push_back(key);
+        }
+    }
+
     /// Retires closing work and keeps queued batches moving while the picker lives.
     pub(super) fn finish<T>(
         &mut self,
@@ -89,7 +114,7 @@ pub(super) fn query(
     icon: super::super::icons::Icon,
     hint: &str,
     color: egui::Color32,
-) {
+) -> egui::Response {
     ui.horizontal(|ui| {
         icon.ui(ui, 14.0, color);
         let id = ui.make_persistent_id("query");
@@ -102,8 +127,9 @@ pub(super) fn query(
                 .id(id)
                 .hint_text(hint)
                 .desired_width(ui.available_width()),
-        );
-    });
+        )
+    })
+    .inner
 }
 
 pub(super) fn body(ui: &mut egui::Ui, render: impl FnOnce(&mut egui::Ui)) {
@@ -122,24 +148,68 @@ pub(super) fn footer(
     label: &str,
     verb: &str,
     selected: Option<ModalAction>,
+    query: egui::Id,
 ) -> Option<ModalAction> {
     ui.separator();
     let mut action = None;
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(label).small().color(theme.text_muted));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .add_enabled(selected.is_some(), egui::Button::new(verb))
-                .clicked()
-            {
+            let enabled = selected.is_some();
+            let primary = ui.add_enabled(enabled, egui::Button::new(verb));
+            if primary.clicked() {
                 action = selected;
             }
-            if ui.button("Cancel").clicked() {
+            let cancel = ui.button("Cancel");
+            if cancel.clicked() {
                 action = Some(ModalAction::Close);
             }
+            focus_tabs(ui, query, enabled.then_some(primary.id), cancel.id);
         });
     });
     action
+}
+
+fn focus_tabs(ui: &egui::Ui, query: egui::Id, primary: Option<egui::Id>, cancel: egui::Id) {
+    // App-modal keys are replayed after egui's native focus pass. Direct
+    // hosts that supplied Tab in RawInput already received that pass.
+    let native_tab = ui.input(|input| {
+        input.raw.events.iter().any(|event| {
+            matches!(
+                event,
+                Event::Key {
+                    key: Key::Tab,
+                    pressed: true,
+                    ..
+                }
+            )
+        })
+    });
+    if !native_tab {
+        let tabs = ui.input_mut(|input| {
+            commands::take_input_actions(&mut input.events, |event| match event {
+                Event::Key {
+                    key: Key::Tab,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if !modifiers.alt && !modifiers.ctrl && !modifiers.command => {
+                    Some(modifiers.shift)
+                }
+                _ => None,
+            })
+        });
+        let stops = [query, primary.unwrap_or(cancel), cancel];
+        let stops = &stops[..if primary.is_some() { 3 } else { 2 }];
+        for reverse in tabs {
+            let index = ui
+                .memory(|memory| memory.focused())
+                .and_then(|id| stops.iter().position(|stop| *stop == id))
+                .unwrap_or(0);
+            let next = (index + if reverse { stops.len() - 1 } else { 1 }) % stops.len();
+            ui.memory_mut(|memory| memory.request_focus(stops[next]));
+        }
+    }
 }
 
 pub(super) fn scroll(

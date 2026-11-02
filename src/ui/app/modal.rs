@@ -38,7 +38,26 @@ impl RadiologyApp {
         });
         let previous = focus.previous;
         if focus.registered {
-            ctx.input_mut(|input| input.events.extend(std::mem::take(&mut focus.input)));
+            // Tab traversal happens after the modal has rendered its controls.
+            // Keep later editing/submission behind that focus transition.
+            let end = focus
+                .input
+                .iter()
+                .position(|event| {
+                    matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::Tab,
+                            pressed: true,
+                            ..
+                        }
+                    )
+                })
+                .map_or(focus.input.len(), |index| index + 1);
+            ctx.input_mut(|input| input.events.extend(focus.input.drain(..end)));
+            if !focus.input.is_empty() {
+                ctx.request_repaint();
+            }
         } else {
             // The first window pass can be invisible while egui measures it.
             focus.input.extend(ctx.input_mut(|input| {

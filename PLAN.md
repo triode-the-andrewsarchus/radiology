@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Go to Line and modal focus](plans/rust-line-dialog-focus.md) now provide selected
+current-line prefill, validation/clamping and shared Cancel/Go chrome, with scoped
+Tab/Shift+Tab and correct Return ownership across file/symbol/line/PR dialogs.
+Native old/new 1×/2× controls pass; the broader parity audit remains open.
+
 [Plain horizontal selection collapse](plans/rust-navigation-selection.md#plain-horizontal-selection-collapse--2026-11-02)
 now sends Left/Right to the corresponding selected-source edge before later
 movement, with canonical copying, bounded reveal and native 1×/2× evidence.

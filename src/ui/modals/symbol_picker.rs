@@ -178,7 +178,7 @@ impl GoToSymbolModal {
             self.owner,
         )
         .show(ctx, |ui| {
-            picker::query(
+            let query = picker::query(
                 ui,
                 &mut self.focused,
                 &mut self.query,
@@ -191,9 +191,7 @@ impl GoToSymbolModal {
                 theme.accent,
             );
             self.search(ctx, inventory);
-            if let Some(key) = key.filter(|_| !self.failed) {
-                self.input.navigation.push_back(key);
-            }
+            self.input.route(ctx, key, &query, !self.failed);
             action = self.navigate();
             picker::body(ui, |ui| {
                 if let Some(choices) = &self.choices {
@@ -223,9 +221,14 @@ impl GoToSymbolModal {
                     });
                 }
             });
-            if let Some(button) =
-                picker::footer(ui, theme, &self.footer(workspace), "Go", self.selected())
-            {
+            if let Some(button) = picker::footer(
+                ui,
+                theme,
+                &self.footer(workspace),
+                "Go",
+                self.selected(),
+                query.id,
+            ) {
                 action = Some(button);
             }
         });

@@ -31,20 +31,30 @@ pub use file_picker::QuickFilePickerModal;
 pub struct GoToLineModal {
     /// String input typed into the line number entry field.
     pub line_str: String,
+    focus_requested: bool,
 }
 
 impl GoToLineModal {
+    /// Creates a line prompt prefilled with the current one-based source line.
+    #[must_use]
+    pub fn new(line: usize) -> Self {
+        Self {
+            line_str: line.max(1).to_string(),
+            ..Default::default()
+        }
+    }
+
     /// Renders the jump-to-line dialog.
     ///
     /// # Arguments
     ///
     /// * `ctx` - EGUI context for global window rendering and input.
-    /// * `_theme` - Visual color palette.
+    /// * `theme` - Visual color palette.
     /// * `max_lines` - Total number of lines in the active source file buffer.
     pub fn show(
         &mut self,
         ctx: &Context,
-        _theme: &AppTheme,
+        theme: &AppTheme,
         max_lines: usize,
     ) -> Option<ModalAction> {
         let mut action = None;
@@ -55,34 +65,55 @@ impl GoToLineModal {
             .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 150.0))
             .fixed_size(egui::vec2(300.0, 120.0))
             .show(ctx, |ui| {
-                ui.label(format!("Enter line number (1 to {max_lines}):"));
+                ui.label("Line number");
                 let id = ui.make_persistent_id("line_picker_query");
-                ui.memory_mut(|memory| memory.request_focus(id));
+                if !self.focus_requested {
+                    ui.memory_mut(|memory| memory.request_focus(id));
+                    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+                    state
+                        .cursor
+                        .set_char_range(Some(egui::text::CCursorRange::two(
+                            egui::text::CCursor::new(0),
+                            egui::text::CCursor::new(self.line_str.chars().count()),
+                        )));
+                    state.store(ctx, id);
+                    self.focus_requested = ui.is_visible();
+                }
                 let edit = TextEdit::singleline(&mut self.line_str)
                     .id(id)
                     .hint_text("Line number")
                     .desired_width(ui.available_width());
-                ui.add(edit);
-
-                if ctx.input(|i| i.key_pressed(Key::Enter)) {
-                    if let Ok(line_num) = self.line_str.trim().parse::<usize>() {
-                        action = Some(ModalAction::JumpToLine(line_num.clamp(1, max_lines)));
+                let response = ui.add(edit);
+                let number = self.line_str.trim().parse::<i64>().ok().map(|line| {
+                    usize::try_from(line.max(1))
+                        .unwrap_or(usize::MAX)
+                        .min(max_lines.max(1))
+                });
+                let submit = (response.has_focus() || response.lost_focus())
+                    && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, Key::Enter));
+                if submit {
+                    action = number.map(ModalAction::JumpToLine);
+                    if action.is_none() {
+                        response.request_focus();
                     }
                 }
-                if ctx.input(|i| i.key_pressed(Key::Escape)) {
+                let detail = if number.is_some() || self.line_str.is_empty() {
+                    format!("1–{}", max_lines.max(1))
+                } else {
+                    "Enter a line number.".into()
+                };
+                action = picker::footer(
+                    ui,
+                    theme,
+                    &detail,
+                    "Go",
+                    number.map(ModalAction::JumpToLine),
+                    response.id,
+                )
+                .or(action.take());
+                if ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, Key::Escape)) {
                     action = Some(ModalAction::Close);
                 }
-
-                ui.horizontal(|ui| {
-                    if ui.button("Jump").clicked() {
-                        if let Ok(line_num) = self.line_str.trim().parse::<usize>() {
-                            action = Some(ModalAction::JumpToLine(line_num.clamp(1, max_lines)));
-                        }
-                    }
-                    if ui.button("Cancel").clicked() {
-                        action = Some(ModalAction::Close);
-                    }
-                });
             });
 
         action
@@ -157,17 +188,15 @@ impl PullRequestModal {
                 if !self.pr_str.is_empty() && number.is_none() {
                     ui.label("Enter a positive pull request number.");
                 }
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(number.is_some(), egui::Button::new("Open"))
-                        .clicked()
-                    {
-                        action = number.map(ModalAction::OpenPullRequest);
-                    }
-                    if ui.button("Cancel").clicked() {
-                        action = Some(ModalAction::Close);
-                    }
-                });
+                action = picker::footer(
+                    ui,
+                    _theme,
+                    "",
+                    "Open",
+                    number.map(ModalAction::OpenPullRequest),
+                    resp.id,
+                )
+                .or(action.take());
             });
 
         action
