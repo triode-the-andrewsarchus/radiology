@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-11-02 — Exact search acceptance complete (Codex)
+
+Post-rebase full workspace, 43 doctests and six strict gates pass. Native 1×/2×
+proves whitespace queries, escaped space-bearing globs, exact filename activation,
+CRLF copying, empty recovery and light appearance; old 1× reproduces both defects.
+Corrected driver ordering to open/paint Search before editing glob fields. Final
+fixture/binary hashes unchanged, child exits zero; captured UI inspected. Architecture
+comparison now succeeds but includes new upstream Swift/Python hotspots/clones/cycle;
+recorded separately from the small Rust search fix and established a fresh baseline.
+[Contract](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
+Archive: ~/.local/state/radiology-qa/exact-search-inputs-20261102.
+
 ## 2026-11-02 — Upstream rebase, expanded parity ledger and temporary cleanup (Codex)
 
 Pulled main to 7edfc79 and rebased all 271 Rust commits, preserving the exact-search

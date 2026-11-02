@@ -98,3 +98,19 @@ Full workspace/native acceptance and complete architecture comparison remain pen
 while the requested upstream rebase takes priority. Earlier failed runs include
 incorrect unescaped-glob fixture assumptions and /tmp exhaustion; they are not
 acceptance evidence.
+
+Post-rebase acceptance (2026-11-02): 642 app tests pass (seven existing ignored),
+two binary/13 font/21 text tests and 43 doctests pass. All six strict gates pass.
+Native current binaries at 1×/2× validate indentation, tabs, Unicode whitespace,
+escaped include/exclude globs and a single-space filename, with exact CRLF copies,
+empty-query recovery and light appearance. Old 1× reproduces ignored indentation
+and the trimmed escaped-glob error. Binary/fixture hashes stay unchanged and all
+owned child exits are zero. Driver corrections wait for Search before clicking
+glob fields; earlier attempts are retained as harness failures, not product evidence.
+
+Architecture comparison across the rebase includes upstream's 85 new analyzed
+files, 15 additional clone groups and one reported Python dependency cycle. Its
+new complexity hotspots are in imported Swift/Python; these must be distinguished
+from the five changed Rust search files. No production Rust mechanism was added
+by the search fix. A new post-rebase baseline isolates subsequent feature work.
+Evidence archive: ~/.local/state/radiology-qa/exact-search-inputs-20261102.

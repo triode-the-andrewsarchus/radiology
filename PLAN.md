@@ -9,9 +9,8 @@ new main reference `7edfc79`: Code Paths, trait implementations, pane preference
 reader/file navigation, C/C++ fallback, indexing personalities/seL4 and shortcut help.
 These are required parity work, with existing Rust overlap explicitly identified.
 
-Exact search inputs are checkpointed for the upstream rebase: whitespace queries
-and globs now match Swift pass-through semantics. Targeted service/app checks pass;
-full/native validation remains pending. See the [search contract](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
+Exact search inputs now match Swift pass-through semantics for whitespace queries
+and globs. Full workspace, strict gates, doctests and native 1×/2× checks pass. See the [search contract](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
 
 [Repository search presentation](plans/rust-repository-search.md) now clears old
 request data immediately, exposes pending progress/Stop and keeps explicit submit/
