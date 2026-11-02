@@ -10,6 +10,98 @@ mod reuse;
 mod rust_features;
 
 #[test]
+fn kotlin_generation_receives_sdk_context_without_changing_viewed_inputs() {
+    let files = [
+        (
+            "build.gradle.kts",
+            "plugins { kotlin(\"jvm\") version \"2.4.20\" }\n",
+        ),
+        ("src/main/kotlin/Main.kt", "fun main() = Unit\n"),
+    ];
+    let fixture = Fixture::new(&files);
+    fixture.tool(Indexer::Kotlin, &["src/main/kotlin/Main.kt"], "");
+    fs::rename(
+        fixture.bin.join("scip-kotlin"),
+        fixture.bin.join("scip-java"),
+    )
+    .unwrap();
+    let lib = fixture.bin.parent().unwrap().join("lib");
+    fs::create_dir(&lib).unwrap();
+    // Only exercises the production wrapper's plugin extraction and environment;
+    // these payloads are not real compiler plugins or Android SDK acceptance.
+    fs::write(
+        lib.join("scip-java-1.jar"),
+        include_bytes!("../../../../Tests/RadiologyTests/Fixtures/kotlin-sdk-plugins.zip"),
+    )
+    .unwrap();
+    let home = fixture
+        .bin
+        .parent()
+        .unwrap()
+        .join("home with spaces;literal");
+    let sdk = home.join("Android/Sdk");
+    fs::create_dir_all(&sdk).unwrap();
+    fs::write(sdk.join("keep"), b"SDK remains unchanged").unwrap();
+    let configured_home = std::env::var_os("ANDROID_HOME");
+    let configured_root = std::env::var_os("ANDROID_SDK_ROOT");
+    let expected_home = configured_home.clone().or_else(|| {
+        configured_root
+            .is_none()
+            .then(|| sdk.clone().into_os_string())
+    });
+    let invoked = fixture.bin.join("gradle-invoked");
+    let gradle = fixture.bin.join("gradle");
+    fs::write(&gradle, format!("#!/bin/sh\nset -eu\n[ \"${{ANDROID_HOME-unset}}\" = {} ] || exit 41\n[ \"${{ANDROID_SDK_ROOT-unset}}\" = {} ] || exit 42\n[ \"$PWD\" != {} ] || exit 43\nprintf reached > {}\n", quote(Path::new(expected_home.as_deref().unwrap_or_else(|| std::ffi::OsStr::new("unset")))), quote(Path::new(configured_root.as_deref().unwrap_or_else(|| std::ffi::OsStr::new("unset")))), quote(&fixture.source), quote(&invoked))).unwrap();
+    fs::set_permissions(&gradle, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut request = fixture.request();
+    request.tools.home = Some(home);
+    request
+        .tools
+        .search_path
+        .extend([PathBuf::from("/usr/bin"), PathBuf::from("/bin")]);
+    let before = InputInventory::discover(&fixture.source, &AtomicBool::new(false)).unwrap();
+    let generated = run(request);
+    assert!(generated.index.is_some(), "{:?}", generated.report.outcomes);
+    assert_eq!(generated.report.documents, 1);
+    assert!(
+        !generated.report.is_partial(),
+        "{:?}",
+        generated.report.outcomes
+    );
+    assert_eq!(fs::read(&invoked).unwrap(), b"reached");
+    assert_eq!(
+        fs::read(sdk.join("keep")).unwrap(),
+        b"SDK remains unchanged"
+    );
+    assert_eq!(fs::read_dir(&sdk).unwrap().count(), 1);
+    for (path, bytes) in files {
+        assert_eq!(
+            fs::read(fixture.source.join(path)).unwrap(),
+            bytes.as_bytes()
+        );
+    }
+    for output in [
+        ".gradle",
+        "build",
+        ".radiology-scip",
+        ".radiology-index-tools",
+    ] {
+        assert!(
+            !fixture.source.join(output).exists(),
+            "viewed output {output}"
+        );
+    }
+    assert_eq!(
+        before.paths,
+        InputInventory::discover(&fixture.source, &AtomicBool::new(false))
+            .unwrap()
+            .paths
+    );
+    assert_eq!(std::env::var_os("ANDROID_HOME"), configured_home);
+    assert_eq!(std::env::var_os("ANDROID_SDK_ROOT"), configured_root);
+}
+
+#[test]
 fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
     let fixture = Fixture::new(&[("a.ts", "/* 🦀 */ const value = 1;\r\n")]);
     let request = fixture.request();

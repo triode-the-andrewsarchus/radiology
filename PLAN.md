@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Android SDK generation context](plans/rust-android-sdk-context.md) now ports the
+Swift SDK fallback into child-only Kotlin/Java Gradle generation, with Linux-first
+lookup and preserved explicit settings. Isolated service/environment checks pass;
+real Android/AGP corpus acceptance remains open.
+
 [Modal pointer scope](plans/rust-modal-pointer-scope.md) now blocks parent clicks
 and scrolling across all four prompts, preserves dialog focus, retires closing
 input and keeps reused dialogs above their surface. Native old/new 1×/2× checks

@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Android SDK generation context](rust-android-sdk-context.md): Kotlin/Java Gradle
+  receives an existing conventional SDK when both SDK variables are absent;
+  explicit settings and other indexers remain unchanged. Controlled isolated
+  generation and six child-environment cases pass; real Android/AGP remains open.
+
 - [Modal pointer scope](rust-modal-pointer-scope.md): a shared surface blocks
   parent controls/scrolling and existing utility windows; opening/closing input,
   query focus, pointer Cancel and cached-window ordering pass component and native

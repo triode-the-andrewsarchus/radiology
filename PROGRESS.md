@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-02 — Android SDK fallback in isolated Gradle generation (Codex)
+
+Ported Swift's conventional SDK handoff into ToolDirectory.indexing_environment:
+Kotlin/Java generation checks existing home/Android/Sdk then Library/Android/sdk
+only when both SDK variables are absent. Explicit/empty/invalid HOME or ROOT stays
+inherited, other indexers retain PATH-only handling, and the parent environment
+is unchanged. The generation service uses the existing command boundary and shared
+Swift compiler scripts. No SDK install, new dependency, worker or Cargo change.
+Two regressions cover directory/precedence/non-Gradle policy and actual isolated
+wrapper/process/service generation with source/SDK immutability and complete fixture
+coverage. The pre-fix controlled Gradle fails its SDK check and yields Partial.
+Six separate environment cases pass: absent, explicit HOME, legacy ROOT, conflicting
+both and empty HOME/ROOT. Fixture ZIP/compiler data is synthetic; real Android/AGP
+acceptance remains open. No SDK found at the checked local conventional locations.
+Workspace: 623 app tests pass, seven ignored; two binary, 13 font, 19 text and
+40 doctests pass. Final strengthened fixture checks, strict Clippy/check/rustdoc/
+build/fmt/diff, rendered method docs and copied standalone resources pass. No UI
+change or new native visual acceptance. Architecture: +146 NLOC/four functions
+including tests, no new hotspot/cycle, health -0.00. Default REGRESSION flags one
+old service-test clone; normalized audit matches all 109 groups unchanged.
+[Contract, reference and evidence](plans/rust-android-sdk-context.md).
+Archive: ~/.local/state/radiology-qa/android-sdk-20261102-08bd674.
+Broader Android/Gradle/C++ corpora and final Swift feature/UI audit remain open;
+full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Modal pointer isolation and reused-window surface order (Codex)
 
 All four prompts now share a transparent input-blocking surface above the parent,

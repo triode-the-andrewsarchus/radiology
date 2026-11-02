@@ -627,7 +627,7 @@ fn execute_strategy(
     })?;
     command
         .environment
-        .extend(request.tools.child_environment());
+        .extend(request.tools.indexing_environment(outcome.strategy.indexer));
     command.environment.insert(
         "CARGO_TARGET_DIR".into(),
         run.path().join("cargo-target").into(),

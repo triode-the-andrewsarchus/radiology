@@ -34,7 +34,7 @@ pub enum ToolAvailability {
 pub struct ToolDirectory {
     /// Radiology-owned tool root, when persistent storage is available.
     pub managed: Option<PathBuf>,
-    /// User home used for standard Cargo and Go executable locations.
+    /// User home for conventional Cargo, Go and Android SDK locations.
     pub home: Option<PathBuf>,
     /// Ordered executable search directories.
     pub search_path: Vec<PathBuf>,
@@ -147,6 +147,38 @@ impl ToolDirectory {
             .map(|path| ("PATH".into(), path))
             .into_iter()
             .collect()
+    }
+
+    /// Returns generation overrides, including Kotlin's conventional Android SDK lookup.
+    ///
+    /// Explicit `ANDROID_HOME` or `ANDROID_SDK_ROOT` settings remain inherited,
+    /// including empty or invalid values. Other indexers keep only the `PATH` override.
+    /// When both variables are absent, existing `Android/Sdk` then `Library/Android/sdk`
+    /// directories under this context's home supply `ANDROID_HOME`. This lookup
+    /// does not install an SDK or change the parent environment.
+    #[must_use]
+    pub fn indexing_environment(
+        &self,
+        indexer: Indexer,
+    ) -> BTreeMap<std::ffi::OsString, std::ffi::OsString> {
+        let mut environment = self.child_environment();
+        if indexer == Indexer::Kotlin
+            && std::env::var_os("ANDROID_HOME").is_none()
+            && std::env::var_os("ANDROID_SDK_ROOT").is_none()
+        {
+            if let Some(sdk) = self.android_sdk() {
+                environment.insert("ANDROID_HOME".into(), sdk.into_os_string());
+            }
+        }
+        environment
+    }
+
+    fn android_sdk(&self) -> Option<PathBuf> {
+        let home = self.home.as_ref()?;
+        ["Android/Sdk", "Library/Android/sdk"]
+            .into_iter()
+            .map(|relative| home.join(relative))
+            .find(|path| path.is_dir())
     }
 
     /// Probes one tool using the bounded runner and the provided working directory.
@@ -263,6 +295,41 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, format!("#!/bin/sh\n{text}\n")).unwrap();
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn android_sdk_lookup_uses_existing_directories_in_linux_then_swift_order() {
+        let root = tempfile::tempdir().unwrap();
+        let mut tools = ToolDirectory {
+            managed: None,
+            home: None,
+            search_path: vec![],
+        };
+        assert!(tools.android_sdk().is_none());
+        tools.home = Some(root.path().to_path_buf());
+        assert!(tools.android_sdk().is_none());
+        let linux = root.path().join("Android/Sdk");
+        std::fs::create_dir_all(linux.parent().unwrap()).unwrap();
+        std::fs::write(&linux, b"not a directory").unwrap();
+        assert!(tools.android_sdk().is_none());
+        let swift = root.path().join("Library/Android/sdk");
+        std::fs::create_dir_all(&swift).unwrap();
+        assert_eq!(tools.android_sdk(), Some(swift));
+        std::fs::remove_file(&linux).unwrap();
+        std::fs::create_dir(&linux).unwrap();
+        assert_eq!(tools.android_sdk(), Some(linux));
+        for indexer in [
+            Indexer::Rust,
+            Indexer::Go,
+            Indexer::TypeScript,
+            Indexer::Python,
+            Indexer::Clang,
+        ] {
+            assert_eq!(
+                tools.indexing_environment(indexer),
+                tools.child_environment()
+            );
+        }
     }
 
     #[test]
