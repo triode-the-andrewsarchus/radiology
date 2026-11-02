@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-01 — Align source preview layout with caller reveal geometry (Codex)
+
+The shared source preview now allocates and clips the exact extent used by caller
+reveal. The failing regression measured Loading at 14 pt versus a predicted 40 pt;
+loaded labels and arbitrarily wrapping errors also had independent extents.
+Source slots now stay 18 pt with existing 12 pt code/number typography, blank rows
+and truncation. Loading has progress; unavailable previews fit a compact reason
+and retain the full error on hover. Source bytes, emphasis and selectable labels
+remain. No public API/state/worker/cache/dependency. Every phase/theme/scale/width
+matrix passes; workspace passes 554 app tests (seven ignored), two binary, four
+font, 13 text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture NEUTRAL: +113 NLOC including tests, one test function, renderer CCN 6;
+no new hotspot/cycle/max-CCN/clone group, all 91 clones unchanged, health -0.01.
+Four final native ready 1×/2× flows pass private missing-destination failure,
+restore/reopen recovery, exact accepted source, keyboard caller commit with exact
+473-byte destination copy and Back call-site copy. Narrow dark/light captures,
+fixture/binary hashes and all final zero exits verified; 2× failure/caller captures
+visually inspected. Excluded earlier trials used stale coordinates, tooltip-covered
+status or input before selection/focus publication; two earliest controllers'
+six verified private orphan PIDs were explicitly retired. Final drivers observe
+selection and close gracefully. Same-frame pointer/key handoff and Swift snippet
+dedent remain concrete audit items, alongside broader reader/language/semantic/
+PR/cache/UI/standalone/reuse parity. Accessibility and sibling adoption deferred.
+[Contract/evidence](plans/rust-inspector-previews.md#measured-preview-extents-and-bounded-statuses--2026-11-01).
+Archive: ~/.local/state/radiology-qa/preview-status-20261101-780f87c.
+
+
 ## 2026-11-01 — Share source-specific semantic availability across inspector regions (Codex)
 
 References and Outline now share a toolkit-independent borrowed availability model:

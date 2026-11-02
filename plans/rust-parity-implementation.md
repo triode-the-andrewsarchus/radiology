@@ -141,6 +141,11 @@ for simultaneous inspector regions and source keyboard exclusion.
 
 ## Still required before full parity acceptance
 
+[Preview extents and bounded statuses](rust-inspector-previews.md#measured-preview-extents-and-bounded-statuses--2026-11-01)
+now align caller reveal with all rendered phases, with native failure/recovery/
+keyboard navigation at both scales. Swift snippet dedent and broader pointer/key
+handoff remain concrete presentation/input follow-ups.
+
 [Shared semantic availability](rust-semantic-availability.md) now distinguishes
 missing/empty indexes, file coverage, changed generated source and Before across
 References/Outline, with retained-index and native 1×/2× evidence. Broader semantic

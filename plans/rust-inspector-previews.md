@@ -97,3 +97,54 @@ local/package explanations and implementation links are integrated in
 [metadata acceptance](rust-inspector-metadata.md). Outline/bookmark keyboard parity, bounded revisit
 caches, broader corpus/runtime checks and final Swift comparison remain open.
 This package does not complete the full Rust/Swift objective.
+
+## Measured preview extents and bounded statuses — 2026-11-01
+
+A new component regression confirms that caller reveal geometry and preview
+rendering disagreed: Loading reserved 40 pt but consumed 14 pt. Loaded row heights
+also depended on label/font geometry, while long failure text could consume
+arbitrary width/height. Virtualized references measured painted rows afterward,
+but caller offsets continued using the independently predicted preview extent.
+
+The shared preview renderer now allocates exactly `height(phase)` and clips a
+child to that rectangle. Loaded snippets use 18 pt source slots and the existing
+12 pt monospace face for code and line numbers, including empty lines. The source
+background fills the allocated excerpt; original text, emphasis and selectable
+labels remain unchanged. Loading includes a spinner. Unavailable previews show a
+compact Source unavailable heading and a fitted reason with its complete error
+on hover. Caller controls therefore start at the same offset before and after
+painting, independently of diagnostic wrapping. No public API, state, worker,
+cache, dependency or source-coordinate transformation was added.
+
+The regression fails on the old renderer and now passes every phase at 1×/1.5×/2×,
+light/dark and 216/300 pt widths, including long multiline diagnostics, Unicode,
+empty source rows, five-digit line numbers and truncation. Workspace passes
+554 app tests (seven ignored), two binary, four font, 13 text and 36 doctests with
+eight test threads. Strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture
+is NEUTRAL: +113 NLOC including the test, one new test function, renderer CCN 6;
+no new hotspot/cycle/max-CCN increase and all 91 clone groups unchanged after full
+normalized multiset audit. Health changes -0.01.
+
+Four final native ready flows pass at 1×/2×. Failure runs remove only a private
+reference destination after rows load, observe bounded source/caller failure,
+restore the bytes and collapse/reopen into successful previews; accepted source
+copy remains exact. Navigation runs expand the observed reference row, enter/
+move/commit callers with Right/Down/Return in one invocation, copy the exact
+473-byte destination line and restore the original call site with Back. Narrow
+light/dark captures remain; final 2× failure/caller captures were visually
+inspected. Each final run verifies binary/fixture hashes and zero child exits.
+
+Earlier controllers used stale coordinates, left a status-covering hover tooltip,
+or sent keys before pointer selection/focus completed; their trials are excluded.
+Two earliest controllers required explicit cleanup of six verified private child
+PIDs; disappearance was verified. Final controllers capture selected state before
+keys and close gracefully. Only keyboard handoff is batched; same-frame pointer/
+keyboard ownership remains a broader audit item, not accepted by these runs.
+Swift-style snippet dedenting is also still absent and remains a concrete source
+presentation follow-up. Requested design skills remain unavailable; this repair
+reuses existing font roles and pane fitting.
+
+Durable archive: `~/.local/state/radiology-qa/preview-status-20261101-780f87c`.
+Only `preview-{failure,layout}-ready-*` flows are final native acceptance. Broader
+mixed-language/review/input/large-file/semantic and final Swift/standalone/reuse
+acceptance remain open; full accessibility and actual sibling adoption deferred.

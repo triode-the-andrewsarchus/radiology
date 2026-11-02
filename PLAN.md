@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Preview extent and status rendering](plans/rust-inspector-previews.md#measured-preview-extents-and-bounded-statuses--2026-11-01)
+now shares the same reserved geometry with caller reveal, including loading,
+failures, blank source rows and truncation. Bounded diagnostic fitting, phase/
+theme/scale checks and native 1×/2× failure/recovery/navigation pass. Snippet dedent
+and broader mixed pointer/key ownership remain open.
+
 [Semantic availability](plans/rust-semantic-availability.md) now shares missing-index,
 file-coverage, exact-source and Before reasons between References and the lower
 Outline hint. Retained usable indexes survive replacement work/failure; worker
