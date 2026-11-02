@@ -94,3 +94,8 @@ pub fn append_fallbacks(definitions: &mut egui::FontDefinitions) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "shaping")]
+mod shaping;
+#[cfg(feature = "shaping")]
+pub use shaping::{EmojiGlyph, EmojiRaster, EmojiShaper};

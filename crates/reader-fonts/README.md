@@ -37,9 +37,56 @@ noto-fonts-cjk 20240730 collection. The emoji face is its static Regular instanc
 of Noto Emoji v3.002, pinned to Google Fonts commit
 `8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5`. The Noto assets add about 16.6 MiB to
 an executable that embeds both. Fira Sans adds about 476 KiB. The fallbacks cover
-representative CJK and modern emoji, not every Unicode character. Egui renders these as monochrome glyphs; this does
-not add complex shaping or multi-codepoint emoji composition.
+representative CJK and modern emoji, not every Unicode character. Egui registration alone renders individual
+monochrome glyphs. The optional composition API below supplies shaped glyphs for
+hosts that explicitly integrate it into their layout and drawing.
 
 Radiology consumes this package now. The sibling still consumes its original
 render-crate assets and workbench setup; migrating it to this package remains a
 future integration step. These applications do not yet consume one common crate.
+
+## Optional emoji shaping
+
+Enable `shaping` to use `EmojiShaper`, `EmojiGlyph` and `EmojiRaster` without egui.
+The shaper retains a reusable Common/LTR OpenType plan and buffer over the unchanged
+bundled emoji face. It returns one supported font glyph per input grapheme, with
+original UTF-8/scalar counts and advances/offsets in font units. Hosts may rasterize
+that glyph themselves using the same asset, or request bounded monochrome coverage
+at a physical pixel height. Raster origin is baseline-relative, with Y downward;
+font size, device scale, tint, cache policy and source mapping remain host-owned.
+
+Inputs above 256 UTF-8 bytes, multiple graphemes, missing glyphs and non-composing
+sequences return `None` for caller fallback. Raster height spans ascender to
+descender and must be in `(0, 512]`; images are limited to 1,048,576 coverage pixels.
+This feature does not load system fonts or native HarfBuzz. Seven optional lockfile
+packages are added; existing package versions are unchanged. Default asset-only
+consumers still have no normal dependencies. Isolated asset/shaping hosts build
+and run without Radiology, egui or another checkout.
+
+```rust
+let mut shaper = reader_fonts::EmojiShaper::new();
+let glyph = shaper.shape_cluster("1\u{fe0f}\u{20e3}").unwrap();
+let image = shaper.rasterize(&glyph, 28.0).unwrap();
+assert_eq!(glyph.source_scalars, 3);
+assert_eq!(image.coverage.len(), image.width * image.height);
+```
+
+A CPU-only example writes a portable grayscale image:
+
+```sh
+cargo run -p reader-fonts --features shaping --example emoji_shaping -- '1️⃣' 56 > keycap.pgm
+```
+
+The reference TSV compares 24 keycaps, families, flags, tones and variations against
+native HarfBuzz with default-ignorable output glyphs removed. Regenerate it only
+when deliberately updating the reference, using Python 3 and installed HarfBuzz:
+
+```sh
+python crates/reader-fonts/tests/data/regenerate_emoji_oracle.py --report /tmp/emoji-oracle.json
+cargo test -p reader-fonts --features shaping,egui
+```
+
+The generator is a QA tool, never part of a Cargo build or production runtime.
+Radiology does not enable or consume `shaping` yet. Source layout, hit testing,
+caret mapping and native acceptance are pending in
+[the integration plan](../../plans/rust-source-emoji-shaping.md).

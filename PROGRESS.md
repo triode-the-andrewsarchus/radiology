@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-02 — Optional shared emoji shaping/raster foundation (Codex)
+
+reader-fonts now exposes an optional CPU-only EmojiShaper, one reusable Common/LTR
+plan/buffer, source byte/scalar metadata and bounded baseline-relative coverage.
+Original font bytes/primary registration remain unchanged; default assets have no
+normal dependencies. Seven optional packages are added, no existing versions
+change. All 24 glyph/metric cases match independent native HarfBuzz 15.0.0; explicit
+ignore-glyph removal keeps the actual source counts. Coverage/scale, invalid-input/
+recovery and existing font geometry tests pass. Feature-enabled workspace: 601 app
+tests, seven ignored, two binary, eight font, 13 text and 38 doctests; strict gates
+and normal copied standalone verifier pass. CPU-only shaping: five tests/one doc;
+asset-only: one test. Isolated asset/shaping hosts build/run offline with 16 jobs,
+without Radiology/egui/native HarfBuzz. Composed keycap/family/tone/flag raster
+artifacts at 28/56 px inspected. Architecture NEUTRAL: +359 NLOC/11 functions/three
+files, no new hotspot/cycle, all 109 clones unchanged, health +0.11.
+[Contract and integration plan](plans/rust-source-emoji-shaping.md).
+Archive: ~/.local/state/radiology-qa/reader-shaping-20261102-9ad5278.
+The app does not enable/consume this feature yet. Source layout, byte/caret mapping,
+wrapping, caching and native source-shaping acceptance remain pending; no UI fix
+claimed. Broader parity stays open; accessibility/sibling adoption deferred.
+
 ## 2026-11-02 — Canonical document-symbol filtering without changing navigation (Codex)
 
 The no-index document fallback now shares query keys, NFC normalization and whole-

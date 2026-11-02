@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Emoji shaping groundwork](plans/rust-source-emoji-shaping.md) adds optional
+CPU composition/rasterization to the shared font crate. Independent HarfBuzz,
+scale/coverage and isolated-host checks pass. App layout/caret integration and
+native source-shaping acceptance remain pending.
+
 [Symbol Unicode matching](plans/rust-symbol-unicode.md) now shares canonical keys
 and complete-character comparisons across workspace ranking and document substring
 filtering, without changing navigation bytes. Both modes pass old/new native

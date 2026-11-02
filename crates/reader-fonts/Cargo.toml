@@ -8,9 +8,17 @@ description = "Portable licensed interface and fallback fonts for independent re
 [features]
 default = []
 egui = ["dep:egui"]
+shaping = ["dep:rustybuzz", "dep:ab_glyph", "dep:unicode-segmentation"]
 
 [dependencies]
 egui = { version = "0.27", optional = true }
+rustybuzz = { version = "0.20.1", optional = true }
+ab_glyph = { version = "0.2.32", optional = true }
+unicode-segmentation = { version = "1.13", optional = true }
 
 [dev-dependencies]
 sha2 = "0.10"
+
+[[example]]
+name = "emoji_shaping"
+required-features = ["shaping"]

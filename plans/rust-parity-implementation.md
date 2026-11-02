@@ -24,6 +24,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Emoji shaping foundation](rust-source-emoji-shaping.md): optional shared-font
+  composition, glyph metrics and bounded raster coverage match an independent
+  reference and work without a GUI. App source integration remains pending.
+
 - [Symbol picker integration](rust-symbol-picker.md): cancellable background
   ranking, 200 workspace results, kind/definition metadata, bounded rows, empty
   states, Go/Cancel and generation-owned pointer activation. Shared file/symbol
