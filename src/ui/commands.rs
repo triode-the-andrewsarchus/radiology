@@ -17,6 +17,10 @@ pub enum ReaderCommand {
     ToggleSidebar,
     /// Toggles visibility of the right context inspector.
     ToggleInspector,
+    /// Toggles one persistent inspector pane without resetting its content.
+    ToggleInspectorPane(crate::session::inspector::InspectorPane),
+    /// Restores every inspector pane and reveals the inspector.
+    ShowAllInspectorPanes,
     /// Navigates backwards in the file and caret navigation history.
     NavigateBack,
     /// Navigates forward in the file and caret navigation history.
@@ -368,16 +372,17 @@ pub(crate) fn retain_navigation_keys(ctx: &egui::Context, id: egui::Id) {
 ///
 /// In egui 0.27, `push_id` scopes persistent IDs but its automatic widget IDs
 /// still follow the parent's position. A fresh UI seeds both from the owner.
-/// Use for reader content outside popup menus.
+/// Pass an absolute owner, or `ui.make_persistent_id(key)` for a parent-local
+/// owner. Use for reader content outside popup menus.
 pub(crate) fn owned_ui<R>(
     ui: &mut egui::Ui,
-    owner: impl std::hash::Hash,
+    owner: egui::Id,
     render: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     let mut child = egui::Ui::new(
         ui.ctx().clone(),
         ui.layer_id(),
-        ui.make_persistent_id(owner),
+        owner,
         ui.available_rect_before_wrap(),
         ui.clip_rect(),
     );

@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-11-02 — Persistent Context pane controls and stable region ownership (Codex)
+
+Added egui-independent InspectorPanes/InspectorPane values in session settings. Old/
+partial JSON defaults all choices on. Context > Panes and View > Context Panes use
+one checked menu/command path. Existing References, Definition/Outline and Bookmarks
+reclaim space; all-hidden/context-only recovery stays available. Enabling reopens a
+closed inspector without needing source. Trait preference and shared middle-slot
+policy are modeled; actual trait catalog/context/results remain the next feature.
+Hiding panes retains source/caret/history, reference selection/caller disclosures
+and bookmark identity; hidden key/focus/drag ownership is retired. Definition keeps
+its name when the matching reference summary is hidden. A 120-bookmark regression
+proves scroll retention through split/single/split layouts. Absolute pane IDs reuse
+the existing owned_ui helper; existing picker/definition owners remain parent-local.
+An intermediate allocation change let reference overflow enlarge a panel; retained
+fixed region bounds and the full 1×/2× preference matrix now passes. Typed toolbar
+content supports host reuse while legacy show APIs still forward to one renderer.
+Final: 654 app tests pass, seven existing ignored; two binary/13 font/21 text tests,
+46 doctests and strict gates pass. Rendered public APIs checked. Native previous/
+current 1×/2× proves missing old controls, toggles, saved settings through process
+restart, all-disabled recovery, View reopening, light appearance and exact 148-byte
+Unicode/CRLF Copy. Focused-button OCR failures retained; driver now reuses measured
+header geometry. Captures inspected, hashes unchanged, all owned child exits zero.
+Architecture +672 NLOC/21 functions/three files, avg/max/high-hotspot count/cycles
+unchanged. All125 normalized clones unchanged. Default REGRESSION treats renamed
+Toolbar::show_with_panes CCN23 as new; original show was already CCN23, so this is
+neither a claimed simplification nor added rendering complexity. [Contract/review](plans/rust-inspector-panes.md).
+Archive: ~/.local/state/radiology-qa/inspector-panes-20261102-27a18f5.
+Next: real Rust trait implementations, then Code Paths, personalities/seL4 and broader
+parity/corpus acceptance. Full accessibility and actual sibling adoption stay deferred.
+
 ## 2026-11-02 — Files reveal, current-document exceptions and Before handoffs (Codex)
 
 Files now follows committed/new/same-file navigation, expands only ancestors, centers

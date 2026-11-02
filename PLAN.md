@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Inspector pane preferences](plans/rust-inspector-panes.md) now persist app-wide,
+share checked Panes/View menus, reclaim layout space and recover from all-hidden
+state. Stable region IDs preserve scrolling, selections and source state. Native
+1×/2× restart checks pass; actual trait results remain the next feature.
+
 [Files navigation](plans/rust-files-navigation.md) now follows committed source
 jumps, preserves passive scrolling and shows the confirmed current document through
 filters. Selected-row clicks retain caret/history/revision; Before file-manager

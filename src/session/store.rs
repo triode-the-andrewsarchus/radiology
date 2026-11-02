@@ -30,6 +30,9 @@ pub struct SessionStore {
     pub active_pr: Option<usize>,
     /// Persisted file tree filters.
     pub source_filters: SourceFilters,
+    /// App-wide Context pane choices; old sessions enable all panes.
+    #[serde(default)]
+    pub inspector_panes: super::inspector::InspectorPanes,
     /// Whether source code lines wrap at the viewport boundary or scroll horizontally.
     #[serde(default)]
     pub wrap_lines: bool,
@@ -49,6 +52,7 @@ impl Default for SessionStore {
             recent_repositories: Vec::new(),
             active_pr: None,
             source_filters: SourceFilters::default(),
+            inspector_panes: Default::default(),
             wrap_lines: false,
             source_font_size: default_source_font_size(),
             dark_mode: true,

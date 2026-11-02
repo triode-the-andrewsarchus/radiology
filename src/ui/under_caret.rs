@@ -37,7 +37,8 @@ pub(super) fn show(
             theme.text_primary,
             (ui.available_width() - 2.0 * ui.spacing().button_padding.x).max(0.0),
         );
-        let response = super::commands::owned_ui(ui, ("definition_name", owner), |ui| {
+        let name_owner = ui.make_persistent_id(("definition_name", owner));
+        let response = super::commands::owned_ui(ui, name_owner, |ui| {
             ui.add(egui::Button::new(name).frame(false))
         });
         if super::commands::row_activated(&response) {
@@ -45,7 +46,8 @@ pub(super) fn show(
         }
     }
     // A disappearing name must not lend its pressed identity to the location or details.
-    super::commands::owned_ui(ui, ("definition_content", owner), |ui| {
+    let content_owner = ui.make_persistent_id(("definition_content", owner));
+    super::commands::owned_ui(ui, content_owner, |ui| {
         let mut action = show_location(ui, theme, context);
         let response = ui.small_button(if expanded {
             "Hide details"

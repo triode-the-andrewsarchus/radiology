@@ -10,11 +10,14 @@ use crate::syntax::outline::DocumentSymbol;
 use crate::theme::AppTheme;
 use egui::{RichText, ScrollArea, Ui};
 mod declaration_summary;
+pub(crate) mod panes;
 pub use declaration_summary::DeclarationSummary;
 
 /// Navigation and management events from the inspector.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InspectorAction {
+    /// Applies a shared reader presentation command.
+    Command(crate::ui::commands::ReaderCommand),
     /// Opens the exact semantic definition under the source caret.
     GoToDefinition,
     /// Selects, discloses, or explicitly commits a reference row.
@@ -147,58 +150,16 @@ impl ContextInspector {
         outline: &mut OutlineList,
         declaration: &mut DeclarationSummary,
     ) -> Option<InspectorAction> {
-        let mut action = None;
-        let height = ui.available_height();
-        egui::TopBottomPanel::bottom("bookmarks_region")
-            .resizable(true)
-            .default_height(height * 0.25)
-            .min_height(100.0)
-            .max_height((height * 0.5).max(100.0))
-            .show_inside(ui, |ui| {
-                let next = region(ui, |ui| {
-                    // Empty guidance stays legible; its sole action has its own readiness guard.
-                    ui.add_enabled_ui(
-                        content.bookmarks_enabled || content.bookmarks.bookmarks.is_empty(),
-                        |ui| {
-                            bookmarks.show(
-                                ui,
-                                theme,
-                                content.bookmarks,
-                                content.scope,
-                                (content.bookmarks_enabled && content.can_toggle_bookmark)
-                                    .then_some(content.current_bookmarked),
-                            )
-                        },
-                    )
-                    .inner
-                    .map(InspectorAction::Bookmark)
-                });
-                if let Some(next) = next {
-                    action = Some(next);
-                }
-            });
-        egui::TopBottomPanel::top("declaration_region")
-            .resizable(true)
-            .default_height(height * 0.38)
-            .min_height(160.0)
-            .max_height((ui.available_height() - 120.0).max(160.0))
-            .show_inside(ui, |ui| {
-                if let Some(next) = region(ui, |ui| {
-                    Self::render_declaration_context(ui, theme, &content, references, declaration)
-                }) {
-                    action = Some(next);
-                }
-            });
-        egui::CentralPanel::default()
-            .frame(egui::Frame::none())
-            .show_inside(ui, |ui| {
-                if let Some(next) = region(ui, |ui| {
-                    Self::render_under_caret_context(ui, theme, &content, outline)
-                }) {
-                    action = Some(next);
-                }
-            });
-        action
+        Self::show_with_panes(
+            ui,
+            theme,
+            content,
+            references,
+            bookmarks,
+            outline,
+            declaration,
+            &Default::default(),
+        )
     }
 
     fn render_under_caret_context(
@@ -467,12 +428,18 @@ fn reference_status<'a>(content: &InspectorContent<'a>) -> Option<(&'static str,
 // Panel layout owns its extent; clipped child content cannot enlarge a sibling region.
 fn region(
     ui: &mut Ui,
+    pane: crate::session::inspector::InspectorPane,
     render: impl FnOnce(&mut Ui) -> Option<InspectorAction>,
 ) -> Option<InspectorAction> {
     let rect = ui.available_rect_before_wrap();
     let mut child = ui.child_ui(rect, egui::Layout::top_down(egui::Align::Min));
     child.set_clip_rect(rect.intersect(ui.clip_rect()));
-    let action = render(&mut child);
+    let action = super::commands::owned_ui(
+        &mut child,
+        egui::Id::new(("radiology_context_pane", pane)),
+        render,
+    );
+    // Content overflow must not enlarge a resizable region into its neighbors.
     ui.allocate_space(rect.size().max(egui::Vec2::ZERO));
     action
 }
@@ -713,6 +680,42 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn hidden_reference_summary_cannot_suppress_the_definition_name() {
+        let fixture = InspectorFixture::default();
+        let context = crate::ui::test_support::indexed_under_caret_context();
+        for (dark, scale) in [(true, 1.0), (false, 2.0)] {
+            let (ctx, theme) = crate::ui::test_support::themed_context(dark, scale);
+            let panes = crate::session::inspector::InspectorPanes {
+                references: false,
+                definition: true,
+                implementations: false,
+                bookmarks: false,
+            };
+            let texts =
+                crate::ui::test_support::painted_text(&ctx, egui::vec2(240.0, 400.0), |ui| {
+                    let content = InspectorContent {
+                        under_caret: Some(&context),
+                        summary_identity: Some(&context.id),
+                        reference_target: Some(&context.name),
+                        ..fixture.content()
+                    };
+                    ContextInspector::show_with_panes(
+                        ui,
+                        &theme,
+                        content,
+                        &mut Default::default(),
+                        &mut Default::default(),
+                        &mut Default::default(),
+                        &mut Default::default(),
+                        &panes,
+                    );
+                });
+            assert!(texts.contains(&context.name));
+            assert!(!texts.iter().any(|text| text.starts_with("References")));
         }
     }
 

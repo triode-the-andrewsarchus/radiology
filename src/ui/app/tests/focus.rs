@@ -2,6 +2,7 @@
 use super::*;
 mod files;
 mod ownership;
+mod panes;
 mod references;
 use egui::{Event, Key, Modifiers};
 

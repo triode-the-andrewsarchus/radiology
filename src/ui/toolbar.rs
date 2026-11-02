@@ -14,6 +14,36 @@ use egui::{RichText, Ui};
 
 pub use super::commands::ReaderCommand as ToolbarAction;
 
+/// Immutable toolbar inputs shared by standalone and embedded reader hosts.
+pub struct ToolbarContent<'a> {
+    /// Navigation sidebar visibility.
+    pub show_sidebar: bool,
+    /// Context inspector visibility.
+    pub show_inspector: bool,
+    /// Accepted repository name.
+    pub repo_name: Option<&'a str>,
+    /// Accepted branch name.
+    pub branch_name: Option<&'a str>,
+    /// Recent repository paths.
+    pub recent_repos: &'a [String],
+    /// Review choices and current availability.
+    pub review_menu: PullRequestMenu<'a>,
+    /// Current source presentation.
+    pub mode: SourceMode,
+    /// Current file filters.
+    pub filters: &'a SourceFilters,
+    /// Source wrapping preference.
+    pub wrap_lines: bool,
+    /// Committed navigation history.
+    pub history: &'a NavigationHistory,
+    /// Accepted change targets.
+    pub change_navigation: crate::pull_request::diff::ChangeNavigation,
+    /// Bookmarks in the current scope.
+    pub bookmarks: &'a crate::bookmarks::store::BookmarkStore,
+    /// Whether the exact caret is bookmarked.
+    pub current_bookmarked: bool,
+}
+
 /// Renders the top horizontal toolbar in the Radiology desktop interface.
 pub struct Toolbar;
 
@@ -57,6 +87,53 @@ impl Toolbar {
         current_bookmarked: bool,
         command_enabled: impl Fn(&ToolbarAction) -> bool,
     ) -> Option<ToolbarAction> {
+        Self::show_with_panes(
+            ui,
+            theme,
+            ToolbarContent {
+                show_sidebar,
+                show_inspector,
+                repo_name,
+                branch_name,
+                recent_repos,
+                review_menu,
+                mode,
+                filters,
+                wrap_lines,
+                history,
+                change_navigation,
+                bookmarks,
+                current_bookmarked,
+            },
+            &Default::default(),
+            command_enabled,
+        )
+    }
+
+    /// Renders the toolbar with host-owned persistent inspector choices.
+    #[allow(clippy::too_many_arguments)]
+    pub fn show_with_panes(
+        ui: &mut Ui,
+        theme: &AppTheme,
+        content: ToolbarContent<'_>,
+        panes: &crate::session::inspector::InspectorPanes,
+        command_enabled: impl Fn(&ToolbarAction) -> bool,
+    ) -> Option<ToolbarAction> {
+        let ToolbarContent {
+            show_sidebar,
+            show_inspector,
+            repo_name,
+            branch_name,
+            recent_repos,
+            review_menu,
+            mode,
+            filters,
+            wrap_lines,
+            history,
+            change_navigation,
+            bookmarks,
+            current_bookmarked,
+        } = content;
         let previous_focus = ui.memory(|memory| memory.focused());
         let mut menus = MenuBar::default();
         let mut action = None;
@@ -210,6 +287,7 @@ impl Toolbar {
                     bookmarks,
                     current_bookmarked,
                     &command_enabled,
+                    panes,
                 ),
             );
             menus.button(ui, "Search", "search", search_items(&command_enabled));
@@ -256,6 +334,7 @@ fn view_items(
     bookmarks: &crate::bookmarks::store::BookmarkStore,
     current_bookmarked: bool,
     command_enabled: &impl Fn(&ToolbarAction) -> bool,
+    panes: &crate::session::inspector::InspectorPanes,
 ) -> Vec<Item<ToolbarAction>> {
     let mut items = vec![
         Item::action(
@@ -274,6 +353,11 @@ fn view_items(
         Item::action("Hide Tests", ToolbarAction::ToggleHideTests).checked(filters.hides_tests),
         Item::separator(),
     ];
+    items.push(Item::submenu(
+        "Context Panes",
+        super::context_inspector::panes::menu(*panes),
+    ));
+    items.push(Item::separator());
     for (label, action) in [
         (
             "Larger Source Text (Ctrl++)",
@@ -488,6 +572,7 @@ mod tests {
                         &bookmarks,
                         current,
                         &|command| matches!(command, ToolbarAction::OpenBookmark(9)),
+                        &Default::default(),
                     ),
                 );
                 action = menus.show();

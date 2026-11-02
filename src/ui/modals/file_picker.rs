@@ -250,6 +250,7 @@ impl QuickFilePickerModal {
                     Arc::as_ptr(&self.requested.as_ref().unwrap().0) as *const () as usize,
                     &file.path,
                 );
+                let owner = ui.make_persistent_id(owner);
                 commands::owned_ui(ui, owner, |ui| {
                     let response = file_row(ui, theme, file, index == self.selected_idx, height);
                     if commands::row_activated(&response) {

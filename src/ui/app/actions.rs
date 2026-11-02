@@ -3,6 +3,36 @@
 use super::*;
 
 impl RadiologyApp {
+    fn set_inspector_panes(
+        &mut self,
+        ctx: &Context,
+        panes: crate::session::inspector::InspectorPanes,
+    ) {
+        use crate::session::inspector::InspectorPane;
+        let previous = self.session.inspector_panes;
+        if previous == panes {
+            return;
+        }
+        let focused = self.inspector_has_focus(ctx);
+        self.session.inspector_panes = panes;
+        if InspectorPane::ALL
+            .into_iter()
+            .any(|pane| !previous.enabled(pane) && panes.enabled(pane))
+        {
+            self.show_inspector = true;
+        }
+        if !panes.references {
+            self.reference_viewport.cancel_focus_request();
+        }
+        if !panes.bookmarks {
+            crate::ui::bookmark_list::BookmarkList::cancel_drag(ctx);
+        }
+        if focused && !self.inspector_has_focus(ctx) {
+            self.source_viewport.request_focus(ctx);
+        }
+        self.session.save();
+    }
+
     fn current_function_fold(&self) -> Option<&crate::syntax::FoldRange> {
         let buffer = self.open_buffer.as_ref()?;
         crate::syntax::folds::enclosing_function_fold(
@@ -111,6 +141,12 @@ impl RadiologyApp {
                 }
             }
             ToggleSidebar => self.show_sidebar = !self.show_sidebar,
+            ToggleInspectorPane(pane) => {
+                let mut panes = self.session.inspector_panes;
+                panes.toggle(pane);
+                self.set_inspector_panes(ctx, panes);
+            }
+            ShowAllInspectorPanes => self.set_inspector_panes(ctx, Default::default()),
             ToggleInspector => {
                 let return_source = self.inspector_has_focus(ctx);
                 self.show_inspector = !self.show_inspector;

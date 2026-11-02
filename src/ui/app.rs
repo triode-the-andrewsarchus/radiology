@@ -667,28 +667,31 @@ impl RadiologyApp {
         let modal_owned_frame = self.show_modal(ctx);
 
         TopBottomPanel::top("top_toolbar").show(ctx, |ui| {
-            if let Some(action) = Toolbar::show(
+            if let Some(action) = Toolbar::show_with_panes(
                 ui,
                 &self.theme,
-                self.show_sidebar,
-                self.show_inspector,
-                self.repository_name.as_deref(),
-                self.branch_name.as_deref(),
-                &self.session.recent_repositories,
-                crate::ui::pull_request_menu::PullRequestMenu {
-                    active: self.active_pr.as_ref(),
-                    pending: self.pending_pr,
-                    recent: self.recent_pull_requests.items(),
-                    phase: self.recent_pull_requests.phase(),
-                    enabled: self.can_choose_review(),
+                crate::ui::toolbar::ToolbarContent {
+                    show_sidebar: self.show_sidebar,
+                    show_inspector: self.show_inspector,
+                    repo_name: self.repository_name.as_deref(),
+                    branch_name: self.branch_name.as_deref(),
+                    recent_repos: &self.session.recent_repositories,
+                    review_menu: crate::ui::pull_request_menu::PullRequestMenu {
+                        active: self.active_pr.as_ref(),
+                        pending: self.pending_pr,
+                        recent: self.recent_pull_requests.items(),
+                        phase: self.recent_pull_requests.phase(),
+                        enabled: self.can_choose_review(),
+                    },
+                    mode: self.mode,
+                    filters: &self.session.source_filters,
+                    wrap_lines: self.session.wrap_lines,
+                    history: &self.history,
+                    change_navigation: self.change_navigation(),
+                    bookmarks: &self.bookmarks,
+                    current_bookmarked: self.current_bookmarked(),
                 },
-                self.mode,
-                &self.session.source_filters,
-                self.session.wrap_lines,
-                &self.history,
-                self.change_navigation(),
-                &self.bookmarks,
-                self.current_bookmarked(),
+                &self.session.inspector_panes,
                 |command| self.command_enabled(command),
             ) {
                 self.execute_command(ctx, action);
@@ -821,7 +824,7 @@ impl RadiologyApp {
                         .reference_context
                         .explicit()
                         .or(self.reference_context.target());
-                    if let Some(action) = ContextInspector::show(
+                    if let Some(action) = ContextInspector::show_with_panes(
                         ui,
                         &self.theme,
                         InspectorContent {
@@ -869,6 +872,7 @@ impl RadiologyApp {
                         &mut self.bookmark_list,
                         &mut self.outline_list,
                         &mut self.declaration_summary,
+                        &self.session.inspector_panes,
                     ) {
                         self.handle_inspector_action(ctx, action);
                     }

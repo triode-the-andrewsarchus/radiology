@@ -27,6 +27,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Inspector pane preferences](rust-inspector-panes.md): persistent settings, shared
+  checked menus, dynamic regions, recovery/focus retirement and stable scrolling.
+  Trait preference/middle-slot policy is ready; actual trait results remain pending.
+
 - [Files navigation](rust-files-navigation.md): one-shot centered reveal and parent
   expansion, temporary current-document filter/listing exceptions, flat query rows,
   selected-row preservation and exact Before file-manager trees.

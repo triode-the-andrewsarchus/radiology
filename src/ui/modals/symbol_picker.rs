@@ -335,6 +335,7 @@ impl GoToSymbolModal {
             for index in rows {
                 let choice = &choices[index];
                 let owner = (self.owner, self.generation, index);
+                let owner = ui.make_persistent_id(owner);
                 commands::owned_ui(ui, owner, |ui| {
                     let response = PickerRow {
                         title: &choice.name,

@@ -59,10 +59,14 @@ impl RadiologyApp {
 
     pub(super) fn inspector_has_focus(&self, ctx: &Context) -> bool {
         self.show_inspector
-            && (self.reference_viewport.has_focus(ctx)
-                || crate::ui::bookmark_list::BookmarkList::has_focus(ctx)
-                || crate::ui::outline_list::OutlineList::has_focus(ctx)
-                || ctx.memory(|memory| memory.has_focus(ContextInspector::definition_focus_id())))
+            && ((self.session.inspector_panes.references && self.reference_viewport.has_focus(ctx))
+                || (self.session.inspector_panes.bookmarks
+                    && crate::ui::bookmark_list::BookmarkList::has_focus(ctx))
+                || (self.session.inspector_panes.definition
+                    && (crate::ui::outline_list::OutlineList::has_focus(ctx)
+                        || ctx.memory(|memory| {
+                            memory.has_focus(ContextInspector::definition_focus_id())
+                        }))))
     }
 
     pub(super) fn capture_reader_input(&mut self, ctx: &Context, input: &mut egui::RawInput) {
@@ -133,17 +137,30 @@ impl RadiologyApp {
         if !self.show_inspector {
             return false;
         }
-        if self.handle_bookmark_key(ctx, key, modifiers)
-            || self.handle_outline_key(ctx, key, modifiers)
+        if (self.session.inspector_panes.bookmarks && self.handle_bookmark_key(ctx, key, modifiers))
+            || (self.session.inspector_panes.definition
+                && self.handle_outline_key(ctx, key, modifiers))
         {
             return true;
         }
-        if let Some(action) = self.reference_viewport.action_for_key(ctx, key, modifiers) {
+        if let Some(action) = self
+            .session
+            .inspector_panes
+            .references
+            .then(|| self.reference_viewport.action_for_key(ctx, key, modifiers))
+            .flatten()
+        {
             self.handle_reference_action(action);
             self.reference_viewport.publish_focus_request(ctx);
             return true;
         }
-        if let Some(action) = ContextInspector::definition_key(ctx, key, modifiers) {
+        if let Some(action) = self
+            .session
+            .inspector_panes
+            .definition
+            .then(|| ContextInspector::definition_key(ctx, key, modifiers))
+            .flatten()
+        {
             self.handle_inspector_action(ctx, action);
             return true;
         }
@@ -152,6 +169,7 @@ impl RadiologyApp {
 
     pub(super) fn handle_inspector_action(&mut self, ctx: &Context, action: InspectorAction) {
         match action {
+            InspectorAction::Command(command) => self.execute_command(ctx, command),
             InspectorAction::Reference(action) => self.handle_reference_action(action),
             InspectorAction::FollowCaret => self.follow_reference_caret(),
             InspectorAction::ExpandDefinition(expanded) => self.definition_expanded = expanded,
