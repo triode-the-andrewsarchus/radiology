@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-02 — Match Kotlin file-annotation and negated-operator colors (Codex)
+
+The existing kotlin-ng highlight adapter now captures file annotations and !is/!in
+keyword roles from Swift’s query contract. A scoped source-span correction restores
+the bang omitted by the native external !is token; no rewritten source, new parser,
+worker or dependency. The strengthened existing regression fails successively on
+JvmName, !in and the missing !is bang before the final fix; final LF/CRLF and
+light/dark checks cover every token byte, Unicode, quoted operator strings and
+exact source reconstruction. Recoloring assertions are shared across three tests
+to remove duplicate setup. Workspace passes 574 app tests, seven ignored, two
+binary, four font, 13 text and 37 doctests; strict gates and a copied standalone
+resource verifier pass. Two native 1×/2× flows pass colors, retained recoloring
+with the source path held aside, exact CRLF/Unicode copy, unchanged hashes and zero
+exits; captures inspected. Architecture NEUTRAL: +31 NLOC/one test helper, no new
+hotspot/cycle and all 91 clones unchanged by full audit. Broader parity and the
+compact Kotlin member-separator issue remain open; accessibility/sibling adoption
+deferred. [Contract/evidence](plans/rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02).
+Archive: ~/.local/state/radiology-qa/kotlin-highlight-roles-20261102-10b1a58.
+
 ## 2026-11-02 — Report languages without selected indexing projects (Codex)
 
 Index Projects now shows sorted source families without selected adapters and

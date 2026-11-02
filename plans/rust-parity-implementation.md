@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Kotlin file annotations and negated operators](rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02)
+  now receive Swift-equivalent roles, including the bang omitted by a native
+  external-token range. Exact-token/theme/line-ending and native retained-source
+  checks pass; broader grammar/corpus acceptance remains open.
+
 - [Indexing language coverage](rust-index-language-coverage.md) now exposes source
   families without selected projects, accurate empty-plan feedback and derived
   cache metadata refreshed from current inventory. Plan/cache/app and four native

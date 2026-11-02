@@ -54,6 +54,23 @@ fn assert_original_bytes(lines: &[Vec<HighlightedSpan>], buffer: &SourceBuffer) 
     }
 }
 
+fn recolored_source(
+    facts: &NativeHighlights,
+    buffer: &SourceBuffer,
+    dark: bool,
+) -> (Vec<Vec<HighlightedSpan>>, AppTheme) {
+    assert!(facts.matches(buffer));
+    assert!(facts.error.is_none(), "{:?}", facts.error);
+    let lines = facts.recolor(buffer, dark, || false).unwrap();
+    assert_original_bytes(&lines, buffer);
+    let theme = if dark {
+        AppTheme::dark()
+    } else {
+        AppTheme::light()
+    };
+    (lines, theme)
+}
+
 #[test]
 fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
     let typed = "// café 😀\r\ninterface User { readonly name: string; }\r\nexport function greet(user: User): string {\r\n  return user.name;\r\n}\r\n";
@@ -120,13 +137,7 @@ fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
         assert!(facts.error.is_none(), "{path}: {:?}", facts.error);
         assert!(facts.matches(&buffer), "{path} must use native captures");
         for dark in [false, true] {
-            let theme = if dark {
-                AppTheme::dark()
-            } else {
-                AppTheme::light()
-            };
-            let lines = facts.recolor(&buffer, dark, || false).unwrap();
-            assert_original_bytes(&lines, &buffer);
+            let (lines, theme) = recolored_source(&facts, &buffer, dark);
             for (token, role) in &expected {
                 assert_eq!(
                     color_at(&lines, &buffer, text.find(token).unwrap()),
@@ -203,25 +214,44 @@ fn native_capture_limits_return_no_partial_color_set() {
 
 #[test]
 fn kotlin_native_nodes_supply_type_property_constant_and_annotation_roles() {
-    let text = "@Fancy\nclass Sample {\n val count: Int = 42\n fun run() { val yes = true; println(count) }\n}\n";
-    let buffer = SourceBuffer::from_str("a.kt", text);
-    let facts = super::super::DocumentSyntax::analyze(&buffer).native_highlights;
-    assert!(facts.error.is_none(), "{:?}", facts.error);
-    let lines = facts.recolor(&buffer, true, || false).unwrap();
-    let theme = AppTheme::dark();
-    for (word, role) in [
-        ("Fancy", "attribute"),
-        ("Sample", "type"),
-        ("count", "property"),
-        ("42", "number"),
-        ("run", "function"),
-        ("true", "constant"),
-    ] {
-        assert_eq!(
-            color_at(&lines, &buffer, text.find(word).unwrap()),
-            role_color(role, &theme),
-            "{word}"
-        );
+    let source = "// café 漢字 😀\n@file:JvmName(\"Scans\")\n@file:Marker\n@Fancy\nclass Sample {\n val count: Int = 42\n fun run(value: Any, items: List<Int>) {\n  val yes = true; println(count)\n  val absent = 2 !in items\n  val other = value !is String\n  val cast = value as? String\n  val literal = \"!is !in\"\n }\n}\n";
+    for crlf in [false, true] {
+        let text = if crlf {
+            source.replace('\n', "\r\n")
+        } else {
+            source.to_owned()
+        };
+        let buffer = SourceBuffer::from_str("a.kt", &text);
+        let syntax = super::super::DocumentSyntax::analyze(&buffer);
+        assert!(!syntax.calls.parse_errors && syntax.parse_error.is_none());
+        let facts = syntax.native_highlights;
+        assert!(facts.error.is_none(), "{:?}", facts.error);
+        for dark in [false, true] {
+            let (lines, theme) = recolored_source(&facts, &buffer, dark);
+            for (word, role) in [
+                ("JvmName", "attribute"),
+                ("Marker", "attribute"),
+                ("Fancy", "attribute"),
+                ("Sample", "type"),
+                ("count", "property"),
+                ("42", "number"),
+                ("run", "function"),
+                ("true", "constant"),
+                ("!in", "keyword"),
+                ("!is", "keyword"),
+                ("as?", "keyword"),
+                ("\"!is !in\"", "string"),
+            ] {
+                let start = text.find(word).unwrap();
+                for byte in start..start + word.len() {
+                    assert_eq!(
+                        color_at(&lines, &buffer, byte),
+                        role_color(role, &theme),
+                        "{word}: byte={byte}, CRLF={crlf}, dark={dark}"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -240,13 +270,7 @@ fn rust_native_long_comment_preserves_full_unicode_crlf_and_recolors_without_a_p
     );
     assert!(facts.error.is_none(), "{:?}", facts.error);
     for dark in [false, true] {
-        let lines = facts.recolor(&buffer, dark, || false).unwrap();
-        assert_original_bytes(&lines, &buffer);
-        let theme = if dark {
-            AppTheme::dark()
-        } else {
-            AppTheme::light()
-        };
+        let (lines, theme) = recolored_source(&facts, &buffer, dark);
         for token in ["é", "🦀", "LONG_END"] {
             assert_eq!(
                 color_at(&lines, &buffer, text.find(token).unwrap()),

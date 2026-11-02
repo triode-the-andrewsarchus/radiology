@@ -24,3 +24,6 @@
 (annotation "@" @attribute)
 (annotation (user_type (identifier) @attribute))
 (annotation (constructor_invocation (user_type (identifier) @attribute)))
+(file_annotation (user_type (identifier) @attribute))
+(file_annotation (constructor_invocation (user_type (identifier) @attribute)))
+["!is" "!in"] @keyword.operator

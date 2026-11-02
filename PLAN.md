@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Kotlin annotation/operator colors](plans/rust-native-highlights.md#kotlin-file-annotations-and-negated-operators--2026-11-02)
+now match bundled Swift roles for file annotations and negated operators, with a
+scoped correction for kotlin-ng’s omitted bang range. Exact token/source checks,
+two native 1×/2× retained recoloring flows and standalone verification pass.
+Broader grammar/corpus and full parity remain open.
+
 [Indexing language coverage](plans/rust-index-language-coverage.md) now reports
 source families without a selected project, with accurate empty-plan feedback and
 current-inventory cache restoration. Plan/cache/app regressions and four native

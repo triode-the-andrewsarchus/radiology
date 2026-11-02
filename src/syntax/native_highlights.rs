@@ -163,7 +163,17 @@ fn captures(
         limit,
         control,
         |name, node, pattern| {
-            let bytes = node.byte_range();
+            let mut bytes = node.byte_range();
+            // kotlin-ng's external !is token can omit the adjacent bang from
+            // its range. Restore only that exact token's original source span.
+            if grammar == SupportedGrammar::Kotlin
+                && node.kind() == "!is"
+                && buffer.data.get(bytes.clone()) == Some(b"is")
+                && bytes.start > 0
+                && buffer.data[bytes.start - 1] == b'!'
+            {
+                bytes.start -= 1;
+            }
             if !name.starts_with('_') && !bytes.is_empty() {
                 output.push(Capture {
                     bytes,

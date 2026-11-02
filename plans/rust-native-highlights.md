@@ -230,3 +230,52 @@ clipboard bytes, fixture/hash/capture/action evidence, standalone resource repor
 workspace/gate logs, negative/corpus checks, architecture/full clone audit and
 source diff are retained. Broader grammar/corpus, indexing/PR/cache/reader/UI and
 final whole-app acceptance remain open; accessibility and sibling adoption deferred.
+
+## Kotlin file annotations and negated operators — 2026-11-02
+
+Comparing the native kotlin-ng adapter with the bundled Swift highlight query
+found missing file-annotation and negated-operator roles. `@file:JvmName(...)`
+and bare `@file:Marker` now receive annotation colors, and `!in`/`!is` receive
+keyword colors. Three patterns extend the existing Kotlin query; no additional
+parser, dependency, worker, palette or UI state.
+
+A native grammar probe also found that kotlin-ng's external `!is` token can
+report only the `is` byte range while consuming the adjacent bang. Native color
+capture preparation restores that one missing byte only when the grammar is
+Kotlin, node kind is `!is`, node source is exactly `is`, and the immediately
+preceding original byte is `!`. Source bytes and other structural ranges stay
+unchanged. The existing canonical capture/recolor path owns the adjustment.
+This does not repair the separate compact Kotlin member-separator grammar issue.
+
+The existing Kotlin role regression now checks both file-annotation forms,
+complete operator tokens, `as?`, and quoted operator text that must remain a
+string. Every token byte is checked in light/dark and LF/CRLF with Unicode source,
+clean parse facts and exact original source-span reconstruction. The old adapter
+fails on `JvmName`; annotation patterns alone fail on `!in`; adding operator
+patterns still fails on the omitted `!` of `!is`. Final correction passes.
+The shared recoloring assertion helper consolidates source identity, capture
+failure, exact-byte and appearance checks across the role matrix, Kotlin and
+large-comment regressions, removing the initially introduced setup clone.
+
+Final workspace: 574 app tests pass, seven ignored; two binary, four font, 13 text
+and 37 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff gates pass. A copied
+executable passes `--verify-resources` outside the checkout. Two native 1×/2×
+flows pass dark/light role pixels, exact CRLF/Unicode clipboard, unchanged
+fixture/binary hashes and zero exits. Recoloring occurs while the private source
+path is held aside, then restored byte-exactly. Representative dark/light captures
+visually confirm both annotations and complete operators. Pixel counts cover the
+source region; the unit regression supplies exact per-token role evidence.
+
+Architecture `before-kotlin-highlight-roles` at `10b1a58`: NEUTRAL, +31 NLOC,
+one shared test helper, no new hotspot/max-CCN/cycle, health approximately -0.01.
+All 91 clone groups remain unchanged by full normalized multiset audit. The
+initial duplicated recoloring setup was consolidated before final measurement.
+Requested SwiftUI/macOS/typography skills are still absent; existing type roles,
+colors and presentation reused.
+
+Archive: `~/.local/state/radiology-qa/kotlin-highlight-roles-20261102-10b1a58`.
+`accepted.json` selects both native v1 runs; original-byte copies, captures,
+role counts, fixture/source/binary hashes, action logs, grammar probe, negative
+and final logs, standalone resource report, architecture/clone audit and source
+diff are retained. Broader corpus/grammar and final whole-app parity remain open;
+full accessibility and actual sibling adoption remain deferred.
