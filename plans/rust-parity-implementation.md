@@ -8,6 +8,9 @@ remains the requirement ledger; completing an initial package does not close it.
 See also [indexing lifecycle](rust-indexing-parity.md) for background imports
 and the remaining generation/cache requirements.
 
+The [November 2 upstream delta](rust-upstream-parity-2026-11-02.md) extends that
+ledger to main `7edfc79`; its new capabilities remain required work.
+
 ## Current scope clarification (2026-10-30)
 
 The user explicitly excludes full accessibility for disabled users from the current

@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Upstream parity expansion](plans/rust-upstream-parity-2026-11-02.md) tracks the
+new main reference `7edfc79`: Code Paths, trait implementations, pane preferences,
+reader/file navigation, C/C++ fallback, indexing personalities/seL4 and shortcut help.
+These are required parity work, with existing Rust overlap explicitly identified.
+
 Exact search inputs are checkpointed for the upstream rebase: whitespace queries
 and globs now match Swift pass-through semantics. Targeted service/app checks pass;
 full/native validation remains pending. See the [search contract](plans/rust-repository-search.md#exact-search-inputs-checkpoint).
