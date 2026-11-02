@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Accepted navigation selection](rust-navigation-selection.md): old endpoint
+  selections now collapse at successful destinations, with later input retained;
+  cancellation/failure, Find, preview and appearance retain their selection policy.
+
+
 - [Source word/paragraph keys](rust-source-word-navigation.md): cooperative shared
   identifier/symbol navigation, logical paragraph edges and Shift extension use
   the ordered source path. EOF stability and accepted-source availability during

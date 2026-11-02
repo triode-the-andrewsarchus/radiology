@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-02 — Accepted navigation collapses old source selections (Codex)
+
+Successful source destinations now explicitly retire old viewport interaction and
+selection before publishing caret/reveal, replacing the scroll-target heuristic
+that retained selections at their old endpoints. Cancellation/failure retains the
+displayed selection/history; Find installs its own range, while preview/recolor
+and wrapping preserve selection. Three app regression matrices and two updated
+viewport navigation fixtures cover Unicode/CRLF, endpoint/reverse selection,
+1×/1.5×/2× with wrap on/off, history, fresh Shift/Select All and retained owners.
+Workspace: 614 app tests pass, seven ignored; two binary, 13 font, 19 text and
+40 doctests pass. Strict Clippy/check/rustdoc/build/fmt/diff and copied standalone
+resource verification pass. Rendered public method docs inspected. Native old
+controls at 1×/2× reproduce the defect; final v4 at each scale passes seven fresh
+exact copies and four verified empty-copy checks, plus appearance/wrap retention.
+Captures inspected, original fixture/binary hashes unchanged, final exits zero.
+Early v1-v3 harness attempts retained: screenshots replaced the clipboard with
+image/png; final checks read Copy before screenshot and verify every sentinel.
+Architecture NEUTRAL: +144 NLOC/four functions including tests, no new hotspot,
+cycle or clone group; all 109 groups retained, health -0.01. No Cargo changes.
+[Contract, evidence and architecture review](plans/rust-navigation-selection.md).
+Archive: ~/.local/state/radiology-qa/navigation-selection-20261102-523885d.
+Broader text bindings/selection, Unicode/UI text, typography/spacing and full Swift
+feature/corpus acceptance remain open. Accessibility/adoption remain deferred.
+
 ## 2026-11-02 — Cooperative source word/paragraph keys and recolor availability (Codex)
 
 Shared reader-text WordCursor visits one bounded projected fragment per advance;

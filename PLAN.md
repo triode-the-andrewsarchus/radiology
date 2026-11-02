@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Accepted navigation selection](plans/rust-navigation-selection.md) now clears old
+source selection at the successful navigation transaction, including old endpoints,
+while preserving failed/canceled requests, Find, previews and appearance changes.
+
+
 [Source word/paragraph keys](plans/rust-source-word-navigation.md) now add
 cooperative Unicode identifier/symbol movement and logical paragraph boundaries,
 with ordered selection/bookmark/Copy, EOF stability and native 1×/2× acceptance.

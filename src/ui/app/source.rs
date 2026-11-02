@@ -369,7 +369,7 @@ impl RadiologyApp {
         if intent.reveal {
             self.test_code.reveal_byte(buffer, byte);
         }
-        self.source_viewport.cancel_destination();
+        self.source_viewport.accept_navigation();
         if intent.flash_destination {
             self.source_viewport.flash_destination(buffer, byte);
         }

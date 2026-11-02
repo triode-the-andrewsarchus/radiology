@@ -194,6 +194,19 @@ impl SourceViewport {
         self.destination_frame = None;
     }
 
+    /// Retires source interaction when the host accepts an explicit navigation.
+    ///
+    /// Call before installing the destination caret/reveal. Reflow, appearance
+    /// updates and previews retain selection through their existing paths.
+    pub fn accept_navigation(&mut self) {
+        self.cancel_deferred_input();
+        self.cancel_destination();
+        self.selection = None;
+        self.preview = None;
+        self.pending_reveal = None;
+        self.hover.dismiss();
+    }
+
     pub(crate) fn top_byte(&self, buffer: &SourceBuffer) -> Option<usize> {
         if self.document.as_ref()
             != Some(&(
@@ -491,19 +504,6 @@ impl SourceViewport {
                     .byte_offset(*content.caret_line, *content.caret_col),
                 true,
             ));
-        }
-        // Retire only the old selection at an explicit navigation boundary.
-        // Later input and selection survive any remaining reveal/reflow work.
-        if content.target.is_some() {
-            let caret = content
-                .buffer
-                .byte_offset(*content.caret_line, *content.caret_col);
-            if self
-                .selection
-                .is_some_and(|selection| selection.focus != caret && selection.anchor != caret)
-            {
-                self.selection = None;
-            }
         }
         self.retire_input(ui, content, geometry);
         let (input_action, keyboard_reveal) = self.source_events(ui, content, geometry, scroll_y);
@@ -2757,12 +2757,13 @@ mod tests {
     }
 
     #[test]
-    fn navigation_retires_old_selection_before_accepting_new_selection() {
+    fn accepted_navigation_retires_old_selection_before_accepting_new_selection() {
         for select_all in [false, true] {
             let ctx = reader_context(1.0);
             let mut reader = Reader::new("first\nsecond\nthird");
             reader.frame(&ctx, vec![]);
             reader.viewport.select(0..3);
+            reader.viewport.accept_navigation();
             reader.line = 2;
             reader.column = 2;
             reader.target = Some(2);
@@ -3603,6 +3604,7 @@ mod tests {
                     reader.frame(&ctx, pointer(point, false));
                     assert_eq!(reader.column, expected);
                 }
+                reader.viewport.accept_navigation();
                 reader.column = 1;
                 reader.target = Some(1);
                 reader.frame(&ctx, Vec::new());

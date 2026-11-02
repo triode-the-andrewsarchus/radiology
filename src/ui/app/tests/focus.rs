@@ -19,6 +19,154 @@ fn frame(app: &mut RadiologyApp, ctx: &Context, events: Vec<Event>) -> egui::Ful
     frame_with_overlay(app, ctx, events, |_| {})
 }
 
+#[test]
+fn accepted_navigation_collapses_endpoint_selections_before_later_source_input() {
+    let text = "// café 1️⃣\r\n// second 👍🏽\r\n// last";
+    let first_end = text.find('\r').unwrap();
+    for scale in [1.0, 1.5, 2.0] {
+        let (_dir, mut app) = reader_with_source(text);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        frame(&mut app, &ctx, vec![]);
+        let buffer = app.open_buffer.clone().unwrap();
+        for wrap in [false, true] {
+            app.session.wrap_lines = wrap;
+            frame(&mut app, &ctx, vec![]);
+            for (anchor, focus) in [(0, first_end), (first_end, 0)] {
+                for (destination, extended) in [
+                    (0, "/"),
+                    (first_end, "\r\n"),
+                    (first_end + 2, "/"),
+                    (3, "c"),
+                ] {
+                    app.caret_line = buffer.line_at_byte(focus);
+                    app.caret_col = buffer.column_at_byte(focus);
+                    app.source_viewport.select(anchor..focus);
+                    app.navigate(buffer.location_at_byte(destination), true);
+                    assert!(Arc::ptr_eq(&buffer, app.open_buffer.as_ref().unwrap()));
+                    app.source_viewport.request_focus(&ctx);
+                    let output = frame(&mut app, &ctx, vec![Event::Copy]);
+                    assert!(
+                        output.platform_output.copied_text.is_empty(),
+                        "stale selection at {destination}, {anchor}..{focus}, scale={scale}"
+                    );
+                    assert_eq!(
+                        buffer.byte_offset(app.caret_line, app.caret_col),
+                        destination
+                    );
+                    let output = frame(
+                        &mut app,
+                        &ctx,
+                        vec![key(Key::ArrowRight, Modifiers::SHIFT), Event::Copy],
+                    );
+                    assert_eq!(output.platform_output.copied_text, extended);
+                    app.navigate(buffer.location_at_byte(destination), true);
+                    let output = frame(
+                        &mut app,
+                        &ctx,
+                        vec![key(Key::A, Modifiers::CTRL), Event::Copy],
+                    );
+                    assert_eq!(output.platform_output.copied_text, text);
+                    assert_eq!(
+                        frame(&mut app, &ctx, vec![Event::Copy])
+                            .platform_output
+                            .copied_text,
+                        text
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn canceled_and_failed_navigation_keep_the_displayed_selection_and_history() {
+    let (_dir, mut app) = reader_with_source("// café 1️⃣\r\n// second\r\n");
+    let ctx = Context::default();
+    frame(&mut app, &ctx, vec![]);
+    let buffer = app.open_buffer.clone().unwrap();
+    let selected = buffer.line_byte_range(1);
+    app.source_viewport.select(selected.clone());
+    app.caret_line = buffer.line_at_byte(selected.end);
+    app.caret_col = buffer.column_at_byte(selected.end);
+    app.source_viewport.request_focus(&ctx);
+    let departure = (app.caret_line, app.caret_col);
+    let history = app.history.current().cloned();
+    app.execute_command(&ctx, ToolbarAction::ReloadSource);
+    assert!(app.pending_navigation.is_some());
+    app.cancel_source_load();
+    assert_eq!(
+        frame(&mut app, &ctx, vec![Event::Copy])
+            .platform_output
+            .copied_text,
+        buffer.text[selected.clone()]
+    );
+    app.open_file("missing.rs");
+    settle(&mut app);
+    assert!(app.error.is_some());
+    let output = frame(&mut app, &ctx, vec![Event::Copy]);
+    assert_eq!(output.platform_output.copied_text, buffer.text[selected]);
+    assert!(Arc::ptr_eq(&buffer, app.open_buffer.as_ref().unwrap()));
+    assert_eq!((app.caret_line, app.caret_col), departure);
+    assert_eq!(app.history.current(), history.as_ref());
+}
+
+#[test]
+fn history_destinations_collapse_selection_but_find_and_preview_keep_their_ranges() {
+    let (_dir, mut app) = reader_with_source("// café 1️⃣\r\n// second café\r\n");
+    let ctx = Context::default();
+    frame(&mut app, &ctx, vec![]);
+    let buffer = app.open_buffer.clone().unwrap();
+    let start = buffer.text.find("café").unwrap();
+    let end = buffer.line_byte_range(1).end;
+    app.navigate(buffer.location_at_byte(start), true);
+    app.navigate(buffer.location_at_byte(end), true);
+    for (command, expected) in [
+        (ToolbarAction::NavigateBack, start),
+        (ToolbarAction::NavigateForward, end),
+    ] {
+        app.source_viewport.select(start..end);
+        app.execute_command(&ctx, command);
+        app.source_viewport.request_focus(&ctx);
+        assert_eq!(
+            frame(&mut app, &ctx, vec![Event::Copy])
+                .platform_output
+                .copied_text,
+            ""
+        );
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), expected);
+    }
+    app.source_find.search.options.query = "café".into();
+    app.source_find.open();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while app.source_find.active_range.is_none() {
+        frame(&mut app, &ctx, vec![]);
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let range = app.source_find.active_range.clone().unwrap();
+    app.source_viewport.request_focus(&ctx);
+    frame(&mut app, &ctx, vec![]);
+    assert!(app.source_viewport.has_focus(&ctx));
+    assert_eq!(
+        frame(&mut app, &ctx, vec![Event::Copy])
+            .platform_output
+            .copied_text,
+        buffer.text[range.clone()]
+    );
+    app.source_viewport
+        .preview_byte(&buffer, buffer.line_byte_range(2).start);
+    app.queue_rehighlight();
+    settle(&mut app);
+    for _ in 0..3 {
+        let output = frame(&mut app, &ctx, vec![Event::Copy]);
+        assert_eq!(
+            output.platform_output.copied_text,
+            buffer.text[range.clone()]
+        );
+    }
+}
+
 fn frame_with_overlay(
     app: &mut RadiologyApp,
     ctx: &Context,
