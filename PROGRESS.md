@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-01 — Preserve fresh selections while navigation reveal settles (Codex)
+
+Native GDB confirms the pending reveal's committed flag clears a newer Select All
+between keys; Copy then receives None despite retained source ownership. Old
+selection retirement now occurs before source input at an explicit navigation
+boundary. New selections survive ongoing measurement/reflow, and stale old ranges
+still retire. The redundant committed boolean is removed from reveal state and
+target resolution. Existing final-offset/paint guards and budgets remain intact.
+No new state/cache/worker/dependency/API. Both regressions fail before and pass
+after: 780,019-byte Unicode/CRLF Select All survives settling at 1×/1.5×/2×,
+and same-frame navigation clears old selection while accepting a new one.
+Workspace passes 537 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Architecture NEUTRAL:
++52 NLOC including tests, no new hotspot/cycle/clone/max-CCN increase, one fewer
+persistent flag. Fresh unprofiled 1×/2× flows now copy all 6,291,502 accepted bytes
+after the anchor error while disk bytes differ, with unchanged 366-byte bookmark
+record and exact unchanged-source return. Captures, final binary/config/fixture
+hashes, restored disk edits and zero exits verified. Fixed 700 ms checkpoints
+initially captured Opening; those trials are retained and excluded. Final QA
+observes Error before sending a single Copy sequence, with no post-error delay,
+retry keys or debugger. The prior root-cause trace remains in the preceding
+bounded-bookmark evidence archive. Broader reader/input/performance, bookmark
+error-region, language/index/PR/cache/corpus and final Swift UI/standalone/reuse
+acceptance remain open. Full accessibility and actual sibling integration deferred.
+[Contract/evidence](plans/rust-reader-performance.md#retire-old-selection-before-new-input-not-during-reveal-settling--2026-11-01).
+Archive: ~/.local/state/radiology-qa/reveal-selection-20261101-e1cb410.
+
 ## 2026-11-01 — Bound bookmark anchors and cancel relocation scans (Codex)
 
 Creation now omits anchor/context lines over the existing 2,000-byte limit.

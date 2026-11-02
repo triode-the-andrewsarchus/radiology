@@ -238,3 +238,13 @@ Evidence: `~/.local/state/radiology-qa/bounded-bookmark-20261101-8918bfb`.
 Broader reader timing/interaction, bookmark-region diagnostics, grammar/index/PR/
 cache corpus and final Swift UI/standalone/reuse acceptance remain open. Full
 accessibility and actual sibling integration remain deferred.
+
+
+## Selection-lifecycle follow-up — 2026-11-01
+
+The 1× Copy failure above is now repaired at the source navigation boundary.
+Old selections retire before new input; pending reveal settling no longer clears
+a later Select All. The redundant committed flag is removed. Both failing
+regressions and complete unprofiled 1×/2× source/error/copy flows now pass, including
+all 6,291,502 original bytes while disk bytes differ.
+[Implementation, tests, native evidence and limits](rust-reader-performance.md#retire-old-selection-before-new-input-not-during-reveal-settling--2026-11-01).

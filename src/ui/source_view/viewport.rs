@@ -51,7 +51,7 @@ pub struct SourceViewport {
     pointer: PointerCapture,
     menu_request: Option<egui::Pos2>,
     context_byte: Option<usize>,
-    pending_reveal: Option<(usize, bool, bool)>,
+    pending_reveal: Option<(usize, bool)>,
     test_generation: u64,
     hover: crate::critical::hover::CriticalHover,
     hover_popup: crate::ui::critical_hover::HoverPopup,
@@ -421,7 +421,7 @@ impl SourceViewport {
         None
     }
 
-    fn reveal_target(&mut self, content: &mut CanvasContent<'_>) -> Option<(usize, bool)> {
+    fn reveal_target(&mut self, content: &mut CanvasContent<'_>) -> Option<usize> {
         let preview = self.preview.take().filter(|(key, digest, _)| {
             key == &content.buffer.position_key() && digest == content.buffer.content_digest()
         });
@@ -432,14 +432,13 @@ impl SourceViewport {
                 let caret = content
                     .buffer
                     .byte_offset(*content.caret_line, *content.caret_col);
-                let byte = if content.buffer.line_at_byte(caret) == line {
+                if content.buffer.line_at_byte(caret) == line {
                     caret
                 } else {
                     content.buffer.byte_offset(line, 0)
-                };
-                (byte, true)
+                }
             })
-            .or_else(|| preview.map(|(_, _, byte)| (byte, false)))
+            .or_else(|| preview.map(|(_, _, byte)| byte))
     }
 
     fn prepare(
@@ -466,13 +465,13 @@ impl SourceViewport {
         self.prepare_horizontal(content, geometry, ui.ctx().pixels_per_point());
         // A provisional reveal is anchored to source, not to the estimated
         // document width. Rebase before capturing pointer input as prefixes refine.
-        let reveal_origin =
-            self.pending_reveal
-                .filter(|_| !content.wrap)
-                .and_then(|(byte, _, _)| {
-                    self.row_for_byte(byte)
-                        .map(|(row, _)| (row, self.fragment_x(row, false)))
-                });
+        let reveal_origin = self
+            .pending_reveal
+            .filter(|_| !content.wrap)
+            .and_then(|(byte, _)| {
+                self.row_for_byte(byte)
+                    .map(|(row, _)| (row, self.fragment_x(row, false)))
+            });
         self.measure(ui, content, geometry);
         if let Some((row, old_x)) = reveal_origin {
             self.scroll_x = (self.scroll_x + (self.fragment_x(row, false) - old_x)).max(0.0);
@@ -489,8 +488,20 @@ impl SourceViewport {
                     .buffer
                     .byte_offset(*content.caret_line, *content.caret_col),
                 true,
-                true,
             ));
+        }
+        // Retire only the old selection at an explicit navigation boundary.
+        // Later input and selection survive any remaining reveal/reflow work.
+        if content.target.is_some() {
+            let caret = content
+                .buffer
+                .byte_offset(*content.caret_line, *content.caret_col);
+            if self
+                .selection
+                .is_some_and(|selection| selection.focus != caret && selection.anchor != caret)
+            {
+                self.selection = None;
+            }
         }
         self.retire_input(ui, content, geometry);
         let (input_action, keyboard_reveal) = self.source_events(ui, content, geometry, scroll_y);
@@ -513,10 +524,10 @@ impl SourceViewport {
         mut scroll_y: f32,
         keyboard_reveal: bool,
     ) -> f32 {
-        if let Some((byte, committed)) = self.reveal_target(content) {
-            self.pending_reveal = Some((byte, committed, keyboard_reveal));
+        if let Some(byte) = self.reveal_target(content) {
+            self.pending_reveal = Some((byte, keyboard_reveal));
         }
-        if let Some((byte, committed, keyboard_reveal)) = self.pending_reveal {
+        if let Some((byte, keyboard_reveal)) = self.pending_reveal {
             let rect = self.caret_rect(
                 ui,
                 content,
@@ -543,18 +554,6 @@ impl SourceViewport {
             // Visible-row layouts may still change heights before this byte.
             // Completion requires visible painting and an accepted final offset.
             ui.ctx().request_repaint();
-            // A navigation destination retires an unrelated selection, including a
-            // stale match. Find calls select after document synchronization below.
-            let caret = content
-                .buffer
-                .byte_offset(*content.caret_line, *content.caret_col);
-            if committed
-                && self
-                    .selection
-                    .is_some_and(|selection| selection.focus != caret && selection.anchor != caret)
-            {
-                self.selection = None;
-            }
         }
         scroll_y
     }
@@ -663,7 +662,7 @@ impl SourceViewport {
         clip: Rect,
         content: &CanvasContent<'_>,
     ) -> bool {
-        let Some((byte, _, _)) = self.pending_reveal else {
+        let Some((byte, _)) = self.pending_reveal else {
             return false;
         };
         if self
@@ -1028,7 +1027,6 @@ impl SourceViewport {
                     .buffer
                     .byte_offset(*content.caret_line, *content.caret_col),
                 true,
-                true,
             ));
         }
         self.layout_key = Some(key);
@@ -1093,7 +1091,7 @@ impl SourceViewport {
         let wrapped_target = self
             .pending_reveal
             .filter(|_| content.wrap)
-            .and_then(|(byte, _, _)| self.row_for_byte(byte).map(|(row, _)| (byte, row)));
+            .and_then(|(byte, _)| self.row_for_byte(byte).map(|(row, _)| (byte, row)));
         let mut lookbehind = wrapped_target.map(|(_, row)| row);
         let mut covered = 0.0;
         let started = std::time::Instant::now();
@@ -2634,6 +2632,62 @@ mod tests {
             .fragments
             .iter()
             .all(|part| part.visible_len() <= FRAGMENT_BYTES));
+    }
+
+    #[test]
+    fn select_all_survives_pending_reveal_and_layout_settling() {
+        for scale in [1.0, 1.5, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = deferred_unicode_reader(&ctx, "next é🦀");
+            reader.frame(&ctx, vec![key(Key::End, Modifiers::NONE)]);
+            assert!(reader.viewport.pending_reveal.is_some());
+            reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
+            for _ in 0..8 {
+                assert_eq!(
+                    reader.viewport.selection.map(|selection| selection.range()),
+                    Some(0..reader.source.byte_len()),
+                    "scale={scale}"
+                );
+                reader.frame(&ctx, vec![]);
+            }
+            let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+            assert_eq!(output.platform_output.copied_text, reader.source.text);
+        }
+    }
+
+    #[test]
+    fn navigation_retires_old_selection_before_accepting_new_selection() {
+        for select_all in [false, true] {
+            let ctx = reader_context(1.0);
+            let mut reader = Reader::new("first\nsecond\nthird");
+            reader.frame(&ctx, vec![]);
+            reader.viewport.select(0..3);
+            reader.line = 2;
+            reader.column = 2;
+            reader.target = Some(2);
+            reader.frame(
+                &ctx,
+                if select_all {
+                    vec![key(Key::A, Modifiers::CTRL)]
+                } else {
+                    vec![]
+                },
+            );
+            let expected = select_all.then_some(0..reader.source.byte_len());
+            assert_eq!(
+                reader.viewport.selection.map(|selection| selection.range()),
+                expected
+            );
+            let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+            assert_eq!(
+                output.platform_output.copied_text,
+                if select_all {
+                    reader.source.text.as_str()
+                } else {
+                    ""
+                }
+            );
+        }
     }
 
     fn wrapped_tail_reader(ctx: &egui::Context, tail_repeats: usize) -> Reader {

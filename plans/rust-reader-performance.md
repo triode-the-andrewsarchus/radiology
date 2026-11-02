@@ -318,3 +318,52 @@ performance, final Swift parity and standalone/reuse acceptance remain open.
 Full accessibility and actual sibling adoption remain deferred.
 
 Evidence: `~/.local/state/radiology-qa/wrapped-measurement-priority-20261031-deb2a4b`.
+
+
+## Retire old selection before new input, not during reveal settling — 2026-11-01
+
+The bounded-bookmark native round at e1cb410 reveals a selection-lifecycle defect
+independent of relocation correctness. Two 1× runs show the expected changed-source
+anchor error, but immediate Select All/Copy leaves the fresh clipboard sentinel.
+A delayed GDB run succeeds. A second native trace attached before the error
+transition reproduces failure: source input remains owned, but Copy receives
+selection None. The retained reveal's committed flag clears the new Select All
+range because neither endpoint equals the old caret. Repeated reveal/reflow work
+must not act as a fresh navigation intent.
+
+Selection retirement now runs once for an explicit content.target, before source
+input is processed. It still clears an unrelated old selection, while new input
+in that frame and later frames survives geometry settling. Resize/zoom refinement
+and previews no longer carry a committed-selection-retirement flag. That boolean
+is removed from pending_reveal and reveal_target; the existing byte/alignment
+state, post-paint/final-offset completion checks and measurement budgets remain.
+No new state/cache/worker/dependency/public API or new selection model.
+
+Both new tests fail before the repair. A 780,019-byte Unicode/CRLF fixture with
+an unmeasured prefix at 1×/1.5×/2× retains Select All across multiple settling
+frames and copies all original bytes. A separate navigation test clears the old
+range but retains a fresh Select All from the same frame. Existing selection,
+find, deferred source/command, reflow, pointer, history and modal checks pass.
+Workspace passes 537 app tests (seven existing ignored), two binary, four font,
+13 reader-text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture baseline before-reveal-selection-retirement compares NEUTRAL:
++52 NLOC including two tests, no new clone/hotspot/cycle/max-CCN increase, and one
+less persistent boolean. All 91 clone groups remain unchanged.
+
+Fresh unprofiled native 1×/2× runs now copy all 6,291,502 accepted source bytes
+immediately after observing the bookmark anchor error, while the private disk
+fixture still has a different digest. The 366-byte bookmark record is unchanged;
+original-byte bookmark return also passes. Controlled disk edits are restored,
+with original/modified/restored hashes recorded. Captures inspected, matching final
+binary hashes and all zero child exits verified. Initial captures caught Opening
+instead of Error at a fixed 700 ms checkpoint; those validation trials are retained
+and excluded. Final QA observes the actual async error state, then sends one
+Select All/Copy sequence without retry keys, debugger or a post-error settling wait.
+This establishes this interaction, not a release or statistical latency guarantee.
+
+Evidence: `~/.local/state/radiology-qa/reveal-selection-20261101-e1cb410`.
+Original failure and GDB trace:
+`~/.local/state/radiology-qa/bounded-bookmark-20261101-8918bfb`.
+Broader reader/input/performance corpus, bookmark-region diagnostics, grammar/index,
+PR/cache and final Swift UI/standalone/reuse acceptance remain open. Full
+accessibility and actual sibling adoption remain deferred.
