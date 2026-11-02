@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-02 — Current-function x and committed destination expansion (Codex)
+
+Ported upstream named-function folding with existing syntax breadcrumbs, exact body
+folds and ordered source input. Source-only x ignores repeats/modifiers/composition
+and leaves field typing untouched. Hidden-parent regression first failed, then
+passes: x reveals an already expanded inner function instead of hiding its body.
+Committed jumps open the destination body plus ancestors; previews, recoloring and
+manual folds retain their policies. Added View action and shared documented lookup.
+Five inherited tests updated for deliberate header/file visit expansion while
+retaining failure/reload/recolor/PR/copy invariants. No new dependency/worker/parser.
+Final workspace: 644 app tests, seven existing ignored; two binary, 13 font, 21 text,
+44 doctests and strict gates pass. Native old/new 1×/2× confirms x/symbol-jump parity,
+sibling preservation, light appearance and exact 148-byte Unicode/CRLF Copy. Final
+hashes unchanged and all children exit zero; captures inspected. Harness corrected
+line-start whitespace assumption by using actual Go to Symbol name destinations.
+Architecture +207 NLOC/six functions; files/avg/max/hotspots/cycles unchanged. All
+125 normalized clone groups unchanged; default REGRESSION flags shifted old rows.
+[Contract/review](plans/rust-current-function-fold.md). Evidence:
+~/.local/state/radiology-qa/current-function-fold-20261102-ccffad5.
+Next: Files reveal/filter exception parity, then remaining upstream feature ledger.
+Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-02 — Exact search acceptance complete (Codex)
 
 Post-rebase full workspace, 43 doctests and six strict gates pass. Native 1×/2×

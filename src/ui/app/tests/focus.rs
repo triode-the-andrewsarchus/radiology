@@ -1109,10 +1109,7 @@ fn first_file_modal_keeps_canvas_focus_while_loading_without_stealing_later_find
         &ctx,
         vec![key(Key::End, Modifiers::SHIFT), Event::Copy],
     );
-    assert_eq!(
-        output.platform_output.copied_text,
-        "fn alpha() {\n    let café = 1;\n}"
-    );
+    assert_eq!(output.platform_output.copied_text, "fn alpha() {");
     frame(&mut app, &ctx, vec![key(Key::F, Modifiers::CTRL)]);
     let query_focus = ctx.memory(|memory| memory.focused()).unwrap();
     app.open_file("b.rs");
@@ -1506,5 +1503,99 @@ fn indexed_commands_after_a_source_click_resolve_the_clicked_symbol_and_history(
                 );
             }
         }
+    }
+}
+
+#[test]
+fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_bodies() {
+    let text = "fn outer() {\n fn inner() {\n  work();\n }\n}\nfn sibling() {\n other();\n}\n";
+    for scale in [1.0, 2.0] {
+        let (_dir, mut app, ctx) = scaled_reader(text, scale);
+        let buffer = app.open_buffer.clone().unwrap();
+        let inner = text.find("fn inner").unwrap();
+        let body = crate::syntax::folds::enclosing_function_fold(
+            inner,
+            &app.outline_symbols,
+            &app.fold_ranges,
+        )
+        .unwrap()
+        .byte_range
+        .clone();
+        app.caret_line = buffer.line_at_byte(inner);
+        app.caret_col = buffer.column_at_byte(inner);
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![]);
+        let history = format!("{:?}", app.history);
+        frame(
+            &mut app,
+            &ctx,
+            vec![key(Key::X, Modifiers::NONE), Event::Text("x".into())],
+        );
+        assert!(!app.fold_store.is_folded(&body));
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), inner);
+        assert_eq!(format!("{:?}", app.history), history);
+        let outer = crate::syntax::folds::enclosing_function_fold(
+            0,
+            &app.outline_symbols,
+            &app.fold_ranges,
+        )
+        .unwrap()
+        .byte_range
+        .clone();
+        app.fold_store.toggle(outer.clone());
+        frame(&mut app, &ctx, vec![key(Key::X, Modifiers::NONE)]);
+        assert!(!app.fold_store.is_folded(&outer));
+        assert!(!app.fold_store.is_folded(&body));
+        let mut repeat = key(Key::X, Modifiers::NONE);
+        if let Event::Key { repeat: value, .. } = &mut repeat {
+            *value = true;
+        }
+        frame(&mut app, &ctx, vec![repeat]);
+        assert!(!app.fold_store.is_folded(&body));
+        frame(&mut app, &ctx, vec![key(Key::X, Modifiers::SHIFT)]);
+        assert!(!app.fold_store.is_folded(&body));
+        frame(
+            &mut app,
+            &ctx,
+            vec![Event::CompositionStart, key(Key::X, Modifiers::NONE)],
+        );
+        frame(&mut app, &ctx, vec![key(Key::X, Modifiers::NONE)]);
+        assert!(!app.fold_store.is_folded(&body));
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                Event::CompositionEnd("x".into()),
+                key(Key::X, Modifiers::NONE),
+            ],
+        );
+        assert!(app.fold_store.is_folded(&body));
+        frame(&mut app, &ctx, vec![]);
+        assert!(app.fold_store.is_folded(&body));
+        app.queue_rehighlight();
+        settle(&mut app);
+        assert!(app.fold_store.is_folded(&body));
+        app.navigate(buffer.location_at_byte(inner), true);
+        settle(&mut app);
+        assert!(!app.fold_store.is_folded(&body));
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), inner);
+        let sibling = text.find("fn sibling").unwrap();
+        let other = crate::syntax::folds::enclosing_function_fold(
+            sibling,
+            &app.outline_symbols,
+            &app.fold_ranges,
+        )
+        .unwrap();
+        assert!(app.fold_store.is_folded(&other.byte_range));
+        app.execute_command(&ctx, ToolbarAction::OpenSearch);
+        frame(&mut app, &ctx, vec![]);
+        let folds = app.fold_store.folded_ranges.clone();
+        frame(
+            &mut app,
+            &ctx,
+            vec![key(Key::X, Modifiers::NONE), Event::Text("x".into())],
+        );
+        assert_eq!(app.search_options.query, "x");
+        assert_eq!(app.fold_store.folded_ranges, folds);
     }
 }

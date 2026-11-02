@@ -71,6 +71,44 @@ impl FoldRange {
     }
 }
 
+/// Returns the innermost named callable's own body at an original source byte.
+///
+/// Anonymous closures, default arguments and nested declarations cannot substitute
+/// for that callable's body. A declaration without a multiline body returns `None`.
+///
+/// # Examples
+///
+/// ```
+/// use radiology::{source::SourceBuffer, syntax::{DocumentSyntax, folds::enclosing_function_fold}};
+/// let source = SourceBuffer::from_str("a.rs", "fn read() {\n work();\n}\n");
+/// let syntax = DocumentSyntax::analyze(&source);
+/// let body = enclosing_function_fold(3, &syntax.symbols, &syntax.folds).unwrap();
+/// assert_eq!(&source.text[body.byte_range.clone()], "{\n work();\n}");
+/// ```
+#[must_use]
+pub fn enclosing_function_fold<'a>(
+    byte: usize,
+    symbols: &[super::DocumentSymbol],
+    folds: &'a [FoldRange],
+) -> Option<&'a FoldRange> {
+    let mut enclosing = Vec::new();
+    for symbol in symbols {
+        symbol.breadcrumbs(byte, &mut enclosing);
+    }
+    let function = enclosing
+        .iter()
+        .filter(|symbol| symbol.is_callable())
+        .min_by_key(|symbol| symbol.range.len())?;
+    folds
+        .iter()
+        .filter(|fold| {
+            fold.kind == FoldKind::Callable
+                && fold.byte_range.start >= function.selection_range.end
+                && fold.byte_range.end == function.range.end
+        })
+        .min_by_key(|fold| fold.byte_range.start)
+}
+
 /// Stores the set of active collapsed source-byte ranges.
 ///
 /// # Examples
@@ -353,5 +391,28 @@ fn single_line() {}
             store.collapsed_headers(&ranges).is_empty(),
             "old-byte choices were invalidated"
         );
+    }
+}
+
+#[cfg(test)]
+mod current_function_tests {
+    use super::*;
+
+    #[test]
+    fn named_function_body_excludes_nested_closures_and_container_gaps() {
+        let text = "impl A {\n fn outer() {\n  let closure = || {\n   run();\n  };\n  fn inner() {\n   inner_work();\n  }\n }\n // between\n fn other() {}\n}\n";
+        let buffer = SourceBuffer::from_str("a.rs", text);
+        let syntax = super::super::DocumentSyntax::analyze(&buffer);
+        let find = |needle| {
+            enclosing_function_fold(text.find(needle).unwrap(), &syntax.symbols, &syntax.folds)
+        };
+        let outer = find("outer").unwrap();
+        assert_eq!(find("run()").unwrap().byte_range, outer.byte_range);
+        let inner = find("inner_work").unwrap();
+        assert_ne!(inner.byte_range, outer.byte_range);
+        assert_eq!(find("fn inner").unwrap().byte_range, inner.byte_range);
+        assert!(find("// between").is_none());
+        assert!(find("other").is_none());
+        assert!(enclosing_function_fold(text.len(), &syntax.symbols, &syntax.folds).is_none());
     }
 }

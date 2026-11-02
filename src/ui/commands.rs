@@ -93,6 +93,8 @@ pub enum ReaderCommand {
     FindReferences,
     /// Collapses function bodies in the current document.
     CollapseFunctions,
+    /// Toggles the named function owning the source caret.
+    ToggleCurrentFunction,
     /// Folds declarations in the current document.
     FoldToDefinitions,
     /// Switches to the other available review revision.
@@ -154,6 +156,12 @@ pub(crate) fn shortcut_event(
 
 /// Resolves commands that must observe preceding source caret/selection input.
 pub(crate) fn source_command(event: &Event) -> Option<ReaderCommand> {
+    if matches!(event, Event::Key {
+        key: Key::X, pressed: true, repeat: false, modifiers, ..
+    } if modifiers.is_none())
+    {
+        return Some(ReaderCommand::ToggleCurrentFunction);
+    }
     shortcut_event(event, false, false).filter(|command| {
         matches!(
             command,

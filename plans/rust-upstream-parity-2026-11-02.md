@@ -15,7 +15,7 @@ rebase does not mean the Rust app implements the new Swift capabilities.
 
 | Priority | Capability and Swift contract | Current Rust assessment / acceptance work |
 | --- | --- | --- |
-| 1 | Current-function folding: unmodified source-focused x toggles the innermost named function, no repeats/IME/field interception. Committed jumps expand its body and ancestors, including late syntax; previews and refreshes preserve manual folds. | Global fold commands and reveal mechanisms exist, but no x binding was found. Extend existing syntax/fold/navigation contracts; verify checkout/Before/After, nested functions, late syntax, exact caret/history and composition ownership. [Reference](function-fold-key.md). |
+| 1 | Current-function folding: unmodified source-focused x toggles the innermost named function, no repeats/IME/field interception. Committed jumps expand its body and ancestors, including late syntax; previews and refreshes preserve manual folds. | [Ported](rust-current-function-fold.md): source x, named-body targeting, hidden-parent recovery and committed destination expansion reuse syntax/fold/navigation. Full app/workspace, native 1×/2× and composition/repeat/rehighlight checks pass. [Reference](function-fold-key.md). |
 | 1 | Files tracks committed navigation: expand ancestors, highlight and center current file, explicit same-file jump recenters, ordinary caret motion retains manual scroll. Temporarily reveal the active document even when filters/listing exclude it, including Before-only paths. | Rust has Files filters/tree and currently reports excluded open files. Audit/reuse tree and source navigation state rather than create another file model. Preserve query/filters/canonical destinations and ensure selection synchronization never reopens source. [Reference](files-sidebar-navigation.md). |
 | 2 | Configurable Context panes: persistent References, Definition/Outline, Trait Implementations and Bookmarks choices; Show All recovery; enabled panes reclaim space; enabling from View reopens hidden inspector without resetting state. | Whole-inspector visibility exists; independent pane configuration and trait-dependent middle slot need implementation/audit. Keep one preferences model and current scroll/selection ownership. [Reference](inspector-pane-controls.md). |
 | 2 | Rust trait implementations: semantic trait identity at caret/enclosing trait/impl, grouped source rows, positive/negative counts, coverage gaps, stable selection and guarded exact navigation. | SCIP relationship decoding exists, but no trait catalog, worker or pane was found. Reuse semantic identities, syntax and cancellable reads. Port the new real SCIP fixture and context tests; never infer completeness from missing rows. [Reference](rust-trait-implementations.md). |
@@ -27,8 +27,9 @@ rebase does not mean the Rust app implements the new Swift capabilities.
 
 ## Execution and validation
 
-Finish the checkpointed exact-search full/native acceptance first, then implement
-priorities above in coherent commits, pushing each. Establish architecture baselines
+Exact-search full/native acceptance and current-function folding are complete.
+Next implement Files navigation/reveal, then the remaining priorities above in
+coherent commits, pushing each. Establish architecture baselines
 and search reuse before new mechanisms; compare afterward. Keep standalone builds
 and shared reader APIs suitable for later little-screen-clip adoption; no sibling
 integration is authorized by this update. Use new Swift tests as behavioral oracles,

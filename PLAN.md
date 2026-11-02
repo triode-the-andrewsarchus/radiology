@@ -4,6 +4,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Current-function folding](plans/rust-current-function-fold.md) adds source-local x
+and opens destination bodies on committed jumps. App/native 1×/2×, strict gates,
+44 doctests and full workspace checks pass.
+
 [Upstream parity expansion](plans/rust-upstream-parity-2026-11-02.md) tracks the
 new main reference `7edfc79`: Code Paths, trait implementations, pane preferences,
 reader/file navigation, C/C++ fallback, indexing personalities/seL4 and shortcut help.

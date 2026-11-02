@@ -294,6 +294,10 @@ fn view_items(
     items.push(Item::separator());
     for (label, action) in [
         (
+            "Toggle Current Function (x in source)",
+            ToolbarAction::ToggleCurrentFunction,
+        ),
+        (
             "Fold to Definitions (Ctrl+Alt+0)",
             ToolbarAction::FoldToDefinitions,
         ),

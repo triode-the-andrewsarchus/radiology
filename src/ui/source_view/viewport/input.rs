@@ -59,8 +59,27 @@ impl PointerCapture {
 }
 
 impl SourceViewport {
+    fn source_keyboard_event(&mut self, event: &Event, focused: bool) -> Option<SourceInput> {
+        if !focused {
+            self.composing = false;
+            return None;
+        }
+        match event {
+            Event::CompositionStart | Event::CompositionUpdate(_) => {
+                self.composing = true;
+                None
+            }
+            Event::CompositionEnd(_) => {
+                self.composing = false;
+                None
+            }
+            _ => (!self.composing).then(|| source_input(event)).flatten(),
+        }
+    }
+
     pub(crate) fn cancel_deferred_input(&mut self) {
         self.pending_input.clear();
+        self.composing = false;
         self.word_navigation = None;
         self.word_selection = None;
         self.selection_gesture = None;
@@ -158,7 +177,7 @@ impl SourceViewport {
                         crate::ui::context_menu::owned_key(event)
                             .map(|(key, modifiers)| SourceInput::MenuKey(key, modifiers))
                     } else {
-                        focused.then(|| source_input(event)).flatten()
+                        self.source_keyboard_event(event, focused)
                     }
                 })
             })

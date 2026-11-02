@@ -377,6 +377,15 @@ impl RadiologyApp {
         self.caret_col = buffer.column_at_byte(byte);
         self.scroll_to_line = Some(self.caret_line);
         self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
+        if intent.record_history || intent.history_step.is_some() {
+            if let Some(fold) = crate::syntax::folds::enclosing_function_fold(
+                byte,
+                &self.outline_symbols,
+                &self.fold_ranges,
+            ) {
+                self.fold_store.folded_ranges.remove(&fold.byte_range);
+            }
+        }
         if intent.record_history {
             self.history.visit(location);
         }

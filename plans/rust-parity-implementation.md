@@ -27,6 +27,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Current-function folding](rust-current-function-fold.md): source-local x, exact
+  named-body targeting, hidden-parent expansion, composition/repeat ownership and
+  body expansion on committed navigation. Full workspace, native 1×/2×, strict
+  gates and 44 doctests pass.
+
 - [Repository search presentation](rust-repository-search.md): option edits retire
   stale rows/errors immediately; scheduled work exposes Stop/progress; explicit
   submission/cancel takes precedence. Empty/error/recovery messages and bounded,

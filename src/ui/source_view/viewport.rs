@@ -44,6 +44,7 @@ pub struct SourceViewport {
     anchor_after_reset: Option<usize>,
     selection: Option<ByteSelection>,
     dragging: bool,
+    composing: bool,
     unwrapped: UnwrappedRows,
     layout_key: Option<(FontId, f32, f32)>,
     measurement_priority: Option<usize>,

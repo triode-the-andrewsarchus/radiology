@@ -141,6 +141,7 @@ fn cross_file_navigation_preserves_departure_column_without_file_start_stop() {
 #[test]
 fn navigation_reveals_fold_and_failed_open_preserves_current_document() {
     let (_dir, mut app) = opened_repository();
+    app.fold_store.collapse_all_functions(&app.fold_ranges);
     assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
     app.jump_to_location("a.rs", 2, 0);
     settle(&mut app);
@@ -540,7 +541,7 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
         .recolor(&buffer, false, || false)
         .unwrap();
     assert_eq!(app.highlighted_lines, expected);
-    assert!(app.fold_store.is_header_folded(1, &app.fold_ranges));
+    assert!(!app.fold_store.is_header_folded(1, &app.fold_ranges));
     app.fold_store.toggle_header(1, &app.fold_ranges);
     let location = app.history.current().cloned();
     std::fs::remove_file(dir.path().join("b.rs")).unwrap();
@@ -553,8 +554,8 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
         retained.recolor(&buffer, true, || false).unwrap()
     );
     assert!(
-        !app.fold_store.is_header_folded(1, &app.fold_ranges),
-        "theme recolor must preserve explicit expansion"
+        app.fold_store.is_header_folded(1, &app.fold_ranges),
+        "theme recolor must preserve explicit collapse"
     );
     assert_eq!(app.history.current(), location.as_ref());
     assert!(app.error.is_none());
@@ -1398,22 +1399,22 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     std::fs::write(root.join("a.rs"), text).unwrap();
     app.open_repository(&root);
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
     app.open_file("b.rs");
     settle(&mut app);
-    assert_folded_headers(&app, &[1]);
+    assert_folded_headers(&app, &[]);
     app.fold_store.toggle_header(1, &app.fold_ranges);
     app.open_file("a.rs");
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
     let source = app.open_buffer.clone().unwrap();
     app.open_file("missing.rs");
     settle(&mut app);
     assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
     app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
     app.jump_to_location("a.rs", 2, text.find("one()").unwrap());
     settle(&mut app);
     assert_folded_headers(&app, &[4]);
@@ -1436,7 +1437,7 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     std::fs::write(other.join("a.rs"), text).unwrap();
     app.open_repository(&other);
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
 }
 
 #[test]
@@ -1461,7 +1462,7 @@ fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manu
     settle(&mut app);
     app.open_file("a file.rs");
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_folded_headers(&app, &[4]);
     app.execute_command(
         &Context::default(),
         ToolbarAction::ToggleRevision(ReviewRevision::Before),

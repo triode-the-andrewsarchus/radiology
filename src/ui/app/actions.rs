@@ -3,6 +3,37 @@
 use super::*;
 
 impl RadiologyApp {
+    fn current_function_fold(&self) -> Option<&crate::syntax::FoldRange> {
+        let buffer = self.open_buffer.as_ref()?;
+        crate::syntax::folds::enclosing_function_fold(
+            buffer.byte_offset(self.caret_line, self.caret_col),
+            &self.outline_symbols,
+            &self.fold_ranges,
+        )
+    }
+
+    fn toggle_current_function(&mut self) {
+        let Some(fold) = self.current_function_fold().cloned() else {
+            return;
+        };
+        let ancestor_folded = self.fold_ranges.iter().any(|ancestor| {
+            ancestor.byte_range != fold.byte_range
+                && ancestor.byte_range.start <= fold.byte_range.start
+                && fold.byte_range.end <= ancestor.byte_range.end
+                && self.fold_store.is_folded(&ancestor.byte_range)
+        });
+        let expanding = self.fold_store.is_folded(&fold.byte_range) || ancestor_folded;
+        if expanding {
+            self.fold_store.folded_ranges.remove(&fold.byte_range);
+            if let Some(buffer) = &self.open_buffer {
+                self.fold_store
+                    .reveal_byte(fold.byte_range.start, buffer, &self.fold_ranges);
+            }
+        } else {
+            self.fold_store.toggle(fold.byte_range);
+        }
+    }
+
     pub(super) fn command_enabled(&self, command: &ToolbarAction) -> bool {
         use ToolbarAction::*;
         match command {
@@ -19,6 +50,9 @@ impl RadiologyApp {
             }
             OpenBookmark(index) => {
                 self.repository_interaction_ready() && self.bookmarks.get_by_index(*index).is_some()
+            }
+            ToggleCurrentFunction => {
+                self.source_location_ready() && self.current_function_fold().is_some()
             }
             FoldToDefinitions | CollapseFunctions => {
                 self.source_location_ready()
@@ -103,6 +137,7 @@ impl RadiologyApp {
             FindReferences => self.find_references_at_caret(),
             OpenBookmark(index) => self.open_bookmark(index),
             ToggleBookmark => self.toggle_current_bookmark(),
+            ToggleCurrentFunction => self.toggle_current_function(),
             CollapseFunctions => self.fold_store.collapse_all_functions(&self.fold_ranges),
             FoldToDefinitions => self.fold_store.fold_to_definitions(&self.fold_ranges),
             OpenQuickFilePicker => {
