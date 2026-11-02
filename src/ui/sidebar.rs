@@ -25,6 +25,8 @@ pub enum SidebarTab {
     Changes,
     /// Streaming ripgrep search results.
     Search,
+    /// Saved agent-authored source traces.
+    CodePaths,
 }
 
 /// User interactions and navigation events produced by the [`Sidebar`].
@@ -68,6 +70,65 @@ impl FilesReveal {
 }
 
 impl Sidebar {
+    fn tabs(ui: &mut Ui, theme: &AppTheme, active: &mut SidebarTab) {
+        let tabs = [
+            (SidebarTab::Files, "Files", Icon::Folder),
+            (SidebarTab::Changes, "Changes", Icon::Diff),
+            (SidebarTab::Search, "Search", Icon::Search),
+            (SidebarTab::CodePaths, "Code Paths", Icon::Code),
+        ];
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        let width: f32 = tabs
+            .iter()
+            .map(|(_, title, _)| {
+                ui.fonts(|fonts| {
+                    fonts
+                        .layout_no_wrap((*title).into(), font.clone(), theme.text_primary)
+                        .size()
+                        .x
+                }) + 2.0 * ui.spacing().button_padding.x
+            })
+            .sum::<f32>()
+            + 3.0 * ui.spacing().item_spacing.x;
+        let compact = width > ui.available_width();
+        ui.horizontal(|ui| {
+            let mut responses = Vec::new();
+            let mut move_to = None;
+            for (index, (tab, title, icon)) in tabs.iter().enumerate() {
+                let button = if compact {
+                    egui::Button::image(icon.image_tinted(14.0, theme.text_primary))
+                        .selected(*active == *tab)
+                } else {
+                    egui::Button::new(*title).selected(*active == *tab)
+                };
+                let response = ui
+                    .push_id(("sidebar_tab", title), |ui| ui.add(button))
+                    .inner
+                    .on_hover_text(*title);
+                if response.clicked() {
+                    *active = *tab;
+                }
+                crate::ui::commands::retain_navigation_keys(ui.ctx(), response.id);
+                if response.has_focus() {
+                    move_to = ui.input_mut(|input| {
+                        if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight) {
+                            Some((index + 1) % tabs.len())
+                        } else if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft) {
+                            Some((index + tabs.len() - 1) % tabs.len())
+                        } else {
+                            None
+                        }
+                    });
+                }
+                responses.push(response);
+            }
+            if let Some(index) = move_to {
+                *active = tabs[index].0;
+                responses[index].request_focus();
+            }
+        });
+    }
+
     /// Requests one centered reveal after an accepted source navigation.
     ///
     /// Hosts should call this for explicit same-file jumps as well as new files.
@@ -156,17 +217,10 @@ impl Sidebar {
         let mut change_filters = filters.clone();
         change_filters.path_query.clear();
         let changes = ReviewChangesPresentation::new(all_changes, &change_filters);
-        ui.horizontal(|ui| {
-            for (tab, title) in [
-                (SidebarTab::Files, "Files"),
-                (SidebarTab::Changes, "Changes"),
-                (SidebarTab::Search, "Search"),
-            ] {
-                ui.selectable_value(active_tab, tab, title);
-            }
-        });
+        Self::tabs(ui, theme, active_tab);
         ui.separator();
         let count = match active_tab {
+            SidebarTab::CodePaths => String::new(),
             SidebarTab::Changes => changes.file_count_label(),
             SidebarTab::Search => format!(
                 "{}{} matches",
@@ -186,10 +240,13 @@ impl Sidebar {
                 }
             ),
         };
-        egui::TopBottomPanel::bottom("repository_footer").show_inside(ui, |ui| {
-            ui.colored_label(theme.text_secondary, count);
-        });
+        if *active_tab != SidebarTab::CodePaths {
+            egui::TopBottomPanel::bottom("repository_footer").show_inside(ui, |ui| {
+                ui.colored_label(theme.text_secondary, count);
+            });
+        }
         match active_tab {
+            SidebarTab::CodePaths => {}
             SidebarTab::Files => {
                 let changed: HashSet<&str> = all_changes
                     .iter()

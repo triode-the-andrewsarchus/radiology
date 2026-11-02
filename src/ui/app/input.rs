@@ -75,7 +75,9 @@ impl RadiologyApp {
     pub(super) fn capture_reader_input(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         if !matches!(self.modal, ActiveModal::None)
             || crate::ui::commands::context_menu_is_open(ctx)
-            || !(self.inspector_has_focus(ctx) || self.source_viewport.accepts_keyboard(ctx))
+            || !(self.inspector_has_focus(ctx)
+                || crate::ui::code_paths::CodePathList::has_focus(ctx)
+                || self.source_viewport.accepts_keyboard(ctx))
         {
             return;
         }
@@ -108,13 +110,12 @@ impl RadiologyApp {
                     ..
                 } = event
                 {
-                    if self.inspector_key(ctx, *key, *modifiers) {
+                    if self.control_key(ctx, *key, *modifiers) {
                         return Some(());
                     }
                 }
             }
-            let reader_focused =
-                self.source_viewport.has_focus(ctx) || self.inspector_has_focus(ctx);
+            let reader_focused = self.reader_has_focus(ctx);
             let typing = ctx.wants_keyboard_input() && !reader_focused && !menu_open;
             let command = crate::ui::commands::shortcut_event(event, typing, menu_open)?;
             if !menu_open
@@ -134,6 +135,16 @@ impl RadiologyApp {
             }
             Some(())
         });
+    }
+
+    fn reader_has_focus(&self, ctx: &Context) -> bool {
+        self.source_viewport.has_focus(ctx)
+            || self.inspector_has_focus(ctx)
+            || crate::ui::code_paths::CodePathList::has_focus(ctx)
+    }
+
+    fn control_key(&mut self, ctx: &Context, key: Key, modifiers: Modifiers) -> bool {
+        self.handle_code_path_key(ctx, key, modifiers) || self.inspector_key(ctx, key, modifiers)
     }
 
     fn inspector_key(&mut self, ctx: &Context, key: Key, modifiers: Modifiers) -> bool {

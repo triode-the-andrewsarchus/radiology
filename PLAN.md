@@ -10,8 +10,11 @@ C/C++ function heads from actual source. The reference seL4 trace resolves91/91 
 The reader uses a proper C++ grammar and shared declaration queries. [Format/storage](plans/rust-code-paths.md)
 is accepted too. [App navigation](plans/rust-code-path-app.md) now guards asynchronous
 publication, reuses prepared structure and passes91-step/93-destination exact Back
-acceptance. The left-sidebar import/list/persistence workflow remains required before
-standalone users can follow a Code Path.
+acceptance. [The standalone workflow](plans/rust-code-path-sidebar.md) now adds durable
+collections, multiline/file import, saved-trace and conditional menus, wrapping steps,
+Copy/Delete, ordinary keys and show/import shortcuts. Native1×/2× dark/light/relaunch
+and exact Unicode export checks pass; desktop-portal and actual IME-engine acceptance
+remain environment-specific follow-ups.
 
 [Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
 trait/member/impl context to compact source-sorted rows, stable selection, ordinary

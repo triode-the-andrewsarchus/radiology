@@ -172,6 +172,11 @@ pub(super) fn footer(
 }
 
 fn focus_tabs(ui: &egui::Ui, query: egui::Id, primary: Option<egui::Id>, cancel: egui::Id) {
+    let stops = [query, primary.unwrap_or(cancel), cancel];
+    focus_ring(ui, &stops[..if primary.is_some() { 3 } else { 2 }]);
+}
+
+pub(super) fn focus_ring(ui: &egui::Ui, stops: &[egui::Id]) {
     // App-modal keys are replayed after egui's native focus pass. Direct
     // hosts that supplied Tab in RawInput already received that pass.
     let native_tab = ui.input(|input| {
@@ -200,8 +205,6 @@ fn focus_tabs(ui: &egui::Ui, query: egui::Id, primary: Option<egui::Id>, cancel:
                 _ => None,
             })
         });
-        let stops = [query, primary.unwrap_or(cancel), cancel];
-        let stops = &stops[..if primary.is_some() { 3 } else { 2 }];
         for reverse in tabs {
             let index = ui
                 .memory(|memory| memory.focused())

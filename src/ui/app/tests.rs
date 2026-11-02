@@ -26,6 +26,7 @@ pub(super) fn settle(app: &mut RadiologyApp) {
     while app.pending_pr.is_some()
         || app.is_repository_opening()
         || app.is_git_refreshing()
+        || app.is_code_path_storage_busy()
         || app.is_source_loading()
         || app.is_index_loading()
         || app.is_critical_loading()
@@ -61,6 +62,16 @@ fn repository(root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     std::fs::write(root.join("a.rs"), "fn alpha() {\n    let café = 1;\n}\n").unwrap();
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
+}
+
+pub(super) fn isolated_source(path: &str, text: &str) -> (tempfile::TempDir, RadiologyApp) {
+    let (owner, mut app) = reader();
+    let root = owner.path().join("checkout");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join(path), text).unwrap();
+    app.open_repository(&root);
+    settle(&mut app);
+    (owner, app)
 }
 
 fn reader_with_source(text: &str) -> (tempfile::TempDir, RadiologyApp) {

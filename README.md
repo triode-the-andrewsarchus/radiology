@@ -35,6 +35,11 @@ Linux definition navigation uses **Ctrl-click**, **Ctrl+Alt+J**, F12, or Return 
 **Ctrl+Shift+I** forces Reindex, while **Ctrl+Alt+I** toggles the inspector.
 See [Linux keyboard mappings and audit](plans/rust-keyboard-audit.md).
 
+Linux **Ctrl+Shift+P** opens Code Path import; **Ctrl+Alt+P** reveals its sidebar tab.
+Paste a trace or choose a UTF-8 text file, then use step clicks or Up/Down and Return
+for source navigation. Saved traces, conditional choices and Copy/Delete are available
+in the sidebar; [workflow and acceptance](plans/rust-code-path-sidebar.md).
+
 The headless [syntax-resource check](plans/rust-resource-verification.md) exercises
 native parsing/queries and both color themes; a fallback alone cannot certify
 TypeScript/TSX support. It does not require a running desktop.

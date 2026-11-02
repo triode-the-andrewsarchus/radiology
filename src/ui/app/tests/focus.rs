@@ -227,12 +227,7 @@ fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
     use crate::ui::test_support::{click, text_center, text_shapes};
     for scale in [1.0, 2.0] {
         for diagnostics in [false, true] {
-            let (owner, mut app) = reader();
-            let root = owner.path().join("checkout");
-            std::fs::create_dir(&root).unwrap();
-            std::fs::write(root.join("a.rs"), "// one\n// café two\n// three\n").unwrap();
-            app.open_repository(&root);
-            settle(&mut app);
+            let (_owner, mut app) = isolated_source("a.rs", "// one\n// café two\n// three\n");
             let byte = app.open_buffer.as_ref().unwrap().byte_offset(2, 4);
             app.jump_to_location("a.rs", 2, byte);
             settle(&mut app);

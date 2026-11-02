@@ -67,6 +67,8 @@ impl RadiologyApp {
     pub(super) fn command_enabled(&self, command: &ToolbarAction) -> bool {
         use ToolbarAction::*;
         match command {
+            ImportCodePath => self.can_edit_code_paths(),
+            ShowCodePaths => self.repository_root.is_some(),
             Refresh | RefreshPR => self.can_choose_review() && self.pending_pr.is_none(),
             OpenQuickFilePicker | OpenGoToSymbol | OpenSearch => {
                 self.repository_interaction_ready()
@@ -139,6 +141,14 @@ impl RadiologyApp {
                 {
                     self.index_generator.stop();
                 }
+            }
+            ImportCodePath => {
+                self.modal =
+                    ActiveModal::CodePathImport(crate::ui::modals::CodePathImportModal::default())
+            }
+            ShowCodePaths => {
+                self.sidebar_tab = SidebarTab::CodePaths;
+                self.show_sidebar = true;
             }
             ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             ToggleInspectorPane(pane) => {

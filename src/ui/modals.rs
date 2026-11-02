@@ -20,6 +20,8 @@ pub enum ModalAction {
     JumpToIndexedSymbol(SemanticSymbolID),
     /// Fetches and opens the GitHub pull request with the given number.
     OpenPullRequest(usize),
+    /// Queues a durable Code Path import, retaining the sheet until save succeeds.
+    ImportCodePath(String),
     /// Dismisses the modal dialog without performing an action.
     Close,
 }
@@ -282,3 +284,6 @@ mod pull_request_tests {
         );
     }
 }
+
+mod code_path_import;
+pub use code_path_import::CodePathImportModal;

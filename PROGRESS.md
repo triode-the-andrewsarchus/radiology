@@ -1,5 +1,57 @@
 # Progress
 
+## 2026-11-02 — Standalone Code Paths sidebar, import and saved collections (Codex)
+
+Implemented the user-facing Code Paths workflow: a left peer tab with measured full
+labels/compact icons, saved-trace picker, numbered wrapping steps, conditional choices,
+Copy/Delete/reload and a trace-count footer. Click/Return commits source navigation;
+Up/Down/Home/End select independently. Switching tabs preserves trace/step state.
+Repository Import (Ctrl+Shift+P) and View Show Code Paths (Ctrl+Alt+P) reveal only the
+left sidebar. Existing View-menu keyboard ordering is preserved.
+
+The multiline import sheet retains ordinary Return and IME ownership, shares ModalInput
+and focus-ring routing, reads bounded regular UTF-8 files on a worker and preserves
+text/source on parse or storage failure. Accepted saves disable dismissal/competing
+edits; successful dismissal uses the normal input-retirement boundary. Footer actions
+follow the existing dialog alignment. Reader styles and variable RowHeights are reused;
+a10,000-step test proves visible-row rendering, full description wrapping and End reveal.
+
+New CodePathSession serializes background collection operations across scope changes.
+Accepted writes survive leaving a repository; reopening waits for its previous save.
+Rows/selection publish only after success, old-scope results cannot leak, corruption
+cannot be overwritten and background failures remain reportable. Attached PRs retain
+the same checkout collection. A public app flush_code_paths hook and standalone exit
+flush support controlled shutdown. No new dependency, parser or pool was added.
+
+Eleven new tests pass. Workspace:717 app tests pass, seven pre-existing ignored; two
+binary/13 font/21 text and55 doctests pass. All strict gates and rendered public API
+inspection pass. Native final1×/2× runs import the same84-byte Unicode trace, open
+main/conditional alternatives, navigate Back, copy exact text and retain saved IDs
+through relaunch. Go to Line field Copy verifies18/25 independently of OCR; light
+pixels are238/238/238. Captures inspected, fixture/binary hashes unchanged during runs,
+core processes exit zero; held hover helpers are intentionally terminated on cleanup.
+
+Diagnostics retain earlier driver/path/coordinate/hover/tooltip/OCR failures, an initial
+scope-fixture simplification mistake, preserved-menu ordering correction and a transient
+existing deep-call timeout under load. A prior overlapping build replaced an rlib during
+rustdoc execution; final library/binary tests and doc gates run separately. The existing
+caret cancellation test now uses a startup handshake, and UI fixtures isolate settings
+from source. The2× large-list test warms its pending viewport scale before measurement.
+
+Architecture: +1,324 NLOC/52 functions/six analyzed files; avg/max CCN3.39/132,33 high
+complexity functions,126 clone groups and one cycle unchanged. Initial new fixture
+clones and modal/dispatcher complexity were removed through shared fixtures, footer and
+input ownership. Raw comparator still flags touched old clones/Python rank ties;
+normalized baseline audit finds zero added/removed clone identities.
+[Contract, evidence and remaining acceptance](plans/rust-code-path-sidebar.md).
+Reusable collection service committed/pushed separately as6eac42b; app/UI integration
+and this progress record follow as a second coherent commit.
+Evidence: ~/.local/state/radiology-qa/code-path-sidebar-20261102-1bd346c.
+Next major parity work: C/C++ fallback indexing, indexing personalities/seL4 and shortcut
+help. Native desktop-portal chooser, actual IME-engine/candidate-window and broader
+saved-trace PR/stress acceptance remain environment-specific follow-ups. Overall parity
+remains active; full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Guarded Code Paths app navigation and exact Back (Codex)
 
 Connected selected-trace resolution to the actual app model through the existing

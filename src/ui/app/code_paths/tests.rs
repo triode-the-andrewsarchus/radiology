@@ -274,7 +274,9 @@ fn a_real_keyboard_batch_that_returns_to_its_origin_retires_the_step_job() {
         // Keep completion gated until the real source widget has processed both keys.
         let (release, gate) = std::sync::mpsc::channel();
         let (observed, receipt) = std::sync::mpsc::channel();
+        let (started, running) = std::sync::mpsc::channel();
         app.code_paths.job.spawn_with_sender(move |cancel, sender| {
+            started.send(()).unwrap();
             gate.recv_timeout(std::time::Duration::from_secs(5))
                 .unwrap();
             observed
@@ -282,6 +284,9 @@ fn a_real_keyboard_batch_that_returns_to_its_origin_retires_the_step_job() {
                 .unwrap();
             let _ = sender.send(Err("late batch error".into()));
         });
+        running
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
         let departure = caret(&app);
         frame(
             &mut app,

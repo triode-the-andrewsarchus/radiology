@@ -4,7 +4,8 @@ Current checkpoint: the reusable text-format and private-storage foundation is
 implemented. [Source resolution](rust-code-path-resolution.md) is now implemented too,
 with real91-step seL4 acceptance. [App step navigation](rust-code-path-app.md) now
 passes the real91-step/93-destination source/history probe with ownership guards.
-There is no standalone Code Paths sidebar/import/persistence workflow yet.
+The [standalone sidebar/import/persistence workflow](rust-code-path-sidebar.md) is now
+implemented, with native1×/2× dark/light/relaunch and exact authored-text copying.
 The full feature remains required by the upstream parity ledger. The behavioral
 reference is [code-paths.md](code-paths.md) and the current Swift CodePaths source,
 not the earlier line-number-based proposal.
@@ -72,29 +73,23 @@ corrected using a borrowed slice.
 
 Evidence: ~/.local/state/radiology-qa/code-paths-data-20261102-d0da261.
 
-## Required remaining work
+## Feature checkpoints and remaining acceptance
 
-1. [Implemented source resolution](rust-code-path-resolution.md): qualified declarations,
-   exact headers, definition preference, conditional alternatives, assembly labels/
-   macros and navigation-only C/C++ body-head recovery. The reader now has a proper
-   C++ grammar and shares native declaration extraction with C.
-2. The real reference seL4 corpus resolves91/91 steps with93 Git-verified destinations.
-   App model navigation/history also passes91/91 steps and all93 destinations;
-   conditional-menu/native sidebar acceptance is still required.
-3. [Implemented guarded app navigation](rust-code-path-app.md): root/review/source/
-   caret/trace ownership, authoritative buffers, prepared-structure reuse and exact
-   Before/After Back. Queued stale success/error and same-batch caret round trips retire.
-   Saved collection load/import/delete still need serialized background app binding.
-4. Add the left-sidebar peer tab, saved-trace picker, numbered wrapping steps,
-   conditional-destination menu, Copy/Delete/import controls and trace-count footer.
-   Preserve step state when switching tabs; import/show reveals only the left sidebar.
-   Existing Context pane preferences and Bookmarks must retain their meanings.
-5. Add pasted UTF-8/text-file import with bounded reading, atomic failure/error UI,
-   ordinary editor Return behavior and IME ownership. Reconcile authored command
-   shortcuts/help and narrow full-title/icon tab layouts with existing reader routing.
-6. Verify real app frames, native1×/2×/dark/light, persistence/relaunch, source guards,
-   exact Back, full Swift language/ambiguity/conditional/assembly fixtures and the
-   user's91-step seL4 source-resolution/app probe when a checkout is available.
+1. [Source resolution](rust-code-path-resolution.md) supplies qualified declarations,
+   exact headers, definition preference, conditional/assembly alternatives and C/C++
+   body-head recovery. The reader uses a dedicated C++ grammar.
+2. The reference seL4 corpus passes91/91 steps and93 Git-verified destinations.
+   [App navigation/history](rust-code-path-app.md) also passes those destinations and
+   exact Back, with queued-result and same-batch caret retirement coverage.
+3. [Standalone presentation and saved collections](rust-code-path-sidebar.md) provide
+   serialized background mutations, a peer tab, trace picker, numbered wrapping steps,
+   variants, Copy/Delete, pasted/text-file import and import/show shortcuts.
+4. Native1×/2× dark/light/relaunch checks verify pasted import, step/variant navigation,
+   Back, exact Unicode text export and persistent identities. Synthetic editor Return,
+   IME/Tab ownership and regular UTF-8 file byte bounds pass automated tests.
+5. Desktop-portal chooser and actual IME-engine/candidate-window acceptance remain
+   environment-specific. Native PR saved-trace and broader unusual-input stress QA
+   remain follow-ups; the port's other indexing/help parity work is still required.
 
 The standalone app and shared APIs remain the target. Actual sibling adoption and
 full accessibility remain deferred; ordinary keyboard behavior is required.

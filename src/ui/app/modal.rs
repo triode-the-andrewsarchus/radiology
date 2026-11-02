@@ -49,6 +49,8 @@ impl RadiologyApp {
             self.modal_focus = None;
             return false;
         }
+        let code_path_busy = self.is_code_path_storage_busy();
+        let code_path_error = self.code_path_storage_error().map(str::to_owned);
         let focus = self.modal_focus.get_or_insert_with(|| ModalFocus {
             previous: ctx.memory(|memory| memory.focused()),
             ..Default::default()
@@ -74,6 +76,9 @@ impl RadiologyApp {
                 &self.outline_symbols,
             ),
             ActiveModal::PullRequest(modal) => modal.show(ctx, &self.theme),
+            ActiveModal::CodePathImport(modal) => {
+                modal.show(ctx, &self.theme, code_path_busy, code_path_error.as_deref())
+            }
         });
         let Some(action) = action else {
             if let Some(id) = outside_focus {
@@ -81,6 +86,10 @@ impl RadiologyApp {
             }
             return true;
         };
+        if let ModalAction::ImportCodePath(text) = action {
+            self.import_code_path_text(text);
+            return true;
+        }
         modal_backdrop(ctx, false);
         let source_navigation = matches!(
             action,
@@ -103,6 +112,7 @@ impl RadiologyApp {
             }
             ModalAction::JumpToIndexedSymbol(id) => self.navigate_to_indexed_symbol(&id),
             ModalAction::OpenPullRequest(number) => self.open_pull_request(number),
+            ModalAction::ImportCodePath(_) => unreachable!(),
             ModalAction::Close => {}
         }
         self.modal = ActiveModal::None;

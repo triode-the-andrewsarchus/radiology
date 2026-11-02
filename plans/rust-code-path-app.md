@@ -1,8 +1,8 @@
 # Code Paths app navigation and source ownership
 
 Code Paths now has an asynchronous app navigation API, using the existing bounded
-read workers and source/history transaction. The standalone sidebar/import workflow
-is still pending. Hosts can select a validated owned trace with select_code_path,
+read workers and source/history transaction. The [standalone sidebar/import workflow](rust-code-path-sidebar.md)
+is now integrated and verified separately. Hosts can select a validated owned trace with select_code_path,
 open a step/conditional variant with go_to_code_path_step, poll through poll_source
 and observe loading, accepted step, destinations and visible errors. The format/store
 APIs remain independent of egui; eventual little-screen-clip adoption is deferred.
@@ -91,11 +91,11 @@ against the baseline proves zero added/removed clone identities. The two initial
 new clone groups and excessive probe complexity were eliminated; no new cycle or
 hotspot remains.
 
-## Next required work
+## Subsequent integration
 
-Bind the saved repository collection to serialized background load/import/delete,
-then add the left-sidebar trace picker, numbered wrapping steps, conditional menu,
-Copy/Delete, pasted/text-file import, shortcut/help integration and persistence/
-relaunch/native acceptance. Keep root-scoped traces shared with attached PRs and
-publish mutations only after successful storage writes. Do not add a Context pane
-or change Bookmarks to present Code Paths. Full Swift parity remains incomplete.
+[Saved collections and the standalone sidebar](rust-code-path-sidebar.md) now bind
+background load/import/delete to the navigation API, including numbered steps,
+conditional choices, Copy/Delete, UTF-8 file/paste import and shortcut handling.
+Native1×/2× dark/light/relaunch acceptance passes. Desktop-portal chooser and real
+IME-engine acceptance remain separate from the synthetic editor/input coverage.
+Full Swift parity remains incomplete; see the master ledger for indexing and help.

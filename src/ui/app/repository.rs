@@ -148,6 +148,7 @@ impl RadiologyApp {
             .to_string();
 
         self.repository_root = Some(root.clone());
+        self.code_path_store.open(root.clone());
         self.recent_pull_requests.open(root.clone());
         self.critical_marks.open(root.clone());
         self.repository_name = Some(name);

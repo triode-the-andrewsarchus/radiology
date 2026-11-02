@@ -36,6 +36,7 @@ no second navigation/index pipeline, new dependency or sibling runtime coupling.
 | Back / Forward | Ctrl+[ / Ctrl+] |
 | Find / next / previous | Ctrl+F / Ctrl+G / Ctrl+Shift+G |
 | Repository search | Ctrl+Shift+F |
+| Import / show Code Paths | Ctrl+Shift+P / Ctrl+Alt+P |
 | Go to definition | Ctrl+Alt+J, F12, or Return in source |
 | Pin references | Ctrl+Alt+R |
 | Reindex every project | Ctrl+Shift+I |
@@ -272,3 +273,11 @@ Evidence: `~/.local/state/radiology-qa/document-keys-20261102-fc4908d`.
 shared movement and native acceptance. Broader enabled/focus transitions, Unicode UI text and
 the full Swift feature/UI/corpus review remain open. Full accessibility and actual
 sibling integration remain deferred.
+
+## Code Paths commands — 2026-11-02
+
+Import uses the Repository menu and a multiline editor; Return edits text there.
+Show reveals the left peer tab. Saved-step list navigation uses Up/Down/Home/End
+and Return, while focused peer tabs use Left/Right. These commands share the existing
+menu/input dispatcher. App input/composition and native import/navigation acceptance
+are recorded in [the Code Paths workflow](rust-code-path-sidebar.md).

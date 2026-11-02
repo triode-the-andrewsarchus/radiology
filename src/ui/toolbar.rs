@@ -194,6 +194,11 @@ impl Toolbar {
                             ),
                             Item::action("Copy Repository Path", ToolbarAction::CopyRepoPath),
                             Item::action(
+                                "Import Code Path… (Ctrl+Shift+P)",
+                                ToolbarAction::ImportCodePath,
+                            )
+                            .enabled(command_enabled(&ToolbarAction::ImportCodePath)),
+                            Item::action(
                                 if review_menu.active.is_some() {
                                     "Refresh PR (Ctrl+R)"
                                 } else {
@@ -422,6 +427,11 @@ fn view_items(
             })
             .collect(),
     ));
+    items.push(Item::separator());
+    items.push(
+        Item::action("Show Code Paths (Ctrl+Alt+P)", ToolbarAction::ShowCodePaths)
+            .enabled(command_enabled(&ToolbarAction::ShowCodePaths)),
+    );
     items
 }
 

@@ -104,7 +104,10 @@ impl ModalInput {
         }
         let action = render(ctx);
         ctx.input_mut(|input| input.events.retain(|event| !keyboard_event(event)));
-        if action.is_some() {
+        if action
+            .as_ref()
+            .is_some_and(|action| !matches!(action, ModalAction::ImportCodePath(_)))
+        {
             ctx.stop_dragging();
             ctx.input_mut(|input| {
                 input.events.clear();

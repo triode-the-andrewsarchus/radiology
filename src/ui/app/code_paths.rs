@@ -45,11 +45,16 @@ impl RadiologyApp {
         {
             return false;
         }
+        self.install_code_path(trace);
+        true
+    }
+
+    fn install_code_path(&mut self, trace: Option<Arc<CodePath>>) {
+        self.code_path_list = Default::default();
         self.code_paths = CodePaths {
             selected: trace,
             ..Default::default()
         };
-        true
     }
 
     /// Returns the currently selected trace, independent of sidebar visibility.
@@ -225,5 +230,89 @@ fn same_snapshot<T>(a: &Option<Arc<T>>, b: &Option<Arc<T>>) -> bool {
     }
 }
 
+mod sidebar;
 #[cfg(test)]
 mod tests;
+
+impl RadiologyApp {
+    /// Returns the attached checkout's accepted saved traces, shared with PR reviews.
+    #[must_use]
+    pub fn saved_code_paths(&self) -> &[Arc<CodePath>] {
+        self.code_path_store.paths()
+    }
+
+    /// Returns whether collection loading or an accepted save is pending.
+    #[must_use]
+    pub fn is_code_path_storage_busy(&self) -> bool {
+        self.code_path_store.is_busy()
+    }
+
+    /// Returns a storage/import failure without replacing accepted trace selection.
+    #[must_use]
+    pub fn code_path_storage_error(&self) -> Option<&str> {
+        self.code_path_store.error()
+    }
+
+    pub(super) fn can_edit_code_paths(&self) -> bool {
+        self.repository_interaction_ready()
+            && !self.is_repository_opening()
+            && !self.is_code_path_storage_busy()
+    }
+
+    /// Queues text parsing and durable import outside rendering; selects after save.
+    /// Returns `false` while another collection transaction or repository open owns it.
+    pub fn import_code_path_text(&mut self, text: String) -> bool {
+        self.can_edit_code_paths() && self.code_path_store.import_text(text)
+    }
+
+    /// Queues identity-based deletion, retaining current rows/selection on failure.
+    pub fn delete_code_path(&mut self, id: Uuid) -> bool {
+        self.can_edit_code_paths() && self.code_path_store.delete(id)
+    }
+
+    /// Flushes accepted collection operations before an embedded host closes.
+    ///
+    /// # Errors
+    /// Returns storage failures or the shutdown deadline error. Ordinary frames
+    /// use [`Self::poll_source`] instead of waiting.
+    pub fn flush_code_paths(&mut self, timeout: std::time::Duration) -> Result<(), String> {
+        self.code_path_store.flush(timeout)
+    }
+
+    pub(super) fn poll_code_path_storage(&mut self, ctx: &Context) {
+        use crate::code_paths::session::CollectionChange;
+        if let Some(change) = self.code_path_store.poll() {
+            let selected = match change {
+                CollectionChange::Imported(id) => self
+                    .saved_code_paths()
+                    .iter()
+                    .find(|path| path.id == id)
+                    .cloned(),
+                CollectionChange::Loaded if self.selected_code_path().is_none() => {
+                    self.saved_code_paths().first().cloned()
+                }
+                CollectionChange::Deleted(id)
+                    if self.selected_code_path().is_some_and(|path| path.id == id) =>
+                {
+                    self.saved_code_paths().first().cloned()
+                }
+                _ => return,
+            };
+            self.install_code_path(selected);
+            if matches!(change, CollectionChange::Imported(_)) {
+                self.sidebar_tab = SidebarTab::CodePaths;
+                self.show_sidebar = true;
+                if let ActiveModal::CodePathImport(modal) = &mut self.modal {
+                    modal.imported();
+                }
+            }
+            ctx.request_repaint();
+        }
+        if self.is_code_path_storage_busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
+        }
+    }
+}
+
+#[cfg(test)]
+mod ui_tests;

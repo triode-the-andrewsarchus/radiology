@@ -64,6 +64,8 @@ pub enum ActiveModal {
     GoToSymbol(GoToSymbolModal),
     /// GitHub pull request selector modal (Ctrl+P).
     PullRequest(PullRequestModal),
+    /// Multiline pasted or UTF-8 file source trace import.
+    CodePathImport(crate::ui::modals::CodePathImportModal),
 }
 
 /// The top-level application state managing all reader panels and subsystems.
@@ -206,6 +208,8 @@ pub struct RadiologyApp {
     /// Active modal dialog sheet.
     pub modal: ActiveModal,
     modal_focus: Option<modal::ModalFocus>,
+    code_path_list: crate::ui::code_paths::CodePathList,
+    code_path_store: crate::code_paths::session::CodePathSession,
     code_paths: code_paths::CodePaths,
     source_loader: crate::source::loader::SourceLoader,
     pending_navigation: Option<source::PendingNavigation>,
@@ -273,6 +277,11 @@ impl RadiologyApp {
             crate::critical::marks::MarkSession::new(session.config_directory().map(|path| {
                 crate::critical::overrides::OverrideStore::new(path.join("critical-marks"))
             }));
+        let code_path_store = crate::code_paths::session::CodePathSession::new(
+            session.config_directory().map(|directory| {
+                crate::code_paths::store::CodePathStore::new(directory.join("code-paths"))
+            }),
+        );
         Self {
             theme: if session.dark_mode {
                 AppTheme::dark()
@@ -361,6 +370,8 @@ impl RadiologyApp {
             bookmarks: BookmarkStore::new(),
             modal: ActiveModal::None,
             modal_focus: None,
+            code_path_list: Default::default(),
+            code_path_store,
             code_paths: Default::default(),
             source_loader: Default::default(),
             pending_navigation: None,
@@ -529,6 +540,8 @@ impl RadiologyApp {
     }
 
     fn reset_repository_state(&mut self) {
+        self.code_path_list = Default::default();
+        self.code_path_store.close();
         self.code_paths = Default::default();
         self.reveal_job.stop();
         self.cancel_repository_open();
@@ -624,6 +637,11 @@ impl RadiologyApp {
 impl eframe::App for RadiologyApp {
     fn raw_input_hook(&mut self, ctx: &Context, input: &mut egui::RawInput) {
         self.retire_hidden_trait_focus(ctx);
+        if crate::ui::code_paths::CodePathList::has_focus(ctx)
+            && (!self.show_sidebar || self.sidebar_tab != SidebarTab::CodePaths)
+        {
+            self.source_viewport.request_focus(ctx);
+        }
         self.stage_pointer_keys(ctx, input);
         super::commands::take_context_menu_input(ctx, input);
         self.take_modal_input(ctx, input);
@@ -635,6 +653,9 @@ impl eframe::App for RadiologyApp {
         drop(self.native_drop.take());
         self.cancel_repository_open();
         self.cancel_source_load();
+        if let Err(error) = self.flush_code_paths(std::time::Duration::from_secs(10)) {
+            tracing::warn!(%error, "Code path storage did not finish at shutdown");
+        }
         self.cancel_review_preparation();
         self.recent_pull_requests.cancel();
         self.reference_context = Default::default();
@@ -763,6 +784,7 @@ impl RadiologyApp {
                         total_count,
                         self.branch_name.as_deref(),
                     );
+                    self.show_code_paths(ui);
                     if previous_options != self.search_options {
                         self.schedule_repository_search();
                         ctx.request_repaint_after(std::time::Duration::from_millis(150));

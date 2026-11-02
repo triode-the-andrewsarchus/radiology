@@ -39,6 +39,10 @@ pub enum ReaderCommand {
     OpenGoToSymbol,
     /// Switches to the search tab in the sidebar.
     OpenSearch,
+    /// Opens a pasted or UTF-8 file Code Path import sheet.
+    ImportCodePath,
+    /// Reveals saved Code Paths in the left sidebar.
+    ShowCodePaths,
     /// Opens local find in the current source document.
     FindInFile,
     /// Reveals the next local match.
@@ -238,6 +242,8 @@ pub(super) fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<R
         (true, false, false, Key::L) => Some(OpenGoToLine),
         (true, false, false, Key::T) => Some(OpenGoToSymbol),
         (true, false, false, Key::P) => Some(OpenPRDialog),
+        (true, false, true, Key::P) => Some(ImportCodePath),
+        (true, true, false, Key::P) => Some(ShowCodePaths),
         (true, false, false, Key::R) => Some(Refresh),
         (true, true, false, Key::R) if !typing => Some(FindReferences),
         (true, true, false, Key::J) if !typing => Some(GoToDefinition),

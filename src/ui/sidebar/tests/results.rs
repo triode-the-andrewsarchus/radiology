@@ -108,7 +108,7 @@ impl Results {
                                 },
                                 &self.search,
                             ),
-                            SidebarTab::Files => unreachable!(),
+                            SidebarTab::Files | SidebarTab::CodePaths => unreachable!(),
                         };
                     })
                     .response
