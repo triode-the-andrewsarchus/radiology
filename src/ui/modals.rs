@@ -65,6 +65,7 @@ impl GoToLineModal {
             .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 150.0))
             .fixed_size(egui::vec2(300.0, 120.0))
             .show(ctx, |ui| {
+                ctx.move_to_top(ui.layer_id());
                 ui.label("Line number");
                 let id = ui.make_persistent_id("line_picker_query");
                 if !self.focus_requested {
@@ -157,6 +158,7 @@ impl PullRequestModal {
             .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 150.0))
             .fixed_size(egui::vec2(320.0, 140.0))
             .show(ctx, |ui| {
+                ctx.move_to_top(ui.layer_id());
                 ui.label("Enter GitHub Pull Request #:");
                 let id = ui.make_persistent_id("pull_request_query");
                 if !self.focus_requested {

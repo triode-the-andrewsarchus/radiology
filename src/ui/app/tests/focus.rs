@@ -28,6 +28,136 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn modal_background_clicks_scroll_and_closing_input_preserve_the_reader() {
+    let text: String = (1..=300)
+        .map(|line| format!("// line {line} café\r\n"))
+        .collect();
+    for scale in [1.0, 2.0] {
+        for command in [
+            ToolbarAction::OpenGoToLine,
+            ToolbarAction::OpenQuickFilePicker,
+            ToolbarAction::OpenGoToSymbol,
+            ToolbarAction::OpenPRDialog,
+        ] {
+            let (_dir, mut app, ctx) = scaled_reader(&text, scale);
+            let buffer = app.open_buffer.clone().unwrap();
+            let selection = buffer.line_byte_range(2);
+            app.navigate(buffer.location_at_byte(selection.end), true);
+            app.source_viewport.select(selection.clone());
+            app.source_viewport.request_focus(&ctx);
+            let before = frame(&mut app, &ctx, vec![]);
+            let sidebar = crate::ui::test_support::text_center(&before, "Sidebar");
+            app.execute_command(&ctx, command);
+            let mut output = frame(&mut app, &ctx, crate::ui::test_support::click(sidebar));
+            assert!(app.show_sidebar, "opening sheet leaked pointer input");
+            for _ in 0..3 {
+                output = frame(&mut app, &ctx, vec![]);
+            }
+            let sidebar = crate::ui::test_support::text_center(&output, "Sidebar");
+            let focus = ctx.memory(|memory| memory.focused());
+            let top = app.source_viewport.top_byte(&buffer);
+            frame(&mut app, &ctx, crate::ui::test_support::click(sidebar));
+            assert!(
+                app.show_sidebar,
+                "background Sidebar click escaped the sheet"
+            );
+            assert_eq!(ctx.memory(|memory| memory.focused()), focus);
+            frame(
+                &mut app,
+                &ctx,
+                vec![
+                    Event::PointerMoved(egui::pos2(350.0, 650.0)),
+                    Event::Scroll(egui::vec2(0.0, -240.0)),
+                ],
+            );
+            frame(&mut app, &ctx, vec![]);
+            assert_eq!(app.source_viewport.top_byte(&buffer), top);
+            let mut close = crate::ui::test_support::click(sidebar);
+            close.insert(0, key(Key::Escape, Modifiers::NONE));
+            frame(&mut app, &ctx, close);
+            assert!(matches!(app.modal, ActiveModal::None));
+            assert!(app.show_sidebar, "closing sheet leaked its pointer input");
+            assert_eq!(
+                buffer.byte_offset(app.caret_line, app.caret_col),
+                selection.end
+            );
+            assert!(app.source_viewport.has_focus(&ctx));
+            frame(&mut app, &ctx, crate::ui::test_support::click(sidebar));
+            assert!(!app.show_sidebar, "fresh input must work after dismissal");
+            app.source_viewport.request_focus(&ctx);
+            assert_eq!(
+                frame(&mut app, &ctx, vec![Event::Copy])
+                    .platform_output
+                    .copied_text,
+                text[selection]
+            );
+        }
+    }
+}
+
+#[test]
+fn modal_surface_blocks_existing_utility_windows_but_keeps_its_own_cancel_clickable() {
+    let (_dir, mut app, ctx) = scaled_reader("// first\r\n// second\r\n", 1.0);
+    let changes = std::cell::Cell::new(0);
+    let run = |app: &mut RadiologyApp, events| {
+        frame_with_overlay(app, &ctx, events, |ctx| {
+            egui::Window::new("Background utility")
+                .fixed_pos(egui::pos2(15.0, 350.0))
+                .constrain(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    if ui.button("Change background").clicked() {
+                        changes.set(changes.get() + 1);
+                    }
+                });
+        })
+    };
+    run(&mut app, vec![]);
+    let output = run(&mut app, vec![]);
+    let background = crate::ui::test_support::text_center(&output, "Change background");
+    assert!(
+        background.x < 200.0,
+        "utility control must be outside every dialog"
+    );
+    run(&mut app, crate::ui::test_support::click(background));
+    assert_eq!(changes.get(), 1, "utility click before the dialog");
+    let mut expected = 1;
+    for command in [
+        ToolbarAction::OpenGoToLine,
+        ToolbarAction::OpenQuickFilePicker,
+        ToolbarAction::OpenGoToSymbol,
+        ToolbarAction::OpenPRDialog,
+        ToolbarAction::OpenGoToLine,
+    ] {
+        app.execute_command(&ctx, command);
+        let mut output = run(&mut app, vec![]);
+        for _ in 0..3 {
+            output = run(&mut app, vec![]);
+        }
+        let cancel = crate::ui::test_support::text_center(&output, "Cancel");
+        let focus = ctx.memory(|memory| memory.focused());
+        run(&mut app, crate::ui::test_support::click(background));
+        assert_eq!(changes.get(), expected, "utility click behind the dialog");
+        assert_eq!(ctx.memory(|memory| memory.focused()), focus);
+        assert!(!matches!(app.modal, ActiveModal::None));
+        run(&mut app, crate::ui::test_support::click(cancel));
+        assert!(matches!(app.modal, ActiveModal::None));
+        run(&mut app, crate::ui::test_support::click(background));
+        expected += 1;
+        assert_eq!(
+            changes.get(),
+            expected,
+            "fresh utility click after dismissal"
+        );
+    }
+    assert_eq!(
+        changes.get(),
+        6,
+        "only the before/after utility clicks should run"
+    );
+}
+
+#[test]
 fn modal_tabs_cycle_only_enabled_controls_and_batch_cancel_returns_to_source() {
     for command in [
         ToolbarAction::OpenGoToLine,

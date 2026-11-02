@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-02 — Modal pointer isolation and reused-window surface order (Codex)
+
+All four prompts now share a transparent input-blocking surface above the parent,
+including floating utility windows. Outside presses preserve dialog focus;
+initial measurement rejects pointer gestures, opening/closing retire old drags,
+and closing input/pointer/wheel state cannot reach background controls. The
+inactive Area retires egui 0.27's cached movement rectangle so the next fresh click
+works. Native v3 found a reused Go to Line window below its blocker after other
+dialogs; ModalFocus now owns a settling pass before raising the pair together.
+Default shares initial state and the existing dialog/query UI raises its layer.
+Two regressions cover opening/closing batches, both scales, retained Unicode/CRLF
+source, source scroll, fresh controls, a real utility Window, pointer Cancel and
+line/file/symbol/PR/line reuse in one Context.
+Workspace: 621 app tests pass, seven ignored; two binary, 13 font, 19 text and
+40 doctests pass. Strict Clippy/check/rustdoc/build/fmt/diff and final copied
+standalone resources pass. Native old v2 1×/2× controls prove background Sidebar
+and scroll mutation with two exact copies each. Final v4 new runs at each scale
+pass seven fresh exact copies, unchanged source crops under all four dialogs,
+blocked Sidebar, pointer Cancel, focus/selection retention, light/reopen and fresh
+Sidebar hide/restore. Captures inspected, hashes unchanged and final exits zero.
+Earlier attempts retained: v1/v2 crop/OCR export errors; v3 actual reused-layer
+product defect. Architecture NEUTRAL: +198 NLOC/four functions including tests,
+109 clone groups unchanged, no new hotspot/cycle, health -0.01. No Cargo/dependency
+changes. [Contract, lifecycle and evidence](plans/rust-modal-pointer-scope.md).
+Archive: ~/.local/state/radiology-qa/modal-pointer-20261102-dd3ce99.
+Broader gesture/platform transitions, text bindings/Unicode/UI type spacing and
+final Swift feature/language/indexer/PR corpus acceptance remain open.
+
 ## 2026-11-02 — Current-line prompt and shared modal Tab/Return ownership (Codex)
 
 Go to Line now prefills/selects the current line, focuses once on a visible pass,

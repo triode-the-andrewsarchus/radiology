@@ -24,6 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Modal pointer scope](rust-modal-pointer-scope.md): a shared surface blocks
+  parent controls/scrolling and existing utility windows; opening/closing input,
+  query focus, pointer Cancel and cached-window ordering pass component and native
+  old/new 1×/2× checks. No per-panel disable mechanism or new dependency.
+
 - [Go to Line and modal focus](rust-line-dialog-focus.md): selected current-line
   prefill, signed bounds/validation and shared footer chrome; all four dialogs now
   cycle enabled controls and route batched Tab/Return through the active owner.

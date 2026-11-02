@@ -115,6 +115,7 @@ pub(super) fn query(
     hint: &str,
     color: egui::Color32,
 ) -> egui::Response {
+    ui.ctx().move_to_top(ui.layer_id());
     ui.horizontal(|ui| {
         icon.ui(ui, 14.0, color);
         let id = ui.make_persistent_id("query");

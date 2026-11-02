@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Modal pointer scope](plans/rust-modal-pointer-scope.md) now blocks parent clicks
+and scrolling across all four prompts, preserves dialog focus, retires closing
+input and keeps reused dialogs above their surface. Native old/new 1×/2× checks
+include pointer Cancel, light appearance and fresh input after dismissal.
+
 [Go to Line and modal focus](plans/rust-line-dialog-focus.md) now provide selected
 current-line prefill, validation/clamping and shared Cancel/Go chrome, with scoped
 Tab/Shift+Tab and correct Return ownership across file/symbol/line/PR dialogs.
