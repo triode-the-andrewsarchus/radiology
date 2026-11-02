@@ -370,3 +370,41 @@ fn escape_cancels_a_bookmark_drag_without_navigation_or_reordering() {
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(format!("{:?}", app.history), history);
 }
+
+#[test]
+fn bookmark_empty_states_follow_repository_source_and_last_entry_transitions() {
+    use crate::ui::test_support::{text_center, text_shapes};
+    for scale in [1.0, 1.5, 2.0] {
+        let (dir, mut app) = reader();
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        frame(&mut app, &ctx, vec![]);
+        let output = frame(&mut app, &ctx, vec![]);
+        text_center(&output, "No Repository");
+        assert!(!text_shapes(&output).any(|text| text.galley.job.text == "Checkout"));
+        assert!(!app.command_enabled(&ToolbarAction::ToggleBookmark));
+        frame(&mut app, &ctx, vec![key(Key::D, Modifiers::CTRL)]);
+        assert!(app.bookmarks.bookmarks.is_empty());
+        open_empty_repository(&mut app, &dir.path().join("empty"));
+        assert!(app.open_buffer.is_none());
+        let output = frame(&mut app, &ctx, vec![]);
+        text_center(&output, "Checkout");
+        text_center(&output, "No Bookmarks");
+        assert!(!app.command_enabled(&ToolbarAction::ToggleBookmark));
+        let populated = dir.path().join("populated");
+        repository(&populated);
+        app.open_repository(&populated);
+        settle(&mut app);
+        let output = frame(&mut app, &ctx, vec![]);
+        text_center(&output, "No Bookmarks");
+        assert!(app.command_enabled(&ToolbarAction::ToggleBookmark));
+        frame(&mut app, &ctx, vec![key(Key::D, Modifiers::CTRL)]);
+        let output = frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.bookmarks.bookmarks.len(), 1);
+        assert!(!text_shapes(&output).any(|text| text.galley.job.text == "No Bookmarks"));
+        frame(&mut app, &ctx, vec![key(Key::D, Modifiers::CTRL)]);
+        let output = frame(&mut app, &ctx, vec![]);
+        text_center(&output, "No Bookmarks");
+        assert!(app.bookmarks.bookmarks.is_empty());
+    }
+}

@@ -58,6 +58,12 @@ fn reader_with_source(text: &str) -> (tempfile::TempDir, RadiologyApp) {
     (dir, app)
 }
 
+fn open_empty_repository(app: &mut RadiologyApp, root: &Path) {
+    std::fs::create_dir(root).unwrap();
+    app.open_repository(root);
+    settle(app);
+}
+
 fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
     repository(dir.path());
@@ -1234,10 +1240,7 @@ fn critical_fold_counts_refresh_with_policy_and_clear_on_mode_source_index_and_r
         .critical_annotations()
         .unwrap()
         .matches(app.open_buffer.as_ref().unwrap()));
-    let empty = dir.path().join("empty");
-    std::fs::create_dir(&empty).unwrap();
-    app.open_repository(&empty);
-    settle(&mut app);
+    open_empty_repository(&mut app, &dir.path().join("empty"));
     assert!(app.critical_annotations().is_none());
     assert!(!app.is_critical_loading());
 }

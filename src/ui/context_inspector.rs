@@ -85,13 +85,13 @@ pub struct InspectorContent<'a> {
     pub test_code: Option<&'a crate::source::test_code::TestCodePresentation>,
     /// Bookmarks in the active checkout or PR scope.
     pub bookmarks: &'a BookmarkStore,
-    /// Visible checkout or PR scope title.
-    pub scope: &'a str,
+    /// Visible checkout or PR scope title; absent until a repository is accepted.
+    pub scope: Option<&'a str>,
     /// Whether checkout/review transitions permit bookmark interaction.
     pub bookmarks_enabled: bool,
     /// Whether the current source is ready for bookmarking.
     pub can_toggle_bookmark: bool,
-    /// Whether a bookmark resolves to the current source line.
+    /// Whether a bookmark belongs to the exact current source location.
     pub current_bookmarked: bool,
     /// Whether source/review preparation permits outline navigation.
     pub outline_enabled: bool,
@@ -150,17 +150,20 @@ impl ContextInspector {
             .max_height((height * 0.5).max(100.0))
             .show_inside(ui, |ui| {
                 let next = region(ui, |ui| {
-                    ui.add_enabled_ui(content.bookmarks_enabled, |ui| {
-                        bookmarks.show(
-                            ui,
-                            theme,
-                            content.bookmarks,
-                            content.scope,
-                            content
-                                .can_toggle_bookmark
-                                .then_some(content.current_bookmarked),
-                        )
-                    })
+                    // Empty guidance stays legible; its sole action has its own readiness guard.
+                    ui.add_enabled_ui(
+                        content.bookmarks_enabled || content.bookmarks.bookmarks.is_empty(),
+                        |ui| {
+                            bookmarks.show(
+                                ui,
+                                theme,
+                                content.bookmarks,
+                                content.scope,
+                                (content.bookmarks_enabled && content.can_toggle_bookmark)
+                                    .then_some(content.current_bookmarked),
+                            )
+                        },
+                    )
                     .inner
                     .map(InspectorAction::Bookmark)
                 });
@@ -443,7 +446,7 @@ mod tests {
                             outline_error: error,
                             test_code: None,
                             bookmarks: &bookmarks,
-                            scope: "Checkout",
+                            scope: Some("Checkout"),
                             bookmarks_enabled: false,
                             can_toggle_bookmark: false,
                             current_bookmarked: false,
@@ -565,7 +568,9 @@ mod tests {
                                                 outline_error: None,
                                                 test_code: None,
                                                 bookmarks: &bookmarks,
-                                                scope: &"Review scope with long title".repeat(200),
+                                                scope: Some(
+                                                    &"Review scope with long title".repeat(200),
+                                                ),
                                                 bookmarks_enabled: true,
                                                 can_toggle_bookmark: true,
                                                 current_bookmarked: false,

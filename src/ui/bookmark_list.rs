@@ -110,7 +110,7 @@ impl BookmarkList {
         ui: &mut Ui,
         theme: &AppTheme,
         store: &BookmarkStore,
-        scope: &str,
+        scope: Option<&str>,
         current_bookmarked: Option<bool>,
     ) -> Option<BookmarkAction> {
         if self.selected.is_some_and(|id| store.index_of(id).is_none()) {
@@ -119,15 +119,17 @@ impl BookmarkList {
         let mut action = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Bookmarks").strong());
-            let scope_text = super::text_fit::middle(
-                ui,
-                scope,
-                egui::TextStyle::Small.resolve(ui.style()),
-                theme.text_muted,
-                (ui.available_width() - ui.spacing().interact_size.y - 8.0).max(0.0),
-            );
-            ui.add(egui::Label::new(scope_text))
-                .on_hover_text(super::text_fit::bounded(scope).as_ref());
+            if let Some(scope) = scope {
+                let scope_text = super::text_fit::middle(
+                    ui,
+                    scope,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    theme.text_muted,
+                    (ui.available_width() - ui.spacing().interact_size.y - 8.0).max(0.0),
+                );
+                ui.add(egui::Label::new(scope_text))
+                    .on_hover_text(super::text_fit::bounded(scope).as_ref());
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let label = if current_bookmarked == Some(true) {
                     "−"
@@ -163,6 +165,19 @@ impl BookmarkList {
                 self.clear_navigation_error();
             }
         }
+        if store.bookmarks.is_empty() {
+            let (title, detail) = if scope.is_some() {
+                (
+                    "No Bookmarks",
+                    "Bookmark a source location with Ctrl+D. Drag bookmarks to assign Ctrl+0–Ctrl+9.",
+                )
+            } else {
+                ("No Repository", "Open a repository to see its bookmarks.")
+            };
+            ui.colored_label(theme.text_muted, title);
+            super::text_fit::explanation(ui, detail, theme.text_secondary);
+            return action;
+        }
         let region = ui.available_rect_before_wrap();
         ui.interact(
             region,
@@ -194,9 +209,6 @@ impl BookmarkList {
         );
         scroll.show_rows(ui, row_height, store.bookmarks.len(), |ui, rows| {
             Self::scroll_drag_near_edge(ui, store, region);
-            if store.bookmarks.is_empty() {
-                ui.colored_label(theme.text_muted, "Ctrl+D to bookmark this location.");
-            }
             for index in rows {
                 if let Some(next) = self.row(ui, theme, store, index, row_height) {
                     action = Some(next);
@@ -464,7 +476,7 @@ mod tests {
             let mut action = None;
             let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
                 ui.style_mut().interaction.selectable_labels = false;
-                action = list.show(ui, &AppTheme::dark(), &store, "Checkout", Some(false));
+                action = list.show(ui, &AppTheme::dark(), &store, Some("Checkout"), Some(false));
             });
             (output, action)
         };
@@ -499,7 +511,7 @@ mod tests {
                 let mut action = None;
                 let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
                     ui.style_mut().interaction.selectable_labels = false;
-                    action = list.show(ui, &AppTheme::dark(), store, "Checkout", Some(false));
+                    action = list.show(ui, &AppTheme::dark(), store, Some("Checkout"), Some(false));
                 });
                 (output, action)
             };
@@ -591,7 +603,7 @@ mod tests {
                     let output = painted_frame(&ctx, egui::vec2(300.0, 240.0), events, |ui| {
                         ui.style_mut().interaction.selectable_labels = false;
                         scroll_id = ui.make_persistent_id(egui::Id::new("reader_bookmarks"));
-                        action = list.show(ui, &theme, &store, "Checkout", Some(false));
+                        action = list.show(ui, &theme, &store, Some("Checkout"), Some(false));
                     });
                     let offset = egui::scroll_area::State::load(&ctx, scroll_id)
                         .unwrap()
@@ -649,7 +661,7 @@ mod tests {
         let mut list = BookmarkList::default();
         let render = |list: &mut BookmarkList| {
             crate::ui::test_support::painted_text(&ctx, egui::vec2(300.0, 240.0), |ui| {
-                list.show(ui, &AppTheme::dark(), &store, "Checkout", Some(false));
+                list.show(ui, &AppTheme::dark(), &store, Some("Checkout"), Some(false));
             })
         };
         // The first layout discovers the viewport size; subsequent layouts use that geometry.
@@ -676,6 +688,58 @@ mod tests {
     }
 
     #[test]
+    fn empty_bookmark_guidance_fits_narrow_regions_and_preserves_add_readiness() {
+        use crate::ui::test_support::{
+            click, painted_frame, text_center, text_shapes, themed_context,
+        };
+        for (dark, scale) in [(true, 1.0), (false, 1.5), (false, 2.0)] {
+            for (scope, current) in [
+                (None, None),
+                (Some("Checkout"), None),
+                (Some("Checkout"), Some(false)),
+                (Some("PR #37"), None),
+            ] {
+                let (ctx, theme) = themed_context(dark, scale);
+                let mut list = BookmarkList::default();
+                let store = BookmarkStore::default();
+                let mut frame = |events| {
+                    let mut action = None;
+                    let output = painted_frame(&ctx, egui::vec2(180.0, 120.0), events, |ui| {
+                        action = list.show(ui, &theme, &store, scope, current);
+                    });
+                    (output, action)
+                };
+                frame(vec![]);
+                let (output, action) = frame(vec![]);
+                assert_eq!(action, None);
+                text_center(
+                    &output,
+                    if scope.is_some() {
+                        "No Bookmarks"
+                    } else {
+                        "No Repository"
+                    },
+                );
+                let detail = text_shapes(&output)
+                    .find(|text| {
+                        text.galley.job.text.starts_with(if scope.is_some() {
+                            "Bookmark a source"
+                        } else {
+                            "Open a repository"
+                        })
+                    })
+                    .unwrap();
+                assert!(detail.galley.rows.len() <= 3);
+                assert!(ctx.used_rect().width() <= 181.0 && ctx.used_rect().height() <= 121.0);
+                assert_eq!(
+                    frame(click(text_center(&output, "+"))).1,
+                    current.map(|_| BookmarkAction::ToggleCurrent)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn bookmark_status_is_bounded_and_keeps_complete_details_and_dismissal() {
         use crate::ui::test_support::{click, painted_frame, text_center};
         let message = format!(
@@ -693,7 +757,7 @@ mod tests {
                     list.navigation_failed(store.bookmarks[0].id, message.clone());
                 }
                 painted_frame(&ctx, egui::vec2(270.0, 600.0), events, |ui| {
-                    list.show(ui, &theme, &store, "Checkout", Some(false));
+                    list.show(ui, &theme, &store, Some("Checkout"), Some(false));
                 })
             };
             // Apply the context's pending scale before checking pane geometry.

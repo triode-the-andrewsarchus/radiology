@@ -39,6 +39,10 @@ relocation metadata. [Caret-sensitive source command order](plans/rust-source-in
 now repairs the confirmed Ctrl+D/Right/Ctrl+D defect through shared pre-frame
 capture and the existing source queue, with deferred geometry and native 1×/2×
 bookmark/reference/definition acceptance. Broader mixed-owner input remains open.
+[Bookmark empty states](plans/rust-bookmark-pane.md#empty-scope-guidance-and-readable-unavailable-states--2026-11-01)
+now distinguish absent repositories from empty checkout/PR scopes, preserve readable
+guidance while Add is unavailable, and restore the explanation after last removal.
+App transitions, narrow scale/theme frames and six native cases pass.
 [Held bookmark drags](plans/rust-bookmark-pane.md#held-drag-edge-scrolling-and-cancellation--2026-11-01)
 now scroll to off-screen rows in either direction through the existing virtualized
 list. Escape cancels through its keyboard owner; scale, native persistence and

@@ -348,3 +348,50 @@ Remaining acceptance includes pinned-review/mixed-language/long-name inspector
 corpora, other cross-owner interactions, broader reader/index/PR/cache behavior
 and final Swift UI/standalone/reuse audit. Full accessibility and actual sibling
 integration remain deferred.
+
+
+## Empty scope guidance and readable unavailable states — 2026-11-01
+
+Swift distinguishes an absent scope from an empty bookmark collection. Rust now
+shows No Repository with repository-opening guidance until a root is accepted,
+and No Bookmarks with Ctrl+D/reordering guidance in an accepted checkout or PR.
+It no longer labels an unopened session Checkout or suggests bookmarking a current
+location that does not exist. Adding an entry replaces the explanation with rows;
+removing the last entry restores it. Existing Body/Small roles and the shared
+three-row bounded explanation renderer are reused.
+
+`InspectorContent.scope` is now `Option<&str>`: callers pass None before a repository
+is accepted and Some(title) for checkout/PR context. App rendering derives this
+from the existing accepted root, without filesystem work or extra persistent state.
+This is an explicit presentation API adjustment; bookmark storage is unchanged.
+Empty guidance renders outside whole-pane dimming, while the header action requires
+both region and source readiness. Nonempty lists retain their existing disabled
+behavior during repository/review transitions. No new production function, worker,
+cache, dependency or type scale. Shared empty-repository test setup replaces a
+duplicate fixture and retains the existing Critical Lens assertions.
+
+The real app regression first fails on missing No Repository. It now covers absent
+root, accepted empty repository, populated root/source, shortcut Add and last-entry
+removal at 1×/1.5×/2×. Narrow 180×120-point component frames cover checkout/PR/absent
+scopes, three-row guidance bounds and disabled/enabled header Add at dark/light
+scales. Full workspace passes 545 app tests (seven ignored), two binary, four font,
+13 reader-text and 36 doctests. Strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture adds 108 NLOC including tests and three test functions/fixtures, with
+no new hotspot, cycle, max complexity or clone group. Raw touched-file clone flags
+are unchanged: normalized multiset audit preserves all 91 baseline groups.
+
+Six native private-window cases cover absent root, empty repository and loaded
+source at 1×/2×. Captures verify correct headings/guidance and normal text contrast;
+Ctrl+D and the observed header plus cannot create bookmarks without a source.
+Loaded source accepts keyboard Add, last removal and header Add; complete source
+copy remains byte-exact. Fixture/binary hashes, captures and all child exits pass.
+Earlier QA trials confused the header with No Bookmarks and read Checkout as
+Cneckout. They are retained and excluded; final QA selects the earliest header,
+normalizes that observed OCR substitution and retains raw OCR/captures. The initial
+app fixture also assumed repository opening left its source empty; production
+auto-opens a file, so the final regression uses a genuinely empty root.
+
+Evidence: `~/.local/state/radiology-qa/bookmark-empty-20261101-d6e762a`.
+Broader inspector/input/reader/language/index/PR/cache corpus and final Swift
+feature/visual/standalone/reuse acceptance remain open. Full accessibility and
+actual sibling adoption remain deferred.

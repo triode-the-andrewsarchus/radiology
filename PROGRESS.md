@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-01 — Explain absent and empty bookmark scopes accurately (Codex)
+
+Bookmarks now shows No Repository until an accepted root exists, then No Bookmarks
+with source-location and numbered-drag guidance when empty. Adding/removing the
+last entry switches rows/status through existing commands. Shared bounded text
+keeps narrow panes stable. Empty text retains normal contrast; header Add still
+requires region and source readiness, while nonempty transitions remain disabled.
+InspectorContent.scope is now optional, explicitly representing an absent scope;
+checkout/PR titles remain derived from the existing root/review state. No new
+production function, state, worker, cache or dependency. Shared empty-root test
+setup removes duplicated fixtures without dropping Critical Lens assertions.
+The initially failing app regression now passes root/source/Add/removal transitions
+at 1×/1.5×/2×. Narrow dark/light checkout/PR/absent-scope frames cover text bounds
+and Add availability. Workspace passes 545 app tests (seven ignored), two binary,
+four font, 13 text and 36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass.
+Architecture +108 NLOC including tests, three test functions/fixtures; no new
+hotspot/cycle/max-CCN/clone group. All 91 baseline clones are unchanged after audit.
+Six native 1×/2× absent-root/empty-root/loaded-reader cases pass headings, readable
+guidance, disabled Add, keyboard/header Add, last removal and exact source copy,
+with fixture/binary hashes and zero child exits. Preliminary duplicate-label/OCR
+false negatives and the corrected auto-open fixture assumption are retained as
+excluded trials. Broader corpus/input/reader/language/index/PR/cache and final
+Swift UI/standalone/reuse acceptance remain open. Accessibility and actual sibling
+integration deferred. [Contract/evidence](plans/rust-bookmark-pane.md#empty-scope-guidance-and-readable-unavailable-states--2026-11-01).
+Archive: ~/.local/state/radiology-qa/bookmark-empty-20261101-d6e762a.
+
 ## 2026-11-01 — Reach off-screen bookmark destinations while dragging (Codex)
 
 Held bookmark drags now scroll the existing list near its top/bottom edges. Logical

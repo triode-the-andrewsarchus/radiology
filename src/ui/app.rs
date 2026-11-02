@@ -736,10 +736,12 @@ impl RadiologyApp {
                     } else {
                         (None, 1)
                     };
-                    let scope = self
-                        .active_pr
-                        .as_ref()
-                        .map_or_else(|| "Checkout".to_string(), |pr| format!("PR #{}", pr.number));
+                    let scope = self.repository_root.as_ref().map(|_| {
+                        self.active_pr.as_ref().map_or_else(
+                            || "Checkout".to_string(),
+                            |pr| format!("PR #{}", pr.number),
+                        )
+                    });
                     self.sync_outline();
                     if let Some(action) = ContextInspector::show(
                         ui,
@@ -779,7 +781,7 @@ impl RadiologyApp {
                             outline_error: self.syntax_error.as_deref(),
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
-                            scope: &scope,
+                            scope: scope.as_deref(),
                             bookmarks_enabled: self.repository_interaction_ready(),
                             can_toggle_bookmark: self.source_location_ready(),
                             current_bookmarked: self.current_bookmarked(),
