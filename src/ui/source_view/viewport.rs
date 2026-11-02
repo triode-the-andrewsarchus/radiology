@@ -111,7 +111,7 @@ struct CanvasGeometry {
 /// One bounded layout's shared paint and interaction geometry.
 struct FragmentFrame {
     part: SourceFragment,
-    galley: Arc<egui::Galley>,
+    galley: Arc<reader_fonts::EmojiGalley>,
     origin: egui::Pos2,
     row_rect: Rect,
     hit_rect: Rect,
@@ -1190,6 +1190,17 @@ impl SourceViewport {
                 (height / (font.size + 4.0)).max(1.0) as isize,
             )
         };
+        let target = if content.wrap && matches!(key, Key::PageUp | Key::PageDown) {
+            self.row_for_byte(target).map_or(target, |(_, part)| {
+                let galley = layout(ui, content, part, font, width);
+                part.byte_at_char(
+                    &buffer.text,
+                    galley.caret_index(part.char_index(&buffer.text, target)),
+                )
+            })
+        } else {
+            target
+        };
         if shift {
             self.selection
                 .get_or_insert(ByteSelection {
@@ -1287,7 +1298,7 @@ impl SourceViewport {
             cursor.rcursor.row > 0
         };
         if can_move {
-            return part.byte_at_char(&content.buffer.text, next.ccursor.index);
+            return part.byte_at_char(&content.buffer.text, galley.caret_index(next.ccursor.index));
         }
         let adjacent = if down {
             row.saturating_add(1)
@@ -1311,7 +1322,7 @@ impl SourceViewport {
     fn paint_destination(
         &self,
         painter: &egui::Painter,
-        galley: &egui::Galley,
+        galley: &reader_fonts::EmojiGalley,
         origin: egui::Pos2,
         rect: Rect,
         part: &SourceFragment,
@@ -1339,7 +1350,7 @@ impl SourceViewport {
     fn paint_row_backgrounds(
         &self,
         painter: &egui::Painter,
-        galley: &egui::Galley,
+        galley: &reader_fonts::EmojiGalley,
         origin: egui::Pos2,
         rect: Rect,
         part: &SourceFragment,
@@ -1388,7 +1399,7 @@ impl SourceViewport {
     fn paint_row(
         &self,
         painter: &egui::Painter,
-        galley: &egui::Galley,
+        galley: &reader_fonts::EmojiGalley,
         origin: egui::Pos2,
         rect: Rect,
         part: &SourceFragment,
@@ -1435,7 +1446,7 @@ impl SourceViewport {
             }
         }
         paint_occurrences(painter, galley, origin, part, content);
-        painter.galley(origin, Arc::new(galley.clone()), theme.text_primary);
+        galley.paint(painter, origin, theme.text_primary);
         let byte = content
             .buffer
             .byte_offset(*content.caret_line, *content.caret_col);
@@ -1516,7 +1527,7 @@ fn move_caret(content: &mut CanvasContent<'_>, byte: usize) -> SourceViewAction 
 
 fn paint_occurrences(
     painter: &egui::Painter,
-    galley: &egui::Galley,
+    galley: &reader_fonts::EmojiGalley,
     origin: egui::Pos2,
     part: &SourceFragment,
     content: &CanvasContent<'_>,
@@ -1621,12 +1632,15 @@ fn function_band(
 }
 
 fn hit_byte(
-    galley: &egui::Galley,
+    galley: &reader_fonts::EmojiGalley,
     position: egui::Vec2,
     part: &SourceFragment,
     source: &str,
 ) -> usize {
-    part.byte_at_char(source, galley.cursor_from_pos(position).ccursor.index)
+    part.byte_at_char(
+        source,
+        galley.caret_index(galley.cursor_from_pos(position).ccursor.index),
+    )
 }
 
 fn keyboard_target(
@@ -1647,17 +1661,14 @@ fn keyboard_target(
     let chars = part.char_index(&buffer.text, byte);
     let total = part.char_index(&buffer.text, part.bytes.end);
     match key {
-        Key::ArrowLeft if chars > 0 => part.byte_at_char(&buffer.text, chars - 1),
-        Key::ArrowRight if chars < total => part.byte_at_char(&buffer.text, chars + 1),
+        Key::ArrowLeft if chars > 0 => part.adjacent_grapheme(&buffer.text, byte, false),
+        Key::ArrowRight if chars < total => part.adjacent_grapheme(&buffer.text, byte, true),
         Key::ArrowLeft if position == 0 => byte,
         Key::ArrowLeft => {
             let previous = &parts[visible[position.saturating_sub(1)]];
             let end = previous.bytes.end;
             if end == byte {
-                previous.byte_at_char(
-                    &buffer.text,
-                    previous.char_index(&buffer.text, end).saturating_sub(1),
-                )
+                previous.adjacent_grapheme(&buffer.text, end, false)
             } else {
                 end
             }
@@ -1694,12 +1705,14 @@ fn keyboard_target(
 }
 
 fn fragment_cursor(
-    galley: &egui::Galley,
+    galley: &reader_fonts::EmojiGalley,
     part: &SourceFragment,
     source: &str,
     byte: usize,
 ) -> Rect {
-    galley.pos_from_ccursor(egui::text::CCursor::new(part.char_index(source, byte)))
+    galley.pos_from_ccursor(egui::text::CCursor::new(
+        galley.caret_index(part.char_index(source, byte)),
+    ))
 }
 
 fn layout(
@@ -1708,13 +1721,15 @@ fn layout(
     part: &SourceFragment,
     font: &FontId,
     width: f32,
-) -> Arc<egui::Galley> {
+) -> Arc<reader_fonts::EmojiGalley> {
     let mut job = LayoutJob {
         break_on_newline: false,
         ..Default::default()
     };
     job.wrap.max_width = width;
+    let mut hard_breaks = Vec::new();
     for range in part.spans() {
+        hard_breaks.push(job.text.len());
         let line = content.buffer.line_at_byte(range.start);
         let line_start = content.buffer.byte_offset(line, 0);
         let before = job.text.len();
@@ -1751,7 +1766,7 @@ fn layout(
             append_projected(&mut job, content, font, range.clone(), color);
         }
     }
-    ui.fonts(|fonts| fonts.layout_job(job))
+    reader_fonts::EmojiGalley::layout(ui.ctx(), job, &hard_breaks)
 }
 
 fn append_projected(
@@ -3469,6 +3484,68 @@ mod tests {
         ctx.set_fonts(definitions);
         ctx.set_pixels_per_point(scale);
         ctx
+    }
+
+    #[test]
+    fn composed_source_pointer_keyboard_highlights_and_copy_retain_canonical_bytes() {
+        for scale in [1.0, 1.5, 2.0] {
+            for wrap in [false, true] {
+                let ctx = reader_context(scale);
+                let mut definitions = egui::FontDefinitions::default();
+                reader_fonts::append_fallbacks(&mut definitions);
+                reader_fonts::register_composition(&mut definitions);
+                ctx.set_fonts(definitions);
+                let text = "a1️⃣👨‍👩‍👧‍👦👍🏽🇺🇸z\r\nnext";
+                let mut reader = Reader::new(text);
+                reader.wrap = wrap;
+                let output = reader.frame(&ctx, vec![]);
+                let display = "a◻\u{200d}\u{200d}◻\u{200d}\u{200d}\u{200d}\u{200d}\u{200d}\u{200d}◻\u{200d}◻\u{200d}z";
+                let (origin, galley) = text_shape(&output, display);
+                assert_eq!(
+                    galley.job.text.chars().count(),
+                    text.split('\r').next().unwrap().chars().count()
+                );
+                let left = galley.pos_from_ccursor(egui::text::CCursor::new(1));
+                let right = galley.pos_from_ccursor(egui::text::CCursor::new(4));
+                for (fraction, expected) in [(0.2, 1), (0.8, 4)] {
+                    let point = origin
+                        + vec2(
+                            left.left() + (right.left() - left.left()) * fraction,
+                            left.center().y,
+                        );
+                    reader.frame(&ctx, pointer(point, true));
+                    reader.frame(&ctx, pointer(point, false));
+                    assert_eq!(reader.column, expected);
+                }
+                reader.column = 1;
+                reader.target = Some(1);
+                reader.frame(&ctx, Vec::new());
+                let output = reader.frame(
+                    &ctx,
+                    vec![key(Key::ArrowRight, Modifiers::SHIFT), egui::Event::Copy],
+                );
+                assert_eq!(output.platform_output.copied_text, "1️⃣");
+                assert_eq!(reader.column, 4);
+                reader.frame(&ctx, vec![key(Key::ArrowLeft, Modifiers::NONE)]);
+                assert_eq!(reader.column, 1);
+                // A canonical match inside the composed character paints its
+                // whole advance, while Copy still returns only the raw range.
+                reader.viewport.select(2.."a1️⃣".len());
+                let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+                assert_eq!(output.platform_output.copied_text, "\u{fe0f}\u{20e3}");
+                let bands = filled_bands(&output, AppTheme::dark().accent.gamma_multiply(0.35));
+                assert!(bands
+                    .iter()
+                    .any(|rect| (rect.width() - (right.left() - left.left())).abs() < 0.01));
+                // One separately textured glyph per compound, tinted as source.
+                let images = output.shapes.iter().filter(|shape| matches!(&shape.shape, egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default())).count();
+                assert_eq!(images, 4);
+                let output =
+                    reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL), egui::Event::Copy]);
+                assert_eq!(output.platform_output.copied_text, text);
+                assert_eq!(reader.source.text, text);
+            }
+        }
     }
 
     fn key(key: Key, modifiers: Modifiers) -> egui::Event {

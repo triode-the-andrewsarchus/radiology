@@ -24,9 +24,11 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
-- [Emoji shaping foundation](rust-source-emoji-shaping.md): optional shared-font
-  composition, glyph metrics and bounded raster coverage match an independent
-  reference and work without a GUI. App source integration remains pending.
+- [Source emoji composition](rust-source-emoji-shaping.md): shared CPU shaping and
+  optional egui projection/painting now compose source keycaps/families/tones/flags.
+  Canonical bytes, scalar indices, complete-character navigation, whole-glyph
+  highlights and bounded caches pass component/native 1×/2× checks. Broader
+  Unicode/UI-label shaping and modified source navigation remain in the audit.
 
 - [Symbol picker integration](rust-symbol-picker.md): cancellable background
   ranking, 200 workspace results, kind/definition metadata, bounded rows, empty
@@ -34,7 +36,7 @@ actual sibling adoption/integration is deferred until the user requests it.
   picker components and both native 1×/2× workflows pass. Grapheme lengths and
   [workspace Unicode matching](rust-symbol-unicode.md) now follow Swift's measured
   contract; document substring filtering also shares canonical-character primitives
-  and passes native checks. Source shaping and broader corpus acceptance remain open.
+  and passes native checks. General Unicode rendering and broader corpus acceptance remain open.
 
 - [File picker](rust-file-picker.md): immutable inventories, cancellable background
   ranking, 100 results with truthful totals, bounded filename/directory rows,

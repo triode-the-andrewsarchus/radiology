@@ -1,6 +1,7 @@
 //! Disjoint visible source spans joined across hidden newlines.
 
 use std::ops::Range;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// A bounded displayed fragment retaining exact canonical source spans.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +55,36 @@ impl ProjectedFragment {
             index = index.saturating_sub(text.chars().count());
         }
         self.bytes.end
+    }
+
+    /// Moves a canonical cursor across one visible grapheme in either direction.
+    ///
+    /// Each surviving span is segmented independently; hidden gaps cannot join
+    /// unrelated source into a character. An interior cursor moves to the chosen
+    /// edge. At the fragment boundary, returns that boundary without wrapping.
+    #[must_use]
+    pub fn adjacent_grapheme(&self, source: &str, byte: usize, forward: bool) -> usize {
+        let mut ranges = self.spans.iter().flat_map(|span| {
+            source[span.clone()]
+                .grapheme_indices(true)
+                .map(move |(offset, text)| {
+                    let start = span.start + offset;
+                    start..start + text.len()
+                })
+        });
+        if forward {
+            let end = ranges
+                .find(|range| range.end > byte)
+                .map_or(self.bytes.end, |range| range.end);
+            // As with byte_at_char, the surviving character after a hidden gap
+            // owns the boundary; never place a caret in the hidden source.
+            self.byte_at_char(source, self.char_index(source, end))
+        } else {
+            ranges
+                .rev()
+                .find(|range| range.start < byte)
+                .map_or(self.bytes.start, |range| range.start)
+        }
     }
 
     /// Returns whether a source byte survives projection in this fragment.
@@ -299,5 +330,30 @@ mod tests {
         let source = "1hidden\u{fe0f}\u{20e3}";
         let parts = projected_fragments(source, std::slice::from_ref(&(1..7)), 8);
         assert_eq!(parts[0].spans(), &[0..1, 7..13]);
+    }
+
+    #[test]
+    fn grapheme_cursor_steps_over_compounds_and_respects_hidden_gaps() {
+        let source = "a1️⃣e\u{301}👨‍👩‍👧‍👦👍🏽🇺🇸z";
+        let parts = projected_fragments(source, &[], 4096);
+        let part = &parts[0];
+        let mut byte = 0;
+        for (start, text) in source.grapheme_indices(true) {
+            assert_eq!(byte, start);
+            let end = part.adjacent_grapheme(source, byte, true);
+            assert_eq!(end, start + text.len());
+            assert_eq!(part.adjacent_grapheme(source, end, false), start);
+            byte = end;
+        }
+        assert_eq!(
+            part.adjacent_grapheme(source, source.len(), true),
+            source.len()
+        );
+        assert_eq!(part.adjacent_grapheme(source, 0, false), 0);
+        let source = "1hidden\u{fe0f}\u{20e3}z";
+        let parts = projected_fragments(source, std::slice::from_ref(&(1..7)), 4096);
+        assert_eq!(parts[0].adjacent_grapheme(source, 0, true), 7);
+        assert_eq!(parts[0].adjacent_grapheme(source, 7, false), 0);
+        assert_eq!(parts[0].adjacent_grapheme(source, 7, true), 13);
     }
 }

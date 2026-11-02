@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-02 — Source compound-emoji painting and canonical interaction (Codex)
+
+The app now consumes shared EmojiGalley composition: unchanged font assets,
+transparent measured slots plus zero-width display scalars, baseline coverage,
+first-scalar syntax/receded color and hard fold joins. Source/copy bytes and scalar
+coordinates remain canonical. Context-owned FIFO caches bound shapes/textures/pixel
+memory; images account for physical scale. Shared adjacent-grapheme movement keeps
+the existing post-gap boundary owner. Pointer/vertical/page cursors and visual
+selection/find/occurrence rectangles account for composed glyphs.
+Workspace: 603 app tests passed, seven ignored; two binary, 13 font, 16 text,
+38 existing doctests passed; the new bridge example passes as the 39th. Strict
+Clippy/check/rustdoc/build/fmt/diff pass. Asset-only and CPU-only tests pass; a
+separate offline egui host uses the bridge without Radiology, with 16 jobs. Copied
+standalone resource verification passes. Native old control reproduces scalar-only
+selection; final v4 1×/2× each pass 18 exact fresh copies including pointer halves,
+drag, full CRLF source, the 4,096-byte edge, fold, zoom/wrap and find/Escape focus.
+Captures inspected. Original hashes and all final process exits checked. Early
+native Ctrl+Home assumption failed; corrected Home-based acceptance is recorded,
+while modified source navigation stays in the broader keyboard audit. Architecture
+NEUTRAL: +565 NLOC/20 functions/one module including tests, no new hotspot/cycle/
+clone group, 109 groups retained, health -0.01. No lockfile/version changes.
+[Contract/evidence/remaining scope](plans/rust-source-emoji-shaping.md).
+Archive: ~/.local/state/radiology-qa/source-composition-20261102-1444bf2.
+General Unicode/bidi, other UI-label shaping and the broader parity/corpus review
+remain open; full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Grapheme-preserving bounded source fragments (Codex)
 
 Ordinary/folded reader-text fragment builders share a bounded grapheme boundary

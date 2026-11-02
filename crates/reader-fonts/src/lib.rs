@@ -4,6 +4,8 @@
 //! Asset-only hosts need no GUI dependency. Enable `egui` to append them to a
 //! host's existing font definitions. The optional UI face is an explicit opt-in;
 //! hosts retain control over font sizes and source typography.
+//! With both `egui` and `shaping`, the optional `EmojiGalley` bridge composes
+//! supported source emoji while retaining the host's original scalar indices.
 //! Font software uses SIL OFL 1.1; complete notices ship in `assets/`.
 
 /// The bundled Fira Sans regular interface face (SIL OFL 1.1).
@@ -99,3 +101,8 @@ mod tests;
 mod shaping;
 #[cfg(feature = "shaping")]
 pub use shaping::{EmojiGlyph, EmojiRaster, EmojiShaper};
+
+#[cfg(all(feature = "egui", feature = "shaping"))]
+mod composition;
+#[cfg(all(feature = "egui", feature = "shaping"))]
+pub use composition::{register_composition, EmojiGalley};

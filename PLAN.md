@@ -4,20 +4,16 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[Source fragment boundaries](plans/rust-source-emoji-shaping.md#grapheme-preserving-fragment-boundaries)
-now keep fitting graphemes together in ordinary and folded source, with bounded
-work for oversized sequences and unchanged copy coordinates. This prepares source
-composition; shaped glyph painting and native acceptance remain pending.
-
-[Emoji shaping groundwork](plans/rust-source-emoji-shaping.md) adds optional
-CPU composition/rasterization to the shared font crate. Independent HarfBuzz,
-scale/coverage and isolated-host checks pass. App layout/caret integration and
-native source-shaping acceptance remain pending.
+[Source emoji composition](plans/rust-source-emoji-shaping.md) now connects shared
+shaping/rasterization to the source renderer, preserving canonical bytes and scalar
+indices. Bounded caches, complete-character navigation and fragment boundaries,
+whole-glyph highlights and native 1×/2× copy/pointer/drag/fold/wrap/zoom checks pass.
+General Unicode/UI-label rendering and modified source navigation remain open.
 
 [Symbol Unicode matching](plans/rust-symbol-unicode.md) now shares canonical keys
 and complete-character comparisons across workspace ranking and document substring
 filtering, without changing navigation bytes. Both modes pass old/new native
-controls and standalone checks. Source emoji shaping and broader application
+controls and standalone checks. General Unicode text rendering and broader application
 parity remain open.
 
 [Symbol picker integration](plans/rust-symbol-picker.md) now provides background
@@ -25,7 +21,7 @@ workspace/outline search, Swift's 200-result workspace limit, kind/definition
 metadata, bounded two-line rows, empty states and Go/Cancel. Ordered input and
 picker components are shared with file navigation; source destinations and both
 pickers pass native 1×/2× checks. Grapheme lengths and [workspace Unicode matching](plans/rust-symbol-unicode.md)
-and document substring filtering are fixed; source shaping and broader application
+and document substring filtering are fixed; general Unicode rendering and broader application
 parity remain open.
 
 [File picker parity](plans/rust-file-picker.md) now connects shared immutable

@@ -222,6 +222,7 @@ impl RadiologyApp {
         let mut fonts = egui::FontDefinitions::default();
         reader_fonts::use_ui_font(&mut fonts);
         reader_fonts::append_fallbacks(&mut fonts);
+        reader_fonts::register_composition(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
         cc.egui_ctx.style_mut(|style| {
             style

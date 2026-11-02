@@ -27,9 +27,9 @@ optional Fira Sans selection keep their existing policies.
 
 New optional lockfile packages: rustybuzz 0.20.1, core_maths 0.1.1, libm 0.2.16,
 unicode-bidi-mirroring 0.4.0, unicode-ccc 0.4.0, unicode-properties 0.1.5 and
-unicode-script 0.5.9. Existing package versions stay unchanged. Normal Radiology
-builds still enable only the existing egui feature, so this foundation does not
-change the app's source rendering.
+unicode-script 0.5.9. Existing package versions stay unchanged. At the foundation commit, Radiology
+builds enabled only the existing egui feature. The source integration below now
+enables both features; the foundation alone did not change app rendering.
 
 ## Foundation verification
 
@@ -85,30 +85,85 @@ against `before-grapheme-fragments`: NEUTRAL, +118 NLOC/three functions, no new
 hotspot/cycle/clone group, 109 groups retained, health -0.01. Evidence:
 `~/.local/state/radiology-qa/grapheme-fragments-20261102-7e239ac`.
 
-### Remaining display integration
+## Source renderer integration — 2026-11-02
 
-Enable shaping only as the source renderer consumes it. Retain raw source and the
-existing SourceFragment byte/character contract. Validate a layout projection that
-reserves one composed glyph's advance while retaining all original scalar cursor
-indices; the bundled emoji space has the font's common advance and may provide a
-blank measured slot. This design still needs a prototype before committing to it.
-Do not inject private-use aliases into source or silently normalize source bytes.
+Radiology now enables shaping and explicitly registers a dedicated composition
+family during app initialization. The optional `reader-fonts::EmojiGalley` bridge
+has no Radiology dependency. Asset-only and CPU-only consumers retain their
+existing feature boundaries. The shared reader-text fragment supplies adjacent
+whole-grapheme cursor movement, retaining the existing ownership of boundaries
+following hidden gaps.
 
-Use real shaped coverage with host-owned, bounded caches and device-scale keys.
-Cache shaping by original cluster text; keep per-occurrence source counts separate
-from raster caching. Raster keys must account for glyph ID, offsets and pixel size.
-Visual match/selection washes may need whole-glyph bounds even when a canonical
-source range starts inside the cluster; copying must retain the exact source range.
-Account for baseline/line-height geometry, wraps, styles, fragment boundaries and
-fold-joined ranges. Preserve ASCII/CJK geometry and unsupported-cluster fallback.
-Verify click/drag, grapheme caret/selection, copy, find/occurrence washes, Critical
-Lens, zoom/wrap/folds and source focus at native 1×/2×. Keyboard and pointer behavior
-remain required; full accessibility is deferred. Actual sibling adoption is also
-deferred; its fontdue renderer can reuse the IDs/metrics or coverage over the
-unchanged shared asset when requested.
+The bridge projects supported multi-scalar graphemes after the complete styled
+layout job is assembled. One transparent square in the unchanged emoji face
+reserves the exact shaped advance; zero-width joiners retain the remaining scalar
+indices. A square avoids the preferred break introduced by a space; the font has
+no NBSP mapping. Neither these display substitutions nor normalization enter the
+source buffer. Unregistered contexts, ASCII, single scalars and unsupported or
+oversized clusters keep ordinary layout. A suffix beginning with an unsupported
+base cannot compose across a hard source join. Styles spanning a cluster use the
+first scalar's size/color, including syntax and Critical Lens receding.
 
-Source composition and broader application parity remain open. No integration or
-native source-shaping improvement is claimed for this foundation.
+Egui uses em sizes while ab_glyph rasterization uses ascender-to-descender height;
+the dedicated face's zero-gap row height supplies the correct physical scale,
+rounded as egui rounds it. Painting uses its actual glyph baseline and coverage,
+tinted with the original style. Layout width admits at least one composed glyph
+so wrapping cannot separate its zero-width scalar indices. Ordinary source font
+registration and ASCII/CJK caret geometry remain unchanged.
+
+A context-owned cache retains at most 256 shape results, 64 images and four MiB
+of image pixels, with FIFO eviction. Raster keys include glyph, offsets, advances
+and physical height; theme and original source counts are not raster identities.
+Each returned layout retains the handles it needs; the cache owns no Context,
+worker, daemon or native HarfBuzz dependency. Hosts own the original text and
+canonical selection. Hit testing and vertical/page movement snap composed
+interiors to the glyph end. Find/selection/occurrence rectangles expand only their
+visual scalar range; copying remains the exact canonical range, even if it starts
+inside a compound. Left/right movement uses complete graphemes per visible span.
+
+### Verification
+
+- Five font-bridge matrices cover scalar indices, pointer halves, highlights,
+  wrapping through narrow widths, first-style ownership, hard joins, unchanged
+  ordinary geometry, cache reuse/scaling/eviction and bounded memory. Shared text
+  tests cover compound movement and hidden-boundary ownership. The source harness
+  checks pointer/keyboard selection, partial canonical copy, whole-glyph highlight
+  widths and separately textured glyphs at 1×/1.5×/2× with wrap on/off.
+- Workspace: 603 app tests passed, seven ignored; two binary, 13 font, 16 text and
+  38 then-existing doctests passed. The added public bridge example passes as the
+  39th doctest. Strict Clippy/check/rustdoc, build/fmt/diff pass; rendered API docs
+  were inspected. CPU-only: five tests/one doc; asset-only: one test. A separate
+  offline host imports only reader-fonts/egui and exercises the public bridge,
+  with 16 build jobs. A copied standalone app verifies all resources.
+- Native v2 old-control at 1× reproduces separate glyphs and scalar-only selection,
+  with ten exact copies. Final v4 1×/2× each pass 18 fresh clipboard checks: whole
+  keycap/family/tone/flag/accent, complete lines, left/right pointer halves, drag,
+  expanded-source CRLF copy, the 4,096-byte edge, zoom/wrap and find/Escape focus.
+  Captures include dark/light, colored string glyphs, folding, zoom/wrap, find and
+  source-mode transitions; inspected at both scales. Original fixture/binary
+  hashes remain unchanged and all final process exits are zero.
+- Early native v1 ended on stdin EOF and is not accepted. Native v2 after-runs
+  exposed the pre-existing unsupported Ctrl+Home command, which the script had
+  incorrectly assumed for line-start movement. V3 uses the supported Home and
+  passes; v4 adds pointer/drag/fold/edge coverage. These failed attempts are kept
+  separately from accepted evidence. Ctrl+Home/End and modified source navigation
+  require the broader keyboard audit; they are not claimed fixed here.
+
+Architecture against `before-source-emoji-paint`: NEUTRAL, +565 NLOC/20 functions/
+one module including tests, no new hotspots/cycles/clone groups, all 109 groups
+retained, health -0.01. No new dependency versions or lockfile changes.
+Archive: `~/.local/state/radiology-qa/source-composition-20261102-1444bf2`.
+
+## Remaining scope
+
+The confirmed source compound-emoji defect is integrated and accepted. General
+Unicode shaping/bidi, compound emoji in other UI labels/previews, modified source
+navigation and the broader Swift parity/corpus review remain open. The shaper is
+intentionally bounded to supported single-glyph clusters; unsupported text keeps
+the existing scalar fallback. Full accessibility and actual sibling adoption
+remain deferred. The existing broad requirement ledger stays authoritative.
+
+## Foundation architecture evidence
 
 Architecture against `before-reader-font-shaping`: NEUTRAL, +359 NLOC/11 functions/
 three files including QA/example code, health +0.11, no new hotspot/cycle; all 109

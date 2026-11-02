@@ -321,7 +321,7 @@ impl SourceView {
 /// Paints exact source matches using shaped glyph positions, including Unicode.
 fn paint_match(
     painter: &egui::Painter,
-    galley: &egui::Galley,
+    galley: &reader_fonts::EmojiGalley,
     origin: egui::Pos2,
     part: &reader_text::ProjectedFragment,
     source: &str,
@@ -334,15 +334,17 @@ fn paint_match(
 }
 
 fn for_each_match_rect(
-    galley: &egui::Galley,
+    galley: &reader_fonts::EmojiGalley,
     origin: egui::Pos2,
     part: &reader_text::ProjectedFragment,
     source: &str,
     range: std::ops::Range<usize>,
     mut draw: impl FnMut(Rect),
 ) {
-    let first = part.char_index(source, range.start);
-    let last = part.char_index(source, range.end);
+    let visual = galley
+        .visual_range(part.char_index(source, range.start)..part.char_index(source, range.end));
+    let first = visual.start;
+    let last = visual.end;
     if first == last && (!range.is_empty() || !part.contains_byte(range.start)) {
         return;
     }
