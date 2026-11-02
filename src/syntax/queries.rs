@@ -124,6 +124,16 @@ fn fold_source(grammar: SupportedGrammar) -> String {
             .replace("(type_identifier)", "(identifier)")
             .replace("(simple_identifier)", "(identifier)");
         format!("{folds}\n{symbols}")
+    } else if matches!(grammar, TypeScript | Tsx) {
+        format!(
+            "{folds}\n{symbols}\n{}\n{}",
+            include_str!("../../Sources/Radiology/Queries/typescript/folds.scm"),
+            // A bare case owns its identifier, not the enclosing enum body.
+            include_str!("../../Sources/Radiology/Queries/typescript/symbols.scm").replace(
+                "(enum_body (property_identifier) @name) @symbol.case",
+                "(enum_body (property_identifier) @name @symbol.case)",
+            )
+        )
     } else {
         format!("{folds}\n{symbols}")
     }

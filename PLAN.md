@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Shared native declaration queries](plans/rust-native-outline-parity.md#shared-declaration-queries-for-the-remaining-native-languages--2026-11-01)
+now cover Rust trait requirements/unions/macros, Go interfaces and file-scope
+values, Python aliases/values and ECMAScript/TypeScript closures, members, enums
+and namespaces. TypeScript cases have separate exact ranges; closure signatures
+stop before their bodies. Broader language corpus acceptance remains open.
+
 [Swift/Kotlin native outlines](plans/rust-native-outline-parity.md) now use the
 bundled symbol queries for exact lifecycle, protocol, property, enum-case and
 companion declarations. Broader grammar/corpus acceptance remains open, including

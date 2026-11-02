@@ -63,6 +63,11 @@ actual sibling adoption/integration is deferred until the user requests it.
   caret strokes, long-line destination reveal, and independently persisted source
   zoom are integrated. Source focus is separate from other controls. Indexed pins
   use exact semantic occurrences; lexical fallback is scoped to enclosing functions.
+- [Shared native outline queries](rust-native-outline-parity.md#shared-declaration-queries-for-the-remaining-native-languages--2026-11-01)
+  replace the limited Rust/Python/Go/ECMAScript match arms with bundled Swift
+  captures, including trait/interface signatures, macros, named closures, file
+  values, TypeScript members and correctly bounded enum cases. TS/TSX type folds
+  and closure signature headers share the same existing parser/query paths.
 - [Native Swift/Kotlin declaration queries](rust-native-outline-parity.md) now cover
   protocol requirements, lifecycle routines, Kotlin properties, enum cases and
   named companions with exact names, signatures and hierarchy. Broader grammar

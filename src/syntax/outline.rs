@@ -22,6 +22,10 @@ pub enum SymbolKind {
     Property,
     /// Struct declaration.
     Struct,
+    /// Union declaration.
+    Union,
+    /// Macro definition.
+    Macro,
     /// Class declaration.
     Class,
     /// Extension or implementation of an existing type.
@@ -70,6 +74,8 @@ impl SymbolKind {
             Self::Deinitializer => "Deinitializer",
             Self::Property => "Property",
             Self::Struct => "Struct",
+            Self::Union => "Union",
+            Self::Macro => "Macro",
             Self::Class => "Class",
             Self::Extension => "Implementation",
             Self::Enum => "Enum",
@@ -93,6 +99,8 @@ impl SymbolKind {
             Self::Deinitializer => "d",
             Self::Property => "v",
             Self::Struct => "S",
+            Self::Union => "U",
+            Self::Macro => "!",
             Self::Class => "C",
             Self::Extension => "I",
             Self::Enum => "E",
@@ -271,7 +279,7 @@ impl SymbolExtractor {
         root: Node<'_>,
         control: &super::AnalysisControl<'_>,
     ) -> Result<Vec<DocumentSymbol>, String> {
-        if matches!(grammar, SupportedGrammar::Swift | SupportedGrammar::Kotlin) {
+        if grammar != SupportedGrammar::C {
             return native::extract(buffer, grammar, root, control);
         }
         let mut symbols = Vec::new();
@@ -307,43 +315,6 @@ impl SymbolExtractor {
     ) -> Option<DocumentSymbol> {
         let kind_str = node.kind();
         let (kind, name_field) = match (grammar, kind_str) {
-            (SupportedGrammar::Rust, "function_item") => (SymbolKind::Function, "name"),
-            (SupportedGrammar::Rust, "struct_item") => (SymbolKind::Struct, "name"),
-            (SupportedGrammar::Rust, "enum_item") => (SymbolKind::Enum, "name"),
-            (SupportedGrammar::Rust, "trait_item") => (SymbolKind::Trait, "name"),
-            (SupportedGrammar::Rust, "impl_item") => (SymbolKind::Extension, "type"),
-            (SupportedGrammar::Rust, "mod_item") => (SymbolKind::Module, "name"),
-            (SupportedGrammar::Rust, "type_item") => (SymbolKind::TypeAlias, "name"),
-            (SupportedGrammar::Rust, "const_item") => (SymbolKind::Constant, "name"),
-            (SupportedGrammar::Rust, "static_item") => (SymbolKind::Variable, "name"),
-            (SupportedGrammar::Rust, "enum_variant") => (SymbolKind::EnumMember, "name"),
-
-            (SupportedGrammar::Python, "function_definition") => (SymbolKind::Function, "name"),
-            (SupportedGrammar::Python, "class_definition") => (SymbolKind::Class, "name"),
-
-            (SupportedGrammar::Go, "function_declaration") => (SymbolKind::Function, "name"),
-            (SupportedGrammar::Go, "method_declaration") => (SymbolKind::Method, "name"),
-            (SupportedGrammar::Go, "type_spec") => (SymbolKind::Struct, "name"),
-
-            (
-                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
-                "function_declaration",
-            ) => (SymbolKind::Function, "name"),
-            (
-                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
-                "class_declaration",
-            ) => (SymbolKind::Class, "name"),
-            (
-                SupportedGrammar::JavaScript | SupportedGrammar::TypeScript | SupportedGrammar::Tsx,
-                "method_definition",
-            ) => (SymbolKind::Method, "name"),
-            (SupportedGrammar::TypeScript | SupportedGrammar::Tsx, "interface_declaration") => {
-                (SymbolKind::Interface, "name")
-            }
-            (SupportedGrammar::TypeScript | SupportedGrammar::Tsx, "type_alias_declaration") => {
-                (SymbolKind::TypeAlias, "name")
-            }
-
             (SupportedGrammar::C, "function_definition") => (SymbolKind::Function, "declarator"),
             (SupportedGrammar::C, "struct_specifier") => (SymbolKind::Struct, "name"),
             (SupportedGrammar::C, "enum_specifier") => (SymbolKind::Enum, "name"),
@@ -446,6 +417,10 @@ fn node_text(node: Node, buffer: &SourceBuffer) -> String {
 fn declaration_header(node: Node<'_>, buffer: &SourceBuffer) -> Option<String> {
     node.child_by_field_name("body")
         .or_else(|| {
+            node.child_by_field_name("value")?
+                .child_by_field_name("body")
+        })
+        .or_else(|| {
             let mut cursor = node.walk();
             let body = node.named_children(&mut cursor).find(|child| {
                 matches!(
@@ -476,7 +451,7 @@ mod tests {
             .iter()
             .zip([
                 ("LIMIT", SymbolKind::Constant),
-                ("READY", SymbolKind::Variable),
+                ("READY", SymbolKind::Constant),
                 ("Choice", SymbolKind::Enum),
             ])
             .map(|(symbol, (name, kind))| (symbol, name, kind))
@@ -534,7 +509,7 @@ fn calculate() {
             rows.iter()
                 .map(|row| row.symbol.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["long", "short", "Widget"]
+            vec!["long", "short", "Widget", "name"]
         );
         assert_eq!(rows[0].line_count, 4);
         assert!(rows[0]

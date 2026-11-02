@@ -5,8 +5,9 @@
 The standalone Rust reader now consumes the bundled Swift application's symbol
 queries for Swift and Kotlin outlines through the existing cached folding query.
 The existing Kotlin query adapter handles the linked kotlin-ng grammar. This
-replaces the smaller language-specific AST match arms; other languages retain
-those existing paths. No dependency, host integration, worker or UI state was added.
+replaces the smaller language-specific AST match arms. At this increment other
+languages retained their existing paths; the later expansion below replaces them
+except C. No dependency, host integration, worker or UI state was added.
 
 Swift protocol requirements, initializers and deinitializers have exact captured
 names, alongside existing types, functions, extensions and aliases. In particular,
@@ -85,3 +86,71 @@ inserting bytes. Recoverable error trees follow the existing analysis policy and
 do not automatically populate `parse_error`. Broader Swift/Kotlin corpus coverage
 and final side-by-side Swift acceptance remain open. Full accessibility and actual
 little-screen-clip adoption remain deferred per user scope.
+
+## Shared declaration queries for the remaining native languages — 2026-11-01
+
+Rust, Python, Go, JavaScript, TypeScript and TSX now use the same native outline
+extractor as Swift/Kotlin. The old hand-selected match arms are removed; C retains
+its existing AST path. This closes concrete omissions found against bundled Swift
+queries: Rust trait requirements, unions and macros; Python module assignments and
+type aliases; Go package names, interface methods, aliases and file-scope values;
+JavaScript generators and named function/arrow initializers; TypeScript abstract
+types, signatures, properties, enums and namespaces. Local non-callable values stay
+excluded according to the query rules. Public `SymbolKind` gains `Union` and `Macro`.
+Rust statics follow the bundled query's Constant role; Go struct/interface bodies
+retain useful specific kinds. Generic impl target names retain their exact bytes.
+
+The shared query cache combines TypeScript additions with ECMAScript symbols and
+folds for both TS and TSX. TypeScript interface/object/enum/namespace bodies gain
+structural fold facts. The Rust adapter narrows a bare enum case capture to its
+identifier: the bundled query captures the entire enum body, which otherwise
+incorrectly parents assigned cases under the first bare case. Original Swift
+resources are retained unchanged. This correction is covered by sibling/hierarchy
+and exact full-range assertions, beyond just checking flattened names.
+
+Duplicate declarations use the Swift worker's most-specific-kind ranking, so a
+named arrow function matched by both function and generic variable queries remains
+one callable row. Source order, captured selection bytes, cancellation, bounded
+matching, existing inspector and standalone host boundaries remain shared.
+Signatures for named function/arrow values stop before their actual body, using
+the existing header helper; they do not expose a whole initializer body as a
+signature. No dependency, worker, parallel parser or persistent UI state is added.
+
+Five language regression cases fail against the old implementation and establish
+the omissions above. Exact names/ranges, hierarchy, kind preference, file/local
+scope, generic impl names and closure headers are checked. TypeScript and TSX
+also verify four multiline structural type folds. Existing outline assertions
+now expect TypeScript properties and the bundled Rust static classification.
+
+The final workspace passes 569 app tests (seven ignored), two binary tests, four
+font tests, 13 text tests and 37 doctests. Strict Clippy, all-target check, binary
+build, rustdoc with warnings denied, formatting and diff checks pass. The closure
+signature and enum-hierarchy assertions both fail before their respective fixes.
+
+Ten final native flows pass on the same final binary: Rust, JavaScript, TSX, Go
+and Python at both 1× and 2×. Each verifies two outline destinations by exact
+selected-name copies, exact whole-file copies, unchanged fixture/binary hashes and
+zero child exits. Targets include the Rust macro/union, Unicode and nested JS
+closures, TS interface method/enum case, Go interface method/constant, and Python
+alias/module value. Dark/light captures include the corrected enum siblings.
+Rust 2× OCR misread the macro label; the controller locates that row between its
+observed Bits and VALUE neighbors, and exact source copies verify the result.
+Initial pre-signature/pre-enum runs are retained as development evidence only;
+`accepted.json` selects the ten final `radiology-shared-outline-accepted-*` runs.
+
+Architecture baseline: `before-shared-outline-queries` at `59b50cb`. Product and
+tests add 140 NLOC and six functions (five tests and the shared rank helper), with
+no new files, hotspots, maximum CCN or cycles. Health is effectively unchanged.
+All 91 clone groups remain identical after complete normalized multiset comparison.
+The comparison's regression label only flags the existing nine-line outline/test
+scanner clone touching a modified file; no clone was added or removed.
+
+Archive: `~/.local/state/radiology-qa/shared-outline-queries-20261101-59b50cb` contains
+final controllers, fixture JSON, action logs, clipboard bytes, hashes, captures,
+workspace/gate logs, negative probes, architecture reports/audit and source diff.
+This closes the listed declaration gaps, not broad grammar/corpus or whole-app
+parity. The native resized inspector also exposes an existing minimum-height
+cleanup: the References heading can clip when the declaration region is shrunk.
+That and broader reader/index/PR/cache/UI acceptance remain open. The linked
+compact Kotlin interface limitation remains unchanged. The app stays independent;
+full accessibility and actual sibling adoption remain deferred.

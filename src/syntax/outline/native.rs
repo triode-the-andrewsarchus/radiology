@@ -1,4 +1,4 @@
-//! Native outline facts from the same Swift query captures used for folding.
+//! Native outline facts from the bundled Swift symbol queries used for folding.
 
 use super::*;
 use crate::syntax::{queries, AnalysisControl};
@@ -26,7 +26,23 @@ pub(super) fn extract(
             let node = declaration.node;
             let kind = match names[declaration.index as usize] {
                 "symbol.type" => type_kind(node, buffer),
-                "symbol.protocol" => SymbolKind::Trait,
+                "symbol.protocol" => {
+                    if matches!(
+                        grammar,
+                        SupportedGrammar::TypeScript | SupportedGrammar::Tsx
+                    ) {
+                        SymbolKind::Interface
+                    } else {
+                        SymbolKind::Trait
+                    }
+                }
+                "symbol.method" => SymbolKind::Method,
+                "symbol.enum" => SymbolKind::Enum,
+                "symbol.module" => SymbolKind::Module,
+                "symbol.extension" => SymbolKind::Extension,
+                "symbol.constant" => SymbolKind::Constant,
+                "symbol.variable" => SymbolKind::Variable,
+                "symbol.macro" => SymbolKind::Macro,
                 "symbol.function" => SymbolKind::Function,
                 "symbol.initializer" => SymbolKind::Initializer,
                 "symbol.deinitializer" => SymbolKind::Deinitializer,
@@ -49,6 +65,11 @@ pub(super) fn extract(
             };
             symbols
                 .entry((node.start_byte(), Reverse(node.end_byte())))
+                .and_modify(|existing: &mut DocumentSymbol| {
+                    if symbol_rank(kind) < symbol_rank(existing.kind) {
+                        *existing = symbol.clone();
+                    }
+                })
                 .or_insert(symbol);
             if symbols.len() > 65_536 {
                 return Err("Outline query exceeded its declaration limit".into());
@@ -69,7 +90,31 @@ pub(super) fn extract(
     Ok(output)
 }
 
+// Match Swift's most-specific capture preference for overlapping declaration patterns.
+fn symbol_rank(kind: SymbolKind) -> u8 {
+    use SymbolKind::*;
+    match kind {
+        Struct | Union | Class | Trait | Interface | Enum => 0,
+        Function | Method | Initializer | Deinitializer => 1,
+        Extension | Module | TypeAlias | Macro => 2,
+        Property | Constant | EnumMember => 3,
+        Variable => 4,
+    }
+}
+
 fn type_kind(node: Node<'_>, buffer: &SourceBuffer) -> SymbolKind {
+    match node.kind() {
+        "struct_item" => return SymbolKind::Struct,
+        "union_item" => return SymbolKind::Union,
+        "type_spec" => {
+            return match node.child_by_field_name("type").map(|node| node.kind()) {
+                Some("struct_type") => SymbolKind::Struct,
+                Some("interface_type") => SymbolKind::Interface,
+                _ => SymbolKind::TypeAlias,
+            }
+        }
+        _ => {}
+    }
     if let Some(kind) = node.child_by_field_name("declaration_kind") {
         return match node_text(kind, buffer).as_str() {
             "struct" => SymbolKind::Struct,

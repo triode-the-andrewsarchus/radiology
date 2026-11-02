@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-01 — Share bundled declaration queries across native outlines (Codex)
+
+Rust/Python/Go/ECMAScript/TS/TSX now reuse the Swift/Kotlin native extractor,
+replacing their limited AST match arms. Added trait/interface requirements,
+macros/unions, file values/aliases, named closures/generators and TypeScript
+members/enums/namespaces. Shared specificity keeps arrow functions callable despite
+variable captures; headers stop before closure bodies. The Rust TS adapter narrows
+bare enum cases to exact identifiers, fixing the visually confirmed Ready→Done
+false nesting; TS/TSX also gain bundled structural type folds. C retains its path.
+Public Union/Macro kinds, no dependency, worker or UI state. Five old-code negative
+fixtures plus closure/enum negatives establish the defects. Workspace passes 569
+app tests (seven ignored), two binary, four font, 13 text and 37 doctests; strict
+Clippy/check/build/rustdoc/fmt/diff pass. Ten final native five-language 1×/2× flows
+pass two exact destinations and whole-file copies, binary/fixture hashes and zero
+exits; representative dark/light captures inspected. Early source versions and
+Rust macro OCR failure are excluded; final 2× macro targeting uses observed neighbor
+rows and exact clipboard proof. Architecture +140 NLOC including tests, six
+functions, no new hotspot/max-CCN/cycle; all 91 clone groups unchanged by full audit.
+The automated regression warning only flags the pre-existing touched clone.
+Broader language/corpus and reader/index/PR/cache/UI/final Swift acceptance remain
+open, including compact Kotlin parsing and minimum declaration-height clipping.
+Accessibility and actual sibling adoption remain deferred.
+[Contract and evidence](plans/rust-native-outline-parity.md#shared-declaration-queries-for-the-remaining-native-languages--2026-11-01).
+Archive: ~/.local/state/radiology-qa/shared-outline-queries-20261101-59b50cb.
+
 ## 2026-11-01 — Match bundled Swift/Kotlin symbol-query declarations (Codex)
 
 Native outlines now reuse the cached folding/symbol queries and bounded query
