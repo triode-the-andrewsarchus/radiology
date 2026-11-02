@@ -19,7 +19,7 @@ pub enum BookmarkAction {
         /// Final zero-based slot.
         slot: usize,
     },
-    /// Toggles the current source line through the shared reader command.
+    /// Toggles the current source location through the shared reader command.
     ToggleCurrent,
 }
 
@@ -27,6 +27,8 @@ pub enum BookmarkAction {
 #[derive(Default)]
 pub struct BookmarkList {
     pub(super) selected: Option<Uuid>,
+    pub(super) navigation_error: Option<(Uuid, String)>,
+    error_notice: super::error_notice::ErrorNotice,
     reveal: bool,
 }
 
@@ -43,6 +45,16 @@ impl BookmarkList {
         Key::Backspace,
         Key::Escape,
     ];
+
+    pub(super) fn clear_navigation_error(&mut self) {
+        self.navigation_error = None;
+        self.error_notice = Default::default();
+    }
+
+    pub(super) fn navigation_failed(&mut self, id: Uuid, message: String) {
+        self.clear_navigation_error();
+        self.navigation_error = Some((id, message));
+    }
 
     pub(super) fn focus_id() -> egui::Id {
         egui::Id::new("bookmark_list_focus")
@@ -71,6 +83,13 @@ impl BookmarkList {
     }
 
     pub(super) fn removed(&mut self, id: Uuid, old_index: usize, store: &BookmarkStore) {
+        if self
+            .navigation_error
+            .as_ref()
+            .is_some_and(|(owner, _)| *owner == id)
+        {
+            self.clear_navigation_error();
+        }
         if self.selected == Some(id) {
             self.selected = store
                 .bookmarks
@@ -123,6 +142,21 @@ impl BookmarkList {
                 }
             });
         });
+        if self
+            .navigation_error
+            .as_ref()
+            .is_some_and(|(id, _)| store.index_of(*id).is_none())
+        {
+            self.clear_navigation_error();
+        }
+        if let Some((_, message)) = &self.navigation_error {
+            if self
+                .error_notice
+                .show_inline(ui, theme, message, Some("Bookmark unavailable"))
+            {
+                self.clear_navigation_error();
+            }
+        }
         let region = ui.available_rect_before_wrap();
         ui.interact(
             region,
@@ -527,5 +561,59 @@ mod tests {
         list.key(Key::Home, &store);
         render(&mut list);
         assert!(render(&mut list).iter().any(|text| text == "bookmark-0000"));
+    }
+
+    #[test]
+    fn bookmark_status_is_bounded_and_keeps_complete_details_and_dismissal() {
+        use crate::ui::test_support::{click, painted_frame, text_center};
+        let message = format!(
+            "gone.rs: {}\n{}",
+            "é🦀 details ".repeat(100),
+            "complete diagnostic\n".repeat(500)
+        );
+        for (dark, scale) in [(true, 1.0), (false, 2.0)] {
+            let (ctx, theme) = crate::ui::test_support::themed_context(dark, scale);
+            let store = paired_bookmarks();
+            let mut list = BookmarkList::default();
+            list.navigation_failed(store.bookmarks[0].id, message.clone());
+            let mut frame = |events, replace_error| {
+                if replace_error {
+                    list.navigation_failed(store.bookmarks[0].id, message.clone());
+                }
+                painted_frame(&ctx, egui::vec2(270.0, 600.0), events, |ui| {
+                    list.show(ui, &theme, &store, "Checkout", Some(false));
+                })
+            };
+            // Apply the context's pending scale before checking pane geometry.
+            frame(vec![], false);
+            let output = frame(vec![], false);
+            text_center(&output, "Bookmark unavailable");
+            assert!(
+                ctx.used_rect().width() <= 271.0,
+                "status expanded the region: {:?}, dark={dark}, scale={scale}",
+                ctx.used_rect()
+            );
+            let summary = crate::ui::test_support::text_shapes(&output)
+                .find(|text| text.galley.job.text.starts_with("gone.rs:"))
+                .unwrap();
+            assert!(summary.galley.job.text.chars().count() <= 241);
+            frame(click(text_center(&output, "Dismiss")), false);
+            let dismissed = frame(vec![], false);
+            assert!(
+                !crate::ui::test_support::text_shapes(&dismissed)
+                    .any(|text| text.galley.job.text == "Bookmark unavailable")
+            );
+            let output = frame(vec![], true);
+            frame(click(text_center(&output, "Details…")), false);
+            let output = frame(vec![], false);
+            let output = frame(click(text_center(&output, "Copy Details")), false);
+            assert_eq!(output.platform_output.copied_text, message);
+            assert!(list.navigation_error.is_some());
+            list.navigation_failed(store.bookmarks[0].id, "removed entry".into());
+            let mut removed = store.clone();
+            removed.remove(store.bookmarks[0].id);
+            list.removed(store.bookmarks[0].id, 0, &removed);
+            assert!(list.navigation_error.is_none());
+        }
     }
 }

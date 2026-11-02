@@ -149,6 +149,17 @@ impl RadiologyApp {
             .and_then(|buffer| self.critical_lens.projection(buffer))
     }
 
+    fn report_source_error(&mut self, target: Option<&SourceTarget>, message: String) {
+        if let Some(SourceTarget::Bookmark(bookmark)) = target {
+            if self.bookmarks.index_of(bookmark.id).is_some() {
+                self.bookmark_list.navigation_failed(bookmark.id, message);
+                self.show_inspector = true;
+            }
+        } else {
+            self.error = Some(message);
+        }
+    }
+
     pub(super) fn request_navigation(
         &mut self,
         location: SourceLocation,
@@ -158,7 +169,7 @@ impl RadiologyApp {
         let location = match self.resolve_location(location) {
             Ok(location) => location,
             Err(error) => {
-                self.error = Some(error);
+                self.report_source_error(Some(&target), error);
                 return;
             }
         };
@@ -178,7 +189,7 @@ impl RadiologyApp {
                         self.commit_departure(intent);
                         self.apply_destination(intent, location);
                     }
-                    Err(error) => self.error = Some(error),
+                    Err(error) => self.report_source_error(Some(&target), error),
                 }
                 return;
             }
@@ -254,12 +265,14 @@ impl RadiologyApp {
                 }
                 Ok(prepared) => self.publish_source(prepared),
                 Err(error) => {
-                    let path = self
-                        .pending_navigation
-                        .take()
-                        .map(|pending| pending.request.location.path)
-                        .unwrap_or_else(|| "Source appearance".into());
-                    self.error = Some(format!("{path}: {error}"));
+                    let pending = self.pending_navigation.take();
+                    let path = pending.as_ref().map_or("Source appearance", |pending| {
+                        pending.request.location.path.as_str()
+                    });
+                    self.report_source_error(
+                        pending.as_ref().map(|pending| &pending.request.target),
+                        format!("{path}: {error}"),
+                    );
                 }
             }
             ctx.request_repaint();

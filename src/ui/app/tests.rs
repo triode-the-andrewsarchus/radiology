@@ -2484,12 +2484,8 @@ fn view_commands_require_source_and_callable_folds_but_keep_global_preferences()
 
 #[test]
 fn removed_bookmark_retires_pending_navigation_without_changing_source_or_history() {
-    let (_dir, mut app) = opened_repository();
+    let (_dir, mut app, id) = reader_with_bookmark();
     let ctx = Context::default();
-    app.open_file("a.rs");
-    settle(&mut app);
-    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
-    let id = app.bookmarks.bookmarks[0].id;
     app.open_file("b.rs");
     settle(&mut app);
     let before = app.open_buffer.clone().unwrap();
@@ -2523,5 +2519,88 @@ fn changed_source_without_a_bounded_bookmark_anchor_preserves_the_accepted_reade
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(format!("{:?}", app.history), history);
     assert_eq!(app.bookmarks.bookmarks, bookmarks);
-    assert!(app.error.as_deref().unwrap().contains("anchor"));
+    assert!(app.error.is_none());
+    let (id, message) = app.bookmark_list.navigation_error.as_ref().unwrap();
+    assert_eq!(*id, bookmarks[0].id);
+    assert!(message.contains("anchor"));
+}
+
+fn reader_with_bookmark() -> (tempfile::TempDir, RadiologyApp, uuid::Uuid) {
+    let (dir, mut app) = opened_repository();
+    app.open_file("a.rs");
+    settle(&mut app);
+    app.execute_command(&Context::default(), ToolbarAction::ToggleBookmark);
+    let id = app.bookmarks.bookmarks[0].id;
+    (dir, app, id)
+}
+
+fn reader_with_missing_bookmark() -> (tempfile::TempDir, RadiologyApp, uuid::Uuid) {
+    let (dir, mut app, id) = reader_with_bookmark();
+    app.open_file("b.rs");
+    settle(&mut app);
+    std::fs::remove_file(dir.path().join("a.rs")).unwrap();
+    (dir, app, id)
+}
+
+#[test]
+fn bookmark_failure_is_scoped_shows_its_region_and_clears_on_retry() {
+    let (dir, mut app, id) = reader_with_missing_bookmark();
+    let ctx = Context::default();
+    let source = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    app.show_inspector = false;
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    app.error = Some("unrelated worker notice".into());
+    settle(&mut app);
+    assert_eq!(app.error.as_deref(), Some("unrelated worker notice"));
+    let (owner, message) = app.bookmark_list.navigation_error.as_ref().unwrap();
+    assert_eq!(*owner, id);
+    assert!(message.contains("a.rs"));
+    assert!(app.show_inspector);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &source));
+    assert_eq!(format!("{:?}", app.history), history);
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(9));
+    assert!(
+        app.bookmark_list.navigation_error.is_some(),
+        "empty slots must not clear a real failure"
+    );
+    repository(dir.path());
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    assert!(
+        app.bookmark_list.navigation_error.is_none(),
+        "retry must clear the previous status immediately"
+    );
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+    assert!(app.bookmark_list.navigation_error.is_none());
+}
+
+#[test]
+fn removed_bookmark_failure_and_scope_changes_retire_the_region_status() {
+    let (dir, mut app, id) = reader_with_missing_bookmark();
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    app.handle_bookmark_action(&ctx, crate::ui::bookmark_list::BookmarkAction::Remove(id));
+    settle(&mut app);
+    assert!(app.bookmark_list.navigation_error.is_none());
+    assert!(app.error.is_none());
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    app.bookmark_list
+        .navigation_failed(id, "retired scope".into());
+    let next = dir.path().join("next");
+    repository(&next);
+    app.open_repository(&next);
+    settle(&mut app);
+    assert!(app.bookmark_list.navigation_error.is_none());
+}
+
+#[test]
+fn invalid_bookmark_target_reports_the_synchronous_error_in_its_region() {
+    let (_dir, mut app, id) = reader_with_bookmark();
+    let ctx = Context::default();
+    app.bookmarks.bookmarks[0].path = "../escape.rs".into();
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    assert!(!app.is_source_loading());
+    assert!(app.error.is_none());
+    assert_eq!(app.bookmark_list.navigation_error.as_ref().unwrap().0, id);
 }

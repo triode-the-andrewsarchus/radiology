@@ -39,6 +39,10 @@ relocation metadata. [Caret-sensitive source command order](plans/rust-source-in
 now repairs the confirmed Ctrl+D/Right/Ctrl+D defect through shared pre-frame
 capture and the existing source queue, with deferred geometry and native 1×/2×
 bookmark/reference/definition acceptance. Broader mixed-owner input remains open.
+[Scoped bookmark diagnostics](plans/rust-bookmark-pane.md#scoped-navigation-diagnostics--2026-11-01)
+now match Swift's Bookmarks-region status, reuse bounded Details/Copy/Dismiss and
+preserve the accepted reader plus unrelated global errors. Retry/removal/scope
+retirement and complete native 1×/2× failure/recovery flows pass.
 [Bounded bookmark relocation](plans/rust-bookmark-pane.md#bounded-anchors-and-cancellable-relocation--2026-11-01)
 now omits oversized anchors, bounds candidate retention and propagates worker
 cancellation. [Selection retirement](plans/rust-reader-performance.md#retire-old-selection-before-new-input-not-during-reveal-settling--2026-11-01)

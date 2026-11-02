@@ -17,41 +17,62 @@ impl ErrorNotice {
             self.details_open = false;
             return false;
         };
+        TopBottomPanel::top("reader_notice")
+            .show(ctx, |ui| self.show_inline(ui, theme, message, None))
+            .inner
+    }
+
+    /// Shares bounded diagnostics with a region while keeping details scoped to its UI.
+    pub(crate) fn show_inline(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &AppTheme,
+        message: &str,
+        title: Option<&str>,
+    ) -> bool {
         let mut dismissed = false;
-        TopBottomPanel::top("reader_notice").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                // Reserve the actions before sizing the summary, including narrow windows.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    dismissed = ui.small_button("Dismiss").clicked();
-                    if ui.small_button("Details…").clicked() {
-                        self.details_open = true;
-                    }
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.add(
-                                Label::new(
-                                    RichText::new(summary(message)).color(theme.text_primary),
-                                )
+        ui.horizontal(|ui| {
+            // Reserve actions before sizing the label, including narrow regions.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                dismissed = ui.small_button("Dismiss").clicked();
+                if ui.small_button("Details…").clicked() {
+                    self.details_open = true;
+                }
+                ui.allocate_ui_with_layout(
+                    egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        let label = title.map_or_else(|| summary(message), str::to_owned);
+                        ui.add(
+                            Label::new(RichText::new(label).color(theme.text_primary))
                                 .truncate(true),
-                            );
-                        },
-                    );
-                });
+                        );
+                    },
+                );
             });
         });
+        if title.is_some() {
+            ui.add(
+                Label::new(
+                    RichText::new(summary(message))
+                        .small()
+                        .color(theme.text_secondary),
+                )
+                .truncate(true),
+            );
+        }
         if dismissed {
             self.details_open = false;
         }
         if self.details_open {
-            self.show_details(ctx, message);
+            self.show_details(ui.ctx(), message, ui.make_persistent_id("error_details"));
         }
         dismissed
     }
 
-    fn show_details(&mut self, ctx: &Context, message: &str) {
+    fn show_details(&mut self, ctx: &Context, message: &str, id: egui::Id) {
         Window::new("Error Details")
+            .id(id)
             .open(&mut self.details_open)
             .default_width(640.0)
             .default_height(320.0)

@@ -32,6 +32,7 @@ impl RadiologyApp {
         let Some(bookmark) = self.bookmarks.get_by_index(index).cloned() else {
             return;
         };
+        self.bookmark_list.clear_navigation_error();
         self.bookmark_list.selected = Some(bookmark.id);
         let location =
             SourceLocation::with_revision(&bookmark.path, bookmark.byte_offset, bookmark.revision);

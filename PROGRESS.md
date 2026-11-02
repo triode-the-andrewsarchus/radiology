@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-01 — Keep bookmark navigation failures in their owning region (Codex)
+
+Immediate, cached and background bookmark errors now belong to the Bookmarks pane,
+matching Swift. The inspector opens on failure; current source/history and unrelated
+global errors survive. UUID removal ignores late failures, while retry/removal/scope
+change retire the notice. Shared ErrorNotice renders the bounded title/summary and
+complete Details/Copy/Dismiss, with owner-specific window IDs. No new dependency,
+worker, cache, storage or public API. Shared test setup removes fresh duplication.
+Workspace passes 541 app tests (seven ignored), two binary, four font, 13 text and
+36 doctests; strict Clippy/check/build/rustdoc/fmt/diff pass. Global-only routing and
+omitted inline rendering fail the new regressions; restored code passes 25 bookmark
+tests. Architecture +190 NLOC including tests, ten functions, no new hotspot/cycle
+or max-CCN growth. Raw touched-file clone warnings are audited: all 91 baseline
+groups unchanged, zero additions/removals; health +0.02. Native 1×/2× finished flows
+verify 6,291,502 original source bytes after a private disk edit, unchanged 366-byte
+bookmark storage, inspector recovery, exact diagnostic copy, dismissal and successful
+restored-source retry with exact destination suffix. Final screenshots/hashes and
+zero exits verified. Preliminary OCR false negatives and a retry check that stopped
+at Opening are retained and excluded; final QA observes completion before copying.
+Broader reader/input/corpus, language/index/PR/cache and final Swift UI/standalone/
+reuse acceptance remain open. Accessibility and actual sibling adoption deferred.
+[Contract and evidence](plans/rust-bookmark-pane.md#scoped-navigation-diagnostics--2026-11-01).
+Archive: ~/.local/state/radiology-qa/bookmark-notice-20261101-d4249db.
+
 ## 2026-11-01 — Preserve fresh selections while navigation reveal settles (Codex)
 
 Native GDB confirms the pending reveal's committed flag clears a newer Select All

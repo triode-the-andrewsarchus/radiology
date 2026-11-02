@@ -248,3 +248,50 @@ a later Select All. The redundant committed flag is removed. Both failing
 regressions and complete unprofiled 1×/2× source/error/copy flows now pass, including
 all 6,291,502 original bytes while disk bytes differ.
 [Implementation, tests, native evidence and limits](rust-reader-performance.md#retire-old-selection-before-new-input-not-during-reveal-settling--2026-11-01).
+
+
+## Scoped navigation diagnostics — 2026-11-01
+
+Swift's `BookmarksPane` places `navigationError` below the Bookmarks header. Rust
+now follows that ownership: immediate path rejection, cached resolution failure
+and worker failure report against the still-present bookmark UUID. Failure opens
+the inspector so the status is visible, preserves accepted source/history, and
+leaves unrelated global diagnostics intact. Removed identities ignore late errors;
+removal, repository/PR scope reset and a valid retry retire the status. An empty
+numbered slot does not dismiss an existing failure. Storage errors remain global.
+
+The existing `ErrorNotice` supplies the inline title, bounded diagnostic summary,
+Details and Dismiss controls. Its complete selectable/copyable Details window now
+uses its owning UI's persistent ID, separating global and bookmark notices. No
+new worker, dependency, cache, storage format or public API is introduced. Shared
+reader fixtures avoid duplicated app setup. Existing typography roles are reused.
+
+Validation passes 541 app tests (seven ignored), two binary, four font, 13 text
+and 36 doctests, plus strict Clippy/check/build/rustdoc/fmt/diff checks. New tests
+cover missing/invalid targets, unrelated global errors, preserved reader/history,
+hidden inspector recovery, retry, empty slots, removal and scope retirement. A
+270-point pane exercises long Unicode/multiline summaries, full Details/Copy and
+Dismiss at dark 1× and light 2×. The scaled test settles egui's pending scale before
+measuring. Restoring global-only routing fails two new regressions; omitting the
+inline region fails the painted test. Restoring production passes 25 bookmark tests.
+
+Architecture comparison adds 190 NLOC including tests and ten functions, with no
+new maximum complexity, hotspot or cycle. Its raw REGRESSION lists touched-file
+clones; the full normalized fragment/file-pair multiset confirms all 91 baseline
+groups unchanged, with zero additions/removals. Health changes +0.02.
+
+Fresh private native 1×/2× runs preserve and copy all 6,291,502 accepted source bytes
+after a controlled disk mutation, retain the 366-byte bookmark record, reopen the
+hidden inspector and show the error in Bookmarks. Details copies the exact complete
+message. Dismiss removes the status/window; another attempt reproduces the failure.
+Restoring disk bytes and retrying clears the error, finishes loading and copies the
+exact destination suffix `LONG_END`. Captures, binary/fixture hashes, restored edits
+and all child exits are verified. Earlier OCR checks confused generic semantic
+unavailability or split the status text; an earlier retry capture stopped at
+Opening. Those preliminary trials are retained but excluded from final acceptance.
+Final checks crop the Bookmarks region and observe loading completion before copying.
+
+Evidence: `~/.local/state/radiology-qa/bookmark-notice-20261101-d4249db`.
+Broader mixed-owner input, reader/corpus performance, language/index/PR/cache and
+final Swift feature/visual/standalone/reuse acceptance remain open. Full accessibility
+and actual sibling integration remain deferred.
