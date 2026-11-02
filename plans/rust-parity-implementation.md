@@ -24,6 +24,10 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
+- [Welcome recent paths](rust-pane-labels.md#welcome-recent-paths--2026-11-02): all
+  eight entries fit at minimum window size through the shared measured label
+  policy, preserving exact open targets. App/native scale/appearance checks pass.
+
 - [Source multi-click selection](rust-source-click-selection.md): word/paragraph
   selection, whole-unit dragging and cooperative exact copying coexist with pin
   toggles. Moving existing pin controls into the measured footer keeps the source

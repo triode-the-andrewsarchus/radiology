@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Welcome recent paths](plans/rust-pane-labels.md#welcome-recent-paths--2026-11-02)
+now reuse measured middle elision so all eight entries fit at minimum window size.
+Pointer opening preserves exact Unicode/newline directory names; app and native
+1×/2× dark/light checks pass with exact source copying.
+
 [Source multi-click selection](plans/rust-source-click-selection.md) now combines
 word/paragraph selection and whole-unit dragging with occurrence pinning. Pin
 controls live in the measured footer so they do not move text under the pointer.

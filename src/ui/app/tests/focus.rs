@@ -28,6 +28,75 @@ fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Co
 }
 
 #[test]
+fn welcome_recent_paths_stay_compact_and_open_their_canonical_repository() {
+    use crate::ui::test_support::{click, text_shapes};
+    for scale in [1.0, 2.0] {
+        for dark in [true, false] {
+            let (owner, mut app) = reader();
+            let mut parent = owner.path().to_path_buf();
+            for _ in 0..12 {
+                parent.push("long-café-component-with spaces-and-details");
+            }
+            let recent: Vec<_> = (0..SessionStore::RECENT_LIMIT)
+                .map(|index| {
+                    let path = parent.join(format!("line\nbreak-recent-{index}"));
+                    std::fs::create_dir_all(&path).unwrap();
+                    std::fs::write(path.join("source.rs"), "// exact recent source\r\n").unwrap();
+                    path.to_string_lossy().into_owned()
+                })
+                .collect();
+            app.session.recent_repositories = recent.clone();
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            if !dark {
+                app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+            }
+            let mut last_point = egui::Pos2::ZERO;
+            for size in [
+                egui::vec2(800.0, 500.0),
+                egui::vec2(1100.0, 800.0),
+                egui::vec2(1400.0, 900.0),
+            ] {
+                for _ in 0..3 {
+                    frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                }
+                let output = frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                for index in 0..SessionStore::RECENT_LIMIT {
+                    let end = format!("recent-{index}");
+                    let row = text_shapes(&output)
+                        .find(|shape| shape.galley.job.text.ends_with(&end))
+                        .unwrap();
+                    assert_eq!(row.galley.rows.len(), 1, "{size:?}/{scale}/{dark}/{index}");
+                    assert!(row.galley.size().x <= 500.0);
+                    assert!(!row.galley.job.text.contains(['\r', '\n']));
+                    assert!(row.pos.x >= 0.0 && row.pos.x + row.galley.size().x <= size.x);
+                    assert!(row.pos.y >= 0.0 && row.pos.y + row.galley.size().y <= size.y);
+                    last_point = row.pos + row.galley.size() / 2.0;
+                }
+            }
+            frame_sized(
+                &mut app,
+                &ctx,
+                click(last_point),
+                egui::vec2(1400.0, 900.0),
+                |_| {},
+            );
+            settle(&mut app);
+            assert_eq!(
+                app.repository_root.as_deref(),
+                Some(std::path::Path::new(recent.last().unwrap()))
+            );
+            app.open_file("source.rs");
+            settle(&mut app);
+            assert_eq!(
+                app.open_buffer.as_ref().unwrap().text,
+                "// exact recent source\r\n"
+            );
+        }
+    }
+}
+
+#[test]
 fn composed_file_query_preserves_the_sidebar_search_owner() {
     let (owner, mut app) = reader();
     let root = owner.path().join("checkout");

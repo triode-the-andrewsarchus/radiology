@@ -89,3 +89,44 @@ requirement Swift audit also remain open. This change verifies Files and source
 breadcrumbs rather than every text-bearing surface. Full accessibility and actual
 little-screen-clip adoption remain deferred; the app remains standalone and adds
 no dependency.
+
+## Welcome recent paths — 2026-11-02
+
+The subsequent welcome-screen audit found a distinct long-path defect. Swift's
+`WelcomeView` bounds Recent Repositories to 500 points and gives each path one
+middle-truncated line. Rust used unbounded wrapping links. At 800×500, the actual
+app regression measures 25 lines for the first path, pushing later entries outside
+the window. Native previous-binary captures at 1×/2× confirm the final entry cannot
+be reached on screen.
+
+Welcome links now reuse `text_fit::middle`, `bounded` and `explanation`. Each label
+fits the smaller of the available pane and 500 points, retaining both ends. Only
+display CR/LF become spaces; callbacks still open the original repository path,
+including Unicode, spaces and newlines. Existing body type, link color, hover and
+keyboard-capable Link widgets remain in place. Hover uses the existing bounded
+path explanation. No font role, state, helper, worker, dependency, public API or
+sibling code was added. Requested Swift/macOS/type skills remain unavailable in the
+installed catalog; the Swift view and established shared label policy are the
+reference for this layout-only change.
+
+The actual-app matrix covers all eight recent paths, 800×500/1100×800/1400×900,
+1×/2× and dark/light. Rows stay single-line, within 500 points and inside the
+window. Clicking the last row opens its exact canonical directory and reads its
+original CRLF source. The identical test fails before the change and passes after.
+Native old/current 1×/2× at the minimum size prove all eight new labels visible in
+both appearances; the final recent repository opens through the pointer, then
+Ctrl+K selects its source and fresh Select All/Copy verifies its unique exact
+Unicode/CRLF payload. Captures are inspected; fixtures/binaries stay unchanged and
+all app/compositor exits are zero.
+
+Workspace: 639 app tests pass, seven ignored/zero filtered; two binary, 13 font,
+21 text and 42 doctests pass. Strict Clippy/check/build/rustdoc with shaping,
+formatting/diff checks and copied standalone resource verification pass.
+Architecture baseline `before-welcome-recent-paths` at `7c0eb47`: NEUTRAL, +77 NLOC
+and one regression function, unchanged files/max CCN/110 clone groups/cycles;
+average CCN 3.34→3.35, health approximately -0.01. The production change extends the
+existing loop with shared measured labels instead of adding another UI mechanism.
+
+Evidence: `~/.local/state/radiology-qa/welcome-recents-20261102-7c0eb47`.
+The broader feature/UI/corpus audit and native IME-engine acceptance remain open.
+Full accessibility and actual sibling adoption retain their deferred scope.

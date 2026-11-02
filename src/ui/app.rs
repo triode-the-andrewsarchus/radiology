@@ -1026,7 +1026,16 @@ impl RadiologyApp {
                                 ui.label(egui::RichText::new("Recent Repositories").strong());
                                 ui.add_space(8.0);
                                 for recent in &self.session.recent_repositories.clone() {
-                                    if ui.link(recent).clicked() {
+                                    let label = super::text_fit::middle(
+                                        ui,
+                                        &super::text_fit::bounded(recent).replace(['\r', '\n'], " "),
+                                        egui::TextStyle::Body.resolve(ui.style()),
+                                        ui.visuals().hyperlink_color,
+                                        ui.available_width().min(500.0),
+                                    );
+                                    if ui.link(label).on_hover_ui(|ui| {
+                                        super::text_fit::explanation(ui, recent, self.theme.text_secondary);
+                                    }).clicked() {
                                         self.open_repository(&PathBuf::from(recent));
                                     }
                                 }

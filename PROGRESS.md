@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-02 — Compact welcome recent repositories (Codex)
+
+Swift WelcomeView audit found wrapping Rust links could put later recent targets
+off screen. Actual-app RED measures 25 rows for the first path at 800×500. Welcome
+links now reuse text_fit middle/bounded/explanation, capped by pane width/500 points.
+Display CR/LF normalize to spaces; callbacks keep exact canonical Unicode/newline
+paths. Existing body font/link color/widgets and actions stay; no new helper/state/
+worker/dependency/API or sibling changes. Design skills remain unavailable.
+Actual-app matrix covers eight paths, three sizes, 1×/2×, dark/light, single-line
+bounds and exact last-target opening/source bytes. Native previous/current 1×/2×
+confirms old missing final entry, eight compact dark/light rows, pointer opening,
+Ctrl+K navigation and exact fresh Unicode/CRLF source Copy. Captures inspected,
+fixture/binary hashes unchanged, final child exits zero.
+Workspace: 639 app tests pass, seven ignored/zero filtered; two binary, 13 font,
+21 text and 42 doctests. Strict Clippy/check/build/rustdoc/fmt/diff and copied
+standalone resource checks pass. Architecture NEUTRAL: +77 NLOC/one regression,
+no new files/clones/cycles, max132 unchanged, avg3.34→3.35, health -0.01.
+[Contract/evidence](plans/rust-pane-labels.md#welcome-recent-paths--2026-11-02).
+Archive: ~/.local/state/radiology-qa/welcome-recents-20261102-7c0eb47.
+Broader Swift feature/UI/input/corpus and native IME-engine acceptance remain open;
+full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Modified source clicks retain native selection and press policy (Codex)
 
 All source presses now share the existing click sequence. Captured press modifiers
