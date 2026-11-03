@@ -109,15 +109,21 @@ impl<T: Clone> MenuBar<T> {
         let ctx = self.menus.first().map(|menu| menu.response.ctx.clone());
         if let Some(ctx) = &ctx {
             let seen = ctx.frame_nr();
-            ctx.data_mut(|data| {
-                data.insert_temp(
-                    state_id().with("bar"),
-                    Anchors {
-                        seen,
-                        buttons: anchors.clone(),
-                    },
-                )
-            });
+            // Separate menu groups can share a frame. Only the active group may
+            // replace its keyboard anchors; a later inactive group must not steal them.
+            if current(ctx)
+                .is_none_or(|state| anchors.iter().any(|anchor| anchor.owner == state.owner))
+            {
+                ctx.data_mut(|data| {
+                    data.insert_temp(
+                        state_id().with("bar"),
+                        Anchors {
+                            seen,
+                            buttons: anchors.clone(),
+                        },
+                    )
+                });
+            }
             if let Some(state) = current(ctx)
                 .filter(|state| anchors.iter().any(|anchor| anchor.owner == state.owner))
             {

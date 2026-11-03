@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-11-02 — Menu-group keyboard anchor ownership (Codex)
+
+Separate menu groups now preserve the active group's keyboard anchors instead of
+letting a later inactive group replace them. This supports the personality selector
+beside the main toolbar; the existing menu behavior remains shared. App-frame checks
+exercise selector arrows/Return/Escape and toolbar View→Search while the utility
+window stays open. Final workflow evidence follows with the picker integration.
+
 ## 2026-11-02 — Durable canonical indexing preferences (Codex)
 
 SessionStore now records the selected personality by canonical attached checkout,
