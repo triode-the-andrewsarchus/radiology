@@ -48,8 +48,8 @@ both ports and adds no second pipeline or interpreter-selection mechanism.
 On Linux, privately extracted DTC1.8.1 and automatically provisioned the exact Python
 pins in an app-owned Python3.14 environment. Host CMake4.4.5/Clang23.1.4/Ninja plus
 actual scip-clang0.4.0 prepared and indexed all67 profiles with zero failed profiles
-or compiler errors. All seven modes are present,134 translation units,178 physical
-build-backed C paths. Rust decoded598 documents/24,934 symbols/131,126 occurrences,
+or compiler errors. All seven modes are present,134 translation units and178 kernel
+path spellings including aliases (176 physical kernel files plus one library C file). Rust decoded598 documents/24,934 symbols/131,126 occurrences,
 matching the Swift reference totals; all occurrence ranges map to original source
 bytes and both TCB-control alternatives have definitions/references. The API helper
 has a definition; a call-site reference is not required for its API consumer wrapper.

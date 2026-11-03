@@ -48,7 +48,7 @@ protection, pre-cancellation, symlink/directory rejection and oversized files.
 No UI/native workflow acceptance is claimed by this library checkpoint.
 Evidence: ~/.local/state/radiology-qa/personality-settings-20261102-9ba9448.
 
-## Integration still required
+## Integration and remaining acceptance
 
 1. Implemented: captured settings reload on open/reload, selection and Reindex;
    SessionStore persists canonical attached-checkout choices shared with PRs. Invalid
