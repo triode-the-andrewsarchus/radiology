@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-02 — Real IME candidate positioning (Codex)
+
+Real private Fcitx/Anthy testing exposed and fixed native candidate placement: the
+app now passes the editor caret rectangle through the pinned egui boundary. Native
+import/navigation preedit, candidate Up/Return, exact Japanese clipboard bytes and
+resized placement pass at1×/2×. Source hashes unchanged; core exits zero. The new
+actual-frame regression fails before and passes after; full locked workspace passes
+758 app tests/nine ignored, two binary/13 font/21 text tests and59 doctests, plus
+strict Clippy/build/fmt/diff. No type style or dependency changes; named UI skills
+remain absent. QA stays outside/tmp.
+
+Architecture adds60 NLOC/one test; clone Counter, cycles and structural findings
+unchanged. Render CCN36→37 is the necessary optional-IME guard; raw REGRESSION and
+its existing shifted clone/rank noise are explained in the linked evidence.
+
+Real cancellation remains broken: egui-winit ignores winit preedit-clear events,
+leaving marked text/composition active. This newly verified gap is the next repair,
+not a completed acceptance claim. Remaining integrated corpus/PR/stress/compiler
+and final standalone/reuse gates also stay open.
+
+[Native IME contract and retained evidence](plans/rust-native-ime.md).
+
 ## 2026-11-02 — Requirement reconciliation and actual portal import (Codex)
 
 The current reconciliation maps all17 original R1–R17 findings to present code and

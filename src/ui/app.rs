@@ -1123,5 +1123,14 @@ impl RadiologyApp {
                     });
                 }
             });
+
+        // egui-winit 0.27 uses IMEOutput::rect for the native candidate area.
+        // TextEdit supplies the whole editor there; anchor to its actual caret
+        // so multiline editors and scrolled queries keep candidates by the text.
+        ctx.output_mut(|output| {
+            if let Some(ime) = &mut output.ime {
+                ime.rect = ime.cursor_rect;
+            }
+        });
     }
 }

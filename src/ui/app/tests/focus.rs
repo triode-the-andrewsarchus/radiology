@@ -224,6 +224,63 @@ fn composed_file_query_preserves_the_sidebar_search_owner() {
 }
 
 #[test]
+fn native_ime_area_tracks_the_editor_caret_through_composition_and_resize() {
+    for scale in [1.0, 2.0] {
+        for command in [
+            ToolbarAction::ImportCodePath,
+            ToolbarAction::OpenQuickFilePicker,
+        ] {
+            let (_owner, mut app) = isolated_source("a.rs", "// retained source\n");
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            app.execute_command(&ctx, command);
+            for (size, events) in [
+                (egui::vec2(1100.0, 800.0), vec![]),
+                (
+                    egui::vec2(1100.0, 800.0),
+                    vec![
+                        Event::CompositionStart,
+                        Event::CompositionUpdate("にほん".into()),
+                    ],
+                ),
+                (
+                    egui::vec2(800.0, 600.0),
+                    vec![Event::CompositionUpdate("日本".into())],
+                ),
+                (
+                    egui::vec2(1100.0, 800.0),
+                    vec![Event::CompositionEnd("日本".into())],
+                ),
+            ] {
+                // Settle the initial modal measurement and resized geometry.
+                frame_sized(&mut app, &ctx, events, size, |_| {});
+                let output = frame_sized(&mut app, &ctx, vec![], size, |_| {});
+                let ime = output
+                    .platform_output
+                    .ime
+                    .expect("focused editor enables native IME");
+                assert_eq!(
+                    ime.rect, ime.cursor_rect,
+                    "candidate anchor at {scale}×/{size:?}"
+                );
+                assert!(ime.rect.width() <= 4.0);
+                assert!(ime.rect.height() > 0.0);
+                assert!(egui::Rect::from_min_size(egui::Pos2::ZERO, size).contains_rect(ime.rect));
+                assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+                assert_eq!(
+                    app.open_buffer.as_ref().unwrap().text,
+                    "// retained source\n"
+                );
+            }
+            frame(&mut app, &ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+            let output = frame(&mut app, &ctx, vec![]);
+            assert!(matches!(app.modal, ActiveModal::None));
+            assert!(output.platform_output.ime.is_none());
+        }
+    }
+}
+
+#[test]
 fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
     use crate::ui::test_support::{click, text_center, text_shapes};
     for scale in [1.0, 2.0] {

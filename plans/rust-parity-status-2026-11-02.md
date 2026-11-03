@@ -54,8 +54,10 @@ D-Bus isolate the test services. See the [portal evidence](rust-code-path-sideba
 
 1. **Actual IME engine:** verify preedit/update/cancel/commit and candidate placement
    in navigation/import controls, including Return ownership and resize, at both
-   scales. Injected composition streams already pass; no IME engine is installed
-   on this host's current PATH. Provisioning/testing a private engine remains work.
+   scales. [Real private Fcitx/Anthy checks](rust-native-ime.md) now prove candidate
+   positioning and exact commit after a caret-area repair. Actual cancellation
+   exposed an ignored preedit-clear event in the pinned backend and remains broken;
+   repair it and repeat the complete real-engine ownership/resize checks.
 2. **Integrated corpus and stress:** reconcile the checked-in Swift behavior fixtures
    with current Rust coverage; exercise mixed source languages, malformed/recovered
    syntax, long/wrapped/Unicode documents and cross-owner input while jobs are pending.
