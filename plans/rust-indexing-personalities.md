@@ -3,7 +3,7 @@
 Reference: [upstream contract](indexing-personalities.md) and
 [compiler matrix](sel4-indexing.md). Settings, service and standalone app workflow
 are implemented. Real 67-profile Linux compiler/service acceptance now passes;
-native real-matrix controls/navigation remain required.
+native real-matrix controls/navigation now pass at both display scales.
 
 ## Settings and resource checkpoint
 
@@ -69,7 +69,7 @@ Evidence: ~/.local/state/radiology-qa/personality-settings-20261102-9ba9448.
    cancellation, PR identity and reader retention. The full 67-profile recipe against the pinned seL4 checkout now verifies
    original coordinates, conditional alternatives, all modes, source integrity,
    Python provisioning, forced Reindex and warm caches. Native real-matrix
-   1×/2× navigation/controls remain.
+   1×/2× Reindex/navigation/Back/Copy/restart now passes.
 
 The seL4 matrix is finite and Partial remains intentional. Full assistive
 accessibility and actual sibling integration retain their agreed deferred scope.
@@ -250,3 +250,18 @@ Durable evidence and reproducible probe sources:
 ~/.local/state/radiology-qa/sel4-linux-matrix-20261102-b1e7f80.
 The archive includes the raw union/provenance, all profile manifests and logs,
 source/tool digests, service reports and coverage/service/warm Rust probes.
+
+## Native real-matrix reader checkpoint
+
+Both native display scales pass app-initiated cold Reindex of all 67 profiles,
+with real compiler counters and honest Partial/598-document/25-missing-path status.
+Subsequent navigation checks reuse those verified caches: Go to Line, cross-file
+handleInterrupt definition, exact original destination copying and exact Back
+caret copying. References/Definition/Outline and Files reveal remain coherent.
+Dark/light and restart preserve seL4 and load Partial cached without compilation.
+Final core processes exit zero; source and executable hashes remain unchanged.
+
+The cold compiler evidence and warm navigation cases are distinct, linked artifacts.
+Early driver assumptions about a definition's file, asynchronous publication and
+OCR were corrected; no native product change was needed. Evidence:
+~/.local/state/radiology-qa/sel4-native-20261102-fe436a8.

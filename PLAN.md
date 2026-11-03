@@ -10,7 +10,8 @@ repository choices, attached PRs, reload/Reindex, invalid-file recovery, setting
 reveal and ordinary menu keys pass app and native1×/2× checks. The shared seL4
 runner and isolated caches now pass real 67-profile Linux cold generation, forced
 Reindex and tool-free warm reload, matching Swift union totals and original source
-coordinates. Native real-matrix navigation/controls remain to be accepted.
+coordinates. Native real-matrix Reindex, navigation, exact Back/Copy and warm
+restart now pass at both display scales.
 
 [C/C++ best-effort indexing](plans/rust-clang-fallback.md) now generates private GNU
 defaults and inferred includes when no compilation database exists. Real database

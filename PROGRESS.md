@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-02 — Native real-matrix seL4 reader acceptance (Codex)
+
+Private native Wayland runs at 1× and 2× each generated the actual 67-profile union
+through the app's ordinary Reindex shortcut. Each wrapper records 67 real compiler
+invocations, with Partial generated / 598 documents / 25 source paths missing.
+The accepted source and executable hashes remain unchanged.
+
+Warm navigation runs reuse those exact caches: Go to Line 42, Go to Symbol for
+handleInterrupt, original interrupt.c bytes copied exactly, then Back restores
+thread.c at line 42's starting byte (proved by exact Shift+End line copy). Semantic
+References/Definition/Outline and automatic Files reveal stay usable. Dark/light
+captures and restart retain seL4 and show Partial cached without compiler invocation.
+Final application/restarted application/compositor exits are zero; hover helpers
+retire intentionally. Both accepted displays were visually reviewed.
+
+Driver diagnostics are retained: an initial wrong expected location for doIPCTransfer
+was corrected to cross-file handleInterrupt; Back now waits for its actual async
+source publication; OCR-only phrase/heading assumptions were removed. Those failed
+trials retired cleanly and required no product-code change. Full cold generation is
+proved by the cold runs; final navigation/restart runs deliberately reuse their
+verified caches rather than repeat the compiler matrix to repair driver assertions.
+
+Evidence: ~/.local/state/radiology-qa/sel4-native-20261102-fe436a8 links cold compiler
+counters/captures to accepted navigation/restart cases and source/binary digests.
+This closes the documented native real-matrix seL4 checkpoint. Keyboard help is the
+next feature; broader corpus/PR/stress and actual portal/IME-engine work remains.
+
 ## 2026-11-02 — Real Rust seL4 generation, Reindex and warm cache (Codex)
 
 The real Rust service passes cold generation and forced Reindex against the pinned
