@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-11-02 — Real IME cancellation and engine acceptance (Codex)
+
+The pinned egui-winit backend now translates native preedit clear/Disabled to
+clear-then-end, accepts text with hidden cursors and permits clean restart/commit.
+One private translator serves every text owner. The vendored existing dependency
+retains licenses, original archive/file hashes and an exactly reconstructable patch;
+Cargo.lock changes no versions or transitive packages. Two backend regressions fail
+against original behavior and pass after the repair.
+
+Final real Fcitx/Anthy runs at1×/2× preserve exact café/emoji draft bytes and picker
+prefixes after Escape/Backspace cancellation. Candidate Up/Return commits once
+without newline/submission; a subsequent Return opens the Japanese-named source.
+Active candidates/preedit follow native resize in both import and navigation.
+Source/executable hashes unchanged; core processes exit zero. Captures inspected.
+This accepts the actual Linux Wayland/Anthy gate, with other engines/platforms and
+selection restoration outside the claim. Full accessibility remains deferred.
+
+Full locked workspace:758 app tests/nine ignored, two binary/13 font/21 text tests,
+59 doctests; plus two explicit backend regressions. Strict workspace/backend Clippy,
+build, resource smoke, formatting and diff checks pass. Architecture separately
+records1758 NLOC/54 functions of unchanged upstream backend and86 NLOC/three local
+functions (translator/two tests). The patch comparison is NEUTRAL; the full import
+reports three existing upstream hotspots. All125 clone instances, cycles and
+structural findings remain unchanged. No type style changes.
+
+[Native IME contract](plans/rust-native-ime.md), [backend provenance](vendor/egui-winit/PROVENANCE.md).
+Evidence: ~/.local/state/radiology-qa/native-ime-clear-20261102-77cc03a.
+Next: integrated Swift corpus/input/PR/stress/compiler acceptance, followed by the
+final clean standalone/reuse audit. Overall parity remains active.
+
 ## 2026-11-02 — Real IME candidate positioning (Codex)
 
 Real private Fcitx/Anthy testing exposed and fixed native candidate placement: the

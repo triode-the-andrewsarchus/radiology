@@ -1,0 +1,143 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -19,2 +19,2 @@
+-    "../LICENSE-APACHE",
+-    "../LICENSE-MIT",
++    "LICENSE-APACHE",
++    "LICENSE-MIT",
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -342,19 +342,5 @@
+-                match ime {
+-                    winit::event::Ime::Enabled | winit::event::Ime::Disabled => (),
+-                    winit::event::Ime::Commit(text) => {
+-                        self.input_method_editor_started = false;
+-                        self.egui_input
+-                            .events
+-                            .push(egui::Event::CompositionEnd(text.clone()));
+-                    }
+-                    winit::event::Ime::Preedit(text, Some(_)) => {
+-                        if !self.input_method_editor_started {
+-                            self.input_method_editor_started = true;
+-                            self.egui_input.events.push(egui::Event::CompositionStart);
+-                        }
+-                        self.egui_input
+-                            .events
+-                            .push(egui::Event::CompositionUpdate(text.clone()));
+-                    }
+-                    winit::event::Ime::Preedit(_, None) => {}
+-                };
++                translate_ime(
++                    ime,
++                    &mut self.input_method_editor_started,
++                    &mut self.egui_input.events,
++                );
+@@ -1834,0 +1821,108 @@
++
++// Kept at the native event boundary so every egui text owner sees the same lifecycle.
++fn translate_ime(ime: &winit::event::Ime, started: &mut bool, events: &mut Vec<egui::Event>) {
++    match ime {
++        winit::event::Ime::Enabled => {}
++        winit::event::Ime::Commit(text) => {
++            *started = false;
++            events.push(egui::Event::CompositionEnd(text.clone()));
++        }
++        winit::event::Ime::Preedit(text, _) if !text.is_empty() => {
++            if !*started {
++                *started = true;
++                events.push(egui::Event::CompositionStart);
++            }
++            events.push(egui::Event::CompositionUpdate(text.clone()));
++        }
++        winit::event::Ime::Preedit(..) | winit::event::Ime::Disabled => {
++            if std::mem::take(started) {
++                // Winit clears preedit before each Wayland done, including cancel
++                // and commit. End alone keeps the selected marked text in egui
++                // 0.27, so remove it first, then release composition ownership.
++                events.push(egui::Event::CompositionUpdate(String::new()));
++                events.push(egui::Event::CompositionEnd(String::new()));
++            }
++        }
++    }
++}
++
++#[cfg(test)]
++mod ime_tests {
++    use super::translate_ime;
++    use egui::Event;
++    use winit::event::Ime;
++
++    #[test]
++    fn wayland_clear_retires_marked_text_before_cancel_commit_and_next_preedit() {
++        let mut started = false;
++        let mut events = Vec::new();
++        for ime in [
++            Ime::Enabled,
++            Ime::Preedit("にほん".into(), Some((9, 9))),
++            Ime::Preedit(String::new(), None),
++        ] {
++            translate_ime(&ime, &mut started, &mut events);
++        }
++        assert!(!started, "a clear without commit must end composition");
++        assert_eq!(
++            events,
++            [
++                Event::CompositionStart,
++                Event::CompositionUpdate("にほん".into()),
++                Event::CompositionUpdate(String::new()),
++                Event::CompositionEnd(String::new())
++            ]
++        );
++        events.clear();
++        for ime in [
++            Ime::Preedit("日本".into(), None), // hidden preedit cursor is valid text
++            Ime::Preedit(String::new(), None),
++            Ime::Commit("日本".into()),
++            Ime::Preedit(String::new(), None), // Wayland's following empty done
++            Ime::Disabled,
++        ] {
++            translate_ime(&ime, &mut started, &mut events);
++        }
++        assert_eq!(
++            events,
++            [
++                Event::CompositionStart,
++                Event::CompositionUpdate("日本".into()),
++                Event::CompositionUpdate(String::new()),
++                Event::CompositionEnd(String::new()),
++                Event::CompositionEnd("日本".into())
++            ]
++        );
++        assert!(!started);
++    }
++
++    #[test]
++    fn disable_and_empty_visible_preedit_clear_once_and_allow_restart() {
++        for clear in [Ime::Disabled, Ime::Preedit(String::new(), Some((0, 0)))] {
++            let mut started = true;
++            let mut events = Vec::new();
++            translate_ime(&clear, &mut started, &mut events);
++            translate_ime(&clear, &mut started, &mut events);
++            assert_eq!(
++                events,
++                [
++                    Event::CompositionUpdate(String::new()),
++                    Event::CompositionEnd(String::new())
++                ]
++            );
++            translate_ime(
++                &Ime::Preedit("次".into(), Some((3, 3))),
++                &mut started,
++                &mut events,
++            );
++            assert!(started);
++            assert_eq!(
++                &events[2..],
++                [
++                    Event::CompositionStart,
++                    Event::CompositionUpdate("次".into())
++                ]
++            );
++        }
++    }
++}

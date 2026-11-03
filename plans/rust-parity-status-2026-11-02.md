@@ -50,15 +50,21 @@ Unicode path selection, exact editor bytes, Cancel preserving a draft, retry,
 keyboard import, persistent collection and restart. Private XDG directories and
 D-Bus isolate the test services. See the [portal evidence](rust-code-path-sidebar.md#actual-desktop-portal-acceptance--2026-11-02).
 
+## Completed actual-engine checkpoint
+
+[Real private Fcitx/Anthy acceptance](rust-native-ime.md) now passes at1×/2× after
+repairs for native caret-area placement and the pinned backend's ignored preedit
+clear. Import and navigation retain exact draft/query bytes after cancellation;
+candidate Up/Return commits once, the next Return navigates, and active composition
+survives native resize in both controls. Package provenance, backend red/green
+regressions and real protocol/key/clipboard/capture evidence are retained. This is
+Linux Wayland/Anthy acceptance; it does not claim every engine/platform or full
+assistive accessibility. The current workspace passes758 app tests plus two
+explicit pinned-backend regressions; other workspace/doctest counts are unchanged.
+
 ## Remaining acceptance gates
 
-1. **Actual IME engine:** verify preedit/update/cancel/commit and candidate placement
-   in navigation/import controls, including Return ownership and resize, at both
-   scales. [Real private Fcitx/Anthy checks](rust-native-ime.md) now prove candidate
-   positioning and exact commit after a caret-area repair. Actual cancellation
-   exposed an ignored preedit-clear event in the pinned backend and remains broken;
-   repair it and repeat the complete real-engine ownership/resize checks.
-2. **Integrated corpus and stress:** reconcile the checked-in Swift behavior fixtures
+1. **Integrated corpus and stress:** reconcile the checked-in Swift behavior fixtures
    with current Rust coverage; exercise mixed source languages, malformed/recovered
    syntax, long/wrapped/Unicode documents and cross-owner input while jobs are pending.
    Record source/caret/history invariants, stale-result retirement, frame/worker/RSS
@@ -66,7 +72,7 @@ D-Bus isolate the test services. See the [portal evidence](rust-code-path-sideba
    renamed/binary files, moving head/base, pinned semantics, cache reuse/eviction and
    reopen flows in one integrated app run. Use documented Swift limits when checking
    dependency-heavy C/C++ and Android/Gradle success or explicit failure behavior.
-3. **Final standalone/reuse audit:** verify a clean locked build with half-core Cargo
+2. **Final standalone/reuse audit:** verify a clean locked build with half-core Cargo
    settings, packaged resource independence and library/host usage after the above
    changes. Preserve independent app lifecycle and the local shared text/font crates;
    actual sibling integration remains deferred. Re-run the relevant gates after any
