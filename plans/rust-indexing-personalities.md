@@ -209,3 +209,21 @@ checkpoint follows separately. Evidence:
 ~/.local/state/radiology-qa/personality-picker-20261102-0dbf6d5.
 The full matrix, private dtc provisioning, broader corpus/PR/native IME/portal checks,
 shortcut help and the overall parity audit remain open.
+
+## Linux matrix checkpoint
+
+Real preparation and per-profile indexing now pass all67 profiles on Linux after
+fixing PATH precedence in both shared Python runner stages. Upstream generators
+invoke python3 by name: its validated/provisioned environment must precede a system
+Clang directory such as /usr/bin. No platform fork or duplicate recipe was added.
+The QA recipe changes only runtime.dtc to a privately extracted DTC1.8.1 path;
+all67 bundled profile definitions remain intact. CMake4.4.5, Clang23.1.4, Ninja,
+Python3.14 with exact configured pins and actual scip-clang0.4.0 pass.
+
+The raw union has598 documents/24,934 symbols/131,126 occurrences, matching the
+Swift baseline. All ranges map through the Rust decoder to original source bytes;
+conditional TCB-control definitions/references survive. The manifest records all
+seven modes,134 translation units and178 physical build-backed C paths (the older
+Swift report counted177). Source digest and clean Git status are unchanged. Real
+Rust service generation/Reindex/cache and native real-matrix acceptance remain
+separate requirements. Current evidence: ~/.cache/radiology-qa-sel4-matrix.

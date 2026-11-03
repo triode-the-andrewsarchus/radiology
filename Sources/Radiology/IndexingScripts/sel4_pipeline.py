@@ -87,7 +87,9 @@ def main():
         raise ValueError("No configured Clang supports all requested targets. Install Homebrew LLVM or edit clang_candidates.")
     python = runtime_python(runtime, args.tools_directory)
     environment = dict(os.environ)
-    environment["PATH"] = os.pathsep.join([str(clang.parent), str(python.parent), *tool_directories, environment.get("PATH", "")])
+    # Upstream generators invoke python3 by name; keep the validated environment
+    # ahead of system compiler directories that may contain another interpreter.
+    environment["PATH"] = os.pathsep.join([str(python.parent), str(clang.parent), *tool_directories, environment.get("PATH", "")])
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment["PYTHONUNBUFFERED"] = "1"
     scripts = Path(__file__).parent

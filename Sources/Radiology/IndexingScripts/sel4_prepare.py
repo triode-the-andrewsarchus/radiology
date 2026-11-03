@@ -46,7 +46,7 @@ def main():
     environment = dict(os.environ)
     # CMake's upstream LLVM toolchain resolves clang and python3 using PATH.
     environment["PATH"] = os.pathsep.join([
-        str(clang.parent), str(Path(os.sys.executable).parent), environment.get("PATH", "")])
+        str(Path(os.sys.executable).parent), str(clang.parent), environment.get("PATH", "")])
     tracked = [p.encode() for p in source_files(root)]
 
     def source_digest():

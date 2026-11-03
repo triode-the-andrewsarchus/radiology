@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-02 — Real Linux seL4 matrix and Python selection fix (Codex)
+
+Committed/pushed the complete standalone picker as95e8453. The next real matrix
+run exposed a shared runner bug: putting the system compiler directory first on
+PATH also selected system python3 for upstream generators, bypassing the provisioned
+environment. Both runner stages now prioritize the validated Python environment;
+Clang remains explicit and its directory remains available. The change benefits
+both ports and adds no second pipeline or interpreter-selection mechanism.
+
+On Linux, privately extracted DTC1.8.1 and automatically provisioned the exact Python
+pins in an app-owned Python3.14 environment. Host CMake4.4.5/Clang23.1.4/Ninja plus
+actual scip-clang0.4.0 prepared and indexed all67 profiles with zero failed profiles
+or compiler errors. All seven modes are present,134 translation units,178 physical
+build-backed C paths. Rust decoded598 documents/24,934 symbols/131,126 occurrences,
+matching the Swift reference totals; all occurrence ranges map to original source
+bytes and both TCB-control alternatives have definitions/references. The API helper
+has a definition; a call-site reference is not required for its API consumer wrapper.
+The pinned source checkout remains clean with its original digest.
+
+18 Rust personality tests and five Python union tests pass. Architecture comparison
+against before-sel4-linux-python is NEUTRAL: no LOC/function/clone/CCN/cycle change.
+The raw pipeline acceptance is distinct from the real Rust service's isolated-copy,
+forced-Reindex/warm-cache acceptance, which is running next. Durable evidence and
+commands will be consolidated with that checkpoint. Current QA:
+~/.cache/radiology-qa-sel4-matrix (including the original failed-run diagnostics).
+
 ## 2026-11-02 — Standalone personality picker, reload and recovery (Codex)
 
 Index Projects now exposes Default/seL4, editable summaries and Show Settings File.
