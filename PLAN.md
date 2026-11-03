@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[C/C++ best-effort indexing](plans/rust-clang-fallback.md) now generates private GNU
+defaults and inferred includes when no compilation database exists. Real database
+priority, cache transitions and pinned PR inputs are verified. Partial status and
+visible limitations survive reuse/relaunch. Full workspace, strict gates, actual
+scip-clang and native1×/2× checks pass. Managed portable tool installation remains.
+
 [Code Paths resolution](plans/rust-code-path-resolution.md) now resolves qualified
 names, overload headers, conditional alternatives, assembly labels/macros and recovered
 C/C++ function heads from actual source. The reference seL4 trace resolves91/91 steps.

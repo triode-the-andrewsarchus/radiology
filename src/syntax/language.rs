@@ -121,11 +121,14 @@ impl LanguageRegistry {
     #[must_use]
     pub fn for_path(path: &str) -> LanguageInfo {
         let p = Path::new(path);
+        // Uppercase .C is a C++ translation unit, before case folding.
+        let cpp_unit = p.extension().is_some_and(|extension| extension == "C");
         let ext = p
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("")
             .to_lowercase();
+        let ext = if cpp_unit { "cpp" } else { ext.as_str() };
         let filename = p
             .file_name()
             .and_then(|f| f.to_str())
@@ -154,7 +157,7 @@ impl LanguageRegistry {
             };
         }
 
-        match ext.as_str() {
+        match ext {
             "rs" => LanguageInfo {
                 id: "rust",
                 display_name: "Rust",
@@ -185,18 +188,17 @@ impl LanguageRegistry {
                 display_name: "JavaScript",
                 grammar: Some(SupportedGrammar::JavaScript),
             },
-            "c" | "h" => LanguageInfo {
+            "c" => LanguageInfo {
                 id: "c",
                 display_name: "C",
                 grammar: Some(SupportedGrammar::C),
             },
-            "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" | "inl" | "ipp" => {
-                LanguageInfo {
-                    id: "cpp",
-                    display_name: "C++",
-                    grammar: Some(SupportedGrammar::Cpp),
-                }
-            }
+            "cpp" | "cc" | "cxx" | "c++" | "h" | "hpp" | "hh" | "hxx" | "h++" | "inl" | "ipp"
+            | "tpp" | "tcc" => LanguageInfo {
+                id: "cpp",
+                display_name: "C++",
+                grammar: Some(SupportedGrammar::Cpp),
+            },
             "m" | "mm" => LanguageInfo {
                 id: "objc",
                 display_name: "Objective-C",

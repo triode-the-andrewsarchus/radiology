@@ -4,6 +4,7 @@
 //! No command is executed and no repository file is changed during inspection.
 
 pub mod cache;
+pub mod clang_fallback;
 pub mod command;
 pub mod compilation_database;
 pub mod inventory;
@@ -70,7 +71,10 @@ impl Indexer {
             Self::Go => &["go"],
             Self::TypeScript => &["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"],
             Self::Python => &["py", "pyi"],
-            Self::Clang => &["c", "h", "cpp", "cc", "cxx", "hpp", "hh", "hxx"],
+            Self::Clang => &[
+                "c", "h", "cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++", "ipp", "inl",
+                "tpp", "tcc",
+            ],
             Self::Kotlin => &["kt", "java"],
         }
     }
@@ -105,13 +109,19 @@ pub struct IndexingStrategy {
     pub indexer: Indexer,
     /// Repository-relative directory; empty means the root.
     pub directory: String,
-    /// Actual manifest paths that justify this strategy.
+    /// Manifest paths or a versioned defaults marker explaining this strategy.
     pub evidence: Vec<String>,
     /// Source files under this directory with a covered extension.
     pub source_files: usize,
 }
 
 impl IndexingStrategy {
+    /// Returns whether Clang uses explicit source-only defaults without build inputs.
+    #[must_use]
+    pub fn is_best_effort(&self) -> bool {
+        self.indexer == Indexer::Clang && self.evidence == [clang_fallback::MARKER]
+    }
+
     /// Returns an unambiguous persistent project identity.
     #[must_use]
     pub fn id(&self) -> String {
@@ -202,16 +212,17 @@ impl IndexPlan {
                 .into_iter()
                 .filter(|s| !configured.iter().any(|root| contains(root, &s.directory))),
         );
-        if let Some(database) = inventory
+        let clang_sources = source_count(&inventory, Indexer::Clang, "");
+        let database = inventory
             .iter()
             .filter(|p| name(p) == "compile_commands.json")
-            .min_by_key(|p| (p.split('/').count(), **p))
-        {
+            .min_by_key(|p| (p.split('/').count(), **p));
+        if database.is_some() || clang_sources != 0 {
             selected.push(IndexingStrategy {
                 indexer: Indexer::Clang,
                 directory: String::new(),
-                evidence: vec![(*database).into()],
-                source_files: source_count(&inventory, Indexer::Clang, ""),
+                evidence: vec![database.map_or(clang_fallback::MARKER, |path| *path).into()],
+                source_files: clang_sources,
             });
         }
         selected.sort_by(|a, b| {

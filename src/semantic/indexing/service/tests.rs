@@ -4,6 +4,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+mod clang_fallback;
 mod maintenance;
 mod real_tools;
 mod reuse;

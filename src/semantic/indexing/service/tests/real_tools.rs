@@ -6,6 +6,32 @@ use crate::source::ColumnEncoding;
 
 #[test]
 #[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
+fn real_scip_clang_fallback_resolves_cross_file_call_despite_missing_header_and_retains_partial() {
+    let files = [
+        ("support/include/layout/api.hpp", "int increment(int value);\n"),
+        ("src/api.cpp", "#include <layout/api.hpp>\nint increment(int value) { return value + 1; }\n"),
+        ("src/reader.cpp", "#include <layout/api.hpp>\r\n#include <missing_header.hpp>\r\nint run() { /* 🦀 */ return increment(4); }\r\n"),
+    ];
+    let fixture = Fixture::new(&files);
+    let request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
+    verify_lifecycle(
+        &fixture,
+        request,
+        &files,
+        Navigation {
+            caller: "src/reader.cpp",
+            callee: "increment",
+            target: "src/api.cpp",
+            span: (1, 4, 13),
+            encoding: ColumnEncoding::Utf8,
+            documents: 3,
+        },
+        &["compile_commands.json", "index.scip", "src/api.o"],
+    );
+}
+
+#[test]
+#[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
 fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
     for (extension, standard) in [("c", "c11"), ("cpp", "c++17")] {
         let main = format!("main.{extension}");
@@ -281,7 +307,21 @@ fn verify_lifecycle(
 ) -> SemanticIndex {
     let generated = run(request.clone());
     eprintln!("Real generation: {:#?}", generated.report);
-    assert!(!generated.report.is_partial(), "{:#?}", generated.report);
+    let best_effort = IndexPlan::inspect(files.iter().map(|(path, _)| *path))
+        .selected
+        .iter()
+        .any(|strategy| strategy.is_best_effort());
+    assert_eq!(
+        generated.report.is_partial(),
+        best_effort,
+        "{:#?}",
+        generated.report
+    );
+    if best_effort {
+        assert!(generated.report.outcomes[0]
+            .diagnostics
+            .contains("missing_header.hpp"));
+    }
     assert!(generated.report.stale_reason.is_none() && generated.report.cache_warning.is_none());
     assert_eq!(generated.report.documents, expected.documents);
     let index = generated.index.expect("real index");
@@ -336,6 +376,10 @@ fn verify_lifecycle(
     loader.start_cached(request);
     let cached = settle(&mut loader);
     assert!(cached.report.cached && cached.report.stale_reason.is_none());
+    assert_eq!(cached.report.is_partial(), best_effort);
+    if best_effort {
+        assert!(cached.report.summary().starts_with("Partial cached index"));
+    }
     let restored = cached.index.unwrap();
     assert_eq!(restored.find_definition(&call.symbol), Some((path, range)));
     assert!(restored.matches_buffer(&buffer));

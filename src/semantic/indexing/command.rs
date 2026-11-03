@@ -121,13 +121,21 @@ impl IndexingStrategy {
                     .filter(|database| database.is_absolute() && database.starts_with(paths.run)
                             && !database.components().any(|part| part == std::path::Component::ParentDir))
                     .ok_or("C/C++ indexing requires a rebased database under the private run directory")?;
-                vec![
+                let mut arguments = vec![
                     "--compdb-path".into(),
                     database.as_os_str().to_owned(),
                     "--index-output-path".into(),
                     output,
-                    "--no-progress-report".into(),
-                ]
+                    "--supplementary-output-dir".into(),
+                    paths.run.join("clang-logs").into_os_string(),
+                    "--show-compiler-diagnostics".into(),
+                    "--jobs".into(),
+                    "4".into(),
+                ];
+                if !self.is_best_effort() {
+                    arguments.push("--no-progress-report".into());
+                }
+                arguments
             }
             Indexer::Kotlin => kotlin_command(&mut command, &paths),
         };

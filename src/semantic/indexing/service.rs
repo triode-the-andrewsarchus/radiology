@@ -212,7 +212,10 @@ impl GenerationReport {
             || self.overlapping_documents != 0
             || self.reuse_warning().is_some()
             || self.outcomes.iter().any(|outcome| {
-                outcome.failure.is_some() || outcome.missing_count != 0 || outcome.partial_build
+                outcome.failure.is_some()
+                    || outcome.missing_count != 0
+                    || outcome.partial_build
+                    || outcome.strategy.is_best_effort()
             })
     }
 
@@ -658,7 +661,8 @@ fn execute_strategy(
     progress(state, "Preparing indexer inputs…");
     let compilation_database = prepare_compilation_database(
         &outcome.strategy,
-        &request.root,
+        request,
+        inventory,
         workspace.root(),
         run.path(),
         cancel,
@@ -702,7 +706,8 @@ fn execute_strategy(
 
 fn prepare_compilation_database(
     strategy: &IndexingStrategy,
-    original: &std::path::Path,
+    request: &GenerationRequest,
+    inventory: &InputInventory,
     workspace: &std::path::Path,
     run: &std::path::Path,
     cancel: &AtomicBool,
@@ -710,17 +715,28 @@ fn prepare_compilation_database(
     if strategy.indexer != Indexer::Clang {
         return Ok(None);
     }
-    let evidence = strategy
-        .evidence
-        .first()
-        .ok_or("C/C++ indexing requires a compilation database")?;
-    super::inventory::validate_input_path(evidence)?;
-    let bytes = crate::semantic::loader::read_index_bytes(&workspace.join(evidence), cancel)?
-        .ok_or("Copied compilation database is missing")?;
-    let database = super::compilation_database::rebase(&bytes, original, workspace, run, cancel)?;
+    let database = if strategy.is_best_effort() {
+        let compiler = request
+            .tools
+            .locate_program("clang")
+            .unwrap_or_else(|| PathBuf::from("/usr/bin/clang"));
+        super::compilation_database::RebasedDatabase {
+            bytes: super::clang_fallback::database(workspace, inventory, &compiler, cancel)?,
+            directories: Default::default(),
+        }
+    } else {
+        let evidence = strategy
+            .evidence
+            .first()
+            .ok_or("C/C++ indexing requires a compilation database")?;
+        super::inventory::validate_input_path(evidence)?;
+        let bytes = crate::semantic::loader::read_index_bytes(&workspace.join(evidence), cancel)?
+            .ok_or("Copied compilation database is missing")?;
+        super::compilation_database::rebase(&bytes, &request.root, workspace, run, cancel)?
+    };
     for directory in database.directories {
         check_cancel(cancel)?;
-        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     }
     check_cancel(cancel)?;
     let path = run.join("compile_commands.json");
@@ -791,10 +807,23 @@ fn run_command(
         "stdout:\n{}\n\nstderr:\n{}",
         output_log.stdout.text, output_log.stderr.text
     );
+    if outcome.strategy.indexer == Indexer::Clang {
+        outcome.partial_build |= clang_reported_errors(&outcome.diagnostics);
+    }
     if !output_log.succeeded() {
         return Err(format!("Indexer {}", output_log.status_description()));
     }
     Ok(())
+}
+
+fn clang_reported_errors(output: &str) -> bool {
+    output.contains("error:")
+        || output.split("num errored TUs: ").skip(1).any(|suffix| {
+            suffix
+                .chars()
+                .take_while(|character| character.is_ascii_digit())
+                .any(|digit| digit != '0')
+        })
 }
 
 fn normalize(

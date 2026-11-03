@@ -24,12 +24,12 @@ struct Command {
 }
 
 #[derive(Serialize)]
-struct RebasedCommand {
-    directory: PathBuf,
-    file: PathBuf,
-    arguments: Vec<String>,
+pub(super) struct DatabaseCommand {
+    pub directory: PathBuf,
+    pub file: PathBuf,
+    pub arguments: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    output: Option<PathBuf>,
+    pub output: Option<PathBuf>,
 }
 
 /// Materializable database plus working directories that may have been empty originally.
@@ -175,7 +175,7 @@ impl<'a> RebaseContext<'a> {
             .ok_or("Compilation path is not UTF-8".into())
     }
 
-    fn command(&self, command: Command) -> Result<RebasedCommand, String> {
+    fn command(&self, command: Command) -> Result<DatabaseCommand, String> {
         let directory = self.absolute(&self.original, &command.directory)?;
         let copied_directory = self.repository_path(&directory)?;
         let file = self.input_path(&directory, &command.file)?;
@@ -213,7 +213,7 @@ impl<'a> RebaseContext<'a> {
                 .map(PathBuf::from)
             })
             .transpose()?;
-        Ok(RebasedCommand {
+        Ok(DatabaseCommand {
             directory: copied_directory,
             file,
             arguments,

@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-11-02 — C/C++ no-database best-effort indexing (Codex)
+
+Added versioned fallback strategy discovery and private compilation database generation
+with GNU11/GNU++20 defaults, deterministic nearby/literal include inference, header-only
+support and all translation units. Existing database serialization, isolated workspaces,
+workers and caches are reused. Real databases retain priority; adding/removing them
+invalidates fallback/configured reuse. Pinned PR inventory stays authoritative.
+Uppercase .C and .h/.tpp/.tcc now classify as C++, using the existing native grammar.
+
+The Index Projects card explains defaults and coverage limits. Fallback results stay
+Partial after generation, reuse and cache reload, even with no missing documents.
+Configured usable results also retain compiler-error status. Clang supplementary logs
+stay in the private run directory and compiler jobs are limited to four.
+
+Twelve new default-suite tests pass. Full workspace:729 app tests, eight ignored;
+two binary/13 font/21 text and56 doctests pass. Strict Clippy/check/build/rustdoc,
+fmt/diff, resource smoke and rendered API inspection pass. Two explicit real-tool
+tests pass using official Linux scip-clang0.4.0: configured C/C++ response files and
+fallback cross-file C++ with a missing header, Unicode/CRLF, exact coordinates,
+reuse/cache and source preservation. Native1×/2× dark/light/relaunch checks each
+produce1 document/0 missing, preserve Partial cached, and run the actual compiler
+only once. Source/binary hashes remain unchanged; core processes exit zero.
+
+Architecture: +796 NLOC/20 functions/four files; avg CCN3.39→3.38, max132,
+33 functions above15,126 clone groups and one cycle unchanged. Normalized clone
+identity audit finds zero additions/removals. Raw comparison flags old touched clones
+and a genuine Valknut warning on the39-line real/default preparation dispatcher
+(LizardCCN15/ValknutCCN12). Shared materialization removes duplicate writing; its
+remaining strategy selection/error handling is necessary, documented in the contract.
+No dependencies or alternative workers/cache writers were added.
+
+[Contract and evidence](plans/rust-clang-fallback.md).
+Archive: ~/.local/state/radiology-qa/clang-fallback-20261102-99b7ded.
+Next: managed portable Clang installation, indexing personalities/seL4 and shortcut
+help, followed by broader corpus/PR and native portal/IME acceptance. The actual
+compiler here is a QA tool, not a newly installed user tool. Overall parity remains
+active; full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-02 — Standalone Code Paths sidebar, import and saved collections (Codex)
 
 Implemented the user-facing Code Paths workflow: a left peer tab with measured full

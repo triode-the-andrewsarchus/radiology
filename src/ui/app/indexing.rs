@@ -619,7 +619,20 @@ impl RadiologyApp {
                 strategy.source_files,
                 if strategy.source_files == 1 { "" } else { "s" }
             ));
-            ui.label(strategy.evidence.join(", "));
+            if strategy.is_best_effort() {
+                ui.label(
+                    egui::RichText::new("Best effort · GNU defaults")
+                        .small()
+                        .color(self.theme.text_secondary),
+                );
+                crate::ui::text_fit::explanation(
+                    ui,
+                    crate::semantic::indexing::clang_fallback::EXPLANATION,
+                    self.theme.text_secondary,
+                );
+            } else {
+                ui.label(strategy.evidence.join(", "));
+            }
             let outcome = self.generation_report.as_ref().and_then(|report| {
                 report
                     .outcomes
