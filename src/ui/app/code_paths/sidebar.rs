@@ -112,9 +112,10 @@ impl RadiologyApp {
         }
         action = menus.show().or(action);
         if let Some(trace) = &trace {
+            let count = trace.steps.len();
             ui.colored_label(
                 self.theme.text_secondary,
-                format!("{} steps", trace.steps.len()),
+                format!("{count} {}", if count == 1 { "step" } else { "steps" }),
             );
             ui.add_enabled_ui(enabled, |ui| {
                 if let Some(step) =

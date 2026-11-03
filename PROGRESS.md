@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-11-02 — Requirement reconciliation and actual portal import (Codex)
+
+The current reconciliation maps all17 original R1–R17 findings to present code and
+fresh test evidence, retaining explicit integrated acceptance gates. Historical
+Missing/Broken tables now point to it; stale trait-publication and inspector-pending
+notes are corrected. All upstream feature groups are connected. This is a scoped
+status ledger, not a declaration of full parity. Its audit found and repaired the
+non-Git compiler-database gap in the preceding pushed commit3add1c3.
+
+Actual Code Path import now passes the installed GTK desktop portal at1×/2× in
+private D-Bus/XDG sessions. Native Cancel preserves the exact authored draft; retry
+selects a café-containing filename and returns exact UTF-8 text including emoji/
+newline, verified with editor clipboard bytes. Tab/Return opens Choose and submits
+Import; atomic saved title/description/IDs persist across restart, and no chooser
+remains mapped. Final source/executable hashes are unchanged, core exits zero,
+and portal/hover daemons retire intentionally. Chooser/editor/restored views inspected.
+The visible singleton count is corrected from '1 steps' to '1 step', using the
+existing collection-footer plural policy. No font scale, state owner or dependency
+was added. Named UI skills remain unavailable; existing styles were retained.
+
+All41 Code Path tests, strict Clippy/build, formatting/diff and final native checks
+pass after the label correction. The preceding full workspace at3add1c3 passed757
+app tests (nine opt-in ignored), two binary/13 font/21 text tests and59 doctests.
+Architecture for the label is NEUTRAL: +1 NLOC, no function/clone/cycle growth;
+existing presenter CCN14→15, no new above15 hotspot. Driver diagnostics retain GTK
+selection/heading-vs-footer corrections; no portal backend repair was necessary.
+
+[Current requirement ledger](plans/rust-parity-status-2026-11-02.md),
+[portal contract/evidence](plans/rust-code-path-sidebar.md#actual-desktop-portal-acceptance--2026-11-02).
+Archive: ~/.local/state/radiology-qa/code-path-portal-20261102-3add1c3.
+Remaining gates: a real IME engine/candidate panel, integrated corpus/input/PR/stress
+and dependency-heavy compiler acceptance, then final clean standalone/reuse audit.
+No IME engine is currently on this host's PATH. Full accessibility and actual sibling
+adoption remain deferred. Overall parity stays active.
+
 ## 2026-11-02 — Conventional non-Git compiler databases (Codex)
 
 Audit against current Swift found a real discovery gap: source archives and ordinary

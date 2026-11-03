@@ -119,12 +119,52 @@ and new hotspots from the first implementation were removed.
 
 ## Remaining acceptance and port work
 
-The Code Paths standalone workflow is implemented. Native desktop-portal file selection
-and an actual IME engine/candidate window still need environment-specific acceptance;
-synthetic composition, byte-bound file reading and pasted native import are verified.
+The Code Paths standalone workflow and real GTK desktop-portal file selection
+are implemented and accepted as described below. An actual IME engine/candidate
+window still needs environment-specific acceptance; synthetic composition and
+byte-bound reading/pasted native import are already verified.
 A native saved-trace PR workflow and broad unusual-input/appearance stress acceptance
 remain useful follow-ups alongside the port's existing broader corpus/input QA.
 
-Next major parity work remains C/C++ fallback indexing, indexing personalities/seL4
-integration and authored shortcut help. Full accessibility and actual sibling adoption
-remain deferred by scope.
+C/C++ fallback, indexing personalities/seL4 and authored keyboard help are now
+implemented and accepted in their dedicated checkpoints. Use the [current parity
+reconciliation](rust-parity-status-2026-11-02.md) for remaining integrated work.
+Full accessibility and actual sibling adoption remain deferred by scope.
+
+## Actual desktop portal acceptance — 2026-11-02
+
+The real installed xdg-desktop-portal/GTK backend now passes at native 1× and2×,
+through the app's actual rfd chooser. A private D-Bus session and XDG config/data/
+state directories select only the GTK FileChooser backend; GTK settings use memory
+and local GIO. No replacement portal, injected result or simulated file read is
+used for this acceptance.
+
+Starting with authored editor text, Tab/Return opens Choose Text File. Cancelling
+the GTK chooser preserves the exact draft (verified by clipboard bytes). Retrying
+and selecting an actual path containing café returns the complete UTF-8 trace,
+including its crab character and final newline. Editor Select All/Copy matches the
+original file bytes. Three Tab presses and Return submit Import through the real
+footer, then atomic storage preserves exact title/description and stable identities
+across restart. Code Paths reopens the saved trace; no chooser remains mapped.
+Source and executable hashes stay unchanged, app/restarted app/compositor exits
+are zero, and portal/hover helpers terminate intentionally during cleanup. Final
+chooser/editor/restored-trace captures were visually reviewed.
+
+This run also exposed the singleton label '1 steps'; it now uses the same singular/
+plural pattern as the collection footer and displays '1 step'. All41 Code Path
+tests, strict Clippy/build and the final native portal runs pass after that small
+UI change. The preceding complete workspace at3add1c3 passed757 app tests (nine
+opt-in ignored), two binary/13 font/21 text tests and59 doctests. No new tests or
+mechanisms were added for the label change. Architecture against
+before-code-path-step-label is NEUTRAL: +1 analyzed NLOC, no new functions, clone
+or cycle growth; the existing presenter CCN changes14→15.
+
+Earlier driver trials are diagnostic: GTK selection uses its visible Select
+control, and sparse OCR had mistaken the Import heading for the footer action.
+The accepted runs activate Choose/Import with the existing keyboard focus ring
+and use observed GTK Cancel/Select positions. The product chooser returned valid
+text before the driver was completed; no backend repair was needed.
+
+Evidence: ~/.local/state/radiology-qa/code-path-portal-20261102-3add1c3.
+Actual IME-engine/candidate-window and integrated PR/stress acceptance remain in
+the master ledger. Source composition injection does not claim IME-engine proof.

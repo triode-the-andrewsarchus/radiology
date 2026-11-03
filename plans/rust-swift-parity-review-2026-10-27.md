@@ -1,5 +1,9 @@
 # Rust port versus Swift: parity review, 2026-10-27
 
+This is the historical `fd421e1` review. Use the [current requirement reconciliation](rust-parity-status-2026-11-02.md)
+for repaired findings, present evidence and outstanding acceptance. The original
+findings and snapshot-specific test results below are preserved as the repair baseline.
+
 ## Verdict and scope
 
 **The Rust port is a useful standalone repository-browser foundation, but it does not have feature or interaction parity with the Swift application.** Several features described as complete are implemented only as library helpers, approximated visually, or connected to the wrong data. The earlier “full parity,” “completed,” and “exhaustive audit” statements are superseded by this review.

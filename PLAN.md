@@ -4,6 +4,10 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Current parity reconciliation](plans/rust-parity-status-2026-11-02.md) maps all17
+original findings to current code/test evidence and lists the remaining integrated
+acceptance gates. The October27 Missing/Broken matrix is a historical repair baseline.
+
 [Conventional non-Git compilation databases](plans/rust-ignored-compilation-databases.md#conventional-non-git-discovery--2026-11-02)
 now match Swift's bounded root/nested CMake probes. Project inspection, isolated
 generation and caches share the inventory while Files continues hiding build
@@ -39,8 +43,9 @@ publication, reuses prepared structure and passes91-step/93-destination exact Ba
 acceptance. [The standalone workflow](plans/rust-code-path-sidebar.md) now adds durable
 collections, multiline/file import, saved-trace and conditional menus, wrapping steps,
 Copy/Delete, ordinary keys and show/import shortcuts. Native1×/2× dark/light/relaunch
-and exact Unicode export checks pass; desktop-portal and actual IME-engine acceptance
-remain environment-specific follow-ups.
+and exact Unicode export checks pass. [Real desktop-portal file import](plans/rust-code-path-sidebar.md#actual-desktop-portal-acceptance--2026-11-02),
+Cancel/draft preservation, retry and durable restart now pass too. Actual IME-engine
+acceptance remains an environment-specific follow-up.
 
 [Trait implementation inspector](plans/rust-trait-inspector.md) now connects exact
 trait/member/impl context to compact source-sorted rows, stable selection, ordinary

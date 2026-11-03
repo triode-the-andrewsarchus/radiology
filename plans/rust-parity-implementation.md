@@ -3,7 +3,9 @@
 The full objective is to add the missing Swift capabilities, clean up the UI and
 architecture, and keep Radiology standalone while preparing focused reuse with
 little-screen-clip. The [independent review](rust-swift-parity-review-2026-10-27.md)
-remains the requirement ledger; completing an initial package does not close it.
+defines the original requirement ledger; completing an initial package does not
+close it. The [current reconciliation](rust-parity-status-2026-11-02.md) maps those
+historical findings to present implementation and explicit remaining gates.
 
 See also [indexing lifecycle](rust-indexing-parity.md) for background imports
 and the remaining generation/cache requirements.
@@ -27,13 +29,13 @@ actual sibling adoption/integration is deferred until the user requests it.
 
 ## Implemented and covered by current tests
 
-- [Trait catalog foundation](rust-trait-catalog.md): explicit structural extraction,
-  exact semantic joins, source-bound rows, coverage and derived cache are verified.
-  Index publication, trait context, compact UI and activation wiring remain pending.
+- [Trait inspector](rust-trait-inspector.md): catalog publication, exact trait/member
+  context, compact source-sorted rows, coverage, preferences and guarded navigation
+  now pass app/native checks, including pinned After, stale edits and exact Back.
 
 - [Inspector pane preferences](rust-inspector-panes.md): persistent settings, shared
   checked menus, dynamic regions, recovery/focus retirement and stable scrolling.
-  Trait preference/middle-slot policy is ready; actual trait results remain pending.
+  Trait results and the shared middle-slot policy are now integrated and accepted.
 
 - [Files navigation](rust-files-navigation.md): one-shot centered reveal and parent
   expansion, temporary current-document filter/listing exceptions, flat query rows,
@@ -315,7 +317,11 @@ from the PR, renamed/spaced/added/deleted/binary files, application navigation a
 bookmark scope integration, real ripgrep queries/errors, and headless egui checks
 for simultaneous inspector regions and source keyboard exclusion.
 
-## Still required before full parity acceptance
+## Historical implementation checkpoints and acceptance notes
+
+The active acceptance gates are in the [current reconciliation](rust-parity-status-2026-11-02.md#remaining-acceptance-gates).
+The incremental notes below preserve their dated validation scope; earlier pending
+phrases are superseded where later checkpoints have completed the same work.
 
 [Source pointer/key capture order](rust-source-input-order.md#preserve-source-pointerkeyboard-interleaving-through-capture--2026-11-01)
 now repairs the confirmed bookmark-before-click reorder, with exact copy/drag/
