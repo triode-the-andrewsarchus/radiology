@@ -8,8 +8,9 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 TOML and immutable provenance to the service and Index Projects picker. Canonical
 repository choices, attached PRs, reload/Reindex, invalid-file recovery, settings
 reveal and ordinary menu keys pass app and native1×/2× checks. The shared seL4
-runner and isolated caches are wired in; real67-profile Linux compiler acceptance
-remains open before full seL4 parity can be claimed.
+runner and isolated caches now pass real 67-profile Linux cold generation, forced
+Reindex and tool-free warm reload, matching Swift union totals and original source
+coordinates. Native real-matrix navigation/controls remain to be accepted.
 
 [C/C++ best-effort indexing](plans/rust-clang-fallback.md) now generates private GNU
 defaults and inferred includes when no compilation database exists. Real database

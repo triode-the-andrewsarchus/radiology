@@ -2,7 +2,8 @@
 
 Reference: [upstream contract](indexing-personalities.md) and
 [compiler matrix](sel4-indexing.md). Settings, service and standalone app workflow
-are implemented. Real67-profile Linux compiler acceptance remains required.
+are implemented. Real 67-profile Linux compiler/service acceptance now passes;
+native real-matrix controls/navigation remain required.
 
 ## Settings and resource checkpoint
 
@@ -59,16 +60,16 @@ Evidence: ~/.local/state/radiology-qa/personality-settings-20261102-9ba9448.
 3. The distinct scip-sel4 service strategy and private shared-runner invocation are
    implemented, backed by the existing managed Clang tool. Controlled runner tests
    verify captured TOML/scripts, source-only publication, cache isolation/reuse,
-   cancellation and cleanup. Real matrix/provisioning acceptance and any required
-   platform recipe adaptation remain open.
+   cancellation and cleanup. Real matrix/provisioning acceptance now passes after correcting shared Python
+   PATH precedence on Linux.
 4. Implemented: Index Projects picker/explanation/file action uses existing menu
    controls and styles, preserves reader/caret/history on switches and reuses the
    Clang Install and Index path.
 5. Service/app and native1×/2× checks cover settings/cache transitions, recovery,
-   cancellation, PR identity and reader retention. Still run the full 67
-   profile recipe against the pinned seL4 checkout and verify original coordinates,
-   conditional alternatives, all modes, source integrity, Reindex and warm caches.
-   Validate Python provisioning and union integrity, then native1×/2× controls.
+   cancellation, PR identity and reader retention. The full 67-profile recipe against the pinned seL4 checkout now verifies
+   original coordinates, conditional alternatives, all modes, source integrity,
+   Python provisioning, forced Reindex and warm caches. Native real-matrix
+   1×/2× navigation/controls remain.
 
 The seL4 matrix is finite and Partial remains intentional. Full assistive
 accessibility and actual sibling integration retain their agreed deferred scope.
@@ -223,7 +224,29 @@ Python3.14 with exact configured pins and actual scip-clang0.4.0 pass.
 The raw union has598 documents/24,934 symbols/131,126 occurrences, matching the
 Swift baseline. All ranges map through the Rust decoder to original source bytes;
 conditional TCB-control definitions/references survive. The manifest records all
-seven modes,134 translation units and178 physical build-backed C paths (the older
-Swift report counted177). Source digest and clean Git status are unchanged. Real
-Rust service generation/Reindex/cache and native real-matrix acceptance remain
-separate requirements. Current evidence: ~/.cache/radiology-qa-sel4-matrix.
+seven modes and134 translation units. Its178 kernel path spellings resolve to176
+physical kernel files; adding the library C file gives177, matching Swift. Source digest and clean Git status are unchanged. Real
+Rust service generation/Reindex/cache now passes as described below; native
+real-matrix acceptance remains separate. Current evidence: ~/.cache/radiology-qa-sel4-matrix.
+
+## Real Rust service acceptance
+
+The service's real cold run (87.18 s) and forced Reindex (86.68 s) each prepare/index
+all 67 profiles inside disposable source copies. Each emits 598 documents, 24,934
+symbols and 131,126 occurrences without project reuse, cache warnings or stale
+source. Every occurrence range maps to the original source bytes in both outputs.
+Raw union validation covers all 177 physical non-profiler C files, conditional
+TCB-control source definitions/references, scheduler/IPC/interrupt symbols, SMMU and
+public APIs. The pinned checkout retains its original digest and clean Git status.
+
+Cache-only loading with no compiler/Python lookup returns the same union in 2.66 s;
+a separate repeat takes 2.59 s and confirms Partial/no cache warning. Temporary
+workspaces and run artifacts are removed on completion; namespaced caches persist.
+Actual app-resource smoke and strict all-target Clippy pass with corrected scripts.
+This supplements the app/native fixture checks; it does not substitute for native
+real-matrix navigation/control acceptance at both scales.
+
+Durable evidence and reproducible probe sources:
+~/.local/state/radiology-qa/sel4-linux-matrix-20261102-b1e7f80.
+The archive includes the raw union/provenance, all profile manifests and logs,
+source/tool digests, service reports and coverage/service/warm Rust probes.

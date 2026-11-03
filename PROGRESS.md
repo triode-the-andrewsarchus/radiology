@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-02 — Real Rust seL4 generation, Reindex and warm cache (Codex)
+
+The real Rust service passes cold generation and forced Reindex against the pinned
+seL4 reference d419a119a61a9b42edf61fb79ad08de45248daa7. Each pass actually prepares
+and indexes all 67 profiles using the shared bundled pipeline inside disposable
+input copies; neither pass reuses a project record. Both produce 598 documents,
+24,934 symbols and 131,126 occurrences, matching Swift's reference totals. Cold
+acceptance took 87.18 s, forced Reindex 86.68 s. No stale-source or cache warnings.
+
+A separate cache-only request with compiler/Python search paths, managed tools and
+home lookup disabled loads the same union in 2.66 s. A second warm-only check takes
+2.59 s and confirms Partial status and no cache warning. Every occurrence maps to
+original SourceBuffer bytes in cold, Reindex and warm outputs. Raw union checks
+also verify all 177 physical non-profiler C files, both conditional TCB-control
+variants' source definitions/references, schedule/doIPCTransfer/handleInterrupt,
+SMMU and public API definitions. The manifest's 178 kernel path spellings resolve
+to 176 physical kernel files; adding the library source yields the reference 177.
+
+The original source digest/clean Git status are unchanged after both forced runs.
+All temporary service workspaces and run directories are removed; persistent caches
+remain in the seL4 namespace. Strict all-target Clippy and the resource smoke pass
+with the corrected shared scripts embedded. The preceding checkpoint records the
+18 personality and five Python tests and neutral architecture comparison. The
+original Linux failure and corrected-run logs are retained for diagnosis.
+
+Evidence: ~/.local/state/radiology-qa/sel4-linux-matrix-20261102-b1e7f80 contains raw
+union/provenance, all profile manifests/configure/header/index logs, compiler hashes,
+Rust coverage/service/warm probe sources, reports, source checks and gate logs.
+The private DTC extraction and app-owned Python provisioning leave system packages
+unchanged. Current executable is rebuilt with the corrected shared resources.
+
+Next: native real-matrix controls/navigation at both scales, dedicated shortcut help
+and broader corpus/PR/stress plus desktop-portal/IME-engine acceptance. Controlled
+picker/native recovery is already accepted; this service checkpoint does not claim
+the remaining native real-matrix pass. Overall parity remains active.
+
 ## 2026-11-02 — Real Linux seL4 matrix and Python selection fix (Codex)
 
 Committed/pushed the complete standalone picker as95e8453. The next real matrix
