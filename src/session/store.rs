@@ -33,6 +33,10 @@ pub struct SessionStore {
     /// App-wide Context pane choices; old sessions enable all panes.
     #[serde(default)]
     pub inspector_panes: super::inspector::InspectorPanes,
+    /// Indexing pipeline selected per canonical attached checkout, shared with PRs.
+    #[serde(default)]
+    pub indexing_personalities:
+        std::collections::BTreeMap<String, crate::semantic::indexing::personality::Personality>,
     /// Whether source code lines wrap at the viewport boundary or scroll horizontally.
     #[serde(default)]
     pub wrap_lines: bool,
@@ -53,6 +57,7 @@ impl Default for SessionStore {
             active_pr: None,
             source_filters: SourceFilters::default(),
             inspector_panes: Default::default(),
+            indexing_personalities: Default::default(),
             wrap_lines: false,
             source_font_size: default_source_font_size(),
             dark_mode: true,
@@ -146,17 +151,82 @@ impl SessionStore {
 
     /// Saves the current session state to disk if valid.
     pub fn save(&self) {
+        let _ = self.try_save();
+    }
+
+    fn try_save(&self) -> Result<(), String> {
         if !self.is_valid() {
-            return;
+            return Err("Session contains an invalid repository or PR".into());
         }
-        if let Some(path) = self.storage_path.clone().or_else(Self::session_file_path) {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(json) = serde_json::to_string_pretty(self) {
-                let _ = std::fs::write(path, json);
-            }
+        let path = self
+            .storage_path
+            .clone()
+            .or_else(Self::session_file_path)
+            .ok_or("No private session storage is available")?;
+        let bytes = serde_json::to_vec_pretty(self).map_err(|error| error.to_string())?;
+        crate::storage::atomic_write(&path, &bytes).map_err(|error| error.to_string())
+    }
+
+    /// Returns the attached checkout's saved pipeline, defaulting for old sessions.
+    #[must_use]
+    pub fn indexing_personality(
+        &self,
+        root: &Path,
+    ) -> crate::semantic::indexing::personality::Personality {
+        root.canonicalize()
+            .ok()
+            .and_then(|root| {
+                root.to_str()
+                    .and_then(|key| self.indexing_personalities.get(key))
+                    .copied()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Persists a canonical attached checkout's pipeline without changing PR identity.
+    ///
+    /// # Examples
+    /// ```
+    /// use radiology::{session::SessionStore, semantic::indexing::personality::Personality};
+    /// let owner = tempfile::tempdir()?;
+    /// let root = owner.path().join("checkout");
+    /// std::fs::create_dir(&root)?;
+    /// let file = owner.path().join("settings/session.json");
+    /// let mut session = SessionStore::load_from(&file);
+    /// session.set_indexing_personality(&root, Personality::Sel4)?;
+    /// assert_eq!(SessionStore::load_from(file).indexing_personality(&root), Personality::Sel4);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    /// Reports invalid roots, settings inside source and failed atomic persistence.
+    /// Failure preserves the previous in-memory selection and complete session file.
+    pub fn set_indexing_personality(
+        &mut self,
+        root: &Path,
+        personality: crate::semantic::indexing::personality::Personality,
+    ) -> Result<(), String> {
+        let root = root.canonicalize().map_err(|error| error.to_string())?;
+        let directory = self
+            .config_directory()
+            .ok_or("No private session storage is available")?;
+        if crate::semantic::indexing::workspace::destination_path(&directory)?.starts_with(&root) {
+            return Err("Personality preferences must be outside the viewed repository".into());
         }
+        let key = root
+            .to_str()
+            .ok_or("Repository root is not UTF-8")?
+            .to_owned();
+        let previous = self.indexing_personalities.insert(key.clone(), personality);
+        if let Err(error) = self.try_save() {
+            if let Some(previous) = previous {
+                self.indexing_personalities.insert(key, previous);
+            } else {
+                self.indexing_personalities.remove(&key);
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     /// Records a confirmed repository path, updating recent history capped at 8 entries.

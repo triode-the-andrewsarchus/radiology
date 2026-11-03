@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-11-02 — Durable canonical indexing preferences (Codex)
+
+SessionStore now records the selected personality by canonical attached checkout,
+shared with its PRs and aliases. Missing legacy fields default to Default. Selection
+saves report errors and roll back in-memory changes on failure; settings inside
+source are rejected. Session writes reuse synced atomic replacement. A new runnable
+API example verifies persistence/reload. The picker integration and full validation
+follow in a separate commit.
+
 ## 2026-11-02 — Personality-aware generation, caches and seL4 runner (Codex)
 
 Generation requests now own optional immutable personality settings. Default applies
