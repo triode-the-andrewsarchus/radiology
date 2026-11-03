@@ -11,6 +11,8 @@ fn native_highlight_queries_compile() {
         SupportedGrammar::JavaScript,
         SupportedGrammar::TypeScript,
         SupportedGrammar::Tsx,
+        SupportedGrammar::C,
+        SupportedGrammar::Cpp,
     ] {
         assert!(
             super::super::queries::query(grammar, super::super::queries::QueryRole::Highlights)
@@ -81,6 +83,8 @@ fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
         ("a.rs", "// café 😀\r\n#[derive(Debug)]\r\nstruct Record<'borrow> { field: &'borrow str }\r\nfn run<'borrow>(value: &'borrow str) -> Record<'borrow> {\r\n let text = \"hi\\n\"; let raw = r#\"raw\"#; let count = 42; let yes = true;\r\n println!(\"{}\", text); Record { field: value }\r\n}\r\n", vec![("derive", "attribute"), ("struct", "keyword"), ("Record", "type"), ("borrow", "label"), ("field:", "property"), ("str }", "type"), ("run", "function"), ("hi", "string"), ("\\n\"", "string.escape"), ("raw\"#", "string"), ("42", "number"), ("true", "constant"), ("println", "function")]),
         ("a.go", "// café 😀\r\npackage reader\r\ntype Record struct { Field string }\r\nfunc run(value string) string {\r\n text := \"hi\\n\"; count := 42; _ = count; println(text)\r\n return value\r\n}\r\n", vec![("package", "keyword"), ("reader", "namespace"), ("Record", "type"), ("Field", "property"), ("run", "function"), ("string", "type"), ("println", "function.builtin"), ("hi", "string"), ("\\n\"", "string.escape"), ("42", "number")]),
         ("a.py", "# café 😀\r\n@decorator\r\nclass Record:\r\n def run(self, value: str):\r\n  text = \"hi\\n\"; COUNT = 42\r\n  print(self.field)\r\n  return value\r\n", vec![("decorator", "attribute"), ("class", "keyword"), ("Record", "type"), ("run", "function"), ("self", "variable.builtin"), ("str", "type"), ("print", "function.builtin"), ("field", "property"), ("COUNT", "constant"), ("42", "number"), ("hi", "string"), ("\\n\"", "string.escape")]),
+        ("a.c", "// café 😀\r\nint run(int value) { return value; }\r\n", vec![("run", "function"), ("int", "type.builtin"), ("return", "keyword.return")]),
+        ("a.cpp", "// café 😀\r\ntemplate <typename T> T run(T value) { return value; }\r\n", vec![("template", "keyword"), ("run", "function"), ("return", "keyword.return")]),
         ("a.swift", "// café 😀\r\nfunc run(value: Int) {\r\n let text = \"hi\\n\"\r\n print(text)\r\n}\r\n", vec![("run", "function"), ("func", "keyword"), ("hi", "string"), ("\\n\"", "primary")]),
         ("a.kt", "// café 😀\r\nfun run(value: Int) {\r\n val text = \"hi\\n\"\r\n println(text)\r\n}\r\n", vec![("run", "function"), ("fun", "keyword"), ("hi", "string"), ("\\n\"", "string.escape")]),
         (
@@ -302,52 +306,10 @@ fn rust_native_long_comment_preserves_full_unicode_crlf_and_recolors_without_a_p
 
 #[test]
 fn swift_corpus_fixtures_preserve_native_facts_and_colors_in_both_line_endings() {
-    let fixtures = [
-        (
-            "sample.swift",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.swift"),
-        ),
-        (
-            "sample.rs",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.rs"),
-        ),
-        (
-            "sample.go",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.go"),
-        ),
-        (
-            "sample.py",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.py"),
-        ),
-        (
-            "sample.js",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.js"),
-        ),
-        (
-            "sample.jsx",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.jsx"),
-        ),
-        (
-            "sample.ts",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.ts"),
-        ),
-        (
-            "sample.tsx",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.tsx"),
-        ),
-        (
-            "sample.kt",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.kt"),
-        ),
-        (
-            "sample.kts",
-            include_str!("../../../Tests/RadiologyTests/Fixtures/sample.kts"),
-        ),
-    ];
     for crlf in [false, true] {
-        let snapshots = fixtures
+        let snapshots = crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES
             .iter()
-            .map(|&(path, text)| {
+            .map(|&(path, text, _)| {
                 let text = if crlf {
                     text.replace('\n', "\r\n")
                 } else {

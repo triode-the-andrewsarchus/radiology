@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 757 app tests (nine opt-in ignored), two binary,
+The current full workspace passes 759 app tests (nine opt-in ignored), two binary,
 13 font, 21 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -61,6 +61,17 @@ regressions and real protocol/key/clipboard/capture evidence are retained. This 
 Linux Wayland/Anthy acceptance; it does not claim every engine/platform or full
 assistive accessibility. The current workspace passes758 app tests plus two
 explicit pinned-backend regressions; other workspace/doctest counts are unchanged.
+
+## Completed representative source checkpoint
+
+[The twelve-fixture Swift source corpus](rust-integrated-source-corpus.md) now feeds
+both native syntax checks and96 actual-app LF/CRLF, valid/malformed,1×/2× cases.
+This exposed and repaired omitted C/C++ native colors through the existing capture
+pipeline. Native C/C++ dark/light, wrapping, function folds, exact Copy and cross-file
+history pass; source hashes stay unchanged. This is representative source acceptance;
+other behavior fixtures, larger pending-owner stress and PR/compiler integration
+remain in the next gate. Full workspace now passes759 app tests, nine ignored;
+other workspace/doctest counts are unchanged.
 
 ## Remaining acceptance gates
 

@@ -32,19 +32,6 @@ impl NativeHighlights {
         root: Node<'_>,
         control: &super::AnalysisControl<'_>,
     ) -> Self {
-        if !matches!(
-            grammar,
-            SupportedGrammar::Rust
-                | SupportedGrammar::Go
-                | SupportedGrammar::Python
-                | SupportedGrammar::Swift
-                | SupportedGrammar::Kotlin
-                | SupportedGrammar::JavaScript
-                | SupportedGrammar::TypeScript
-                | SupportedGrammar::Tsx
-        ) {
-            return Self::default();
-        }
         match captures(buffer, grammar, root, 200_000, control) {
             Ok(captures) => Self {
                 captures,

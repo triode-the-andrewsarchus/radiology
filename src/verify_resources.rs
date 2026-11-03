@@ -6,25 +6,26 @@ use radiology::{
 };
 use std::collections::HashSet;
 
-const NATIVE: &[(&str, &str, bool)] = &[
-    ("probe.rs", "fn probe(value: i32) -> i32 {\n target(value)\n}\n#[test]\nfn test_probe() { probe(1); }\n", true),
-    ("probe.py", "def probe(value):\n result = target(value)\n return result\n", true),
-    ("probe.go", "package main\nfunc probe(value int) int {\n return target(value)\n}\n", true),
-    ("probe.js", "function probe(value) {\n return target(value);\n}\n", true),
-    ("probe.ts", "export function probe(value: number): number {\n return target(value);\n}\n", true),
-    ("probe.jsx", "export function probe(value) {\n return <section title={target(value)}>hello</section>;\n}\n", true),
-    ("probe.tsx", "export function probe(value: number) {\n return <section title={target(value)}>hello</section>;\n}\n", true),
-    ("probe.swift", "func probe(_ value: Int) -> Int {\n return target(value)\n}\n", true),
-    ("probe.kt", "fun probe(value: Int): Int {\n return target(value)\n}\ninterface Reader { fun read(): Int }\nclass Store { class Inner { val café = 1 } }\n", true),
-    ("probe.c", "int target(int);\nint probe(int value) {\n return target(value);\n}\n", false),
+const NATIVE: &[(&str, &str)] = &[
+    ("probe.rs", "fn probe(value: i32) -> i32 {\n target(value)\n}\n#[test]\nfn test_probe() { probe(1); }\n"),
+    ("probe.py", "def probe(value):\n result = target(value)\n return result\n"),
+    ("probe.go", "package main\nfunc probe(value int) int {\n return target(value)\n}\n"),
+    ("probe.js", "function probe(value) {\n return target(value);\n}\n"),
+    ("probe.ts", "export function probe(value: number): number {\n return target(value);\n}\n"),
+    ("probe.jsx", "export function probe(value) {\n return <section title={target(value)}>hello</section>;\n}\n"),
+    ("probe.tsx", "export function probe(value: number) {\n return <section title={target(value)}>hello</section>;\n}\n"),
+    ("probe.swift", "func probe(_ value: Int) -> Int {\n return target(value)\n}\n"),
+    ("probe.kt", "fun probe(value: Int): Int {\n return target(value)\n}\ninterface Reader { fun read(): Int }\nclass Store { class Inner { val café = 1 } }\n"),
+    ("probe.c", "int target(int);\nint probe(int value) {\n return target(value);\n}\n"),
+    ("probe.cpp", "template <typename T> T target(T value) { return value; }\nint probe(int value) {\n return target<int>(value);\n}\n"),
 ];
 
 pub(super) fn verify_resources() -> bool {
     let highlighter = SyntaxHighlighter::new();
     let mut ok = true;
     println!("Checking native parsers and reader queries...");
-    for &(path, text, native_colors) in NATIVE {
-        match verify_native(path, text, native_colors, &highlighter) {
+    for &(path, text) in NATIVE {
+        match verify_native(path, text, &highlighter) {
             Ok(()) => println!("ok   {path}: parse, outline, folds, calls, occurrences, colors"),
             Err(error) => {
                 println!("FAIL {path}: {error}");
@@ -34,7 +35,6 @@ pub(super) fn verify_resources() -> bool {
     }
     println!("Checking syntax color fallbacks (no native grammar claim)...");
     for (path, text) in [
-        ("probe.cpp", "class Probe { public: int value = 1; };\n"),
         ("probe.html", "<h1 class=\"probe\">hello</h1>\n"),
         ("probe.json", "{\"probe\": true}\n"),
         ("probe.md", "# Probe\nSome **text**.\n"),
@@ -57,12 +57,7 @@ pub(super) fn verify_resources() -> bool {
     ok
 }
 
-fn verify_native(
-    path: &str,
-    text: &str,
-    native_colors: bool,
-    highlighter: &SyntaxHighlighter,
-) -> Result<(), String> {
+fn verify_native(path: &str, text: &str, highlighter: &SyntaxHighlighter) -> Result<(), String> {
     if LanguageRegistry::for_path(path).grammar.is_none() {
         return Err("native grammar is not registered".into());
     }
@@ -90,10 +85,7 @@ fn verify_native(
                     .and_then(|byte| facts.occurrences.selection(&buffer, byte))
                     .is_some(),
         ),
-        (
-            "native colors",
-            !native_colors || facts.native_highlights.matches(&buffer),
-        ),
+        ("native colors", facts.native_highlights.matches(&buffer)),
         (
             "test detection",
             path != "probe.rs" || !facts.tests.regions.is_empty(),
@@ -113,11 +105,7 @@ fn verify_native(
             facts.native_highlights.error
         ));
     }
-    verify_colors(
-        &buffer,
-        native_colors.then_some(facts.native_highlights.as_ref()),
-        highlighter,
-    )
+    verify_colors(&buffer, Some(facts.native_highlights.as_ref()), highlighter)
 }
 
 fn verify_colors(
@@ -162,16 +150,26 @@ mod tests {
 
     #[test]
     fn embedded_native_resources_and_fallbacks_pass_the_real_reader_paths() {
+        let exercised: HashSet<_> = NATIVE
+            .iter()
+            .filter_map(|(path, _)| LanguageRegistry::for_path(path).grammar)
+            .collect();
+        let registered: HashSet<_> = LanguageRegistry::parsed_languages()
+            .filter_map(|language| language.grammar)
+            .collect();
+        assert_eq!(
+            exercised, registered,
+            "every structural grammar requires a native color probe"
+        );
         assert!(verify_resources());
     }
 
     #[test]
     fn a_fallback_cannot_hide_missing_native_structure() {
         let highlighter = SyntaxHighlighter::new();
-        let error =
-            verify_native("probe.tsx", "const value = 1;\n", true, &highlighter).unwrap_err();
+        let error = verify_native("probe.tsx", "const value = 1;\n", &highlighter).unwrap_err();
         assert!(error.contains("outline"), "{error}");
         assert!(error.contains("calls"), "{error}");
-        assert!(verify_native("unknown.txt", "probe(value)", false, &highlighter).is_err());
+        assert!(verify_native("unknown.txt", "probe(value)", &highlighter).is_err());
     }
 }

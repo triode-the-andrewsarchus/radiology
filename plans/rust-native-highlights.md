@@ -1,9 +1,9 @@
 # Native source colors
 
-Rust, Go, Python, Swift, Kotlin, JavaScript, TypeScript and TSX/JSX use native
+Rust, Go, Python, Swift, Kotlin, JavaScript, TypeScript, TSX/JSX, C and C++ use native
 Tree-sitter highlight captures for source colors.
 The existing shared parse produces the immutable capture snapshot; no parser runs
-in painting or theme recoloring. C and other formats retain their Syntect appearance.
+in painting or theme recoloring. Other formats retain their Syntect appearance.
 Missing/failed native facts fall back to basic Syntect/plain colors, with a
 recoverable Basic syntax colors status and error detail when extraction failed.
 
@@ -287,3 +287,12 @@ full accessibility and actual sibling adoption remain deferred.
 class-member trees and exact raw !is ranges. It supersedes the Rust capture-span
 correction described above, which is removed. Color roles and retained recoloring
 continue through the same shared path; real malformed-source warnings remain.
+
+## C/C++ corpus repair — 2026-11-02
+
+The complete twelve-fixture Swift corpus exposed an older native-color allowlist
+that excluded C/C++ despite their shared queries already being linked. Removing
+that guard connects both to the same capture/recolor path and removes the obsolete
+resource-probe fallback bypass. No new production mechanism is added.
+[Integrated source corpus evidence](rust-integrated-source-corpus.md) records the
+red/green failure,96 actual-app cases, native dark/light1×/2× acceptance and limits.

@@ -17,6 +17,8 @@ mod queries;
 mod review_folds;
 pub mod rust_impls;
 pub mod test_detector;
+#[cfg(test)]
+pub(crate) mod test_fixtures;
 
 pub use folds::{FoldDetector, FoldKind, FoldRange, FoldStore};
 pub use highlighter::{HighlightedSpan, SyntaxHighlighter};

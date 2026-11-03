@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-02 — Integrated source corpus and C/C++ native colors (Codex)
+
+Expanding the shared Swift corpus to all12 fixtures exposed a real omission: an old
+NativeHighlights allowlist disabled C/C++ captures despite their linked queries.
+The guard is removed; both now use existing bounded capture/recolor/identity owners.
+Resource smoke requires every registered grammar and includes a C++ template probe,
+with the obsolete native/fallback bypass flag removed. No dependency/UI state or
+type-style changes; requested UI skills remain unavailable.
+
+One shared test catalogue replaces the old ten-fixture local list. The original
+allowlist fails the expanded native corpus; the repair passes. A96-case actual-app
+workflow covers twelve fixtures × LF/CRLF × valid/malformed ×1×/2×, source-worker
+publication, exact name bytes, committed reveal, X folds, Copy, wrap/theme and Back.
+Kotlin script targets its multiline collect body; one-line render is not foldable.
+Native C/C++ dark/light1×/2× checks also pass through recovered syntax and cross-file
+history. An initial harness assumed one Back across two entries; corrected checks
+verify the intermediate C line1 and exact C++ line39 departure. Disk/binary hashes
+unchanged, core exits zero; captures and scoped CPU/RSS observations retained.
+
+Full locked workspace:759 app tests/nine ignored, two binary/13 font/21 text tests
+and59 doctests, plus strict Clippy/build/resource/fmt/diff checks. Architecture:
++134 NLOC/one test, production−15 NLOC; native capture CCN3→2, resource guard8→7.
+Integrated test CCN11, no new hotspot. All125 clone instances and cycle/structural
+counts unchanged; raw comparison false positives are explained in evidence.
+
+[Integrated source contract](plans/rust-integrated-source-corpus.md). Archive:
+~/.local/state/radiology-qa/integrated-source-corpus-20261102-fc5254f. Remaining:
+other Swift behavior reconciliation, large/pending-owner stress, integrated moving
+PR/pinned-semantic/cache flows, heavy compiler outcomes and final standalone/reuse
+audit. Overall parity remains active.
+
 ## 2026-11-02 — Real IME cancellation and engine acceptance (Codex)
 
 The pinned egui-winit backend now translates native preedit clear/Disabled to

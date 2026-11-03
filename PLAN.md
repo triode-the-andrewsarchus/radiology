@@ -8,6 +8,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 original findings to current code/test evidence and lists the remaining integrated
 acceptance gates. The October27 Missing/Broken matrix is a historical repair baseline.
 
+[Integrated source corpus](plans/rust-integrated-source-corpus.md) now covers all
+12 Swift language fixtures in syntax checks and96 actual-app cases. It exposed and
+fixed omitted C/C++ native colors, with native dark/light1×/2× reader acceptance.
+Larger stress, PR/cache and heavy compiler integration remain open.
+
 [Native IME testing](plans/rust-native-ime.md) now uses a real private Fcitx/Anthy
 engine. Candidate placement and backend cancellation are repaired, with exact
 preedit/commit/clear, Return ownership and native resize checks at both scales.

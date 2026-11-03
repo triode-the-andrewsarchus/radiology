@@ -2857,3 +2857,5 @@ fn invalid_bookmark_target_reports_the_synchronous_error_in_its_region() {
 mod cpp;
 
 mod clang;
+
+mod corpus;
