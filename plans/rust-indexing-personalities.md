@@ -52,15 +52,15 @@ Evidence: ~/.local/state/radiology-qa/personality-settings-20261102-9ba9448.
 1. Capture/reload settings on repository open/reload, selection and Reindex; persist
    the selection by canonical attached checkout, including attached PR use. Invalid
    files need visible failure and a working Show Settings File action.
-2. Apply Default's adapter allowlist/project limit and Clang jobs to actual planning
-   and commands. Carry the settings digest through strategy identity, normalized
-   cache freshness and project reuse. Keep Default's existing cache namespace and
-   isolate seL4 under personalities/sel4, including pinned review caches.
-3. Add a distinct scip-sel4 strategy backed by the existing managed Clang tool and
-   shared Python pipeline. Stage captured TOML/scripts in private run output,
-   resolve configured bootstrap Python and preserve the existing process budgets,
-   source/snapshot verification, cancellation, normalized source-only publication
-   and cleanup. Adapt platform messages/candidates where necessary.
+2. Service integration is implemented: Default's adapter allowlist/project limit
+   and Clang jobs drive actual planning/commands. Captured digest participates in
+   strategy equality, normalized cache validation and project reuse. Default keeps
+   its namespace; seL4 uses personalities/sel4, including revision-keyed records.
+3. The distinct scip-sel4 service strategy and private shared-runner invocation are
+   implemented, backed by the existing managed Clang tool. Controlled runner tests
+   verify captured TOML/scripts, source-only publication, cache isolation/reuse,
+   cancellation and cleanup. Real matrix/provisioning acceptance and any required
+   platform recipe adaptation remain open.
 4. Add the picker/explanation/file action to Index Projects with existing styles,
    preserve reader/caret/history on switches and reuse Install and Index for Clang.
 5. Exercise settings edits/cache transitions, invalid recovery, live cancellation,
@@ -83,3 +83,55 @@ above15,126 clone groups and one cycle stay unchanged. The clone-identity audit
 has no additions or removals. Remaining raw comparator rank variation concerns
 untouched Python functions. The initial parser hotspot was resolved by separating
 pipeline provenance and root identity validation from capture/storage ownership.
+
+## Generation and cache checkpoint
+
+GenerationRequest now owns optional immutable Settings. None preserves existing
+host behavior and wire records; the app still passes None until picker/session
+integration. Captured Default filters adapters before applying the project cap and
+sets actual Clang jobs. Every selected/skipped strategy retains the captured digest.
+Stable project IDs stay unchanged; full strategy equality rejects incompatible
+settings for project reuse. Normalized cache restore reconstructs the stored input
+plan with the request's settings; a mismatched capture cannot publish as a fresh
+cache. Existing unconfigured records deserialize with an absent digest.
+
+seL4 explicitly chooses scip-sel4 and shares Clang tool discovery/provisioning.
+Its bootstrap Python resolves configured candidates in order, including absolute
+and ~/ paths, without requiring a search path for explicit executables. The shared
+five scripts and captured TOML are staged in private run output. The run directory
+sits outside the copied source tree because the Python runner inventories source;
+putting its changing artifacts inside that tree would invalidate its digest. Python
+bytecode is disabled and TMPDIR points to the private run. Persistent Python tools
+must remain outside attached, viewed and copied source roots.
+
+The existing source/snapshot checks, process deadlines, cancellation, normalized
+inventory filtering and cleanup surround the runner. The request owns environment
+assembly separately from execution. Generated headers do not become source
+navigation destinations. seL4 normalized/project caches and writer lease live under
+personalities/sel4; Default records are unchanged. Escaping namespace symlinks fail
+before writes. Nested namespace creation occurs before opening its shared lease.
+
+Seven new tests cover planning order/digest/coverage, actual Clang jobs, settings
+edits invalidating normalized and project reuse, private seL4 resources and generated
+header filtering, Default/seL4 cache isolation and tool-free warm reload, live runner
+cancellation/retry, missing bootstrap/unsafe tools, escaping cache namespaces and
+absolute/home program lookup. Existing managed installation tests also exercise the
+seL4 alias of Clang. The runner fixtures are controlled stand-ins, not a claim that
+all real compiler profiles pass.
+
+Full workspace:748 app tests pass, nine opt-in tests ignored; two binary/13 font/
+21 text tests and58 doctests pass. Strict lint/check/build/rustdoc/fmt/diff, resource
+smoke and rendered API inspection pass. Both actual Clang lifecycle tests and the
+five shared Python union tests pass. Architecture adds507 NLOC/15 analyzed functions/
+three files; avg CCN3.38→3.37, max132,33 functions above15,126 clone groups and one
+cycle unchanged. Normalized clone identities have no additions/removals. Raw
+comparison flags a touched old service-test clone and unchanged Python rank ties;
+request-owned command/environment assembly removed the initial execute hotspot.
+Evidence: ~/.local/state/radiology-qa/personality-generation-20261102-edb74c0.
+
+Next add repository selection/picker/reload/recovery and actual app/native checks,
+then verify the full matrix at seL4 d419a119a61a9b42edf61fb79ad08de45248daa7.
+The clean QA checkout is ~/.cache/radiology-qa-sel4-source. Host inspection finds
+Clang23.1.4 with the required targets, CMake4.4.5 and Python3.14.8; dtc is absent
+from PATH and needs private provisioning before real matrix acceptance. Current
+CMake/runtime compatibility must be demonstrated by execution, not assumed.

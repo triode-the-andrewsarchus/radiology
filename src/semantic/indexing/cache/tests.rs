@@ -187,7 +187,7 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
         ["fresh"]
     );
     cancel.store(true, Ordering::Relaxed);
-    assert!(validate(&entry, &entry.root, &cancel)
+    assert!(validate(&entry, &entry.root, None, &cancel)
         .unwrap_err()
         .contains("cancelled"));
     assert!(
@@ -200,6 +200,7 @@ fn cancelled_serialization_removes_temporary_output_and_retains_the_accepted_cac
 
 pub(super) fn request(root: PathBuf, cache: PathBuf) -> GenerationRequest {
     GenerationRequest {
+        settings: None,
         attached_root: root.clone(),
         reuse: false,
         review: None,

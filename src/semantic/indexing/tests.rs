@@ -158,6 +158,7 @@ fn structured_commands_retain_literal_paths_and_language_specific_options() {
     {
         let command = strategy
             .command(CommandPaths {
+                settings: None,
                 workspace: root,
                 source_root: root,
                 executable,
@@ -191,6 +192,7 @@ fn structured_commands_retain_literal_paths_and_language_specific_options() {
 #[test]
 fn command_rejects_escaping_strategy_inputs() {
     let strategy = IndexingStrategy {
+        personality_digest: None,
         indexer: Indexer::Clang,
         directory: "../escape".into(),
         evidence: vec![],
@@ -198,6 +200,7 @@ fn command_rejects_escaping_strategy_inputs() {
     };
     assert!(strategy
         .command(CommandPaths {
+            settings: None,
             workspace: Path::new("/work"),
             source_root: Path::new("/original"),
             executable: Path::new("tool"),
@@ -227,6 +230,7 @@ fn clang_command_requires_a_prepared_absolute_database_in_the_private_run() {
         Some(prepared.as_path()),
     ] {
         let command = strategy.command(CommandPaths {
+            settings: None,
             workspace,
             source_root: Path::new("/original"),
             executable: Path::new("/tools/scip-clang"),

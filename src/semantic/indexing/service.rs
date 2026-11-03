@@ -20,6 +20,8 @@ pub struct GenerationRequest {
     pub attached_root: PathBuf,
     /// Reuses exact project records with matching tool versions; false forces all tools.
     pub reuse: bool,
+    /// Immutable TOML/pipeline capture for this request; None preserves legacy defaults.
+    pub settings: Option<Arc<super::personality::Settings>>,
     /// Viewed repository whose bytes must remain unchanged.
     pub root: PathBuf,
     /// Pinned review owning this root and its tree lease, or None for a checkout.
@@ -35,6 +37,38 @@ pub struct GenerationRequest {
 }
 
 impl GenerationRequest {
+    pub(super) fn plan(&self, inventory: &InputInventory) -> IndexPlan {
+        let paths = inventory.paths.iter().map(String::as_str);
+        match &self.settings {
+            Some(settings) => settings.plan(paths),
+            None => IndexPlan::inspect(paths),
+        }
+    }
+    // Combines the selected engine with this request's owned tool environment.
+    fn command(
+        &self,
+        strategy: &IndexingStrategy,
+        paths: CommandPaths<'_>,
+    ) -> Result<super::command::IndexCommand, String> {
+        let run = paths.run;
+        let mut command = if strategy.indexer == Indexer::Sel4 {
+            super::sel4::command(self, paths)?
+        } else {
+            strategy.command(paths)?
+        };
+        command
+            .environment
+            .extend(self.tools.indexing_environment(strategy.indexer));
+        command
+            .environment
+            .insert("CARGO_TARGET_DIR".into(), run.join("cargo-target").into());
+        let jobs = std::thread::available_parallelism().map_or(1, |cores| (cores.get() / 2).max(1));
+        command
+            .environment
+            .insert("CARGO_BUILD_JOBS".into(), jobs.to_string().into());
+        Ok(command)
+    }
+
     pub(super) fn prepare_index(
         &self,
         scip: ScipIndex,
@@ -429,7 +463,7 @@ fn generate(
     state: &Mutex<GenerationProgress>,
 ) -> Result<GeneratedIndex, String> {
     let (inventory, baseline, project_lease) = request.prepare(cancel)?;
-    let plan = IndexPlan::inspect(inventory.paths.iter().map(String::as_str));
+    let plan = request.plan(&inventory);
     let mut report = GenerationReport {
         revision: request.revision().map(str::to_owned),
         fingerprint: baseline.fingerprint(),
@@ -653,9 +687,16 @@ fn execute_strategy(
     state: &Mutex<GenerationProgress>,
     outcome: &mut StrategyOutcome,
 ) -> Result<ScipIndex, String> {
+    // The seL4 runner inventories the source tree itself. Its artifacts must stay
+    // outside that tree so generated files cannot enter its source digest.
+    let run_parent = if outcome.strategy.indexer == Indexer::Sel4 {
+        request.cache.as_path()
+    } else {
+        workspace.root()
+    };
     let run = tempfile::Builder::new()
         .prefix(".radiology-index-run-")
-        .tempdir_in(workspace.root())
+        .tempdir_in(run_parent)
         .map_err(|e| e.to_string())?;
     let output = run.path().join("index.scip");
     progress(state, "Preparing indexer inputs…");
@@ -670,7 +711,7 @@ fn execute_strategy(
     let gradle = request.tools.gradle();
     let rust_features =
         super::rust_features::collect(&outcome.strategy, inventory, workspace.root(), cancel)?;
-    let mut command = outcome.strategy.command(CommandPaths {
+    let paths = CommandPaths {
         workspace: workspace.root(),
         source_root: &request.attached_root,
         executable,
@@ -679,18 +720,9 @@ fn execute_strategy(
         gradle: gradle.as_deref(),
         compilation_database: compilation_database.as_deref(),
         rust_features: &rust_features,
-    })?;
-    command
-        .environment
-        .extend(request.tools.indexing_environment(outcome.strategy.indexer));
-    command.environment.insert(
-        "CARGO_TARGET_DIR".into(),
-        run.path().join("cargo-target").into(),
-    );
-    let jobs = std::thread::available_parallelism().map_or(1, |cores| (cores.get() / 2).max(1));
-    command
-        .environment
-        .insert("CARGO_BUILD_JOBS".into(), jobs.to_string().into());
+        settings: request.settings.as_deref(),
+    };
+    let command = request.command(&outcome.strategy, paths)?;
     for (path, bytes) in &command.resources {
         std::fs::write(path, bytes).map_err(|e| e.to_string())?;
     }
@@ -807,7 +839,7 @@ fn run_command(
         "stdout:\n{}\n\nstderr:\n{}",
         output_log.stdout.text, output_log.stderr.text
     );
-    if outcome.strategy.indexer == Indexer::Clang {
+    if matches!(outcome.strategy.indexer, Indexer::Clang | Indexer::Sel4) {
         outcome.partial_build |= clang_reported_errors(&outcome.diagnostics);
     }
     if !output_log.succeeded() {

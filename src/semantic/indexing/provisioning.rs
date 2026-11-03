@@ -209,7 +209,7 @@ fn staged(
         Indexer::Go => PathBuf::from("go/bin/scip-go"),
         Indexer::TypeScript | Indexer::Python => Path::new("npm").join(request.indexer.id()),
         Indexer::Kotlin => PathBuf::from("kotlin-scip"),
-        Indexer::Clang => PathBuf::from("bin/scip-clang"),
+        Indexer::Clang | Indexer::Sel4 => PathBuf::from("bin/scip-clang"),
         _ => return Err("Unsupported staged installer".into()),
     };
     publish(

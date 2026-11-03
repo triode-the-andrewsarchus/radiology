@@ -3,6 +3,7 @@
 //! Loading is blocking and belongs on an existing host worker. This module does
 //! not select a repository personality, execute tools or publish semantic data.
 mod parser;
+mod plan;
 mod store;
 pub use store::PersonalityStore;
 
@@ -112,6 +113,9 @@ pub const fn pipeline_resources() -> &'static [(&'static str, &'static [u8])] {
 /// assert_eq!(settings.project_limit(), 32);
 /// assert_eq!(settings.clang_jobs(), 4);
 /// assert!(settings.indexers().is_empty());
+/// let plan = settings.plan(["main.c"]);
+/// assert!(plan.selected[0].is_best_effort());
+/// assert_eq!(plan.selected[0].personality_digest.as_deref(), Some(settings.digest()));
 /// # Ok::<(), String>(())
 /// ```
 #[derive(Debug, Clone)]

@@ -42,6 +42,14 @@ fn clang_plan_pins_linux_asset_digest_and_resolved_prerequisites_without_writes(
     assert_eq!(plan.command.arguments[5], fixture.bin.join("curl"));
     assert_eq!(plan.command.arguments[6], fixture.bin.join("sha256sum"));
     assert_eq!(plan.command.resources.len(), 1);
+    assert_eq!(
+        Indexer::Sel4
+            .provisioning(&fixture.tools)
+            .unwrap()
+            .command
+            .arguments,
+        plan.command.arguments
+    );
     assert!(!fixture.tools.managed.as_ref().unwrap().exists());
     fs::remove_file(fixture.bin.join("sha256sum")).unwrap();
     assert!(Indexer::Clang
@@ -108,6 +116,10 @@ fn clang_staged_install_replaces_only_its_binary_and_preserves_it_on_failures() 
         if executable == root.join("bin/scip-clang") && version == "scip-clang 0.4.0")
     );
     let previous = fs::read(root.join("bin/scip-clang")).unwrap();
+    assert_eq!(
+        fixture.install(Indexer::Sel4).unwrap().indexer,
+        Indexer::Sel4
+    );
     let arguments = fs::read_to_string(fixture.bin.join("curl-args")).unwrap();
     assert!(arguments.contains("https://github.com/sourcegraph/scip-clang/releases/download/v0.4.0/scip-clang-x86_64-linux"));
     assert!(arguments.contains(".tool-install-") && arguments.contains(".scip-clang."));

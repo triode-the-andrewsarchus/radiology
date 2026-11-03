@@ -12,6 +12,7 @@ pub mod personality;
 pub mod process;
 pub mod provisioning;
 mod rust_features;
+mod sel4;
 pub mod service;
 pub mod tools;
 pub mod workspace;
@@ -35,6 +36,8 @@ pub enum Indexer {
     Python,
     /// C/C++ compilation databases.
     Clang,
+    /// Separate seL4 compiler configurations and their union, using scip-clang.
+    Sel4,
     /// Compiler-resolved Gradle Kotlin and Java projects.
     Kotlin,
 }
@@ -49,6 +52,7 @@ impl Indexer {
             Self::TypeScript => "scip-typescript",
             Self::Python => "scip-python",
             Self::Clang => "scip-clang",
+            Self::Sel4 => "scip-sel4",
             Self::Kotlin => "scip-kotlin",
         }
     }
@@ -61,7 +65,7 @@ impl Indexer {
             Self::Go => &["Go"],
             Self::TypeScript => &["TypeScript", "JavaScript"],
             Self::Python => &["Python"],
-            Self::Clang => &["C", "C++"],
+            Self::Clang | Self::Sel4 => &["C", "C++"],
             Self::Kotlin => &["Kotlin", "Java"],
         }
     }
@@ -72,7 +76,7 @@ impl Indexer {
             Self::Go => &["go"],
             Self::TypeScript => &["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"],
             Self::Python => &["py", "pyi"],
-            Self::Clang => &[
+            Self::Clang | Self::Sel4 => &[
                 "c", "h", "cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++", "ipp", "inl",
                 "tpp", "tcc",
             ],
@@ -114,6 +118,9 @@ pub struct IndexingStrategy {
     pub evidence: Vec<String>,
     /// Source files under this directory with a covered extension.
     pub source_files: usize,
+    /// Captured settings and pipeline identity; absent for legacy/default callers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub personality_digest: Option<String>,
 }
 
 impl IndexingStrategy {
@@ -224,6 +231,7 @@ impl IndexPlan {
                 directory: String::new(),
                 evidence: vec![database.map_or(clang_fallback::MARKER, |path| *path).into()],
                 source_files: clang_sources,
+                personality_digest: None,
             });
         }
         selected.sort_by(|a, b| {
@@ -346,6 +354,7 @@ fn add_projects(
             directory: directory.into(),
             evidence,
             source_files: count,
+            personality_digest: None,
         });
     }
 }

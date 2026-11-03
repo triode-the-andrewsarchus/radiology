@@ -27,6 +27,8 @@ pub struct CommandPaths<'a> {
     pub compilation_database: Option<&'a Path>,
     /// Explicit Cargo feature cfg overrides discovered from isolated manifests.
     pub rust_features: &'a [String],
+    /// Captured personality settings; None uses the ordinary four Clang workers.
+    pub settings: Option<&'a super::personality::Settings>,
 }
 
 impl IndexingStrategy {
@@ -130,7 +132,11 @@ impl IndexingStrategy {
                     paths.run.join("clang-logs").into_os_string(),
                     "--show-compiler-diagnostics".into(),
                     "--jobs".into(),
-                    "4".into(),
+                    paths
+                        .settings
+                        .map_or(4, super::personality::Settings::clang_jobs)
+                        .to_string()
+                        .into(),
                 ];
                 if !self.is_best_effort() {
                     arguments.push("--no-progress-report".into());
@@ -138,6 +144,9 @@ impl IndexingStrategy {
                 arguments
             }
             Indexer::Kotlin => kotlin_command(&mut command, &paths),
+            Indexer::Sel4 => {
+                return Err("seL4 requires the settings-aware generation service".into())
+            }
         };
         Ok(command)
     }

@@ -6,6 +6,7 @@ use std::path::Path;
 
 mod clang_fallback;
 mod maintenance;
+mod personality;
 mod real_tools;
 mod reuse;
 mod rust_features;
@@ -108,6 +109,7 @@ fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
     let request = fixture.request();
     let (inventory, baseline, _lease) = request.prepare(&AtomicBool::new(false)).unwrap();
     let strategy = IndexingStrategy {
+        personality_digest: None,
         indexer: Indexer::TypeScript,
         directory: String::new(),
         evidence: Vec::new(),
@@ -158,6 +160,7 @@ impl Fixture {
     }
     fn request(&self) -> GenerationRequest {
         GenerationRequest {
+            settings: None,
             attached_root: self.source.clone(),
             reuse: false,
             review: None,
@@ -939,6 +942,7 @@ fn trait_enrichment_uses_pinned_after_objects_and_retains_the_review_lease() {
     )
     .unwrap();
     let request = GenerationRequest {
+        settings: None,
         attached_root: attached,
         root: review.head_root.clone(),
         review: Some(review.clone()),

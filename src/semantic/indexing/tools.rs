@@ -72,10 +72,10 @@ impl ToolDirectory {
     /// Finds an executable in managed locations first, then conventional paths.
     #[must_use]
     pub fn locate(&self, indexer: Indexer) -> Option<PathBuf> {
-        let name = if indexer == Indexer::Kotlin {
-            "scip-java"
-        } else {
-            indexer.id()
+        let name = match indexer {
+            Indexer::Kotlin => "scip-java",
+            Indexer::Sel4 => "scip-clang",
+            _ => indexer.id(),
         };
         let mut candidates = Vec::new();
         if let Some(root) = &self.managed {
@@ -85,7 +85,7 @@ impl ToolDirectory {
                 Indexer::Python => "npm/scip-python/node_modules/.bin/scip-python",
                 Indexer::Kotlin => "kotlin-scip/distribution/bin/scip-java",
                 Indexer::Rust => "bin/rust-analyzer",
-                Indexer::Clang => "bin/scip-clang",
+                Indexer::Clang | Indexer::Sel4 => "bin/scip-clang",
             };
             candidates.push(root.join(relative));
         }
@@ -111,13 +111,19 @@ impl ToolDirectory {
     }
 
     pub(crate) fn locate_program(&self, name: &str) -> Option<PathBuf> {
-        self.search_path
-            .iter()
-            .map(|root| root.join(name))
+        let candidate = name
+            .strip_prefix("~/")
+            .and_then(|suffix| self.home.as_ref().map(|home| home.join(suffix)))
+            .unwrap_or_else(|| PathBuf::from(name));
+        candidate
+            .is_absolute()
+            .then(|| candidate.clone())
+            .into_iter()
+            .chain(self.search_path.iter().map(|root| root.join(&candidate)))
             .chain(
                 self.home
                     .iter()
-                    .map(|home| home.join(".cargo/bin").join(name)),
+                    .map(|home| home.join(".cargo/bin").join(&candidate)),
             )
             .find(|path| executable(path))
             .and_then(|path| {
@@ -298,6 +304,30 @@ mod tests {
     }
 
     #[test]
+    fn configured_program_candidates_resolve_absolute_and_home_paths_without_a_search_path() {
+        let root = tempfile::tempdir().unwrap();
+        let python = root.path().join("runtime with spaces/python3");
+        script(&python, "exit 0");
+        let mut tools = ToolDirectory {
+            managed: None,
+            home: None,
+            search_path: vec![],
+        };
+        assert_eq!(
+            tools.locate_program(python.to_str().unwrap()),
+            Some(python.clone())
+        );
+        assert!(tools
+            .locate_program("~/runtime with spaces/python3")
+            .is_none());
+        tools.home = Some(root.path().into());
+        assert_eq!(
+            tools.locate_program("~/runtime with spaces/python3"),
+            Some(python)
+        );
+    }
+
+    #[test]
     fn android_sdk_lookup_uses_existing_directories_in_linux_then_swift_order() {
         let root = tempfile::tempdir().unwrap();
         let mut tools = ToolDirectory {
@@ -324,6 +354,7 @@ mod tests {
             Indexer::TypeScript,
             Indexer::Python,
             Indexer::Clang,
+            Indexer::Sel4,
         ] {
             assert_eq!(
                 tools.indexing_environment(indexer),

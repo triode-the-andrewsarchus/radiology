@@ -77,6 +77,7 @@ impl RadiologyApp {
         let attached = self.repository_root.as_ref()?;
         let cache = self.session.repository_cache(attached)?.join("indexes");
         Some(GenerationRequest {
+            settings: None,
             attached_root: attached.clone(),
             reuse: false,
             root: self
@@ -583,7 +584,8 @@ impl RadiologyApp {
             .is_some_and(|outcome| outcome.version.is_none() && outcome.failure.is_some());
         if missing {
             ui.label(indexer.installation_hint());
-            if (indexer != Indexer::Clang || cfg!(all(target_os = "linux", target_arch = "x86_64")))
+            if (!matches!(indexer, Indexer::Clang | Indexer::Sel4)
+                || cfg!(all(target_os = "linux", target_arch = "x86_64")))
                 && ui
                     .add_enabled(
                         !self.tool_provisioner.is_running()

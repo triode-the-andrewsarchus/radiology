@@ -1,5 +1,51 @@
 # Progress
 
+## 2026-11-02 — Personality-aware generation, caches and seL4 runner (Codex)
+
+Generation requests now own optional immutable personality settings. Default applies
+adapter filtering before its configured project cap, preserves uncovered languages,
+and passes the captured Clang worker count to actual commands. Selected/skipped
+strategies retain the settings/pipeline digest; incompatible captures cannot reuse
+project records or restore a fresh normalized cache. Legacy None requests and
+serialized records keep their previous behavior and namespace.
+
+Added a distinct scip-sel4 backend sharing the managed Clang tool and installer.
+It resolves ordered bootstrap Python candidates, stages the five shared scripts and
+captured TOML, and delegates to the original configuration-union runner. Its private
+run/artifacts stay outside copied source because that runner inventories the source
+tree itself. Python bytecode is disabled and temporary output stays in the run.
+Source/pinned snapshot verification, source-only publication, process budgets and
+cleanup remain shared. Tools cannot point inside viewed or copied inputs.
+
+seL4 caches, projects and lease use personalities/sel4, retaining Default data.
+Namespace escapes are rejected; nested storage is created before opening the lease.
+Settings edits invalidate both cache paths. Request-owned command/environment
+assembly keeps orchestration focused on preparation, execution and publication.
+
+Seven new tests pass: planning, actual jobs/digest transitions, private resources,
+generated-document filtering, Default/seL4 isolation/reuse/tool-free warm reload,
+live cancellation/retry, unsafe tools/missing Python, namespace symlinks and explicit
+program paths. Existing installer tests also verify the seL4→Clang alias. Full
+workspace:748 app tests pass, nine ignored; two binary/13 font/21 text and58 doctests
+pass. Strict lint/check/build/rustdoc/fmt/diff, resource smoke and rendered API
+inspection pass; two actual Clang lifecycle tests and five Python union tests pass.
+The seL4 process fixtures are controlled; real67-profile/compiler acceptance remains.
+
+Architecture vs before-personality-generation at edb74c0: +507 NLOC/15 functions/
+three analyzed files, avg CCN3.38→3.37, max132;33 functions above15,126 clone groups
+and one cycle unchanged. Normalized clone identity audit finds zero additions or
+removals. Raw comparator flags an old touched service-test clone and untouched
+Python rank ties. Initial closure-borrow/test-shape mistakes and missing nested lease
+parent were corrected; final checks pass. No dependency or duplicate pipeline added.
+[Contract and remaining integration](plans/rust-indexing-personalities.md).
+Evidence: ~/.local/state/radiology-qa/personality-generation-20261102-edb74c0.
+
+The app still supplies legacy None until selection/picker/reload integration. Next
+connect canonical repository preferences and invalid-settings recovery, then run
+real seL4 and native controls. The clean reference checkout is available; dtc is
+missing from host PATH and needs private QA provisioning. Shortcut help and broader
+parity acceptance remain required; the overall goal stays active.
+
 ## 2026-11-02 — Validated immutable indexing-personality settings (Codex)
 
 Added the reusable settings/resource portion of the personality port. Default and

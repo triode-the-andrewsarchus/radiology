@@ -27,7 +27,7 @@ impl Indexer {
             Self::TypeScript => "Install scip-typescript 0.4.0 in Radiology's tools directory. Requires Node.js 22+, npm and network access.",
             Self::Python => "Install scip-python 0.6.6 in Radiology's tools directory. Requires Node.js, npm, Python 3.10+ and network access.",
             Self::Kotlin => "Build the pinned Kotlin SCIP compiler indexer in Radiology's tools directory. Requires JDK 17+, curl, tar, unzip and network access.",
-            Self::Clang => "Install scip-clang 0.4.0 in Radiology's tools directory on Linux x86_64. Requires curl, sha256sum and network access. Other platforms require a manual scip-clang installation on PATH.",
+            Self::Clang | Self::Sel4 => "Install scip-clang 0.4.0 in Radiology's tools directory on Linux x86_64. Requires curl, sha256sum and network access. Other platforms require a manual scip-clang installation on PATH.",
         }
     }
 
@@ -131,7 +131,7 @@ impl Indexer {
                     ],
                 )
             }
-            Self::Clang => return clang_plan(root, tools),
+            Self::Clang | Self::Sel4 => return clang_plan(root, tools),
         };
         Ok(ProvisioningPlan {
             summary: self.installation_hint().into(),

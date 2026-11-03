@@ -30,7 +30,20 @@ struct Entry<I, S, R, D> {
 type StoredEntry = Entry<InputInventory, ScipIndex, GenerationReport, HashMap<String, String>>;
 
 pub(super) fn directory(request: &GenerationRequest) -> Result<PathBuf, String> {
-    let parent = super::workspace::destination_path(&request.cache)?;
+    let base = super::workspace::destination_path(&request.cache)?;
+    let parent = if request
+        .settings
+        .as_ref()
+        .is_some_and(|settings| settings.personality() == super::personality::Personality::Sel4)
+    {
+        let scoped = super::workspace::destination_path(&base.join("personalities/sel4"))?;
+        if !scoped.starts_with(&base) {
+            return Err("Personality cache escapes its private parent".into());
+        }
+        scoped
+    } else {
+        base
+    };
     for root in [&request.root, &request.attached_root] {
         if parent.starts_with(fs::canonicalize(root).map_err(|e| e.to_string())?) {
             return Err("Index cache must be outside the viewed repository".into());
@@ -142,7 +155,12 @@ fn restore(
     cancel: &AtomicBool,
 ) -> Result<GeneratedIndex, String> {
     let root = fs::canonicalize(&request.root).map_err(|e| e.to_string())?;
-    validate(&entry, &request.identity_root()?, cancel)?;
+    validate(
+        &entry,
+        &request.identity_root()?,
+        request.settings.as_deref(),
+        cancel,
+    )?;
     if entry.report.revision.as_deref() != request.revision() {
         return Err("Index cache belongs to another revision".into());
     }
@@ -204,10 +222,11 @@ impl<F: Fn() -> bool> Read for CacheReader<'_, F> {
 fn validate(
     entry: &StoredEntry,
     root: &std::path::Path,
+    settings: Option<&super::personality::Settings>,
     cancel: &AtomicBool,
 ) -> Result<(), String> {
     check_cancel(cancel)?;
-    let inventory = validate_inventory(entry, root)?;
+    let inventory = validate_inventory(entry, root, settings)?;
     validate_documents(&entry.scip, &inventory, &entry.source_digests, cancel)
 }
 
@@ -236,12 +255,17 @@ fn validate_documents(
 fn validate_inventory(
     entry: &StoredEntry,
     root: &std::path::Path,
+    settings: Option<&super::personality::Settings>,
 ) -> Result<InputInventory, String> {
     if entry.format != FORMAT || entry.root != root || entry.report.stale_reason.is_some() {
         return Err("Unsupported or inconsistent index cache provenance".into());
     }
     let inventory = InputInventory::from_paths(entry.inventory.paths.clone())?;
-    let plan = super::IndexPlan::inspect(inventory.paths.iter().map(String::as_str));
+    let paths = inventory.paths.iter().map(String::as_str);
+    let plan = match settings {
+        Some(settings) => settings.plan(paths),
+        None => super::IndexPlan::inspect(paths),
+    };
     if inventory.paths != entry.inventory.paths
         || entry.report.plan.selected != plan.selected
         || entry.report.plan.skipped != plan.skipped
@@ -249,7 +273,9 @@ fn validate_inventory(
         || entry.report.documents != entry.scip.documents.len()
         || entry.source_digests.len() != entry.scip.documents.len()
     {
-        return Err("Index cache inventory or coverage is inconsistent".into());
+        return Err(
+            "Index cache inventory, personality settings or coverage is inconsistent".into(),
+        );
     }
     Ok(inventory)
 }

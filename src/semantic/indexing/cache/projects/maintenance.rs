@@ -11,7 +11,9 @@ const MIGRATED: &str = ".legacy-migrated";
 pub(in crate::semantic::indexing) fn lease_file(
     request: &GenerationRequest,
 ) -> Result<File, String> {
-    open_lock(&directory(request)?.join(".project-cache.lock"), true)
+    let cache = directory(request)?;
+    fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
+    open_lock(&cache.join(".project-cache.lock"), true)
         .map_err(|error| format!("Project cache lease: {error}"))
 }
 
