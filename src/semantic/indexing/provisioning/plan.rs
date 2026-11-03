@@ -2,6 +2,9 @@ use super::*;
 
 pub(super) const KOTLIN_COMMIT: &str = "9f288dd339c7e9fc257a7b21714d9a402fd4d837";
 pub(super) const KOTLIN_VERSION: &str = "0.13.1-radiology-9f288dd339c7";
+pub(super) const CLANG_VERSION: &str = "0.4.0";
+pub(super) const CLANG_DIGEST: &str =
+    "06fd18c576f979a726c651594644ec4a35db4f471f2160b3f72eb89fa6001784";
 
 /// One literal installation command, inspectable before execution.
 #[derive(Debug, Clone)]
@@ -24,7 +27,7 @@ impl Indexer {
             Self::TypeScript => "Install scip-typescript 0.4.0 in Radiology's tools directory. Requires Node.js 22+, npm and network access.",
             Self::Python => "Install scip-python 0.6.6 in Radiology's tools directory. Requires Node.js, npm, Python 3.10+ and network access.",
             Self::Kotlin => "Build the pinned Kotlin SCIP compiler indexer in Radiology's tools directory. Requires JDK 17+, curl, tar, unzip and network access.",
-            Self::Clang => "Install scip-clang manually and make it available on PATH. Radiology does not install it automatically.",
+            Self::Clang => "Install scip-clang 0.4.0 in Radiology's tools directory on Linux x86_64. Requires curl, sha256sum and network access. Other platforms require a manual scip-clang installation on PATH.",
         }
     }
 
@@ -128,7 +131,7 @@ impl Indexer {
                     ],
                 )
             }
-            Self::Clang => return Err(self.installation_hint().into()),
+            Self::Clang => return clang_plan(root, tools),
         };
         Ok(ProvisioningPlan {
             summary: self.installation_hint().into(),
@@ -142,4 +145,44 @@ impl Indexer {
             directories,
         })
     }
+}
+
+// The downloadable package owns its platform, integrity and script contract.
+fn clang_plan(root: &Path, tools: &ToolDirectory) -> Result<ProvisioningPlan, String> {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return Err(Indexer::Clang.installation_hint().into());
+    }
+    let required = |name| {
+        tools
+            .locate_program(name)
+            .ok_or_else(|| format!("Missing {name}. {}", Indexer::Clang.installation_hint()))
+    };
+    let curl = required("curl")?;
+    let checksum = required("sha256sum")?;
+    let script = root.join("install-clang-indexer.sh");
+    Ok(ProvisioningPlan {
+        summary: Indexer::Clang.installation_hint().into(),
+        command: crate::process::ProcessCommand {
+            executable: PathBuf::from("/bin/sh"),
+            arguments: vec![
+                script.clone().into_os_string(),
+                root.join("bin").into_os_string(),
+                CLANG_VERSION.into(),
+                CLANG_DIGEST.into(),
+                "scip-clang-x86_64-linux".into(),
+                curl.into_os_string(),
+                checksum.into_os_string(),
+            ],
+            directory: root.into(),
+            environment: tools.child_environment(),
+            resources: vec![(
+                script,
+                include_bytes!(
+                    "../../../../Sources/Radiology/IndexingScripts/install-clang-indexer.sh"
+                )
+                .to_vec(),
+            )],
+        },
+        directories: Vec::new(),
+    })
 }

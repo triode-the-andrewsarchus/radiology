@@ -7,12 +7,7 @@ fn project() -> (Fixture, tempfile::TempDir, RadiologyApp) {
     std::fs::write(fixture.source.join("package.json"), "{}").unwrap();
     std::fs::write(fixture.source.join("a.ts"), "const answer = 1;\n").unwrap();
     std::fs::write(fixture.bin.join("fixture.scip"), b"\x12\x06\x0a\x04a.ts").unwrap();
-    let (settings, mut app) = reader();
-    app.index_tools = fixture.tools.clone();
-    app.open_repository(&fixture.source);
-    settle(&mut app);
-    app.execute_command(&Context::default(), ToolbarAction::CheckIndexTools);
-    settle(&mut app);
+    let (settings, app) = checked_project(&fixture);
     assert!(matches!(
         app.tool_availability(Indexer::TypeScript),
         Some(ToolAvailability::Unavailable { .. })
@@ -54,6 +49,44 @@ fn explicit_install_verifies_the_tool_then_automatically_generates_the_current_i
 }
 
 #[test]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn clang_install_button_verifies_and_generates_a_partial_fallback_index() {
+    let fixture = Fixture::new();
+    fixture.clang();
+    std::fs::write(
+        fixture.source.join("main.c"),
+        "int main(void) { return 0; }\n",
+    )
+    .unwrap();
+    let (_settings, mut app) = checked_project(&fixture);
+    app.index_projects_open = true;
+    let ctx = Context::default();
+    rendered_frame(&mut app, &ctx);
+    let output = rendered_frame(&mut app, &ctx);
+    assert!(crate::ui::test_support::text_shapes(&output)
+        .any(|shape| shape.galley.job.text == "Install and Index"));
+    app.execute_command(&ctx, ToolbarAction::InstallIndexer(Indexer::Clang));
+    settle(&mut app);
+    assert!(
+        matches!(app.tool_availability(Indexer::Clang), Some(ToolAvailability::Available { version, .. }) if version == "scip-clang 0.4.0")
+    );
+    let report = app.generation_report().unwrap();
+    assert_eq!(report.documents, 1);
+    assert!(report.is_partial());
+    assert!(app
+        .semantic_index
+        .as_ref()
+        .unwrap()
+        .documents
+        .contains_key("main.c"));
+    assert_eq!(
+        std::fs::read_to_string(fixture.source.join("main.c")).unwrap(),
+        "int main(void) { return 0; }\n"
+    );
+    assert!(app.error.is_none(), "{:?}", app.error);
+}
+
+#[test]
 fn cancel_and_repository_replacement_retire_installation_without_late_generation() {
     let (fixture, settings, mut app) = project();
     std::fs::write(fixture.bin.join("pause"), "").unwrap();
@@ -84,4 +117,14 @@ fn cancel_and_repository_replacement_retire_installation_without_late_generation
             assert!(app.generation_report().is_none());
         }
     }
+}
+
+fn checked_project(fixture: &Fixture) -> (tempfile::TempDir, RadiologyApp) {
+    let (settings, mut app) = reader();
+    app.index_tools = fixture.tools.clone();
+    app.open_repository(&fixture.source);
+    settle(&mut app);
+    app.execute_command(&Context::default(), ToolbarAction::CheckIndexTools);
+    settle(&mut app);
+    (settings, app)
 }

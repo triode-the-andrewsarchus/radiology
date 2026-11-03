@@ -7,27 +7,38 @@ use crate::source::ColumnEncoding;
 #[test]
 #[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
 fn real_scip_clang_fallback_resolves_cross_file_call_despite_missing_header_and_retains_partial() {
+    clang_fallback_case(false);
+}
+
+#[test]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[ignore = "downloads pinned scip-clang 0.4.0; requires curl, sha256sum and network access"]
+fn pinned_clang_install_cross_file_fallback_navigation_reuse_and_reload() {
+    clang_fallback_case(true);
+}
+
+fn clang_fallback_case(install: bool) {
     let files = [
         ("support/include/layout/api.hpp", "int increment(int value);\n"),
         ("src/api.cpp", "#include <layout/api.hpp>\nint increment(int value) { return value + 1; }\n"),
         ("src/reader.cpp", "#include <layout/api.hpp>\r\n#include <missing_header.hpp>\r\nint run() { /* 🦀 */ return increment(4); }\r\n"),
     ];
-    let fixture = Fixture::new(&files);
-    let request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
-    verify_lifecycle(
-        &fixture,
-        request,
-        &files,
-        Navigation {
-            caller: "src/reader.cpp",
-            callee: "increment",
-            target: "src/api.cpp",
-            span: (1, 4, 13),
-            encoding: ColumnEncoding::Utf8,
-            documents: 3,
-        },
-        &["compile_commands.json", "index.scip", "src/api.o"],
-    );
+    let navigation = Navigation {
+        caller: "src/reader.cpp",
+        callee: "increment",
+        target: "src/api.cpp",
+        span: (1, 4, 13),
+        encoding: ColumnEncoding::Utf8,
+        documents: 3,
+    };
+    let artifacts = &["compile_commands.json", "index.scip", "src/api.o"];
+    if install {
+        installed_case(Indexer::Clang, "0.4.0", &files, navigation, artifacts);
+    } else {
+        let fixture = Fixture::new(&files);
+        let request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
+        verify_lifecycle(&fixture, request, &files, navigation, artifacts);
+    }
 }
 
 #[test]

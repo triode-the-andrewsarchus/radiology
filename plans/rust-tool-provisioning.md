@@ -13,7 +13,7 @@ Checking tools, opening a repository and generating an index never install softw
 | TypeScript/JavaScript | @sourcegraph/scip-typescript@0.4.0 through npm | Private package prefix/cache; requires Node.js 22+ and npm |
 | Python | @sourcegraph/scip-python@0.6.6 through npm | Private prefix/cache; requires Node/npm and Python 3.10+ |
 | Kotlin/Java | Shared pinned scip-java installer, commit 9f288dd339c7e9fc257a7b21714d9a402fd4d837, tool 0.13.1-radiology-9f288dd339c7, Gradle 9.7.1 | Private source/build/distribution; JDK 17+, curl, tar and unzip required |
-| C/C++ | Manual scip-clang installation | No automatic installer, matching Swift |
+| C/C++ | Pinned scip-clang 0.4.0 release for Linux x86_64 | Private bin/scip-clang; curl, sha256sum and network required; other targets retain manual PATH setup |
 
 Pins match the existing Swift implementation; they are not claims about latest
 upstream versions. Kotlin reuses the existing installer resource, with Linux
@@ -30,7 +30,7 @@ progress, diagnostics, cancellation, timeouts, process-group cleanup and reaping
 A shared no-follow file lease serializes installers across app instances. Installer
 children inherit that lease so a surviving writer cannot be overtaken after app exit.
 
-Go/npm/Kotlin installs run in unique private staging directories. Verification must
+Go/npm/Kotlin/Clang installs run in unique private staging directories. Verification must
 find the staged managed executable, not a PATH fallback. Publication retains the
 previous tool until a final probe succeeds at its permanent path, rolling back on
 publication/probe failure. Failed rollback preserves the backup and reports its
@@ -179,6 +179,39 @@ Android/AGP, broader dependency-heavy Gradle projects and actual Clang remain op
 ## Real manual Clang tool acceptance — 2026-10-30
 
 The [real C/C++ lifecycle](rust-real-indexer-acceptance.md) now passes with a manually
-downloaded official scip-clang 0.4.0 Linux binary. The app still does not download
-Clang automatically. C11/C++17 response-input rebasing, Unicode navigation, Update
+downloaded official scip-clang 0.4.0 Linux binary. At this October checkpoint the
+app did not download Clang automatically. C11/C++17 response-input rebasing, Unicode navigation, Update
 reuse and cache-only reload are verified; broader projects remain open.
+
+
+## Managed Clang — 2026-11-02
+
+Linux x86_64 now offers Install and Index for missing scip-clang, with the normal
+explicit scope/prerequisite hint. The plan pins release0.4.0 and the official
+`scip-clang-x86_64-linux` asset digest
+`06fd18c576f979a726c651594644ec4a35db4f471f2160b3f72eb89fa6001784`.
+This is the same release accepted for configured and fallback C/C++ generation.
+No Linux ARM64 release is available in that pinned package; other targets keep
+manual discovery and do not present a managed installation button.
+
+The shared Swift shell resource accepts optional asset/curl/checksum arguments;
+its original three-argument macOS behavior remains the default. Rust resolves curl
+and sha256sum through ToolDirectory and passes literal paths. SHA-256 reads stdin
+so newline/backslash directory names cannot alter checksum-output parsing. The
+expected digest is checked before chmod or execution. The downloaded executable
+is probed in its private stage, then only bin/scip-clang is published and probed
+again. Neighboring managed binaries are preserved. Existing writer leases,
+process-group cancellation, budget, rollback and stage cleanup apply unchanged.
+
+Four new installer regressions cover pinned arguments/prerequisites, real SHA-256
+with unusual paths, staged success and download/checksum/probe failure, and live
+Cancel/timeout with retry. Interrupted-install tests share the existing npm harness.
+An actual app-frame test sees Install and Index and verifies installation followed
+by automatic Partial fallback generation. A separate ignored network test downloads
+the real pinned binary, resolves cross-file C++ through a missing-header fixture,
+and verifies project reuse and cache-only reload with original inputs unchanged.
+
+The final validation counts, native acceptance and architecture vector are recorded
+in PROGRESS.md. Evidence: ~/.local/state/radiology-qa/managed-clang-20261102-3fea64e.
+This does not install a compiler SDK or promise build-specific coverage; fallback
+limits and the personality/seL4 parity work remain separate.

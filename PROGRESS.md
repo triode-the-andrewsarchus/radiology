@@ -1,5 +1,47 @@
 # Progress
 
+## 2026-11-02 — Managed Linux Clang installation and automatic indexing (Codex)
+
+Missing Clang now exposes Install and Index on Linux x86_64. The pinned0.4.0
+release and official SHA-256 use the existing shared Swift installer resource,
+with optional Linux asset/curl/checksum arguments and unchanged macOS defaults.
+The private staged installer verifies before execution and publication, replaces
+only bin/scip-clang, preserves neighboring binaries and rolls back through the
+existing verifier. No new download library, worker, lease or publication path.
+Other targets retain manual setup; opening/checking/generating never installs tools.
+
+Five new default tests cover pinned literal arguments and prerequisites, genuine
+SHA-256 through newline/backslash paths, download/checksum/probe failure, cancellation/
+timeout with retry and an actual app frame followed by automatic Partial generation.
+The first fixture incorrectly expected a successful unrelated version string to be
+rejected by the generic probe; corrected it to exercise an actual failed version
+probe. Shared interrupted-install and checked-app fixtures removed new duplication.
+The package plan now owns its platform/integrity/script contract independently of
+the general package-manager dispatcher.
+
+Final workspace:734 app tests pass, nine ignored; two binary/13 font/21 text and56
+doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff, shared shell syntax,
+resource smoke and rendered API inspection pass. Explicit ignored network acceptance
+passes real pinned download, cross-file C++ resolution despite a missing header,
+exact Unicode/CRLF navigation, project reuse and tool-free warm-cache reload.
+
+Native1×/2× checks click Check Tools then Install and Index using the actual release.
+Both verify the managed executable's pinned digest,1 indexed document/0 missing,
+Partial generated and Partial cached after relaunch, dark/light presentation and
+unchanged source/app hashes. Captures inspected; core processes exit zero and owned
+hover helpers are intentionally retired. The macOS three-argument script defaults
+are preserved in source and pass shell syntax; no new macOS runtime claim is made.
+
+Architecture against before-managed-clang at3fea64e is neutral: +244 NLOC/11 analyzed
+functions/one file, avg/max CCN3.38/132;33 functions above15,126 clone groups and one
+cycle unchanged. Normalized clone identities have zero additions/removals. An
+untouched Python chokepoint rank tie remains in raw comparison; no new Rust hotspot.
+[Contract](plans/rust-tool-provisioning.md#managed-clang--2026-11-02).
+Evidence: ~/.local/state/radiology-qa/managed-clang-20261102-3fea64e.
+Next: indexing personalities/seL4, shortcut help and broader corpus/PR/native IME/
+portal acceptance. Overall parity remains active; accessibility and sibling adoption
+retain their previously agreed scope.
+
 ## 2026-11-02 — C/C++ no-database best-effort indexing (Codex)
 
 Added versioned fallback strategy discovery and private compilation database generation

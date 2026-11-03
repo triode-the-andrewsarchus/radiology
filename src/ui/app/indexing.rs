@@ -583,7 +583,7 @@ impl RadiologyApp {
             .is_some_and(|outcome| outcome.version.is_none() && outcome.failure.is_some());
         if missing {
             ui.label(indexer.installation_hint());
-            if indexer != Indexer::Clang
+            if (indexer != Indexer::Clang || cfg!(all(target_os = "linux", target_arch = "x86_64")))
                 && ui
                     .add_enabled(
                         !self.tool_provisioner.is_running()

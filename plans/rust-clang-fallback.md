@@ -83,8 +83,10 @@ is necessary; further wrapper extraction solely to lower a metric would not
 simplify ownership or behavior. No new dependency, pool, workspace copier, cache
 writer or cycle was introduced. Existing high-complexity functions are unchanged.
 
-Managed portable Clang tool installation remains a separate gap: this checkpoint
-requires an available scip-clang executable through existing tool discovery.
+[Managed Clang installation](rust-tool-provisioning.md#managed-clang--2026-11-02)
+now supplies the pinned Linux x86_64 tool through the existing explicit installer.
+Other targets retain manual setup. The fallback checkpoint itself uses existing
+tool discovery.
 Indexing personalities, the multi-profile seL4 union, shortcut help and broader
 language/UI acceptance remain required parity work. Full assistive accessibility
 and actual sibling-app integration remain outside the current scope.

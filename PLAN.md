@@ -8,7 +8,7 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 defaults and inferred includes when no compilation database exists. Real database
 priority, cache transitions and pinned PR inputs are verified. Partial status and
 visible limitations survive reuse/relaunch. Full workspace, strict gates, actual
-scip-clang and native1×/2× checks pass. Managed portable tool installation remains.
+scip-clang and native1×/2× checks pass. [Managed Linux x86_64 installation](plans/rust-tool-provisioning.md#managed-clang--2026-11-02) now reuses the shared release installer, pinned checksum and staged verification/publication. Other targets retain manual setup.
 
 [Code Paths resolution](plans/rust-code-path-resolution.md) now resolves qualified
 names, overload headers, conditional alternatives, assembly labels/macros and recovered

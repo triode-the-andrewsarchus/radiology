@@ -1,6 +1,9 @@
 use super::*;
 use std::{fs, os::unix::fs::PermissionsExt};
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+mod clang;
+
 pub(crate) struct Fixture {
     pub _owner: tempfile::TempDir,
     pub source: PathBuf,
@@ -123,10 +126,7 @@ fn swift_pinned_plans_require_prerequisites_and_use_literal_private_paths() {
     assert_eq!(kotlin.command.arguments[3], plan::KOTLIN_VERSION);
     assert_eq!(kotlin.command.arguments.last().unwrap(), "9.7.1");
     assert_eq!(kotlin.command.resources.len(), 1);
-    assert!(Indexer::Clang
-        .provisioning(&fixture.tools)
-        .unwrap_err()
-        .contains("manually"));
+    assert!(Indexer::Clang.provisioning(&fixture.tools).is_err());
     fs::remove_file(fixture.bin.join("node")).unwrap();
     assert!(Indexer::TypeScript
         .provisioning(&fixture.tools)
@@ -207,9 +207,13 @@ fn viewed_root_overlap_is_rejected_before_installation_or_private_writes() {
 fn live_installer_cancel_and_timeout_reap_children_release_lease_and_keep_prior_tool() {
     let fixture = Fixture::new();
     fixture.npm();
-    fixture.install(Indexer::TypeScript).unwrap();
+    interrupted_installation(&fixture, Indexer::TypeScript);
+}
+
+fn interrupted_installation(fixture: &Fixture, indexer: Indexer) {
+    fixture.install(indexer).unwrap();
     let root = fixture.tools.managed.as_ref().unwrap();
-    let executable = root.join("npm/scip-typescript/node_modules/.bin/scip-typescript");
+    let executable = fixture.tools.locate(indexer).unwrap();
     let previous = fs::read(&executable).unwrap();
     fs::write(fixture.bin.join("pause"), "").unwrap();
     for timeout in [false, true] {
@@ -217,7 +221,7 @@ fn live_installer_cancel_and_timeout_reap_children_release_lease_and_keep_prior_
         let _ = fs::remove_file(&marker);
         let cancel = AtomicBool::new(false);
         let control = crate::pull_request::control::ReviewControl::new(&cancel);
-        let mut request = fixture.request(Indexer::TypeScript);
+        let mut request = fixture.request(indexer);
         if timeout {
             request.timeout = Duration::from_millis(500);
         }
@@ -228,7 +232,7 @@ fn live_installer_cancel_and_timeout_reap_children_release_lease_and_keep_prior_
         // A fresh request must recover after descriptor retirement, including
         // concurrent fork/exec; an instantaneous nonblocking probe is too strict.
         fs::remove_file(fixture.bin.join("pause")).unwrap();
-        fixture.install(Indexer::TypeScript).unwrap();
+        fixture.install(indexer).unwrap();
         fs::write(fixture.bin.join("pause"), "").unwrap();
         assert!(fs::read_dir(root).unwrap().all(|entry| !entry
             .unwrap()

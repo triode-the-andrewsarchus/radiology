@@ -16,7 +16,7 @@ cargo run --locked -- --verify-resources
 
 The Rust app builds independently of little-screen-clip. Open Index Projects and
 Check Tools to inspect missing indexers; Install and Index explicitly installs a
-supported tool and then generates semantic data. Go/npm/Kotlin use private tool
+supported tool and then generates semantic data. Go/npm/Kotlin/Clang use private tool
 storage; Rust adds rust-analyzer to the active rustup toolchain. The panel explains
 prerequisites, and installation can be cancelled. See [tool provisioning](plans/rust-tool-provisioning.md)
 and [the current parity queue](plans/rust-parity-implementation.md). Generate/Update
@@ -25,6 +25,12 @@ Reindex regenerates every project. Reuse origins and any mixed-origin warning
 appear in Index Projects; [cache contract](plans/rust-project-index-reuse.md). Full Swift
 feature/UI parity is still in progress. The following sections describe the Swift
 reference; consult PLAN.md and PROGRESS.md for current Rust acceptance.
+
+Linux C/C++ indexing uses GNU defaults and inferred include paths when no compilation
+database exists; a real `compile_commands.json` takes priority. Best-effort results
+retain a Partial label and explain coverage limits. Linux x86_64 users can install
+the pinned scip-clang release from Index Projects; curl and sha256sum are required.
+Other architectures use a manually available tool. See [C/C++ defaults](plans/rust-clang-fallback.md).
 
 Kotlin/Java generation preserves explicit `ANDROID_HOME`/`ANDROID_SDK_ROOT` settings.
 If both are absent, it looks for an existing `~/Android/Sdk`, then

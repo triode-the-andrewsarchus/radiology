@@ -20,7 +20,7 @@ use std::{
 /// Installation inputs owned independently of the reader's current repository.
 #[derive(Clone)]
 pub struct ProvisioningRequest {
-    /// Selected indexer; Clang is manual-only.
+    /// Selected indexer; Clang installation requires Linux x86_64.
     pub indexer: Indexer,
     /// Tool discovery and private installation destination.
     pub tools: ToolDirectory,
@@ -209,6 +209,7 @@ fn staged(
         Indexer::Go => PathBuf::from("go/bin/scip-go"),
         Indexer::TypeScript | Indexer::Python => Path::new("npm").join(request.indexer.id()),
         Indexer::Kotlin => PathBuf::from("kotlin-scip"),
+        Indexer::Clang => PathBuf::from("bin/scip-clang"),
         _ => return Err("Unsupported staged installer".into()),
     };
     publish(
