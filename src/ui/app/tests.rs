@@ -2859,3 +2859,5 @@ mod cpp;
 mod clang;
 
 mod corpus;
+
+mod stress;

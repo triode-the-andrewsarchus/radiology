@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-02 — Large-source owners and fragment publication latency (Codex)
+
+The new real-worker stress workflow found a485–506 ms publication frame despite
+correct modal ownership. GDB entry/return timing attributes485–496 ms to projected
+fragment splitting. The shared text function now uses the existing Unicode boundary
+cursor near each cut, keeping the same bounded context, scalar/oversized policy and
+public API. No new worker/cache/dependency. Unicode oracle and existing fragment/
+CRLF/emoji tests pass. The direct oracle omits row terminators removed by callers.
+
+Final dedicated app runs exercise5,850,053-byte long-line and5,520,031-byte/60,002-line
+C++ sources with picker/import ownership at1×/2×. Authored text survives publication,
+full copy and wrap retain exact source/history, and superseded work cannot replace
+the anchor. Long-line app-frame maxima are4.4–5.0 ms; many-line maxima13–21 ms,
+before rasterization in these debug runs. GDB projection is about1.3–1.6 ms long/
+8.3–8.9 ms many. These are scoped observations, not portable latency guarantees.
+
+Native1×/2× shows the pending read and retained anchor; eight exact clipboard checks
+per scale cover draft/full source, find/tail, wrap/font reset, line60001 and the
+retained anchor after replacement. Tail/Back/cancellation views inspected. Four
+read workers, raw CPU/RSS samples, unchanged source/binary hashes and zero core exits
+are retained. Full locked workspace passes760 app tests/nine ignored, two binary/
+13 font/22 text tests and59 doctests. Targeted stress rerun after fixture reuse,
+strict Clippy/build/resource/fmt/diff pass. No typography change; UI skills remain absent.
+
+Architecture: +171 NLOC/two tests, boundary CCN9→7, stress testCCN8. Initial fixture
+clone removed through isolated_source reuse; all125 clone instances and cycle/
+structural counts unchanged. Raw comparison noise is explained in the evidence.
+
+[Reader stress contract](plans/rust-reader-stress.md). Archive:
+~/.local/state/radiology-qa/reader-stress-20261102-17bb068. Next: integrated PR/revision/
+semantic/cache and heavy compiler outcomes, remaining behavior reconciliation and
+final standalone/reuse audit. Overall parity remains active.
+
 ## 2026-11-02 — Integrated source corpus and C/C++ native colors (Codex)
 
 Expanding the shared Swift corpus to all12 fixtures exposed a real omission: an old

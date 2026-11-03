@@ -15,7 +15,7 @@ pub use find::{FindOptions, MatchSpool};
 pub use projection::{projected_fragments, union_ranges, ProjectedFragment};
 pub use rows::RowHeights;
 use std::ops::Range;
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::GraphemeCursor;
 pub use unwrapped::UnwrappedRows;
 pub use words::{WordCursor, WordRangeCursor};
 
@@ -62,7 +62,8 @@ pub fn source_fragments(text: &str, max_bytes: usize) -> Vec<SourceFragment> {
 }
 
 // Scan only a bounded window: a source line may contain millions of scalars in
-// one grapheme. A partial fragment may return zero so its caller can flush it.
+// one grapheme. Callers remove row terminators before this check. A partial
+// fragment may return zero so its caller can flush it.
 fn fragment_prefix_len(text: &str, budget: usize, limit: usize) -> usize {
     let mut cut = budget.min(text.len());
     while !text.is_char_boundary(cut) {
@@ -83,15 +84,27 @@ fn fragment_prefix_len(text: &str, budget: usize, limit: usize) -> usize {
     if text[..end].is_ascii() {
         return cut;
     }
-    for (start, grapheme) in text[..end].grapheme_indices(true) {
-        if start >= cut {
-            break;
-        }
-        if start + grapheme.len() > cut {
-            return if grapheme.len() <= limit { start } else { cut };
-        }
+    let context = &text[..end];
+    let mut cursor = GraphemeCursor::new(cut, end, true);
+    if cursor
+        .is_boundary(context, 0)
+        .expect("complete fragment context")
+    {
+        return cut;
     }
-    cut
+    let start = cursor
+        .prev_boundary(context, 0)
+        .expect("complete fragment context")
+        .unwrap_or(0);
+    let stop = GraphemeCursor::new(cut, end, true)
+        .next_boundary(context, 0)
+        .expect("complete fragment context")
+        .unwrap_or(end);
+    if stop - start <= limit {
+        start
+    } else {
+        cut
+    }
 }
 
 /// A selection whose endpoints remain canonical bytes when rows scroll or fold.
@@ -184,6 +197,44 @@ mod tests {
             source
         );
         assert_eq!(fragment_prefix_len("a\u{301}b", 1, 4), 0);
+    }
+
+    #[test]
+    fn fragment_boundary_cursor_matches_full_grapheme_segmentation() {
+        use unicode_segmentation::UnicodeSegmentation;
+        for unit in [
+            "é🦀漢字 ",
+            "e\u{301}",
+            "👨‍👩‍👧‍👦",
+            "🇺🇸🇬🇧🇫",
+            "\u{600}abc",
+            "क्‍ष",
+            "a\tb",
+            "a\u{301}\u{301}\u{301}\u{301}\u{301}\u{301}\u{301}",
+        ] {
+            let source = unit.repeat(1200);
+            for limit in [4_usize, 7, 8, 25, 32, 64, 4096] {
+                let budgets = (0..=limit.min(64)).chain(limit.saturating_sub(4)..=limit);
+                for budget in budgets {
+                    let mut cut = budget.min(source.len());
+                    while !source.is_char_boundary(cut) {
+                        cut -= 1;
+                    }
+                    let expected = source
+                        .grapheme_indices(true)
+                        .find(|(start, grapheme)| *start < cut && start + grapheme.len() > cut)
+                        .map_or(
+                            cut,
+                            |(start, grapheme)| if grapheme.len() <= limit { start } else { cut },
+                        );
+                    assert_eq!(
+                        fragment_prefix_len(&source, budget, limit),
+                        expected,
+                        "{unit:?}/{budget}/{limit}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

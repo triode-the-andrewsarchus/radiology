@@ -367,3 +367,12 @@ Original failure and GDB trace:
 Broader reader/input/performance corpus, bookmark-region diagnostics, grammar/index,
 PR/cache and final Swift UI/standalone/reuse acceptance remain open. Full
 accessibility and actual sibling adoption remain deferred.
+
+## Large transaction projection — 2026-11-02
+
+A new real-worker/modal stress pass found the5.85 MB Unicode line spent about half
+a second in main-thread fragment segmentation. The existing boundary helper now
+uses the linked Unicode cursor near each cut, preserving fitting/oversized cluster
+behavior. Dedicated app-frame maxima drop to about5 ms for that line; a60,002-line
+corpus, native1×/2× input/copy/reflow and worker/RSS observations also pass.
+[Full contract, verification and limits](rust-reader-stress.md).

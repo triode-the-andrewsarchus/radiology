@@ -14,8 +14,8 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 759 app tests (nine opt-in ignored), two binary,
-13 font, 21 text and 59 doctests. The examples below are bounded evidence for the
+The current full workspace passes 760 app tests (nine opt-in ignored), two binary,
+13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
 | Finding | Current implementation and evidence rechecked |
@@ -73,16 +73,25 @@ other behavior fixtures, larger pending-owner stress and PR/compiler integration
 remain in the next gate. Full workspace now passes759 app tests, nine ignored;
 other workspace/doctest counts are unchanged.
 
+## Completed representative large-source checkpoint
+
+[Large source publication and input ownership](rust-reader-stress.md) now pass a
+5.85 MB Unicode line and60,002-line source, both modal owners and1×/2×. A debugger-
+confirmed half-second fragment scan was repaired through the existing Unicode
+boundary cursor. Native full copy, find, wrapping, font/reset, Back and replacement
+checks pass, with actual worker/CPU/RSS observations and explicit limits. The full
+workspace now passes760 app tests and22 text tests; other counts are unchanged.
+
 ## Remaining acceptance gates
 
-1. **Integrated corpus and stress:** reconcile the checked-in Swift behavior fixtures
-   with current Rust coverage; exercise mixed source languages, malformed/recovered
-   syntax, long/wrapped/Unicode documents and cross-owner input while jobs are pending.
-   Record source/caret/history invariants, stale-result retirement, frame/worker/RSS
-   observations and any reproducible failures. Include current PR added/deleted/
-   renamed/binary files, moving head/base, pinned semantics, cache reuse/eviction and
-   reopen flows in one integrated app run. Use documented Swift limits when checking
-   dependency-heavy C/C++ and Android/Gradle success or explicit failure behavior.
+1. **Remaining integrated behavior, review and compiler acceptance:** finish mapping
+   the other checked-in Swift behavior fixtures to current Rust coverage. The mixed
+   language, recovered syntax and representative long/wrapped/Unicode source and
+   pending text-owner workflows are accepted above. Complete one integrated app run
+   through PR added/deleted/renamed/binary files, moving head/base, exact pinned
+   semantics, cache reuse/eviction and reopen, retaining source/caret/history and
+   stale-result invariants. Use documented Swift limits for dependency-heavy C/C++
+   and Android/Gradle success or explicit failure behavior. Repair any new gaps.
 2. **Final standalone/reuse audit:** verify a clean locked build with half-core Cargo
    settings, packaged resource independence and library/host usage after the above
    changes. Preserve independent app lifecycle and the local shared text/font crates;
