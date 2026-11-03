@@ -296,6 +296,15 @@ impl Toolbar {
                 ),
             );
             menus.button(ui, "Search", "search", search_items(&command_enabled));
+            menus.button(
+                ui,
+                "Help",
+                "help",
+                vec![Item::action(
+                    "Keyboard Shortcuts (Ctrl+/)",
+                    ToolbarAction::OpenKeyboardShortcuts,
+                )],
+            );
 
             // Right-aligned global shortcuts and theme toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

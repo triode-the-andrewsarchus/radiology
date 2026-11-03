@@ -59,6 +59,7 @@ impl RadiologyApp {
         let previous = focus.previous;
         let action = focus.input.show(ctx, |ctx| match &mut self.modal {
             ActiveModal::None => unreachable!(),
+            ActiveModal::KeyboardShortcuts(modal) => modal.show(ctx),
             ActiveModal::QuickFilePicker(modal) => modal.show(ctx, &self.theme, &self.all_files),
             ActiveModal::GoToLine(modal) => modal.show(
                 ctx,

@@ -110,6 +110,9 @@ impl RadiologyApp {
         }
         use ToolbarAction::*;
         match command {
+            OpenKeyboardShortcuts => {
+                self.modal = ActiveModal::KeyboardShortcuts(Default::default());
+            }
             ReloadSource => {
                 if let Some(buffer) = &self.open_buffer {
                     let location = buffer

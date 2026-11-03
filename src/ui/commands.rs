@@ -7,6 +7,8 @@ use egui::{Context, Event, Key, Modifiers};
 /// Actions triggered by interacting with controls in the reader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReaderCommand {
+    /// Opens the bundled keyboard reference without changing the reader destination.
+    OpenKeyboardShortcuts,
     /// Opens the native directory chooser dialog to select a repository root.
     OpenRepositoryDialog,
     /// Opens a recent repository path.
@@ -241,6 +243,7 @@ pub(super) fn shortcut(key: Key, modifiers: Modifiers, typing: bool) -> Option<R
     use ReaderCommand::*;
     let primary = modifiers.command || modifiers.ctrl;
     match (primary, modifiers.alt, modifiers.shift, key) {
+        (true, false, false, Key::Slash) => Some(OpenKeyboardShortcuts),
         (true, false, false, Key::O) => Some(OpenRepositoryDialog),
         (true, false, false, Key::K) => Some(OpenQuickFilePicker),
         (true, false, false, Key::L) => Some(OpenGoToLine),

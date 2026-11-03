@@ -56,6 +56,8 @@ use crate::ui::toolbar::{Toolbar, ToolbarAction};
 pub enum ActiveModal {
     /// No modal active.
     None,
+    /// Bundled keyboard reference with modal input and focus restoration.
+    KeyboardShortcuts(crate::ui::modals::KeyboardShortcutsModal),
     /// Quick file search modal (Ctrl+K).
     QuickFilePicker(QuickFilePickerModal),
     /// Jump to line modal (Ctrl+L).

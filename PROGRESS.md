@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-11-02 — Dedicated Linux keyboard help (Codex)
+
+Help > Keyboard Shortcuts and Ctrl+/ now open a bundled reference on welcome and
+repository screens. The reference reconciles every assigned global Rust shortcut
+and focused source/list/menu/editor behavior against Swift, with the actual Linux
+modifiers and compositor-owned window management. The shared public presenter
+uses existing ModalInput/backdrop/focus return; ReaderCommand exposes the action
+for later hosts. Existing heading/body/strong styles and controls are reused.
+
+The bounded sheet wraps/selects explanations and keeps Copy Reference/Done visible,
+including at640×480. Keyboard scrolling, exact full-document Copy, Tab/Return,
+pointer/keyboard Done and Escape preserve source selection/caret/history. Native
+QA exposed a blank-body End bug from an oversized offset; End now uses egui's
+measured scroll target, and tests prove the entire final paragraph and restored
+introduction are visible after narrow reflow. Initial sparse OCR also missed the
+visible Done button; pointer acceptance uses its independently observed position.
+
+Final workspace:755 app tests pass (nine opt-in ignored), two binary,13 font,21 text
+and59 doctests. All57 focus tests pass. Strict Clippy/build/rustdoc/fmt/diff, resource
+smoke and rendered public API checks pass. Native1×/2× Ctrl+/, menu navigation,
+Home/End/Page Down, exact6,732-byte reference Copy, pointer/keyboard dismissal and
+dark/light pass with exact source-selection copies before/after, unchanged source/
+executable hashes and zero core exits. Final bottom/light captures inspected.
+
+Architecture vs before-shortcut-help atfe436a8: +223 NLOC/five functions/two analyzed
+files. Avg/max CCN3.37/132 and33 above15 unchanged;125 clones/1,335 duplicate lines/
+0.84%, one cycle and eight structural issues unchanged. Zero added/removed normalized
+clone identities. The raw comparator flags an existing touched-file clone; shared
+welcome setup removed the initial new fixture clone. No new dependency/framework.
+Named SwiftUI/macOS/typography skills remain unavailable locally; existing styles
+and control ownership were reviewed before and after this Rust change.
+
+[Implementation and acceptance](plans/rust-keyboard-help.md),
+[reader reference](plans/keyboard-shortcuts-linux.md).
+Evidence: ~/.local/state/radiology-qa/shortcut-help-20261102-fe436a8.
+Next audit the original feature ledger and remaining broader corpus/PR/stress plus
+actual portal/IME-engine acceptance. Full accessibility remains deferred; standalone
+operation and future sibling reuse remain required. Overall parity is still active.
+
 ## 2026-11-02 — Native real-matrix seL4 reader acceptance (Codex)
 
 Private native Wayland runs at 1× and 2× each generated the actual 67-profile union

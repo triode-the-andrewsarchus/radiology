@@ -1,6 +1,7 @@
 //! Real app frames exercise modal/canvas focus rather than a parallel test renderer.
 use super::*;
 mod files;
+mod help;
 mod ownership;
 mod panes;
 mod references;
@@ -992,6 +993,15 @@ fn source_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
     (dir, app, ctx)
 }
 
+fn welcome_frame(scale: f32) -> (tempfile::TempDir, RadiologyApp, Context, egui::FullOutput) {
+    let (owner, mut app) = reader();
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    frame(&mut app, &ctx, vec![]);
+    let output = frame(&mut app, &ctx, vec![]);
+    (owner, app, ctx, output)
+}
+
 fn assert_source_line_copy(
     app: &mut RadiologyApp,
     ctx: &Context,
@@ -1333,11 +1343,7 @@ fn escape_cancels_a_bookmark_drag_without_navigation_or_reordering() {
 fn bookmark_empty_states_follow_repository_source_and_last_entry_transitions() {
     use crate::ui::test_support::{text_center, text_shapes};
     for scale in [1.0, 1.5, 2.0] {
-        let (dir, mut app) = reader();
-        let ctx = Context::default();
-        ctx.set_pixels_per_point(scale);
-        frame(&mut app, &ctx, vec![]);
-        let output = frame(&mut app, &ctx, vec![]);
+        let (dir, mut app, ctx, output) = welcome_frame(scale);
         text_center(&output, "No Repository");
         assert!(!text_shapes(&output).any(|text| text.galley.job.text == "Checkout"));
         assert!(!app.command_enabled(&ToolbarAction::ToggleBookmark));

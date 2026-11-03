@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Keyboard help](plans/rust-keyboard-help.md) now opens the bundled
+[Linux reference](plans/keyboard-shortcuts-linux.md) from Help or Ctrl+/,
+including on the welcome screen. It reuses modal input/focus ownership, preserves
+reader selection/history, supports measured Home/End and exact reference Copy,
+and passes workspace/strict and native 1×/2× dark/light checks.
+
 [Indexing personalities](plans/rust-indexing-personalities.md) now connect editable
 TOML and immutable provenance to the service and Index Projects picker. Canonical
 repository choices, attached PRs, reload/Reindex, invalid-file recovery, settings

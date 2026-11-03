@@ -2,6 +2,8 @@
 
 Radiology is a read-only code browser for understanding unfamiliar repositories, with a standalone Rust/egui Linux app and the original Swift/macOS implementation. It combines Git-aware discovery, source reading, ripgrep search, Tree-sitter structure and optional SCIP navigation. It does not run language servers.
 
+Open **Help → Keyboard Shortcuts** (Ctrl+/) for the complete [Linux keyboard reference](plans/keyboard-shortcuts-linux.md), including focused lists and Code Path import.
+
 ## Rust/Linux quick start
 
 Use a Wayland session and a working Rust/Cargo toolchain. Git supplies revision

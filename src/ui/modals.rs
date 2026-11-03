@@ -29,6 +29,9 @@ pub enum ModalAction {
 mod input;
 pub use input::ModalInput;
 
+mod keyboard_shortcuts;
+pub use keyboard_shortcuts::KeyboardShortcutsModal;
+
 mod file_picker;
 pub use file_picker::QuickFilePickerModal;
 
