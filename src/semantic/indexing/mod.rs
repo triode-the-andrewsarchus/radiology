@@ -8,6 +8,7 @@ pub mod clang_fallback;
 pub mod command;
 pub mod compilation_database;
 pub mod inventory;
+pub mod personality;
 pub mod process;
 pub mod provisioning;
 mod rust_features;

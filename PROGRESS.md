@@ -1,5 +1,42 @@
 # Progress
 
+## 2026-11-02 — Validated immutable indexing-personality settings (Codex)
+
+Added the reusable settings/resource portion of the personality port. Default and
+seL4 reuse the exact Swift TOML templates and five packaged Python scripts, including
+all 67 profiles. The existing TOML parser enforces typed root syntax, schema/identity/
+engine, adapter allowlist shape, project and worker bounds, and ordered bootstrap
+candidates. No interpreter or compiler runs while loading settings.
+
+Settings retain immutable captured bytes and SHA-256 provenance, including script
+names/bytes for seL4. Later file edits cannot alter a captured run. First-use loading
+uses bounded regular-file reads, protected source-root checks and non-overwriting
+publication. Invalid files remain intact and their path stays available for recovery.
+Concurrent initial loads and an editor winning template installation cannot lose
+edits. Shared private storage now factors synced staging for both existing atomic
+replacement and create-if-missing; existing domain stores keep their behavior.
+
+Seven new tests pass. Final workspace: 741 app tests, nine ignored; two binary,
+13 font and 21 text tests pass. All strict Clippy/check/build/rustdoc/fmt/diff gates,
+58 doctests, resource smoke and rendered public API inspection pass. Tests cover
+root syntax/errors, all profiles, exact captured data, provenance, edits, concurrent
+first use, source protection, cancellation, symlinks/nonregular and oversized files.
+No personality picker, generation or native seL4 acceptance is claimed yet.
+
+Architecture against before-indexing-personalities at 9ba9448: neutral, +574 NLOC,
+39 functions/four analyzed files; avg/max CCN 3.38/132, 33 functions above15,
+126 clone groups and one cycle unchanged. Normalized clone identities have zero
+additions/removals. Identity validation and provenance hashing have distinct owners;
+the initial combined parse hotspot was removed. The raw Python chokepoint rank tie
+is in unchanged scripts. No dependency or duplicate TOML/Python implementation added.
+
+[Contract and explicit integration checklist](plans/rust-indexing-personalities.md).
+Evidence: ~/.local/state/radiology-qa/personality-settings-20261102-9ba9448.
+Next connect settings to actual planning/Clang jobs, strategy/cache identity and
+seL4 execution, then canonical selection persistence and the picker/file action.
+Real matrix/union and native acceptance, shortcut help and broader parity audit
+remain required. The overall goal stays active.
+
 ## 2026-11-02 — Managed Linux Clang installation and automatic indexing (Codex)
 
 Missing Clang now exposes Install and Index on Linux x86_64. The pinned0.4.0
