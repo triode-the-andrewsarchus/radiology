@@ -67,7 +67,7 @@ fn repository(root: &Path) {
 pub(super) fn isolated_source(path: &str, text: &str) -> (tempfile::TempDir, RadiologyApp) {
     let (owner, mut app) = reader();
     let root = owner.path().join("checkout");
-    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
     std::fs::write(root.join(path), text).unwrap();
     app.open_repository(&root);
     settle(&mut app);

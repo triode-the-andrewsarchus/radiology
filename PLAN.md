@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Conventional non-Git compilation databases](plans/rust-ignored-compilation-databases.md#conventional-non-git-discovery--2026-11-02)
+now match Swift's bounded root/nested CMake probes. Project inspection, isolated
+generation and caches share the inventory while Files continues hiding build
+outputs. Real C/C++ lifecycle and native 1×/2× navigation/restart checks pass.
+
 [Keyboard help](plans/rust-keyboard-help.md) now opens the bundled
 [Linux reference](plans/keyboard-shortcuts-linux.md) from Help or Ctrl+/,
 including on the welcome screen. It reuses modal input/focus ownership, preserves
@@ -108,8 +113,8 @@ frames cover discovery/restoration and worker retention at 1×/2×.
 
 [Ignored Git compilation databases](plans/rust-ignored-compilation-databases.md)
 now participate in checkout project discovery, isolated generation and cache
-freshness without copying unrelated ignored artifacts. Non-Git/generated dependency
-inputs and broader compiler corpus acceptance remain open.
+freshness without copying unrelated ignored artifacts. Conventional non-Git databases now pass as described above. Other generated
+dependency inputs and broader compiler corpus acceptance remain open.
 
 [Shared project inspection](plans/rust-shared-index-inspection.md) now gives Index
 Projects the same full build-input inventory as generation, including tracked build

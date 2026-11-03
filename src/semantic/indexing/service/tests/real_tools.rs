@@ -44,7 +44,12 @@ fn clang_fallback_case(install: bool) {
 #[test]
 #[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
 fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
-    for (extension, standard) in [("c", "c11"), ("cpp", "c++17")] {
+    for (extension, standard, database_path) in [
+        ("c", "c11", "compile_commands.json"),
+        ("cpp", "c++17", "compile_commands.json"),
+        ("c", "c11", "build/compile_commands.json"),
+        ("cpp", "c++17", "build/compile_commands.json"),
+    ] {
         let main = format!("main.{extension}");
         let database = serde_json::json!([{
             "directory": ".", "file": main,
@@ -53,7 +58,7 @@ fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
         .to_string();
         let response = format!("-I. -std={standard} -c {main} -o main.o\n");
         let files = [
-            ("compile_commands.json", database.as_str()),
+            (database_path, database.as_str()),
             ("compile.rsp", response.as_str()),
             (
                 "helper.h",

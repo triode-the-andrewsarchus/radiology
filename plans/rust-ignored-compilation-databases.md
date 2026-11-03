@@ -24,15 +24,17 @@ database or writes compiler/indexer outputs into the viewed checkout.
 
 Pinned review inspection is deliberately unchanged: it uses verified committed
 head inputs rather than borrowing ignored artifacts from the attached checkout.
-Non-Git walks retain their existing exclusions. This increment does not provide
+At this initial checkpoint, non-Git walks retained their existing exclusions.
+The conventional non-Git lookup below now closes that discovery gap. Neither increment provides
 ignored generated headers/responses/main sources, external build directories,
 symbolic-link database targets excluded from the inventory, Windows/MSVC quoting,
 CUDA or general compiler-option/corpus acceptance. Such inputs need further work;
 this does not establish complete C++ project support or full Swift parity.
 
-Swift's project detector uses the browser inventory and does not discover ignored
-databases either. This extends the Rust build-discovery contract for a common
-checkout workflow and keeps the standalone reusable boundary intact.
+The earlier Swift reference used only the browser inventory. Updated main now
+adds bounded conventional-location probes through CompilationDatabaseDiscovery,
+including non-Git folders. The Rust Git glob remains broader for ignored databases;
+the new non-Git checkpoint below matches the updated Swift contract.
 
 ## Evidence
 
@@ -64,3 +66,55 @@ shifted code. Normalized file-pair/whitespace-stripped-fragment Counters match a
 109 groups unchanged (zero additions/removals).
 
 Evidence archive: `~/.local/state/radiology-qa/ignored-compdb-20261102-b41e6f2`.
+
+## Conventional non-Git discovery — 2026-11-02
+
+A source archive or ordinary filesystem folder now finds an existing database
+under hidden build directories. Non-Git discovery retains its non-following walk
+and browser exclusions, then probes the root plus the first 63 sorted directories
+containing discovered CMakeLists.txt files. Each probes compile_commands.json and
+the build/, out/, Debug/, Release/, cmake-build-debug/ and cmake-build-release/
+locations used by Swift. At most 448 metadata probes are made, with cancellation
+checks. Missing/non-directory locations and directory-valued database names do
+not become files; other I/O failures surface through existing discovery errors.
+
+The result uses existing path validation, sorting/deduplication, file/path bounds,
+private copying, database rebasing, cache fingerprints and source verification.
+Symbolic-link inputs/parents retain their established isolation guards. Hidden
+build trees are not recursively admitted, so unrelated excluded build objects and
+caches stay out of the copy. Browser contents are unchanged. Pinned review input
+inspection still uses exact head blobs and never probes mutable checkout artifacts.
+Inspection controls and generation share this method; removing the database
+restores visible best-effort planning. No settings, worker, parser or dependency
+was added.
+
+The new inventory regression fails on the old code at the hidden root database.
+It now verifies root/nested discovery, sorted directory bound, exclusion, private
+copying, source/input verification and cancellation. The existing full-service
+rebasing/response/cache/staleness case now covers tracked Git, ignored Git and
+non-Git inputs through identical assertions. Actual app frames show the nested
+evidence without the best-effort warning and retain buffer/history; removing the
+database recovers fallback planning. The existing fixture helper now supports
+nested source paths rather than duplicating its setup.
+
+Actual scip-clang C11/C++17 acceptance runs both root and hidden build databases,
+checking Unicode/CRLF coordinates, cross-file definitions/references, exact project
+reuse, tool-free cache reload and unchanged original inputs. Native 1×/2× runs
+index a nested non-Git CMake project with a required configured macro: three
+source documents, no missing paths or compiler errors, no best-effort warning.
+Go to Symbol opens the definition and copies its exact original bytes; dark/light
+and restart load the configured cache without another compiler run. Core exits
+zero; input/executable hashes stay unchanged. Initial driver Copy arrived before
+asynchronous source publication; the accepted runs observe the destination first.
+Generated/definition captures were visually reviewed.
+
+Final workspace: 757 app tests pass, nine opt-in tests ignored; two binary, 13 font,
+21 text and 59 doctests pass. Strict Clippy/build/rustdoc/fmt/diff and resource smoke
+pass. Against before-nongit-compdb at5dba415: +151 NLOC/three functions, unchanged
+analyzed file count, avg/max CCN3.37/132,33 functions above15,125 clones/1,335 duplicate
+lines and one cycle. The new lookup has CCN9. All125 normalized clone instances
+match the baseline; raw touched-file clone warnings are pre-existing.
+
+Evidence: ~/.local/state/radiology-qa/nongit-compdb-20261102-5dba415.
+Ignored generated headers/response files/source trees, external build inputs and
+broader compiler-option/dependency corpora remain distinct acceptance work.

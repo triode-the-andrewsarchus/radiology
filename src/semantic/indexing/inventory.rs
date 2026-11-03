@@ -47,11 +47,13 @@ impl InputInventory {
         })
     }
 
-    /// Discovers tracked/unignored inputs and ignored C/C++ compilation databases.
+    /// Discovers build inputs, including existing C/C++ compilation databases.
     ///
     /// Git also includes ignored `compile_commands.json` files, without copying other
     /// ignored artifacts. Non-Git directories use a non-following walk with browser
-    /// build/dependency exclusions, retaining `.cargo` configuration. No files are written.
+    /// build/dependency exclusions, retaining `.cargo` configuration, then probe conventional
+    /// database locations at the root and up to 63 sorted CMake project directories.
+    /// Hidden build trees are not traversed or copied wholesale. No files are written.
     ///
     /// # Errors
     ///
@@ -72,7 +74,9 @@ impl InputInventory {
             )?);
             paths
         } else {
-            walk_paths(&root, cancel)?
+            let mut paths = walk_paths(&root, cancel)?;
+            paths.extend(conventional_databases(&root, &paths, cancel)?);
+            paths
         };
         let mut inventory = Self::from_paths(paths)?;
         let mut present = Vec::new();
@@ -88,6 +92,51 @@ impl InputInventory {
         inventory.paths = present;
         Ok(inventory)
     }
+}
+
+fn conventional_databases(
+    root: &Path,
+    paths: &[String],
+    cancel: &AtomicBool,
+) -> Result<Vec<String>, String> {
+    let directories: BTreeSet<_> = std::iter::once("")
+        .chain(
+            paths
+                .iter()
+                .filter_map(|path| path.strip_suffix("/CMakeLists.txt")),
+        )
+        .collect();
+    let mut databases = Vec::new();
+    // Match Swift's bounded checkout probes; pinned reviews supply exact blob inventories.
+    for directory in directories.into_iter().take(64) {
+        for location in [
+            "compile_commands.json",
+            "build/compile_commands.json",
+            "out/compile_commands.json",
+            "Debug/compile_commands.json",
+            "Release/compile_commands.json",
+            "cmake-build-debug/compile_commands.json",
+            "cmake-build-release/compile_commands.json",
+        ] {
+            check_cancel(cancel)?;
+            let path = if directory.is_empty() {
+                location.to_owned()
+            } else {
+                format!("{directory}/{location}")
+            };
+            match std::fs::symlink_metadata(root.join(&path)) {
+                Ok(metadata) if metadata.is_file() || metadata.is_symlink() => databases.push(path),
+                Ok(_) => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    ) => {}
+                Err(error) => return Err(format!("{path}: {error}")),
+            }
+        }
+    }
+    Ok(databases)
 }
 
 pub(super) fn validate_input_path(path: &str) -> Result<(), String> {

@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-11-02 — Conventional non-Git compiler databases (Codex)
+
+Audit against current Swift found a real discovery gap: source archives and ordinary
+folders silently fell back despite native/build/compile_commands.json. The shared
+InputInventory now probes the same seven conventional locations at the root and
+first63 sorted CMake directories after its existing walk, with bounded metadata
+and cancellation. Existing validation/copy/rebasing/cache/source guards remain the
+only pipeline. Files and hidden build/dependency exclusions stay unchanged; pinned
+reviews continue using exact head blobs without probing attached checkout artifacts.
+
+The new regression fails before the fix and passes after, covering nested/root
+paths, directory cap, excluded objects, source-preserving private copies and cancel.
+Existing full-service rebasing/response/cache/staleness checks now run tracked,
+ignored and non-Git cases without copied assertions. App frames show the actual
+nested database, omit the fallback warning, preserve buffer/history and recover
+fallback when it is removed. The shared source fixture accepts nested paths.
+
+Actual scip-clang checks pass C11/C++17 with root and hidden build databases,
+Unicode/CRLF navigation, exact project reuse, tool-free reload and unchanged inputs.
+Native1×/2× generates three documents using a required configured macro, opens/copies
+the exact cross-file definition, displays semantic context and restores the cache
+in light mode without recompiling. Core exits zero; source/database/object/binary
+hashes unchanged. Accepted generated/definition captures inspected. An initial
+Copy-before-publication driver error was corrected by observing the async destination.
+
+Final workspace:757 app tests pass (nine opt-in ignored), two binary,13 font,21 text
+and59 doctests. Strict Clippy/build/rustdoc/fmt/diff, resource smoke and rendered
+InputInventory API checks pass. Architecture vs before-nongit-compdb at5dba415:
++151 NLOC/three functions; avg/max CCN3.37/132,33 above15,125 clones/1,335 duplicate
+lines, one cycle/eight structural issues unchanged. Lookup CCN9; a full normalized
+multiset matches all125 baseline clone instances. No new framework/dependency.
+
+[Contract and evidence](plans/rust-ignored-compilation-databases.md#conventional-non-git-discovery--2026-11-02).
+Archive: ~/.local/state/radiology-qa/nongit-compdb-20261102-5dba415.
+Continue the requirement ledger reconciliation, broader source/compiler/PR/stress
+and actual desktop-portal/IME-engine acceptance. Overall parity remains active;
+full accessibility and sibling adoption retain their deferred scope.
+
 ## 2026-11-02 — Dedicated Linux keyboard help (Codex)
 
 Help > Keyboard Shortcuts and Ctrl+/ now open a bundled reference on welcome and

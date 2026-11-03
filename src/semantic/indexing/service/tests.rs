@@ -594,7 +594,7 @@ fn failed_generation_and_cancelled_cache_load_preserve_the_last_persisted_index(
 
 #[test]
 fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() {
-    for tracked in [true, false] {
+    for tracked in [Some(true), Some(false), None] {
         let fixture = Fixture::new(&[
             ("build/compile_commands.json", "[]"),
             ("native.c", "int f(void) { return 0; }\n"),
@@ -611,11 +611,14 @@ fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() 
         crate::repository::test_support::git(&fixture.source, &["init", "-q"]);
         fs::write(fixture.source.join(".gitignore"), "build/\n").unwrap();
         fs::write(fixture.source.join("build/ignored.o"), "untouched object").unwrap();
-        if tracked {
+        if tracked == Some(true) {
             crate::repository::test_support::git(
                 &fixture.source,
                 &["add", "-f", "build/compile_commands.json"],
             );
+        }
+        if tracked.is_none() {
+            fs::remove_dir_all(fixture.source.join(".git")).unwrap();
         }
         let witness = fixture.bin.join("rebased-database.json");
         fixture.tool(
@@ -629,6 +632,11 @@ fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() 
         let generated = run(fixture.request());
         assert!(generated.report.cache_warning.is_none());
         assert_eq!(generated.report.documents, 1, "{:?}", generated.report);
+        assert!(!generated.report.outcomes[0].strategy.is_best_effort());
+        assert_eq!(
+            generated.report.outcomes[0].strategy.evidence,
+            ["build/compile_commands.json"]
+        );
         let index = generated.index.unwrap();
         assert_eq!(
             index.column_encoding("native.c"),

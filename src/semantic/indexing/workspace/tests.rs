@@ -172,6 +172,50 @@ fn ignored_compilation_databases_are_inputs_but_other_ignored_artifacts_are_not(
 }
 
 #[test]
+fn nongit_build_databases_follow_conventional_cmake_locations_without_copying_build_trees() {
+    let (_owner, source, cache) = fixture();
+    fs::create_dir_all(source.join("build")).unwrap();
+    fs::write(source.join("build/compile_commands.json"), "root database").unwrap();
+    fs::write(source.join("build/unrelated.o"), "object").unwrap();
+    for index in 0..65 {
+        let directory = source.join(format!("native {index:02}"));
+        fs::create_dir_all(directory.join("build")).unwrap();
+        fs::write(directory.join("CMakeLists.txt"), "# actual manifest\n").unwrap();
+        fs::write(
+            directory.join("build/compile_commands.json"),
+            "nested database",
+        )
+        .unwrap();
+        fs::write(directory.join("build/private.cache"), "excluded").unwrap();
+    }
+    let cancel = AtomicBool::new(false);
+    let inputs = InputInventory::discover(&source, &cancel).unwrap();
+    assert!(inputs.paths.contains(&"build/compile_commands.json".into()));
+    // Root plus the first 63 sorted CMake directories, matching the Swift bound.
+    for index in 0..65 {
+        assert_eq!(
+            inputs
+                .paths
+                .contains(&format!("native {index:02}/build/compile_commands.json")),
+            index < 63
+        );
+    }
+    assert!(!inputs
+        .paths
+        .iter()
+        .any(|path| path.ends_with("private.cache") || path.ends_with("unrelated.o")));
+    let workspace = isolate(&source, &cache, &cancel);
+    assert_eq!(
+        fs::read(workspace.root().join("build/compile_commands.json")).unwrap(),
+        b"root database"
+    );
+    assert!(!workspace.root().join("build/unrelated.o").exists());
+    workspace.verify_inputs(&cancel).unwrap();
+    workspace.verify_source(&cancel).unwrap();
+    assert!(InputInventory::discover(&source, &AtomicBool::new(true)).is_err());
+}
+
+#[test]
 fn invalid_paths_cache_location_limits_and_cancellation_leave_no_input_copy() {
     let (_owner, source, cache) = fixture();
     let cancel = AtomicBool::new(false);
