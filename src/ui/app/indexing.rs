@@ -6,6 +6,9 @@ use crate::semantic::indexing::tools::{ToolAvailability, ToolDirectory};
 use crate::semantic::indexing::{IndexPlan, Indexer};
 use crate::semantic::loader::IndexImportStatus;
 
+pub(super) mod personality;
+use personality::Intent;
+
 impl RadiologyApp {
     pub(super) fn reset_index_state(&mut self) {
         self.critical_lens.clear();
@@ -15,6 +18,7 @@ impl RadiologyApp {
         self.index_generator = Default::default();
         self.tool_provisioner = Default::default();
         self.generation_report = None;
+        self.index_personality = Default::default();
         self.index_plan_job.stop();
         self.tool_probe_job.stop();
         self.index_plan = Default::default();
@@ -31,12 +35,7 @@ impl RadiologyApp {
         {
             return;
         }
-        let Some(mut request) = self.index_request() else {
-            self.error = Some("No private index cache is available for this repository".into());
-            return;
-        };
-        request.reuse = reuse;
-        self.start_index_generation(request);
+        self.prepare_index_personality(Intent::Generate(reuse));
     }
 
     pub(super) fn install_indexer(&mut self, indexer: Indexer) {
@@ -77,7 +76,7 @@ impl RadiologyApp {
         let attached = self.repository_root.as_ref()?;
         let cache = self.session.repository_cache(attached)?.join("indexes");
         Some(GenerationRequest {
-            settings: None,
+            settings: Some(self.index_personality.settings.clone()?),
             attached_root: attached.clone(),
             reuse: false,
             root: self
@@ -97,11 +96,7 @@ impl RadiologyApp {
         self.index_importer.stop();
         self.index_generator.stop();
         self.generation_report = None;
-        if let Some(request) = self.index_request() {
-            self.index_generator.start_cached(request);
-        } else if self.review.is_none() {
-            self.import_repository_index();
-        }
+        self.prepare_index_personality(Intent::Load);
     }
 
     fn import_repository_index(&mut self) {
@@ -118,7 +113,9 @@ impl RadiologyApp {
     /// Returns cache loading status, including an import fallback's original error.
     #[must_use]
     pub fn index_cache_status(&self) -> &CacheLoadStatus {
-        self.index_generator.cache_status()
+        self.index_personality
+            .cache_status()
+            .unwrap_or_else(|| self.index_generator.cache_status())
     }
 
     pub(super) fn start_index_generation(&mut self, request: GenerationRequest) {
@@ -136,6 +133,9 @@ impl RadiologyApp {
     }
 
     pub(super) fn check_index_tools(&mut self) {
+        if self.index_personality.job.is_running() || self.index_personality.error.is_some() {
+            return;
+        }
         let Some(root) = self.search_root() else {
             return;
         };
@@ -174,7 +174,12 @@ impl RadiologyApp {
         self.tool_availability.get(&indexer)
     }
 
-    pub(super) fn inspect_index_projects(&mut self) {
+    /// Reloads personality settings and inspects projects on workers without generating an index.
+    pub fn inspect_index_projects(&mut self) {
+        self.prepare_index_personality(Intent::Inspect);
+    }
+
+    fn inspect_captured_index_projects(&mut self) {
         self.index_plan_error = None;
         let Some(root) = self.search_root() else {
             self.index_plan_job.stop();
@@ -182,9 +187,15 @@ impl RadiologyApp {
             return;
         };
         let review = self.review.clone();
+        let settings = self.index_personality.settings.clone();
         self.index_plan_job.spawn(move |cancel| {
             crate::semantic::indexing::service::inspect_inputs(&root, review.as_deref(), cancel)
-                .map(|inputs| IndexPlan::inspect(inputs.paths.iter().map(String::as_str)))
+                .map(|inputs| {
+                    settings.as_ref().map_or_else(
+                        || IndexPlan::inspect(inputs.paths.iter().map(String::as_str)),
+                        |settings| settings.plan(inputs.paths.iter().map(String::as_str)),
+                    )
+                })
         });
     }
 
@@ -197,6 +208,7 @@ impl RadiologyApp {
     /// Publishes background index imports and refreshes the active symbol context.
     /// Embedded hosts may drive this independently of the eframe loop.
     pub fn poll_index(&mut self, ctx: &Context) {
+        self.poll_index_personality();
         if let Some(index) = self.index_importer.poll() {
             self.semantic_index = Some(Arc::new(index));
             self.refresh_symbol_context();
@@ -245,6 +257,10 @@ impl RadiologyApp {
         }
         if loading_cache
             && self.review.is_none()
+            && self.index_personality.selected
+                == crate::semantic::indexing::personality::Personality::Default
+            && self.index_personality.error.is_none()
+            && !self.index_personality.job.is_running()
             && matches!(
                 self.index_cache_status(),
                 CacheLoadStatus::Missing | CacheLoadStatus::Failed(_)
@@ -257,7 +273,8 @@ impl RadiologyApp {
     /// Returns whether import, project inspection or tool probing is running.
     #[must_use]
     pub fn is_index_loading(&self) -> bool {
-        self.tool_provisioner.is_running()
+        self.index_personality.job.is_running()
+            || self.tool_provisioner.is_running()
             || self.index_importer.is_running()
             || self.index_plan_job.is_running()
             || self.tool_probe_job.is_running()
@@ -277,38 +294,7 @@ impl RadiologyApp {
         let mut command = None;
         TopBottomPanel::bottom("semantic_index_status").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                self.show_generation_status(ui);
-                if ui.small_button("Index Projects").clicked() {
-                    self.index_projects_open = true;
-                }
-                if self.tool_provisioner.is_running() {
-                    if ui.small_button("Cancel Installation").clicked() {
-                        command = Some(ToolbarAction::CancelToolInstallation);
-                    }
-                } else if self.index_importer.is_running()
-                    || self.index_cache_status() == &CacheLoadStatus::Loading
-                {
-                    if ui.small_button("Cancel").clicked() {
-                        command = Some(ToolbarAction::CancelIndexImport);
-                    }
-                } else if ui
-                    .add_enabled(
-                        !self.index_generator.is_running(),
-                        egui::Button::new("Reload Index").small(),
-                    )
-                    .clicked()
-                {
-                    command = Some(ToolbarAction::ReloadIndexImport);
-                }
-                if self.semantic_index.is_some()
-                    && self.generation_report.is_none()
-                    && !matches!(
-                        self.index_importer.status(),
-                        IndexImportStatus::Imported { .. }
-                    )
-                {
-                    ui.label("Previous semantic data retained · freshness unknown");
-                }
+                command = self.show_index_status_actions(ui);
             });
         });
         if self.index_projects_open {
@@ -329,7 +315,48 @@ impl RadiologyApp {
         }
     }
 
+    fn show_index_status_actions(&mut self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
+        let mut command = None;
+        self.show_generation_status(ui);
+        if ui.small_button("Index Projects").clicked() {
+            self.index_projects_open = true;
+        }
+        if self.tool_provisioner.is_running() {
+            if ui.small_button("Cancel Installation").clicked() {
+                command = Some(ToolbarAction::CancelToolInstallation);
+            }
+        } else if self.index_importer.is_running()
+            || self.index_personality.job.is_running()
+            || self.index_cache_status() == &CacheLoadStatus::Loading
+        {
+            if ui.small_button("Cancel").clicked() {
+                command = Some(ToolbarAction::CancelIndexImport);
+            }
+        } else if ui
+            .add_enabled(
+                !self.index_generator.is_running(),
+                egui::Button::new("Reload Index").small(),
+            )
+            .clicked()
+        {
+            command = Some(ToolbarAction::ReloadIndexImport);
+        }
+        if self.semantic_index.is_some()
+            && self.generation_report.is_none()
+            && !matches!(
+                self.index_importer.status(),
+                IndexImportStatus::Imported { .. }
+            )
+        {
+            ui.label("Previous semantic data retained · freshness unknown");
+        }
+        command
+    }
+
     fn show_generation_status(&mut self, ui: &mut egui::Ui) {
+        if self.show_personality_status(ui) {
+            return;
+        }
         if self.show_installation_status(ui) {
             return;
         }
@@ -453,6 +480,9 @@ impl RadiologyApp {
     }
 
     fn show_index_projects(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
+        if let std::ops::ControlFlow::Break(action) = self.show_personality_controls(ui) {
+            return action;
+        }
         if self.index_plan_job.is_running() {
             ui.label("Inspecting build files…");
             return None;
@@ -461,33 +491,7 @@ impl RadiologyApp {
             ui.label("Build project inspection failed. Reload the repository to retry.");
             return None;
         }
-        if self.index_plan.selected.is_empty() {
-            ui.label("No build projects detected in the current inventory.");
-        }
-        let mut install = None;
-        egui::ScrollArea::vertical()
-            .max_height(300.0)
-            .show(ui, |ui| {
-                for strategy in &self.index_plan.selected {
-                    install = self.show_index_project(ui, strategy).or(install.take());
-                }
-                if !self.index_plan.uncovered_languages.is_empty() {
-                    crate::ui::text_fit::explanation(
-                        ui,
-                        &format!(
-                            "Languages without a selected indexing project: {}",
-                            self.index_plan.uncovered_languages.join(", ")
-                        ),
-                        self.theme.text_secondary,
-                    );
-                }
-                if !self.index_plan.skipped.is_empty() {
-                    ui.label(format!(
-                        "{} additional projects exceed the 32-project run limit",
-                        self.index_plan.skipped.len()
-                    ));
-                }
-            });
+        let install = self.show_index_project_list(ui);
         if self.tool_provisioner.is_running() {
             ui.label(self.tool_provisioner.progress());
             return ui
@@ -533,6 +537,41 @@ impl RadiologyApp {
             ui.label("Indexing uses the pinned After revision. Before remains source-only.");
         }
         command
+    }
+
+    fn show_index_project_list(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {
+        if self.index_plan.selected.is_empty() {
+            ui.label("No build projects detected in the current inventory.");
+        }
+        let mut install = None;
+        egui::ScrollArea::vertical()
+            .max_height(300.0)
+            .show(ui, |ui| {
+                for strategy in &self.index_plan.selected {
+                    install = self.show_index_project(ui, strategy).or(install.take());
+                }
+                if !self.index_plan.uncovered_languages.is_empty() {
+                    crate::ui::text_fit::explanation(
+                        ui,
+                        &format!(
+                            "Languages without a selected indexing project: {}",
+                            self.index_plan.uncovered_languages.join(", ")
+                        ),
+                        self.theme.text_secondary,
+                    );
+                }
+                if !self.index_plan.skipped.is_empty() {
+                    ui.label(format!(
+                        "{} additional projects exceed the {}-project run limit",
+                        self.index_plan.skipped.len(),
+                        self.index_personality
+                            .settings
+                            .as_ref()
+                            .map_or(32, |settings| settings.project_limit())
+                    ));
+                }
+            });
+        install
     }
 
     fn show_generation_controls(&self, ui: &mut egui::Ui) -> Option<ToolbarAction> {

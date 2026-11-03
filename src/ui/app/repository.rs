@@ -160,7 +160,6 @@ impl RadiologyApp {
         self.load_bookmarks();
 
         self.load_repository_index();
-        self.inspect_index_projects();
 
         match destination {
             RepositoryDestination::Review { number, file } => {

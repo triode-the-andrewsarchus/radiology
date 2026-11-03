@@ -32,6 +32,14 @@ retain a Partial label and explain coverage limits. Linux x86_64 users can insta
 the pinned scip-clang release from Index Projects; curl and sha256sum are required.
 Other architectures use a manually available tool. See [C/C++ defaults](plans/rust-clang-fallback.md).
 
+Index Projects now offers **Default** and **seL4** personalities, remembered per
+attached repository and shared with its PRs. **Show Settings File** reveals editable
+TOML under `~/.config/radiology/indexing-personalities/` (respecting XDG settings).
+Switching starts the selected pipeline; Reindex rereads its settings. Invalid files
+show a recovery action and preserve source/caret/history. The seL4 runner requires
+its configured Python/LLVM/build prerequisites; full Linux matrix acceptance remains
+in progress. See [personality scope and acceptance](plans/rust-indexing-personalities.md).
+
 Kotlin/Java generation preserves explicit `ANDROID_HOME`/`ANDROID_SDK_ROOT` settings.
 If both are absent, it looks for an existing `~/Android/Sdk`, then
 `~/Library/Android/sdk`. This lookup installs no SDK; see

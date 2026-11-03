@@ -1,5 +1,55 @@
 # Progress
 
+## 2026-11-02 — Standalone personality picker, reload and recovery (Codex)
+
+Index Projects now exposes Default/seL4, editable summaries and Show Settings File.
+Canonical attached-repository choices persist across aliases/relaunch and PR entry/
+exit. Selection starts its pipeline while preserving the source buffer, caret,
+history and view settings. Open/reload, index reload and Reindex capture current
+TOML on a worker; retired settings cannot publish into a new selection or repository.
+Invalid files clear semantics and block fallback, with a usable file action and
+Reload Settings recovery. seL4 never imports Default/repository-provided data.
+
+The selector reuses the app's owned menu controls for arrows/Return/Escape. Multiple
+menu groups preserve active anchors; toolbar View→Search remains usable with the
+utility window open. Source styles and type scale are unchanged. Footer actions and
+project rows have separate presentation owners; project-limit text is settings-aware.
+New embedded-host getters expose selection/capture/error/path and inspection remains
+asynchronous. Source/settings test fixtures are now isolated and use accepted roots.
+
+Five new app tests pass, covering durable identity/PR scope, reader retention,
+failed-save rollback/source protection, malformed settings/recovery, retired workers
+and actual menu keys. Workspace:753 app tests pass, nine ignored; two binary/13 font/
+21 text and59 doctests pass. Strict Clippy/check/build/rustdoc/fmt/diff, resource
+smoke, rendered API and actual Clang lifecycle checks pass. Final fixture-only reuse
+was rechecked with157 app tests and strict Clippy.
+
+Native final1×/2× checks generate with the actual Clang tool, select seL4 by menu
+keys, fail appropriately on a deliberately non-seL4 fixture, preserve Default cache
+bytes and restore selection after restart. Returning to Default, malformed-file
+failure, exact settings URI handoff to a private stand-in and cached recovery all
+pass; exactly two compiler runs. Dark/light captures inspected, source/app hashes
+unchanged and core exits zero. Hover helpers retire intentionally. Earlier driver
+OCR/cache-path assumptions remain in diagnostics. Real67-profile seL4 acceptance
+and a host desktop's file-manager behavior are not claimed by this fixture.
+
+Architecture across the three commits vs before-personality-picker at0dbf6d5:
++627 NLOC/27 functions/two analyzed files; avg/max CCN3.37/132 and33 above15 unchanged.
+Clone groups126→125, duplicated lines1341→1335; zero added/one removed normalized
+clone identity; cycles remain one. Health80.73→79.57/structure issues7→8 was traced
+with raw parent/current reports to a new test-directory reorganization recommendation
+from the focused personality fixture. It is documented, not hidden or gamed by moving
+files into generic folders. Initial UI hotspots and a new fixture clone were removed.
+
+[Contract, validation and remaining work](plans/rust-indexing-personalities.md).
+Preference storage committed/pushed042f8a3; shared menu ownership9677046; app workflow
+and this record form the final integration commit.
+Evidence: ~/.local/state/radiology-qa/personality-picker-20261102-0dbf6d5.
+Next: privately provision dtc and validate the real67-profile Linux pipeline against
+the clean seL4 reference, then shortcut help and broader corpus/PR/native IME/portal
+acceptance. Overall parity remains active; full accessibility and sibling adoption
+retain their previously agreed scope.
+
 ## 2026-11-02 — Menu-group keyboard anchor ownership (Codex)
 
 Separate menu groups now preserve the active group's keyboard anchors instead of

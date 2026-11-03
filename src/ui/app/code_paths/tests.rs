@@ -28,7 +28,7 @@ fn queue_error(app: &mut RadiologyApp) {
 
 #[test]
 fn opens_steps_reuses_authoritative_source_and_restores_exact_departure() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     app.open_file("a.rs");
     settle(&mut app);
     app.jump_to_location("a.rs", 2, 8);
@@ -55,7 +55,11 @@ fn opens_steps_reuses_authoritative_source_and_restores_exact_departure() {
     assert_eq!(caret(&app), departure);
     let original = app.open_buffer.clone().unwrap();
     // Unsaved/external checkout edits cannot replace the matching displayed source.
-    std::fs::write(dir.path().join("a.rs"), "fn renamed() {}\n").unwrap();
+    std::fs::write(
+        app.repository_root.as_ref().unwrap().join("a.rs"),
+        "fn renamed() {}\n",
+    )
+    .unwrap();
     app.go_to_code_path_step(selected.steps[1].id, 0);
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &original));
@@ -66,9 +70,9 @@ fn opens_steps_reuses_authoritative_source_and_restores_exact_departure() {
 
 #[test]
 fn opens_first_conditional_then_explicit_variant_and_reports_invalid_variant_atomically() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     let source = "#ifdef A\nvoid start() {}\n#else\nvoid start() {}\n#endif\n";
-    std::fs::write(dir.path().join("boot.c"), source).unwrap();
+    std::fs::write(app.repository_root.as_ref().unwrap().join("boot.c"), source).unwrap();
     let selected = trace(&mut app, "Boot\nboot.c:start:Choose entry");
     let id = selected.steps[0].id;
     app.go_to_code_path_step(id, 0);

@@ -127,14 +127,17 @@ impl RadiologyApp {
                 }
             }
             GenerateIndex => self.generate_index(false),
+            SelectIndexingPersonality(personality) => self.select_indexing_personality(personality),
+            ShowIndexingSettings => self.show_indexing_settings(),
             UpdateIndex => self.generate_index(true),
-            CancelIndexGeneration => self.index_generator.stop(),
+            CancelIndexGeneration => self.cancel_index_generation(),
             CheckIndexTools => self.check_index_tools(),
             CancelIndexToolCheck => self.tool_probe_job.stop(),
             InstallIndexer(indexer) => self.install_indexer(indexer),
             CancelToolInstallation => self.tool_provisioner.stop(),
             ReloadIndexImport => self.load_repository_index(),
             CancelIndexImport => {
+                self.index_personality.cancel();
                 self.index_importer.stop();
                 if self.index_cache_status()
                     == &crate::semantic::indexing::service::CacheLoadStatus::Loading

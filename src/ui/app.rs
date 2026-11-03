@@ -149,6 +149,7 @@ pub struct RadiologyApp {
     index_plan_job:
         crate::background::LatestRead<Result<crate::semantic::indexing::IndexPlan, String>>,
     index_plan_error: Option<String>,
+    index_personality: indexing::personality::State,
     index_projects_open: bool,
     tool_probe_job: crate::background::LatestRead<
         std::collections::BTreeMap<
@@ -336,6 +337,7 @@ impl RadiologyApp {
             index_plan: Default::default(),
             index_plan_job: Default::default(),
             index_plan_error: None,
+            index_personality: Default::default(),
             index_projects_open: false,
             tool_probe_job: Default::default(),
             tool_availability: Default::default(),

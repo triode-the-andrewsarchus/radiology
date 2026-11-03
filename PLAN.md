@@ -4,13 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-[Indexing personality settings](plans/rust-indexing-personalities.md) now provide
-validated editable TOML, immutable provenance and non-overwriting first-use storage,
-reusing the shared67-profile recipe and Python resources. This library checkpoint
-now feeds actual service planning, Clang jobs and cache identity. The seL4 backend
-stages the shared runner/configuration outside copied source and uses an isolated
-cache namespace. The picker/canonical selection and real67-profile/native acceptance
-remain required integration work.
+[Indexing personalities](plans/rust-indexing-personalities.md) now connect editable
+TOML and immutable provenance to the service and Index Projects picker. Canonical
+repository choices, attached PRs, reload/Reindex, invalid-file recovery, settings
+reveal and ordinary menu keys pass app and native1×/2× checks. The shared seL4
+runner and isolated caches are wired in; real67-profile Linux compiler acceptance
+remains open before full seL4 parity can be claimed.
 
 [C/C++ best-effort indexing](plans/rust-clang-fallback.md) now generates private GNU
 defaults and inferred includes when no compilation database exists. Real database

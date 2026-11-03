@@ -61,6 +61,10 @@ pub enum ReaderCommand {
     ReloadSource,
     /// Generates a fresh index in isolated build-input workspaces.
     GenerateIndex,
+    /// Selects and persists the attached checkout's indexing pipeline, then generates it.
+    SelectIndexingPersonality(crate::semantic::indexing::personality::Personality),
+    /// Reveals the selected pipeline's editable TOML, including invalid settings.
+    ShowIndexingSettings,
     /// Reuses exact version-matched projects and generates missing or stale projects.
     UpdateIndex,
     /// Cancels index generation while retaining published semantic data.

@@ -76,8 +76,10 @@ pub(super) fn isolated_source(path: &str, text: &str) -> (tempfile::TempDir, Rad
 
 fn reader_with_source(text: &str) -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
-    std::fs::write(dir.path().join("a.rs"), text).unwrap();
-    app.open_repository(dir.path());
+    let root = dir.path().join("repo");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.open_repository(&root);
     settle(&mut app);
     (dir, app)
 }
@@ -90,8 +92,9 @@ fn open_empty_repository(app: &mut RadiologyApp, root: &Path) {
 
 pub(super) fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
-    repository(dir.path());
-    app.open_repository(dir.path());
+    let root = dir.path().join("repo");
+    repository(&root);
+    app.open_repository(&root);
     settle(&mut app);
     (dir, app)
 }
@@ -189,11 +192,8 @@ fn repository_transition_clears_prior_index_pins_review_history_and_search() {
 
 #[test]
 fn bookmark_toolbar_mutations_persist_and_navigation_relocates() {
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
+    let (dir, mut app) = opened_repository();
+    let root = app.repository_root.clone().unwrap();
     app.jump_to_location("a.rs", 2, 0);
     settle(&mut app);
     let ctx = Context::default();
@@ -481,7 +481,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
 
 #[test]
 fn pending_source_keeps_the_reader_and_history_until_success_or_cancellation() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     app.jump_to_location("a.rs", 1, 5);
     let original = app.open_buffer.as_ref().unwrap().clone();
     let history = app.history.current().cloned();
@@ -498,7 +498,7 @@ fn pending_source_keeps_the_reader_and_history_until_success_or_cancellation() {
     app.caret_col = 7; // The current source remains interactive while reading b.rs.
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
-    std::fs::remove_file(dir.path().join("a.rs")).unwrap();
+    std::fs::remove_file(app.repository_root.as_ref().unwrap().join("a.rs")).unwrap();
     let before_back = app.history.current().cloned();
     app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
     assert_eq!(app.history.current(), before_back.as_ref());
@@ -506,7 +506,7 @@ fn pending_source_keeps_the_reader_and_history_until_success_or_cancellation() {
     assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
     assert_eq!(app.history.current(), before_back.as_ref());
     assert!(app.error.is_some());
-    repository(dir.path());
+    repository(app.repository_root.as_ref().unwrap());
     app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
@@ -538,7 +538,7 @@ fn current_document_navigation_and_repository_changes_retire_stale_reads() {
 
 #[test]
 fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_bytes() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     app.open_file("b.rs");
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
@@ -555,7 +555,7 @@ fn appearance_changes_keep_pending_navigation_and_recolor_immutable_current_byte
     assert!(!app.fold_store.is_header_folded(1, &app.fold_ranges));
     app.fold_store.toggle_header(1, &app.fold_ranges);
     let location = app.history.current().cloned();
-    std::fs::remove_file(dir.path().join("b.rs")).unwrap();
+    std::fs::remove_file(app.repository_root.as_ref().unwrap().join("b.rs")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ToggleTheme);
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
@@ -872,7 +872,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     app.open_repository(&root);
     settle(&mut app);
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
-    assert!(app.index_generator.is_running());
+    assert!(app.is_index_loading());
     assert!(app.semantic_index.is_none());
     settle(&mut app);
     assert_eq!(app.generation_report().unwrap().documents, 1);
@@ -948,7 +948,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     );
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
     app.execute_command(&ctx, ToolbarAction::CancelIndexGeneration);
-    assert!(app.index_generator.was_cancelled());
+    assert!(app.index_generator.was_cancelled() || app.index_personality.cancelled);
     assert!(app.semantic_index.is_some());
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
     app.open_repository(&next);
@@ -1939,11 +1939,7 @@ fn modal_input_cannot_disclose_or_commit_a_reference_behind_the_sheet() {
 }
 
 fn reader_with_reference_index() -> (tempfile::TempDir, RadiologyApp) {
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
+    let (dir, mut app) = opened_repository();
     app.semantic_index = Some(reference_index());
     app.jump_to_location("a.rs", 1, 4);
     settle(&mut app);
@@ -2124,10 +2120,10 @@ fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure
     use crate::ui::outline_list::OutlineList;
     use eframe::App;
     for seed_history in [false, true] {
-        let (dir, mut app) = opened_repository();
+        let (_dir, mut app) = opened_repository();
         let text =
             "// café 😀 origin\nfn large() {\n let x = 1;\n let y = 2;\n}\n\nfn small() {}\n";
-        std::fs::write(dir.path().join("a.rs"), text).unwrap();
+        std::fs::write(app.repository_root.as_ref().unwrap().join("a.rs"), text).unwrap();
         app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
         settle(&mut app);
         let origin = app
@@ -2278,9 +2274,11 @@ fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
 fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() {
     let (dir, mut app) = reader();
     let text = "fn demo() { clone(); #[cfg(other)] clone(); let s = \"clone\"; /* clone */ }";
-    std::fs::write(dir.path().join("a.rs"), text).unwrap();
-    write_critical_index(dir.path(), text);
-    app.open_repository(dir.path());
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    write_critical_index(&root, text);
+    app.open_repository(&root);
     settle(&mut app);
     app.select_occurrences_at_byte(text.find("clone").unwrap());
     assert_eq!(app.pin_store.ephemeral.as_ref().unwrap().ranges.len(), 2);
@@ -2383,6 +2381,7 @@ mod reviews;
 
 pub(super) mod review_refresh;
 
+mod personality;
 mod provisioning;
 
 #[test]
@@ -2488,6 +2487,7 @@ fn repeated_reindex_shortcut_keeps_the_running_generation() {
         |ctx| app.handle_shortcuts(ctx),
     );
     while !started.exists() {
+        app.poll_index(&ctx);
         assert!(
             std::time::Instant::now() < deadline,
             "indexer did not start"
@@ -2749,7 +2749,7 @@ fn removed_bookmark_retires_pending_navigation_without_changing_source_or_histor
 #[test]
 fn changed_source_without_a_bounded_bookmark_anchor_preserves_the_accepted_reader() {
     let original = format!("// {}\r\n", "é🦀漢字 ".repeat(1000));
-    let (dir, mut app) = reader_with_source(&original);
+    let (_dir, mut app) = reader_with_source(&original);
     app.jump_to_location("a.rs", 1, 3);
     settle(&mut app);
     let ctx = Context::default();
@@ -2758,7 +2758,11 @@ fn changed_source_without_a_bounded_bookmark_anchor_preserves_the_accepted_reade
     assert!(bookmarks[0].anchor.is_none());
     let buffer = app.open_buffer.clone().unwrap();
     let history = format!("{:?}", app.history);
-    std::fs::write(dir.path().join("a.rs"), format!("{original}// changed\r\n")).unwrap();
+    std::fs::write(
+        app.repository_root.as_ref().unwrap().join("a.rs"),
+        format!("{original}// changed\r\n"),
+    )
+    .unwrap();
     app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
     settle(&mut app);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
@@ -2783,13 +2787,13 @@ fn reader_with_missing_bookmark() -> (tempfile::TempDir, RadiologyApp, uuid::Uui
     let (dir, mut app, id) = reader_with_bookmark();
     app.open_file("b.rs");
     settle(&mut app);
-    std::fs::remove_file(dir.path().join("a.rs")).unwrap();
+    std::fs::remove_file(app.repository_root.as_ref().unwrap().join("a.rs")).unwrap();
     (dir, app, id)
 }
 
 #[test]
 fn bookmark_failure_is_scoped_shows_its_region_and_clears_on_retry() {
-    let (dir, mut app, id) = reader_with_missing_bookmark();
+    let (_dir, mut app, id) = reader_with_missing_bookmark();
     let ctx = Context::default();
     let source = app.open_buffer.clone().unwrap();
     let history = format!("{:?}", app.history);
@@ -2809,7 +2813,7 @@ fn bookmark_failure_is_scoped_shows_its_region_and_clears_on_retry() {
         app.bookmark_list.navigation_error.is_some(),
         "empty slots must not clear a real failure"
     );
-    repository(dir.path());
+    repository(app.repository_root.as_ref().unwrap());
     app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
     assert!(
         app.bookmark_list.navigation_error.is_none(),

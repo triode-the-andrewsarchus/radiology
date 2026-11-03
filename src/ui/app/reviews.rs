@@ -183,7 +183,6 @@ impl RadiologyApp {
         self.all_files = snapshot.files.clone().into();
         self.pr_changes = snapshot.changes.clone();
         self.review = Some(snapshot);
-        self.inspect_index_projects();
         self.load_repository_index();
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;

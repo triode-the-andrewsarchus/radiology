@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn outline_explanations_follow_the_current_language_and_test_projection() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     let ctx = Context::default();
     for (path, text, explanation) in [
         (
@@ -26,7 +26,7 @@ fn outline_explanations_follow_the_current_language_and_test_projection() {
             "Every declaration in this file is hidden test code.",
         ),
     ] {
-        std::fs::write(dir.path().join(path), text).unwrap();
+        std::fs::write(app.repository_root.as_ref().unwrap().join(path), text).unwrap();
         app.session.source_filters.hides_tests = true;
         app.open_file(path);
         settle(&mut app);
@@ -68,9 +68,9 @@ fn outline_explanations_follow_the_current_language_and_test_projection() {
 
 #[test]
 fn parser_failure_is_published_with_source_and_clears_on_success_and_repository_reset() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     let text = "// Empty structure\n";
-    std::fs::write(dir.path().join("empty.rs"), text).unwrap();
+    std::fs::write(app.repository_root.as_ref().unwrap().join("empty.rs"), text).unwrap();
     app.open_file("empty.rs");
     app.source_loader.stop(); // Deliver the native-parser failure outcome at the normal publication boundary.
     let buffer = Arc::new(SourceBuffer::from_str("empty.rs", text));
@@ -206,7 +206,7 @@ fn semantic_explanations_follow_index_coverage_source_identity_and_revision() {
 
 #[test]
 fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repair() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     let ctx = Context::default();
     for (path, text) in [
         ("Broken.swift", "struct Broken { func run( { return 1 }"),
@@ -220,7 +220,7 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
         ("broken.kt", "fun broken( { val x = }"),
         ("broken.kts", "val x = ; class {"),
     ] {
-        std::fs::write(dir.path().join(path), text).unwrap();
+        std::fs::write(app.repository_root.as_ref().unwrap().join(path), text).unwrap();
         app.open_file(path);
         settle(&mut app);
         assert_eq!(app.open_buffer.as_ref().unwrap().text, text);
@@ -260,7 +260,11 @@ fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repai
     crate::ui::test_support::assert_visible_text(&output, "Structure unavailable");
     assert!(!crate::ui::test_support::text_shapes(&output)
         .any(|text| text.galley.job.text == "Partial structure"));
-    std::fs::write(dir.path().join("broken.kts"), "fun repaired() {}\n").unwrap();
+    std::fs::write(
+        app.repository_root.as_ref().unwrap().join("broken.kts"),
+        "fun repaired() {}\n",
+    )
+    .unwrap();
     app.execute_command(&ctx, ToolbarAction::ReloadSource);
     settle(&mut app);
     assert!(!app.call_sites.parse_errors && app.syntax_error.is_none());

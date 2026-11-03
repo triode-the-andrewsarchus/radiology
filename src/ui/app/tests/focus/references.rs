@@ -150,7 +150,7 @@ fn reference_keys_do_not_take_the_live_source_find_query() {
 
 #[test]
 fn pinned_metadata_uses_the_captured_local_document_and_current_index() {
-    let (dir, mut app) = opened_repository();
+    let (_dir, mut app) = opened_repository();
     let buffers = [
         SourceBuffer::from_str("a.rs", "fn main() {\n    let local_value = 1;\n}\n"),
         SourceBuffer::from_str("b.rs", "fn main(argument: u8) {}\n"),
@@ -160,7 +160,11 @@ fn pinned_metadata_uses_the_captured_local_document_and_current_index() {
         (&buffers[0], "local_value", 61),
         (&buffers[1], "argument", 37),
     ] {
-        std::fs::write(dir.path().join(&buffer.path), &buffer.text).unwrap();
+        std::fs::write(
+            app.repository_root.as_ref().unwrap().join(&buffer.path),
+            &buffer.text,
+        )
+        .unwrap();
         let byte = buffer.text.find(name).unwrap();
         documents.push(ScipDocument {
             relative_path: buffer.path.clone(),
