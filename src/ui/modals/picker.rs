@@ -121,14 +121,15 @@ pub(super) fn query(
         let id = ui.make_persistent_id("query");
         if !*focused {
             ui.memory_mut(|memory| memory.request_focus(id));
-            *focused = ui.is_visible();
         }
-        ui.add(
+        let response = ui.add(
             egui::TextEdit::singleline(query)
                 .id(id)
                 .hint_text(hint)
                 .desired_width(ui.available_width()),
-        )
+        );
+        *focused |= response.enabled() && response.has_focus();
+        response
     })
     .inner
 }

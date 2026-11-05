@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Dialog focus](rust-dialog-focus.md) fixes premature focus completion for File/Symbol
+queries, PR entry and Code Path import. Hosted regressions cover inactive/disabled
+editors and deliberate Tab ownership; the prior line-prompt rule is retained.
+
 The reference is the checked-in Swift code, queries, fixtures and behavioral tests.
 AppKit/SwiftUI are not executed on this Linux host. Broad UI acceptance follows the
 user's standalone Linux/reusable-reader direction, including intentional Linux

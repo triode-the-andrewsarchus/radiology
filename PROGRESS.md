@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-11-05 — Confirmed dialog focus and preserved Tab ownership (Codex)
+
+Extended the prior Go to Line focus fix to shared File/Symbol queries, PR entry
+and Code Path import. Existing initial-focus flags now wait for an enabled,
+actually focused editor. Egui's invisible measurement pass already disables its
+widgets, so Go to Line's redundant visibility condition is removed. No new runtime
+state, wrapper, dependency or public API. Existing ModalInput remains the owner.
+
+Three new regressions fail before the fix and pass for inactive windows, import
+saving/reenabling, Unicode typing, PR Cancel submission and import Tab ownership.
+All 23 modal tests pass; workspace 792 app tests/11 ignored, two binary, 13 font,
+22 text and60 doctests pass, with strict Clippy and formatting. Architecture is
+NEUTRAL: +122 measured NLOC, no new clone/hotspot/cycle/structural problem; complete
+clone counters unchanged 125/1335. [Evidence and limits](plans/rust-dialog-focus.md)
+include the private log location. Other Swift assertions and Android success remain
+open; no new native capture is claimed for this checkpoint.
+
 ## 2026-11-05 — Pending context, loading guidance and line-prompt focus (Codex)
 
 A red app regression now passes immediate source/root context clearing while the

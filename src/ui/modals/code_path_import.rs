@@ -63,11 +63,12 @@ impl CodePathImportModal {
                 ctx.move_to_top(ui.layer_id());
                 ui.label("First line: a title. Then one file:function:description per line.");
                 let edit_id = ui.make_persistent_id("code_path_text");
-                if !self.focused { ui.memory_mut(|memory| memory.request_focus(edit_id)); self.focused = ui.is_visible(); }
+                if !self.focused { ui.memory_mut(|memory| memory.request_focus(edit_id)); }
                 let enabled = !busy && !self.file.is_running();
                 ui.add_enabled_ui(enabled, |ui| {
                     egui::ScrollArea::vertical().id_source("code_path_import_text").max_height((ui.available_height()-120.0).max(120.0)).show(ui, |ui| {
-                        ui.add(egui::TextEdit::multiline(&mut self.text).id(edit_id).font(egui::TextStyle::Monospace).desired_rows(12).desired_width(f32::INFINITY).lock_focus(false));
+                        let response = ui.add(egui::TextEdit::multiline(&mut self.text).id(edit_id).font(egui::TextStyle::Monospace).desired_rows(12).desired_width(f32::INFINITY).lock_focus(false));
+                        self.focused |= response.enabled() && response.has_focus();
                     });
                 });
                 ui.label(egui::RichText::new("Use repository-relative paths and declaration names. Escape name colons as \\:; descriptions may contain colons. UTF-8, up to 2 MiB.").small().color(theme.text_secondary));
@@ -147,6 +148,50 @@ fn read_text_file(path: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn import_editor_waits_for_active_enabled_focus_before_accepting_text() {
+        let ctx = Context::default();
+        let mut owner = ModalInput::default();
+        let mut dialog = CodePathImportModal::default();
+        for (active, busy) in [
+            (false, false),
+            (false, false),
+            (true, true),
+            (true, true),
+            (true, false),
+            (true, false),
+        ] {
+            super::super::focus_tests::frame(&ctx, &mut owner, active, vec![], |ctx| {
+                dialog.show(ctx, &AppTheme::dark(), busy, None)
+            });
+            assert_eq!(dialog.focused, active && !busy);
+        }
+        super::super::focus_tests::frame(
+            &ctx,
+            &mut owner,
+            true,
+            vec![egui::Event::Text("Boot café\na.rs:main:Enter".into())],
+            |ctx| dialog.show(ctx, &AppTheme::dark(), false, None),
+        );
+        assert_eq!(dialog.text, "Boot café\na.rs:main:Enter");
+        // The file button is the next tab stop; initial focus must not steal it.
+        super::super::focus_tests::frame(
+            &ctx,
+            &mut owner,
+            true,
+            vec![crate::ui::commands::test_key(Key::Tab)],
+            |ctx| dialog.show(ctx, &AppTheme::dark(), false, None),
+        );
+        super::super::focus_tests::frame(
+            &ctx,
+            &mut owner,
+            true,
+            vec![egui::Event::Text("ignored".into())],
+            |ctx| dialog.show(ctx, &AppTheme::dark(), false, None),
+        );
+        assert_eq!(dialog.text, "Boot café\na.rs:main:Enter");
+    }
+
     #[test]
     fn file_import_is_regular_utf8_and_bounded_by_original_bytes() {
         let owner = tempfile::tempdir().unwrap();

@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Dialog focus](plans/rust-dialog-focus.md) extends confirmed focus acquisition to
+File/Symbol queries, PR entry and Code Path import. Inactive or disabled editors
+keep their initial-focus request pending; Tab remains owned by the chosen control.
+Three red/green hosted regressions and workspace checks cover the change. Remaining
+Swift assertions and SDK-backed Android acceptance stay open.
+
 [Pending source context](plans/rust-pending-source-context.md) now clears the
 function wash, breadcrumb and automatic declaration while a destination prepares,
 then restores accepted context on cancellation/failure. Shared readiness replaces

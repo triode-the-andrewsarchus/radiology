@@ -93,8 +93,7 @@ impl GoToLineModal {
                     .hint_text("Line number")
                     .desired_width(ui.available_width());
                 let response = ui.add(edit);
-                self.focus_requested |=
-                    ui.is_visible() && response.enabled() && response.has_focus();
+                self.focus_requested |= response.enabled() && response.has_focus();
                 let number = self.line_str.trim().parse::<i64>().ok().map(|line| {
                     usize::try_from(line.max(1))
                         .unwrap_or(usize::MAX)
@@ -179,10 +178,7 @@ impl PullRequestModal {
                     .hint_text("PR number (e.g. 42)")
                     .desired_width(ui.available_width());
                 let resp = ui.add(edit);
-                if !self.focus_requested {
-                    resp.request_focus();
-                    self.focus_requested = true;
-                }
+                self.focus_requested |= resp.enabled() && resp.has_focus();
                 let number = self
                     .pr_str
                     .trim()
@@ -279,6 +275,11 @@ mod pull_request_tests {
         let ctx = Context::default();
         let mut modal = PullRequestModal::new(Some(7));
         show(&mut modal, &ctx, vec![]);
+        show(&mut modal, &ctx, vec![]);
+        assert!(
+            modal.focus_requested,
+            "finish the window measurement pass before direct, unhosted key delivery"
+        );
         show(&mut modal, &ctx, vec![key(Key::Tab)]);
         assert_eq!(show(&mut modal, &ctx, vec![key(Key::Tab)]), None);
         assert_eq!(
@@ -296,27 +297,107 @@ pub use code_path_import::CodePathImportModal;
 mod focus_tests {
     use super::*;
 
+    pub(super) fn frame(
+        ctx: &Context,
+        owner: &mut ModalInput,
+        focused: bool,
+        events: Vec<egui::Event>,
+        render: impl FnMut(&Context) -> Option<ModalAction>,
+    ) -> Option<ModalAction> {
+        let mut raw = egui::RawInput {
+            focused,
+            events,
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(850.0, 650.0),
+            )),
+            ..Default::default()
+        };
+        owner.capture_input(&mut raw);
+        let mut render = render;
+        let mut action = None;
+        let _ = ctx.run(raw, |ctx| action = owner.show(ctx, &mut render));
+        action
+    }
+
+    #[test]
+    fn pr_prompt_acquires_focus_after_activation_and_preserves_tab_navigation() {
+        let ctx = Context::default();
+        let mut owner = ModalInput::default();
+        let mut dialog = PullRequestModal::default();
+        for focused in [false, false, false, false, true, true, true, true] {
+            frame(&ctx, &mut owner, focused, vec![], |ctx| {
+                dialog.show(ctx, &AppTheme::dark())
+            });
+            assert_eq!(dialog.focus_requested, focused);
+        }
+        frame(
+            &ctx,
+            &mut owner,
+            true,
+            vec![egui::Event::Text("42".into())],
+            |ctx| dialog.show(ctx, &AppTheme::dark()),
+        );
+        assert_eq!(dialog.pr_str, "42");
+        for _ in 0..2 {
+            frame(
+                &ctx,
+                &mut owner,
+                true,
+                vec![crate::ui::commands::test_key(Key::Tab)],
+                |ctx| dialog.show(ctx, &AppTheme::dark()),
+            );
+        }
+        assert_eq!(
+            frame(
+                &ctx,
+                &mut owner,
+                true,
+                vec![crate::ui::commands::test_key(Key::Enter)],
+                |ctx| { dialog.show(ctx, &AppTheme::dark()) }
+            ),
+            Some(ModalAction::Close)
+        );
+    }
+
+    #[test]
+    fn shared_picker_query_waits_for_activation_and_accepts_typing() {
+        let ctx = Context::default();
+        let mut owner = ModalInput::default();
+        let mut focused = false;
+        let mut query = String::new();
+        let mut render = |active, events| {
+            frame(&ctx, &mut owner, active, events, |ctx| {
+                Window::new("Picker").show(ctx, |ui| {
+                    picker::query(
+                        ui,
+                        &mut focused,
+                        &mut query,
+                        crate::ui::icons::Icon::Search,
+                        "Search",
+                        egui::Color32::WHITE,
+                    );
+                });
+                None
+            });
+            focused
+        };
+        for active in [false, false, false, false, true, true, true, true] {
+            assert_eq!(render(active, vec![]), active);
+        }
+        assert!(render(true, vec![egui::Event::Text("café".into())]));
+        assert_eq!(query, "café");
+    }
+
     #[test]
     fn line_prompt_waits_for_active_window_focus_before_completing_initial_focus() {
         let ctx = Context::default();
         let mut owner = ModalInput::default();
         let mut dialog = GoToLineModal::new(61);
         let mut render = |dialog: &mut GoToLineModal, focused, events| {
-            let mut raw = egui::RawInput {
-                focused,
-                events,
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(850.0, 650.0),
-                )),
-                ..Default::default()
-            };
-            owner.capture_input(&mut raw);
-            let mut action = None;
-            let _ = ctx.run(raw, |ctx| {
-                action = owner.show(ctx, |ctx| dialog.show(ctx, &AppTheme::dark(), 100))
-            });
-            action
+            frame(&ctx, &mut owner, focused, events, |ctx| {
+                dialog.show(ctx, &AppTheme::dark(), 100)
+            })
         };
         for _ in 0..4 {
             render(&mut dialog, false, vec![]);
