@@ -16,12 +16,15 @@ cargo test --workspace
 cargo run --locked -- --verify-resources
 ```
 
-The Rust app builds independently of little-screen-clip. Open Index Projects and
+The Rust app builds independently of little-screen-clip. The
+[independent build and reader-host guide](plans/rust-reader-host-audit.md) documents
+the shared crates, focus/viewport APIs and consumer patch requirements.
+Open Index Projects and
 Check Tools to inspect missing indexers; Install and Index explicitly installs a
 supported tool and then generates semantic data. Go/npm/Kotlin/Clang use private tool
 storage; Rust adds rust-analyzer to the active rustup toolchain. The panel explains
 prerequisites, and installation can be cancelled. See [tool provisioning](plans/rust-tool-provisioning.md)
-and [the current parity queue](plans/rust-parity-implementation.md). Generate/Update
+and [the current acceptance ledger](plans/rust-parity-status-2026-11-02.md). Generate/Update
 Index reuses projects with exact repository inputs and matching tool versions;
 Reindex regenerates every project. Reuse origins and any mixed-origin warning
 appear in Index Projects; [cache contract](plans/rust-project-index-reuse.md). Full Swift
@@ -39,8 +42,8 @@ attached repository and shared with its PRs. **Show Settings File** reveals edit
 TOML under `~/.config/radiology/indexing-personalities/` (respecting XDG settings).
 Switching starts the selected pipeline; Reindex rereads its settings. Invalid files
 show a recovery action and preserve source/caret/history. The seL4 runner requires
-its configured Python/LLVM/build prerequisites; full Linux matrix acceptance remains
-in progress. See [personality scope and acceptance](plans/rust-indexing-personalities.md).
+its configured Python/LLVM/build prerequisites. The 67-profile Linux matrix and
+native cache/navigation acceptance are documented with their scope and limitations. See [personality scope and acceptance](plans/rust-indexing-personalities.md).
 
 Kotlin/Java generation preserves explicit `ANDROID_HOME`/`ANDROID_SDK_ROOT` settings.
 If both are absent, it looks for an existing `~/Android/Sdk`, then

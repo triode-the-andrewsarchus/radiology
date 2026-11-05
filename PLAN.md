@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Independent build and reader-host audit](plans/rust-reader-host-audit.md) now passes
+a clean locked16-job build, an isolated source export, full-reader and asset-only
+external consumers, and resource/host execution with the export renamed away.
+Three existing focus/viewport methods are public for hosts; the four Swift pinning
+assertions now have explicit app/unit evidence. Remaining assertion reconciliation
+and SDK-backed Android success remain open; later runtime/API changes must rerun
+relevant acceptance gates. Actual sibling adoption remains deferred.
+
 [Selection-aware reader Return](plans/rust-reader-return-selection.md) now validates
 one semantic occurrence, preserves rejected selections and restores exact word/end
 caret departures through Back. App/UTF-16/native1×/2× checks pass. The new

@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-05 — Independent reader host and occurrence-pin audit (Codex)
+
+A separate consumer found request_focus/top_byte/restore_top inaccessible despite
+public SourceView/SourceViewport. Three existing methods are now public with their
+focus/document/UTF-8 obligations documented; behavior is unchanged. The external
+full host verifies focus, exact viewport/caret separation, Unicode Copy, stale-anchor
+rejection, shared text/font use and exported Kotlin parsing at1×/2×. A separate
+asset/text-only host has no GUI/application dependencies. Consumer roots explicitly
+forward the existing grammar/backend Cargo patches; the sibling remains untouched.
+
+A fresh locked offline16-job build compiles all dependencies/project crates, then
+an isolated source export builds independently using that fresh dependency cache.
+With the export renamed away, copied app resource smoke and both external consumers
+all exit zero. Metadata local paths stay inside the export/consumers; jobs16/32 CPUs.
+This is debug build/resource/host acceptance, not a package installer or SDK success.
+
+All four Swift OccurrencePinningTests contracts now map to explicit Rust tests.
+Existing app matrices now include the exact four-token Android logging/C-string
+fixture and a lexical pin retained through semantic arrival, while preserving older
+identifier/scope cases. They pass without production pinning changes. Full workspace
+777 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass; strict
+Clippy/rustdoc/fmt pass. Architecture +42 NLOC/no new function, clones unchanged
+125/1335, no added hotspot/cycle/structural finding. Details/evidence:
+[reader-host audit](plans/rust-reader-host-audit.md). Remaining Swift assertions and
+SDK license authorization stay open; rerun affected acceptance after later changes.
+
 ## 2026-11-05 — Selection-aware Return and explicit behavior inventory (Codex)
 
 Rechecking Swift ReaderReturnKeyTests found plain Return ignored selection bounds.

@@ -24,6 +24,10 @@ Evidence: [rust-reading-positions](rust-reading-positions.md), [rust-reader-retu
 | [SourceFunctionNavigationTests](../Tests/RadiologyTests/SourceFunctionNavigationTests.swift) | 1 |
 | [OccurrencePinningTests](../Tests/RadiologyTests/OccurrencePinningTests.swift) | 4 |
 
+OccurrencePinningTests: all four named assertions are reconciled in the
+[reader-host/pin audit](rust-reader-host-audit.md). Other rows in this group retain
+their checkpoint-specific scope.
+
 ## Bookmarks
 
 Rust entry points: [store.rs](../src/bookmarks/store.rs), [tests.rs](../src/ui/app/tests.rs), [bookmark_list.rs](../src/ui/bookmark_list.rs).
@@ -193,4 +197,4 @@ Support files: GitFixture, ObservationFlag, PreparedClangIndexer, SyntaxFixtures
 
 1. Finish assertion-level reconciliation in the indexed groups; repair differences rather than marking a whole group complete from its links.
 2. Successful SDK-backed Android debug/unit-test generation remains unverified. No local SDK was found. A private Platform36/Build Tools36.0.0/command-line setup is prepared; downloading requires the user’s authorization to accept Google’s SDK license. Missing-SDK failure acceptance already passes.
-3. Complete a clean locked half-core build, packaged resource independence and a library-host reuse check after the behavior repairs. Actual little-screen-clip adoption and full assistive accessibility remain deferred.
+3. [Clean build/resource/external-host acceptance](rust-reader-host-audit.md) now passes for this audited state; rerun affected gates after further runtime/API/resource changes. Actual little-screen-clip adoption and full assistive accessibility remain deferred.

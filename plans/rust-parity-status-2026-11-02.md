@@ -176,6 +176,15 @@ Swift suite files and links their Rust/evidence entry points; assertion-level
 reconciliation remains explicit. SDK package installation awaits the user's Google
 license authorization. Final standalone/library-host checks remain open.
 
+## Independent build/reuse checkpoint — 2026-11-05
+
+[Independent build/host acceptance](rust-reader-host-audit.md) now verifies a fresh
+locked16-job build, isolated export, external full-reader and GUI-free shared-crate
+consumers, and source-unavailable runtime resources. Three existing viewport/focus
+methods are exposed for hosts. All four Swift occurrence-pin assertions have
+explicit Rust evidence. Other assertion/compiler reconciliation remains open;
+repeat affected standalone/reuse gates after later changes.
+
 ## Remaining acceptance gates
 
 1. **Remaining behavior and compiler acceptance:** finish mapping the other
@@ -184,9 +193,9 @@ license authorization. Final standalone/library-host checks remain open.
    and integrated PR/revision/cache workflows are accepted above. Use documented
    Swift limits for dependency-heavy C/C++ and Android/Gradle success or explicit
    failure behavior. Repair any new gaps.
-2. **Final standalone/reuse audit:** verify a clean locked build with half-core Cargo
-   settings, packaged resource independence and library/host usage after the above
-   changes. Preserve independent app lifecycle and the local shared text/font crates;
+2. **Standalone/reuse acceptance maintenance:** the linked host audit passes a clean
+   locked build with half-core Cargo settings, embedded resource independence and
+   external host consumption for its audited state. Preserve independent app lifecycle and the local shared text/font crates;
    actual sibling integration remains deferred. Re-run the relevant gates after any
    fixes and audit the complete requirement ledger before claiming parity.
 

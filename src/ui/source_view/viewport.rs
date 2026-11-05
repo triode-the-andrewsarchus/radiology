@@ -192,7 +192,11 @@ impl SourceViewport {
             || (!ctx.wants_keyboard_input() && ctx.read_response(Self::focus_id()).is_some())
     }
 
-    pub(crate) fn request_focus(&self, ctx: &egui::Context) {
+    /// Requests keyboard focus for the source canvas on the next frame.
+    ///
+    /// Hosts can return focus after closing a sheet or activating a destination.
+    /// The context has one active source-canvas focus owner.
+    pub fn request_focus(&self, ctx: &egui::Context) {
         ctx.memory_mut(|memory| memory.request_focus(Self::focus_id()));
     }
 
@@ -227,7 +231,13 @@ impl SourceViewport {
         self.hover.dismiss();
     }
 
-    pub(crate) fn top_byte(&self, buffer: &SourceBuffer) -> Option<usize> {
+    /// Returns the first visible visual row's original UTF-8 byte.
+    ///
+    /// Returns `None` until this viewport has displayed the exact buffer identity.
+    /// Wrapped rows retain their position within a source line. This reading
+    /// anchor is independent of the caret and exact navigation history.
+    #[must_use]
+    pub fn top_byte(&self, buffer: &SourceBuffer) -> Option<usize> {
         if self.document.as_ref()
             != Some(&(
                 buffer.path.clone(),
@@ -244,7 +254,13 @@ impl SourceViewport {
         })
     }
 
-    pub(crate) fn restore_top(&mut self, buffer: &SourceBuffer, byte: usize) {
+    /// Queues a source byte at the top of this exact document's next layout.
+    ///
+    /// Clamps out-of-range or split-scalar bytes to a valid UTF-8 boundary.
+    /// Replacing the document discards a mismatched request. Hosts reveal any
+    /// enclosing folds or hidden test regions before restoring their anchor.
+    /// The request preserves the caret and selection.
+    pub fn restore_top(&mut self, buffer: &SourceBuffer, byte: usize) {
         self.restore = Some((
             buffer.position_key(),
             buffer.content_digest().to_owned(),

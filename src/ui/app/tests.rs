@@ -425,22 +425,54 @@ fn theme_commands_publish_reader_visuals_and_persist_without_resetting_host_metr
 
 #[test]
 fn lexical_pins_use_whole_identifiers_and_the_enclosing_function() {
-    let (_dir, mut app) = reader();
-    let text = "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }";
-    let buffer = SourceBuffer::from_str("pins.rs", text);
-    let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
-    app.outline_symbols = syntax.symbols.into();
-    app.syntactic_occurrences = syntax.occurrences;
-    app.open_buffer = Some(Arc::new(buffer));
-    app.pin_at_byte(text.find("value").unwrap());
-    let ranges = &app.pin_store.groups[0].ranges;
-    assert_eq!(ranges.len(), 2);
-    assert!(ranges.iter().all(|range| &text[range.clone()] == "value"));
-    assert!(ranges
-        .iter()
-        .all(|range| range.end < text.find("fn second").unwrap()));
-    app.pin_at_byte(text.rfind("value").unwrap());
-    assert_eq!(app.pin_store.groups.len(), 2);
+    let android = r#"#[cfg(target_os = "android")]
+fn android_log(message: &str) {
+    let message = std::ffi::CString::new(message).unwrap();
+    unsafe { __android_log_write(6, c"message", message.as_ptr()); }
+}
+fn other(message: &str) { println!("message {message}"); }
+"#;
+    for (text, spelling, count, next_function) in [
+        (
+            "fn first() { let value = 1; let values = value; }\nfn second() { let value = 2; }",
+            "value",
+            2,
+            "fn second",
+        ),
+        (android, "message", 4, "fn other"),
+    ] {
+        let (_dir, mut app) = reader();
+        let buffer = SourceBuffer::from_str("pins.rs", text);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+        app.outline_symbols = syntax.symbols.into();
+        app.syntactic_occurrences = syntax.occurrences;
+        app.open_buffer = Some(Arc::new(buffer));
+        let first = text.find(&format!("let {spelling}")).unwrap() + 4;
+        app.select_occurrences_at_byte(first);
+        assert_eq!(
+            app.pin_store.ephemeral.as_ref().unwrap().ranges.len(),
+            count
+        );
+        app.pin_at_byte(first);
+        assert!(app.pin_store.ephemeral.is_none());
+        let original = app.pin_store.groups[0].clone();
+        assert_eq!(original.ranges.len(), count);
+        assert!(original
+            .ranges
+            .iter()
+            .all(|range| &text[range.clone()] == spelling));
+        let next = text.find(next_function).unwrap();
+        assert!(original.ranges.iter().all(|range| range.end < next));
+        app.pin_at_byte(next + text[next..].find(spelling).unwrap());
+        assert_eq!(app.pin_store.groups.len(), 2);
+        assert_eq!(app.pin_store.groups[0], original);
+        app.select_occurrences_at_byte(text.find('{').unwrap());
+        assert!(app.pin_store.ephemeral.is_none());
+        assert_eq!(app.pin_store.groups.len(), 2);
+        app.pin_at_byte(first);
+        assert_eq!(app.pin_store.groups.len(), 1);
+        assert_ne!(app.pin_store.groups[0].symbol_name, original.symbol_name);
+    }
 }
 
 #[test]
@@ -2305,6 +2337,10 @@ fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() 
         app.pin_store.groups.is_empty(),
         "clicking another occurrence unpins the same group"
     );
+    app.pin_at_byte(text.find("clone").unwrap());
+    assert!(app.pin_store.groups[0]
+        .symbol_name
+        .starts_with("syntactic:"));
     let mut index = (*app.semantic_index.as_ref().unwrap().as_ref()).clone();
     let second = text.find("#[cfg(other)] clone").unwrap() + "#[cfg(other)] ".len();
     let column = text[..second].chars().count() as i32;
@@ -2321,6 +2357,11 @@ fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() 
     assert_eq!(
         app.pin_store.ephemeral.as_ref().unwrap().symbol_name,
         "rust-analyzer cargo core 0 clone()."
+    );
+    app.pin_at_byte(text.find("clone").unwrap());
+    assert!(
+        app.pin_store.groups.is_empty(),
+        "semantic arrival unpins the equivalent fallback ranges"
     );
     app.pin_at_byte(text.find("clone").unwrap());
     assert_eq!(
