@@ -60,6 +60,20 @@ impl FoldRange {
         }
     }
 
+    /// Counts canonical source rows removed when the fold is collapsed.
+    ///
+    /// Delimiters survive on the header row; indentation captures hide every
+    /// captured row. Empty or out-of-bounds ranges have no hidden rows.
+    #[must_use]
+    pub fn hidden_line_count(&self, buffer: &SourceBuffer) -> usize {
+        if self.byte_range.is_empty() || self.byte_range.end > buffer.data.len() {
+            return 0;
+        }
+        let start = buffer.line_at_byte(self.byte_range.start);
+        let end = buffer.line_at_byte(self.byte_range.end - 1);
+        end.saturating_sub(start) + usize::from(!self.is_delimited(buffer))
+    }
+
     /// Returns the original physical line owning the disclosure.
     #[must_use]
     pub fn header_line(&self, buffer: &SourceBuffer) -> usize {
@@ -316,6 +330,35 @@ impl FoldDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_counts_use_original_byte_ranges_for_delimiters_indentation_and_empty_bodies() {
+        for (name, source, needle, end_needle, expected) in [
+            ("a.rs", "fn scan() {\r\n work();\r\n}\r\n", "{", "}", 2),
+            (
+                "a.py",
+                "def render(\n value: str,\n):\n    chest = \"胸部\"\r\n    return chest\r\n",
+                "    chest",
+                "chest\r\n",
+                2,
+            ),
+            ("a.rs", "fn empty() {}\n", "{", "}", 0),
+        ] {
+            let buffer = SourceBuffer::from_str(name, source);
+            let fold = FoldRange {
+                byte_range: source.find(needle).unwrap()
+                    ..source.rfind(end_needle).unwrap() + end_needle.len(),
+                ..Default::default()
+            };
+            assert_eq!(fold.hidden_line_count(&buffer), expected);
+            assert_eq!(FoldRange::default().hidden_line_count(&buffer), 0);
+            let invalid = FoldRange {
+                byte_range: 0..source.len() + 1,
+                ..Default::default()
+            };
+            assert_eq!(invalid.hidden_line_count(&buffer), 0);
+        }
+    }
 
     #[test]
     fn test_folds() {

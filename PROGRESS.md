@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-05 — Compact gutter, canonical labels and function-size meters (Codex)
+
+Swift comparison exposed every-row Rust numbering,104-point gutter width and
+missing logarithmic fold meters/count caps. Red width and wrapped-continuation
+regressions now pass with72 points, fifth/current canonical labels and one first
+visible label per logical line. Count capsules measure the available number lane;
+crowded badges yield to their exact tooltip/disclosure. Critical reachable counts
+retain a distinct outline and meaning. Existing metadata fonts stay independent
+of source zoom, with enough row height for controls at small source sizes.
+
+The fold model now owns canonical byte-based hidden-row counts for delimited and
+indentation bodies. Cohesive gutter rendering moved beside viewport input/selection;
+visible-row geometry stays with the viewport. Four new regressions cover sparse/
+folded/wrapped labels, meter scaling/capping/clicks, crowded five-digit labels and
+CRLF/Unicode/empty-body counts. Existing deferred-pointer tests use shared geometry;
+zoom comparisons wait for bounded background measurement rather than an estimate.
+
+Native real-Git607-body-row fixtures show608 hidden rows, actual badge-click
+expansion, dark/light and zoom at1×/2×. Each scale verifies three exact10012-byte
+copies, unchanged source/Git/binary and zero exits; pixel checks confirm expansion.
+Workspace786 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict lint/doc/format/build/resources and external host pass. Architecture +289
+NLOC/one focused module; all125 clone instances/1335 lines unchanged, no new hotspot,
+cycle or structural issue. The [gutter checkpoint](plans/rust-gutter-parity.md) maps
+both Swift gutter tests and two meter assertion groups. Other suite assertions and
+SDK-backed Android success remain open.
+
 ## 2026-11-05 — Focused insertion caret and grapheme placement (Codex)
 
 Swift caret assertions exposed unconditional Rust paint under selections/other

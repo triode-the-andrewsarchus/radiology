@@ -24,6 +24,11 @@ Evidence: [rust-reading-positions](rust-reading-positions.md), [rust-reader-retu
 | [SourceFunctionNavigationTests](../Tests/RadiologyTests/SourceFunctionNavigationTests.swift) | 1 |
 | [OccurrencePinningTests](../Tests/RadiologyTests/OccurrencePinningTests.swift) | 4 |
 
+LineNumberGutterTests: both contracts and SourceScrollViewTests' two meter
+assertion groups are reconciled in the [gutter checkpoint](rust-gutter-parity.md).
+That checkpoint adds wrapped-continuation and crowded-count evidence; other scroll
+assertions retain their linked checkpoint-specific boundaries.
+
 SourceCaretTests: all three contracts are reconciled in the
 [caret checkpoint](rust-caret-parity.md), including rendered geometry, focus/menu
 ownership and native selection/editor transitions at both scales.

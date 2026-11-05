@@ -23,8 +23,10 @@ use std::{
     sync::Arc,
 };
 
+mod gutter;
 mod input;
 mod selection;
+use gutter::paint_gutter;
 use input::{PointerCapture, PointerEvent};
 use selection::{SelectionGesture, SelectionUnit};
 
@@ -140,7 +142,7 @@ impl CanvasGeometry {
             14.0
         };
         let font = FontId::monospace(font_size);
-        let minimum_height = ui.fonts(|fonts| fonts.row_height(&font)) + 4.0;
+        let minimum_height = (ui.fonts(|fonts| fonts.row_height(&font)) + 4.0).max(20.0);
         let height = ui.available_height().max(40.0);
         let width = if content.wrap {
             (ui.available_width()
@@ -611,6 +613,7 @@ impl SourceViewport {
     ) -> (Option<SourceViewAction>, bool) {
         let mut action = None;
         let mut reveal_visible = false;
+        let mut gutter_lines = HashSet::new();
         self.painted_top = None;
         let origin = ui.max_rect().min;
         let clip = ui.clip_rect().intersect(geometry.code_rect);
@@ -677,9 +680,13 @@ impl SourceViewport {
                 fragment,
                 content,
             );
-            if fragment.first_in_line {
+            if code_hit.intersects(clip) && gutter_lines.insert(fragment.line) {
+                let first =
+                    galley.cursor_from_pos(vec2(0.0, (clip.top() - text_origin.y).max(0.0)));
+                let band = visual_line_band(galley, *text_origin, *rect, first.ccursor);
+                let gutter_row = Rect::from_min_max(pos2(rect.left(), band.top() - 2.0), rect.max);
                 if let Some(event) =
-                    paint_gutter(ui, &gutter, geometry.surface, *rect, fragment, content)
+                    paint_gutter(ui, &gutter, geometry.surface, gutter_row, fragment, content)
                 {
                     if let SourceViewAction::ToggleFold(fold) = &event {
                         content.fold_store.toggle(fold.clone());
@@ -1990,165 +1997,6 @@ fn append_projected(
     }
 }
 
-fn paint_gutter(
-    ui: &mut Ui,
-    painter: &egui::Painter,
-    surface: Rect,
-    row: Rect,
-    part: &SourceFragment,
-    content: &CanvasContent<'_>,
-) -> Option<SourceViewAction> {
-    let theme = content.theme;
-    painter.text(
-        pos2(row.left() - 10.0, row.top() + 2.0),
-        egui::Align2::RIGHT_TOP,
-        part.line.to_string(),
-        FontId::monospace(12.0),
-        if part.line == *content.caret_line {
-            theme.accent
-        } else {
-            theme.text_muted
-        },
-    );
-    if content
-        .changes
-        .iter()
-        .any(|range| range.contains(&part.line))
-    {
-        painter.rect_filled(
-            Rect::from_min_size(pos2(row.left() - 3.0, row.top()), vec2(3.0, row.height())),
-            0.0,
-            if content.buffer.revision == Some(ReviewRevision::Before) {
-                Color32::from_rgb(255, 59, 48)
-            } else {
-                Color32::from_rgb(52, 199, 89)
-            },
-        );
-    }
-    if let Some(region) = content.test_code.header(part.line) {
-        let rect = Rect::from_min_size(
-            pos2(surface.left() + 4.0, row.top() + 3.0),
-            vec2(28.0, 16.0),
-        );
-        let hidden = content.test_code.is_hidden(region.byte_range.start);
-        let icon = if hidden {
-            Icon::ChevronRight
-        } else {
-            Icon::ChevronDown
-        };
-        icon.paint(
-            painter,
-            Rect::from_min_size(rect.min, vec2(10.0, 12.0)),
-            theme.text_muted,
-        );
-        let count = region.line_range.end.saturating_sub(region.header_line + 1);
-        let response = ui
-            .interact(
-                rect,
-                Id::new(("test_gutter", region.byte_range.start)),
-                Sense::click(),
-            )
-            .on_hover_text(format!("Test code — {count} lines hidden; click to toggle"));
-        return response
-            .clicked()
-            .then_some(SourceViewAction::ToggleTestRegion(region.byte_range.start));
-    }
-    let fold = content.folds.iter().find(|fold| {
-        fold.header_line(content.buffer) == part.line
-            && (fold.header_line(content.buffer) != fold.start_line
-                || part.contains_byte(fold.byte_range.start))
-    })?;
-    let rect = Rect::from_min_size(
-        pos2(surface.left() + 4.0, row.top() + 3.0),
-        vec2(28.0, 16.0),
-    );
-    let collapsed = content.fold_store.is_folded(&fold.byte_range);
-    let icon = if collapsed {
-        Icon::ChevronRight
-    } else {
-        Icon::ChevronDown
-    };
-    icon.paint(
-        painter,
-        Rect::from_min_size(rect.min, vec2(10.0, 12.0)),
-        theme.text_muted,
-    );
-    let hidden = fold
-        .end_line
-        .saturating_sub(fold.header_line(content.buffer));
-    let annotation = (content.mode == SourceMode::Critical)
-        .then_some(content.annotations)
-        .flatten()
-        .and_then(|annotations| annotations.at_range(content.buffer, &fold.byte_range));
-    if collapsed {
-        paint_fold_count(painter, surface, row, hidden, annotation, theme);
-    }
-    let tooltip = if collapsed {
-        annotation.map_or_else(
-            || format!("Collapsed block — {hidden} lines hidden; click to expand"),
-            |annotation| {
-                format!(
-                    "Collapsed function — {hidden} lines hidden · {}",
-                    annotation.detail
-                )
-            },
-        )
-    } else {
-        "Click to collapse this block".into()
-    };
-    let hit = Rect::from_min_max(rect.min, pos2(surface.left() + 58.0, rect.bottom()));
-    let response = ui.interact(
-        hit,
-        Id::new(("source_fold", fold.byte_range.start, fold.byte_range.end)),
-        Sense::click(),
-    );
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, &tooltip));
-    response
-        .on_hover_text(tooltip)
-        .clicked()
-        .then_some(SourceViewAction::ToggleFold(fold.byte_range.clone()))
-}
-
-fn paint_fold_count(
-    painter: &egui::Painter,
-    surface: Rect,
-    row: Rect,
-    hidden: usize,
-    annotation: Option<&crate::critical::annotations::FoldAnnotation>,
-    theme: &AppTheme,
-) {
-    let rect = Rect::from_min_size(
-        pos2(surface.left() + 26.0, row.top() + 2.0),
-        vec2(30.0, 17.0),
-    );
-    let (label, color) = annotation.map_or_else(
-        || (hidden.to_string(), theme.text_secondary),
-        |annotation| {
-            let emphasized = annotation.count.completeness
-                == crate::critical::CountCompleteness::Partial
-                || annotation.count.count > 0;
-            (
-                annotation.count.label(),
-                if emphasized {
-                    theme.accent
-                } else {
-                    theme.text_muted
-                },
-            )
-        },
-    );
-    if annotation.is_some() {
-        painter.rect_stroke(rect, 3.0_f32, Stroke::new(1.0_f32, color));
-    }
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        FontId::proportional(10.0),
-        color,
-    );
-}
-
 fn measured_height(
     galley: &egui::Galley,
     minimum: f32,
@@ -2525,8 +2373,9 @@ mod tests {
             } else {
                 start
             };
-            // Surface x=8, gutter=104, inset=12 in this harness.
-            let x = reader.viewport.scroll_x + start.x - 124.0;
+            // Surface x=8 plus the shared gutter and text inset.
+            let x =
+                reader.viewport.scroll_x + start.x - (8.0 + SourceView::GUTTER_WIDTH + TEXT_INSET);
             let first = shaped_byte_at(&ctx, &reader, x);
             let last = shaped_byte_at(&ctx, &reader, x + end.x - start.x);
             let mut events = pointer(start, true);
@@ -2577,7 +2426,11 @@ mod tests {
         let ctx = reader_context(1.0);
         let mut reader = distant_reader(&ctx);
         let point = pos2(180.0, 18.0);
-        let byte = shaped_byte_at(&ctx, &reader, reader.viewport.scroll_x + point.x - 124.0);
+        let byte = shaped_byte_at(
+            &ctx,
+            &reader,
+            reader.viewport.scroll_x + point.x - (8.0 + SourceView::GUTTER_WIDTH + TEXT_INSET),
+        );
         let symbol = "rust-analyzer cargo fixture 0 target().";
         let destination = reader.source.text.find("next").unwrap();
         let index = crate::semantic::SemanticIndex::from_scip(crate::semantic::ScipIndex {
@@ -3789,6 +3642,173 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn sparse_gutter_numbers_follow_caret_and_keep_canonical_folded_rows() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let source = (1..=40)
+                .map(|line| format!("// café 🚀 line {line}\n"))
+                .collect::<String>();
+            let mut reader = Reader::new(&source);
+            let numbers = |output: egui::FullOutput| {
+                output
+                    .shapes
+                    .into_iter()
+                    .filter_map(|shape| match shape.shape {
+                        egui::Shape::Text(text)
+                            if text.galley.job.sections[0].format.font_id
+                                == FontId::monospace(12.0) =>
+                        {
+                            text.galley.job.text.parse::<usize>().ok()
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let initial = numbers(reader.frame(&ctx, vec![]));
+            assert_eq!(SourceView::GUTTER_WIDTH, 72.0);
+            assert!(initial.contains(&1) && initial.contains(&5));
+            assert!(initial
+                .iter()
+                .all(|line| *line == 1 || line.is_multiple_of(5)));
+            reader.line = 7;
+            reader.column = 4;
+            let changed = numbers(reader.frame(&ctx, vec![]));
+            assert!(changed.contains(&7) && !changed.contains(&1));
+            reader
+                .viewport
+                .restore_top(&reader.source, reader.source.byte_offset(20, 0));
+            let scrolled = numbers(reader.frame(&ctx, vec![]));
+            assert!(!scrolled.contains(&7));
+            assert!(scrolled.contains(&20) && scrolled.contains(&25));
+            assert_eq!((reader.line, reader.column), (7, 4));
+            let wrapped_source = "// header\n".repeat(4) + &"café 漢字 ".repeat(3000) + "\nlast";
+            let mut wrapped = Reader::new(&wrapped_source);
+            wrapped.frame(&ctx, vec![]);
+            wrapped
+                .viewport
+                .restore_top(&wrapped.source, wrapped.source.byte_offset(5, 10_000));
+            for _ in 0..4 {
+                wrapped.frame(&ctx, vec![]);
+            }
+            let continuation = numbers(wrapped.frame(&ctx, vec![]));
+            assert_eq!(
+                continuation,
+                vec![5],
+                "one canonical label on a visible wrapped continuation"
+            );
+            let folded = (1..=4)
+                .map(|line| format!("// header {line}\n"))
+                .collect::<String>()
+                + "fn folded() {\n"
+                + &(6..=14)
+                    .map(|line| format!(" work_{line}();\n"))
+                    .collect::<String>()
+                + "}\n// after16\n// after17\n// after18\n// after19\n// after20";
+            let mut reader = Reader::new(&folded);
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.line = 18;
+            let collapsed = numbers(reader.frame(&ctx, vec![]));
+            assert!(collapsed.contains(&5) && collapsed.contains(&18));
+            assert!(!collapsed.contains(&10));
+            reader.folds.unfold_all();
+            reader
+                .viewport
+                .restore_top(&reader.source, reader.source.byte_offset(5, 0));
+            let expanded = numbers(reader.frame(&ctx, vec![]));
+            assert!(expanded.contains(&10) && expanded.contains(&18));
+            assert_eq!(reader.source.text, folded);
+        }
+    }
+
+    #[test]
+    fn collapsed_function_meters_scale_cap_and_keep_exact_count_targets() {
+        use crate::syntax::folds::FoldKind;
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut widths = Vec::new();
+            for hidden in [2, 20, 200, 256, 2000, 10_200] {
+                let source = "fn scan() {\n".to_owned() + &" work();\n".repeat(hidden - 1) + "}\n";
+                let mut reader = Reader::new(&source);
+                reader.font_size = match hidden {
+                    2 => 8.0,
+                    20 => 32.0,
+                    _ => 14.0,
+                };
+                reader.ranges = vec![FoldRange {
+                    start_line: 1,
+                    end_line: hidden + 1,
+                    kind: FoldKind::Callable,
+                    byte_range: source.find('{').unwrap()..source.rfind('}').unwrap() + 1,
+                    ..Default::default()
+                }];
+                reader.folds.collapse_all_functions(&reader.ranges);
+                let output = reader.frame(&ctx, vec![]);
+                let meters: Vec<_> = filled_bands(&output, reader.theme.text_secondary)
+                    .into_iter()
+                    .filter(|rect| rect.height() == 3.0)
+                    .collect();
+                assert_eq!(meters.len(), 1);
+                widths.push(meters[0].width());
+                let label = if hidden < 10_000 {
+                    hidden.to_string()
+                } else {
+                    "9999+".into()
+                };
+                let (point, galley) = text_shape(&output, &label);
+                assert!(point.x >= 8.0 + 20.0);
+                let (_, number) = text_shape(&output, "1");
+                let count_right = point.x + galley.size().x;
+                assert!(count_right < 8.0 + SourceView::GUTTER_WIDTH - number.size().x - 6.0);
+                reader.frame(&ctx, pointer(point + vec2(2.0, 2.0), true));
+                reader.frame(&ctx, pointer(point + vec2(2.0, 2.0), false));
+                assert!(reader.folds.folded_ranges.is_empty());
+                assert_eq!((reader.line, reader.column), (1, 0));
+                assert_eq!(reader.source.text, source);
+            }
+            assert!(widths[0] < widths[1] && widths[1] < widths[2]);
+            assert!(widths[0] >= 6.0 && widths[3] <= 22.0);
+            assert_eq!(widths[3], widths[4]);
+            assert_eq!(widths[4], widths[5]);
+        }
+    }
+
+    #[test]
+    fn large_line_numbers_omit_crowded_badges_without_losing_meter_or_disclosure() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let source = "\n".repeat(9999) + "fn scan() {\n work();\n}\n";
+            let mut reader = Reader::new(&source);
+            reader.ranges = vec![FoldRange {
+                start_line: 10_000,
+                end_line: 10_002,
+                byte_range: source.find('{').unwrap()..source.rfind('}').unwrap() + 1,
+                kind: crate::syntax::folds::FoldKind::Callable,
+                ..Default::default()
+            }];
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.line = 10_000;
+            reader.target = Some(source.find("fn scan").unwrap());
+            reader.frame(&ctx, vec![]);
+            let output = reader.frame(&ctx, vec![]);
+            let (_, number) = text_shape(&output, "10000");
+            assert!(number.size().x > 30.0);
+            assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape,
+                egui::Shape::Text(text) if text.galley.job.text == "2"
+                    && text.galley.job.sections[0].format.font_id == FontId::proportional(10.0))));
+            let meter = filled_bands(&output, reader.theme.text_secondary)
+                .into_iter()
+                .find(|rect| rect.height() == 3.0)
+                .expect("size meter remains visible");
+            reader.frame(&ctx, pointer(meter.center(), true));
+            reader.frame(&ctx, pointer(meter.center(), false));
+            assert!(reader.folds.folded_ranges.is_empty());
+            assert_eq!(reader.source.text, source);
+            assert_eq!((reader.line, reader.column), (10_000, 0));
+        }
     }
 
     #[test]
@@ -5243,19 +5263,28 @@ mod tests {
         let text = "é".repeat(FRAGMENT_BYTES * 3);
         let mut reader = Reader::new(&text);
         reader.column = 5000;
-        reader.target = Some(1);
-        reader.frame(&ctx, Vec::new());
+        let heights = [14.0, 24.0].map(|font_size| {
+            reader.font_size = font_size;
+            reader.target = Some(1);
+            reader.frame(&ctx, Vec::new());
+            assert!(reader.viewport.scroll_y > 0.0);
+            // Compare measured geometry, rather than the estimate used before
+            // bounded background layout has reached the other fragments.
+            for _ in 0..16 {
+                if reader.viewport.rows.next_measurement >= reader.viewport.visible.len() {
+                    break;
+                }
+                reader.frame(&ctx, vec![]);
+            }
+            assert!(reader.viewport.rows.next_measurement >= reader.viewport.visible.len());
+            reader.viewport.rows.total_height()
+        });
         assert!(reader
             .viewport
             .fragments
             .iter()
             .all(|part| part.bytes.len() <= FRAGMENT_BYTES));
-        assert!(reader.viewport.scroll_y > 0.0);
-        let height = reader.viewport.rows.total_height();
-        reader.font_size = 24.0;
-        reader.target = Some(1);
-        reader.frame(&ctx, Vec::new());
-        assert!(reader.viewport.rows.total_height() > height);
+        assert!(heights[1] > heights[0]);
         assert_eq!(reader.column, 5000);
         assert_eq!(reader.line, 1);
     }

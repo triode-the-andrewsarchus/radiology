@@ -140,7 +140,7 @@ pub struct SourceView;
 
 impl SourceView {
     /// Width in points reserved for the gutter area (line numbers, fold chevrons, diff stripes).
-    pub const GUTTER_WIDTH: f32 = 104.0;
+    pub const GUTTER_WIDTH: f32 = 72.0;
 
     /// Renders source chrome and the measured, selectable source viewport.
     pub fn show(

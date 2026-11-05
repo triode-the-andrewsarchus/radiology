@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Compact gutter and fold meters](plans/rust-gutter-parity.md) now matches the Swift
+72-point gutter, sparse canonical numbers and logarithmic collapsed-function size
+meters. Wrapped continuations keep one label; capped/measured badges avoid line
+numbers and retain exact tooltips. Both gutter tests and two meter groups now have
+rendered/native evidence. Remaining suite reconciliation and Android acceptance
+stay open.
+
 [Insertion caret parity](plans/rust-caret-parity.md) reconciles all three Swift
 caret tests. Rust now hides the caret for range selections, inactive/unfocused
 readers, menus, sheets and empty documents. Interior grapheme bytes paint at their
