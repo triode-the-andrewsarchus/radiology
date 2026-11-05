@@ -30,13 +30,13 @@ fold-key contracts and nested Code Path visit/repaint/revisit/Back contract, wit
 additional source/app/native evidence and unchanged runtime mechanisms.
 
 [Function shading](rust-function-shading-audit.md) now rejects stale/split-byte ranges
-and has app/host/native caret ownership evidence. Pending-load presentation remains
-an explicit alignment item: Rust retains the accepted reader's valid wash during
-preparation; Swift clears its current-function range immediately.
+and has app/host/native caret ownership evidence. The [pending-context update](rust-pending-source-context.md)
+now clears transient context during preparation and verifies cancel/failure/success /
+Back. Rust retains readable accepted source for recovery while context is absent.
 
 ## Original finding reconciliation
 
-The latest full workspace passes 788 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 789 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 

@@ -1,5 +1,9 @@
 # Function shading and stale-range rejection — 2026-11-05
 
+Update: the [pending-context checkpoint](rust-pending-source-context.md) closes the
+context-clearing difference recorded below at4ea88aa, while retaining accepted
+source for recovery. The tests/evidence below describe that earlier checkpoint.
+
 Swift `FunctionShadeTests.bandCoversTheFunctionsVisibleLinesAndRespectsFolds`
 requires a stale range extending past the source to draw nothing. Rust previously
 intersected that range with visible fragments and painted it anyway. A red
@@ -54,7 +58,7 @@ reductions are a Rust test-parser limitation, not deleted application functional
 Equal-score chokepoint rankings in untouched Python files also change between runs.
 
 Evidence: `~/.local/state/radiology-qa/function-shade-20261105-2fa67c6/`;
-working fixtures/logs: `~/.cache/radiology-qa-shade/`. Other Swift assertion groups,
-the pending-reader presentation distinction above and SDK-backed Android validation
-remain visible in the parity audit. Full accessibility and sibling adoption remain
+working fixtures/logs: `~/.cache/radiology-qa-shade/`. Other Swift assertion groups and
+SDK-backed Android validation remain open in the parity audit. The pending-context
+item above is closed by the linked follow-up. Full accessibility and sibling adoption remain
 deferred.

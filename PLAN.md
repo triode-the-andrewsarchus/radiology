@@ -4,12 +4,19 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Pending source context](plans/rust-pending-source-context.md) now clears the
+function wash, breadcrumb and automatic declaration while a destination prepares,
+then restores accepted context on cancellation/failure. Shared readiness replaces
+duplicate traversals without a public API change. Loading guidance and reused
+Go to Line focus are verified with gated native reads at1×/2×. Other assertion
+reconciliation and SDK-backed Android validation remain open.
+
 [Function shading audit](plans/rust-function-shading-audit.md) fixes painting of stale
 out-of-bounds or split-byte function ranges. Rust/Python/app/host/native checks cover
 nested/closure/gap ownership, folds, passive scroll and accepted source changes.
-The existing pending-reader difference—Rust retains the old valid shade during
-preparation while Swift clears immediately—is recorded explicitly for remaining
-presentation alignment. Other assertions and SDK-backed Android validation stay open.
+The subsequently recorded pending-context difference is now resolved by the
+[pending context checkpoint](plans/rust-pending-source-context.md). Other assertions
+and SDK-backed Android validation stay open.
 
 [Function-fold and Code Path contracts](plans/rust-function-contracts.md) now
 reconcile the four Swift fold-key tests and nested function-visit test. Unicode

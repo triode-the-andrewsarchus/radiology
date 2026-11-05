@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-05 — Pending context, loading guidance and line-prompt focus (Codex)
+
+A red app regression now passes immediate source/root context clearing while the
+accepted reader remains available for recovery. One helper derives readiness and
+enclosing declarations from existing navigation/repository/Code Path owners;
+source breadcrumbs/wash and automatic inspector fields share it. Cancellation or
+failure restores context, success presents its own declaration, and appearance
+work retains context. Cached outline navigation stays disabled while pending and
+loading text takes precedence over misleading caret-placement guidance.
+
+Native1×/2× tests gate an actual pinned Git blob child, verify it live, exercise
+Cancel/retirement, controlled failure, successful publication and exact Back.
+Four Copy checks per scale preserve old call lines, new source and full original
+source; Git/files/binary remain unchanged with zero accepted exits. The reused
+Go to Line workflow exposed visibility being treated as completed field focus.
+A new inactive-window regression fails before the fix; acquisition now requires
+visible/enabled/actual focus, and the full native sequence passes.
+
+Workspace789 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict lint/doc/format/build/resources and external-host checks pass. The
+[checkpoint](plans/rust-pending-source-context.md) closes the prior pending-context
+item. Readable accepted-source retention remains the transaction recovery design.
+No public API/dependency/persistence changes; other assertions and SDK-backed
+Android validation remain open.
+
 ## 2026-11-05 — Validated function shading and caret ownership (Codex)
 
 A red paint regression found out-of-bounds function ranges were clipped and shaded;

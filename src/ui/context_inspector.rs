@@ -276,14 +276,14 @@ impl ContextInspector {
                     "Open a source file to see the declaration around the caret.",
                 ),
                 Some(buffer) => {
-                    let detail = if crate::syntax::LanguageRegistry::for_path(&buffer.path)
+                    let detail = if content.outline_loading {
+                        "Reading structure…"
+                    } else if crate::syntax::LanguageRegistry::for_path(&buffer.path)
                         .grammar
                         .is_some()
                         && content.outline_error.is_none()
                     {
                         "Place the caret inside a function, type, or other declaration."
-                    } else if content.outline_loading {
-                        "Reading structure…"
                     } else {
                         "This file has no parsed structure."
                     };
@@ -748,7 +748,7 @@ mod tests {
                         true,
                         None,
                         "No Declaration",
-                        "Place the caret inside a function, type, or other declaration.",
+                        "Reading structure…",
                     ),
                     (
                         Some(&plain),

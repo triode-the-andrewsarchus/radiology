@@ -846,21 +846,9 @@ impl RadiologyApp {
                 .max_width(600.0)
                 .show(ctx, |ui| {
                     ui.style_mut().interaction.selectable_labels = false;
-                    let (enclosing_sym, _enclosing_line) = if let Some(buf) = &self.open_buffer {
-                        let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-                        let mut enclosing = Vec::new();
-                        for sym in self.outline_symbols.iter() {
-                            sym.breadcrumbs(caret_byte, &mut enclosing);
-                        }
-                        let sym = enclosing.last().cloned();
-                        let line = sym
-                            .as_ref()
-                            .map(|s| buf.line_at_byte(s.selection_range.start))
-                            .unwrap_or(self.caret_line);
-                        (sym, line)
-                    } else {
-                        (None, 1)
-                    };
+                    let source_context = self.enclosing_source_context();
+                    let context_pending = source_context.is_none() && self.open_buffer.is_some();
+                    let enclosing_sym = source_context.as_ref().and_then(|symbols| symbols.last());
                     let scope = self.repository_root.as_ref().map(|_| {
                         self.active_pr.as_ref().map_or_else(
                             || "Checkout".to_string(),
@@ -876,12 +864,15 @@ impl RadiologyApp {
                         ui,
                         &self.theme,
                         InspectorContent {
-                            under_caret: self.under_caret.as_ref(),
-                            under_caret_loading: self.under_caret_job.is_running(),
-                            under_caret_error: self.under_caret_error.as_deref(),
+                            under_caret: source_context.as_ref().and(self.under_caret.as_ref()),
+                            under_caret_loading: source_context.is_some()
+                                && self.under_caret_job.is_running(),
+                            under_caret_error: source_context
+                                .as_ref()
+                                .and(self.under_caret_error.as_deref()),
                             definition_preview: self.definition_preview.phase(),
                             definition_expanded: self.definition_expanded,
-                            declaration: enclosing_sym.as_ref(),
+                            declaration: enclosing_sym,
                             buffer: self.open_buffer.as_deref(),
                             reference_results: &self.reference_context.results,
                             selected_reference: self.reference_context.selected,
@@ -906,7 +897,7 @@ impl RadiologyApp {
                                     &self.index_importer,
                                 ),
                             outline: &self.outline_symbols,
-                            outline_loading: self.is_source_loading(),
+                            outline_loading: context_pending || self.is_source_loading(),
                             outline_error: self.syntax_error.as_deref(),
                             test_code: Some(&self.test_code),
                             bookmarks: &self.bookmarks,
@@ -914,7 +905,7 @@ impl RadiologyApp {
                             bookmarks_enabled: self.repository_interaction_ready(),
                             can_toggle_bookmark: self.source_location_ready(),
                             current_bookmarked: self.current_bookmarked(),
-                            outline_enabled: self.outline_available(),
+                            outline_enabled: source_context.is_some() && self.outline_available(),
                         },
                         &mut self.reference_viewport,
                         &mut self.bookmark_list,
@@ -951,11 +942,7 @@ impl RadiologyApp {
                             &self.fold_ranges,
                         );
                     }
-                    let mut enclosing = Vec::new();
-                    let caret_byte = buf.byte_offset(self.caret_line, self.caret_col);
-                    for sym in self.outline_symbols.iter() {
-                        sym.breadcrumbs(caret_byte, &mut enclosing);
-                    }
+                    let enclosing = self.enclosing_source_context().unwrap_or_default();
 
                     let caret_before = (self.caret_line, self.caret_col);
                     if let Some(action) = SourceView::show(

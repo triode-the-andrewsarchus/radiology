@@ -87,13 +87,14 @@ impl GoToLineModal {
                             egui::text::CCursor::new(self.line_str.chars().count()),
                         )));
                     state.store(ctx, id);
-                    self.focus_requested = ui.is_visible();
                 }
                 let edit = TextEdit::singleline(&mut self.line_str)
                     .id(id)
                     .hint_text("Line number")
                     .desired_width(ui.available_width());
                 let response = ui.add(edit);
+                self.focus_requested |=
+                    ui.is_visible() && response.enabled() && response.has_focus();
                 let number = self.line_str.trim().parse::<i64>().ok().map(|line| {
                     usize::try_from(line.max(1))
                         .unwrap_or(usize::MAX)
@@ -290,3 +291,52 @@ mod pull_request_tests {
 
 mod code_path_import;
 pub use code_path_import::CodePathImportModal;
+
+#[cfg(test)]
+mod focus_tests {
+    use super::*;
+
+    #[test]
+    fn line_prompt_waits_for_active_window_focus_before_completing_initial_focus() {
+        let ctx = Context::default();
+        let mut owner = ModalInput::default();
+        let mut dialog = GoToLineModal::new(61);
+        let mut render = |dialog: &mut GoToLineModal, focused, events| {
+            let mut raw = egui::RawInput {
+                focused,
+                events,
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(850.0, 650.0),
+                )),
+                ..Default::default()
+            };
+            owner.capture_input(&mut raw);
+            let mut action = None;
+            let _ = ctx.run(raw, |ctx| {
+                action = owner.show(ctx, |ctx| dialog.show(ctx, &AppTheme::dark(), 100))
+            });
+            action
+        };
+        for _ in 0..4 {
+            render(&mut dialog, false, vec![]);
+            assert!(
+                !dialog.focus_requested,
+                "visibility alone is not keyboard focus"
+            );
+        }
+        for _ in 0..4 {
+            render(&mut dialog, true, vec![]);
+        }
+        assert!(dialog.focus_requested);
+        let action = render(
+            &mut dialog,
+            true,
+            vec![
+                egui::Event::Text("7".into()),
+                crate::ui::commands::test_key(Key::Enter),
+            ],
+        );
+        assert_eq!(action, Some(ModalAction::JumpToLine(7)));
+    }
+}

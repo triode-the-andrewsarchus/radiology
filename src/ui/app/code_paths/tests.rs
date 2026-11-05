@@ -106,10 +106,15 @@ fn nested_function_visits_expand_only_the_destination_and_manual_recollapse_surv
         let initial_folds = app.fold_store.folded_ranges.clone();
         app.go_to_code_path_step(selected.steps[0].id, 0);
         assert!(app.is_code_path_loading());
+        assert!(app.enclosing_source_context().is_none());
         assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &current));
         assert_eq!(app.fold_store.folded_ranges, initial_folds);
         settle(&mut app);
         assert_eq!(caret(&app).byte_offset, nested);
+        assert_eq!(
+            app.enclosing_source_context().unwrap().last().unwrap().name,
+            "café"
+        );
         assert!(!app.fold_store.is_folded(&body) && !app.fold_store.is_folded(&outer));
         assert!(app.fold_store.is_folded(&sibling));
         app.fold_store.toggle(body.clone());

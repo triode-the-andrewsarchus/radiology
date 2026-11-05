@@ -1684,8 +1684,33 @@ fn function_wash_follows_caret_and_clears_with_accepted_documents_and_repositori
             "# notes\n",
         )
         .unwrap();
+        app.queue_rehighlight();
+        assert!(
+            app.enclosing_source_context().is_some(),
+            "appearance work retains context"
+        );
+        settle(&mut app);
+        let history = format!("{:?}", app.history);
+        let folds = app.fold_store.folded_ranges.clone();
         app.open_file("NOTES.md");
+        app.source_loader.stop(); // Hold the normal source publication boundary.
         assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        let pending = frame(&mut app, &ctx, vec![]);
+        assert!(crate::ui::test_support::text_shapes(&pending)
+            .any(|text| text.galley.job.text == "No Declaration"));
+        assert!(crate::ui::test_support::text_shapes(&pending)
+            .any(|text| text.galley.job.text == "Reading structure…"));
+        assert!(bands(pending).is_empty());
+        assert!(app.enclosing_source_context().is_none());
+        assert_eq!(app.fold_store.folded_ranges, folds);
+        assert_eq!(format!("{:?}", app.history), history);
+        app.cancel_source_load();
+        assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
+        app.open_file("missing.rs");
+        settle(&mut app);
+        assert!(app.error.is_some());
+        assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
+        app.open_file("NOTES.md");
         settle(&mut app);
         assert!(bands(frame(&mut app, &ctx, vec![])).is_empty());
         app.navigate(buffer.location_at_byte(byte), true);
@@ -1693,6 +1718,20 @@ fn function_wash_follows_caret_and_clears_with_accepted_documents_and_repositori
         assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
         let empty = owner.path().join("another");
         std::fs::create_dir(&empty).unwrap();
+        let accepted = app.open_buffer.clone().unwrap();
+        app.open_repository(&empty);
+        let (release, gate) = std::sync::mpsc::channel();
+        app.repository_open.spawn(move |_| {
+            gate.recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            Err("held repository discovery failure".into())
+        });
+        assert!(bands(frame(&mut app, &ctx, vec![])).is_empty());
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &accepted));
+        release.send(()).unwrap();
+        settle(&mut app);
+        assert!(app.repository_error.is_some());
+        assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
         app.open_repository(&empty);
         settle(&mut app);
         assert!(bands(frame(&mut app, &ctx, vec![])).is_empty());

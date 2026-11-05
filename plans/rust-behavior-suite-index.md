@@ -24,9 +24,9 @@ Evidence: [rust-reading-positions](rust-reading-positions.md), [rust-reader-retu
 | [SourceFunctionNavigationTests](../Tests/RadiologyTests/SourceFunctionNavigationTests.swift) | 1 |
 | [OccurrencePinningTests](../Tests/RadiologyTests/OccurrencePinningTests.swift) | 4 |
 
-FunctionShadeTests: the [shading audit](rust-function-shading-audit.md) maps all three
-assertion groups and fixes stale-range rejection. It explicitly retains the
-pending-reader presentation difference as an open alignment item.
+FunctionShadeTests: all three groups now have [shading evidence](rust-function-shading-audit.md)
+and [pending-context/recovery evidence](rust-pending-source-context.md). The latter
+closes immediate context clearing and validates real blocked native reads.
 
 ReaderFunctionFoldKeyTests and SourceFunctionNavigationTests: all five contracts
 are reconciled in the [function audit](rust-function-contracts.md), including

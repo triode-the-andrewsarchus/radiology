@@ -239,6 +239,25 @@ impl RadiologyApp {
         self.error = None;
     }
 
+    /// Derives current caret context only while the accepted reader owns it.
+    /// Preparing a destination hides transient context without discarding the
+    /// accepted source, folds or history needed for cancellation and recovery.
+    pub(super) fn enclosing_source_context(&self) -> Option<Vec<crate::syntax::DocumentSymbol>> {
+        if !self.source_location_ready()
+            || self.is_repository_opening()
+            || self.is_code_path_loading()
+        {
+            return None;
+        }
+        let buffer = self.open_buffer.as_ref()?;
+        let byte = buffer.byte_offset(self.caret_line, self.caret_col);
+        let mut enclosing = Vec::new();
+        for symbol in self.outline_symbols.iter() {
+            symbol.breadcrumbs(byte, &mut enclosing);
+        }
+        Some(enclosing)
+    }
+
     /// Cancels pending source work while preserving the current document/history.
     pub fn cancel_source_load(&mut self) {
         self.cancel_code_path_navigation();
