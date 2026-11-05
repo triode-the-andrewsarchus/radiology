@@ -1670,3 +1670,53 @@ fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_b
         assert_eq!(app.fold_store.folded_ranges, folds);
     }
 }
+
+#[test]
+fn unicode_file_queries_commit_original_paths_and_preserve_reader_bytes() {
+    for scale in [1.0, 2.0] {
+        let (owner, mut app) = opened_repository();
+        let root = owner.path().join("repo");
+        let cases = [
+            ("strasse", "src/Straße.rs"),
+            ("οσ", "src/ος.rs"),
+            ("office", "src/oﬃce.rs"),
+            ("test", "src/Teſt.rs"),
+            ("cafe", "src/CAFE\u{301}.rs"),
+        ];
+        for (_, path) in cases {
+            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            std::fs::write(root.join(path), format!("// exact {path} café 🦀\n")).unwrap();
+        }
+        app.open_repository(&root);
+        settle(&mut app);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        for (query, path) in cases {
+            app.open_file("a.rs");
+            settle_frame(&mut app, &ctx);
+            frame(&mut app, &ctx, vec![key(Key::K, Modifiers::CTRL)]);
+            frame(
+                &mut app,
+                &ctx,
+                vec![Event::Text(query.into()), key(Key::Enter, Modifiers::NONE)],
+            );
+            finish_file_picker(&mut app, &ctx);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.selected_path.as_deref(), Some(path));
+            assert!(app.source_viewport.has_focus(&ctx));
+            let output = frame(
+                &mut app,
+                &ctx,
+                vec![key(Key::A, Modifiers::CTRL), Event::Copy],
+            );
+            assert_eq!(
+                output.platform_output.copied_text,
+                format!("// exact {path} café 🦀\n")
+            );
+            assert_eq!(
+                std::fs::read_to_string(root.join(path)).unwrap(),
+                app.open_buffer.as_ref().unwrap().text,
+            );
+        }
+    }
+}

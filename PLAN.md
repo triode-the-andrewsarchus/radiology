@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Unicode file search](plans/rust-unicode-file-search.md) now uses full case folding
+for queries and candidate names/paths. Sharp-S, final sigma, ligatures, long-s and
+accented names preserve their original path and bytes through app/native1×/2×
+keyboard navigation. Remaining behavior/compiler and final standalone/reuse gates
+are still open.
+
 [Per-file reading positions](plans/rust-reading-positions.md) now restore the latest
 caret or passive-scroll anchor on implicit reopen, including wrapped Unicode rows.
 Exact Back remains independent, changed content/scope invalidates saved anchors,

@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 763 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 771 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -138,6 +138,15 @@ pass in app frames, including wrapped Unicode across fragment boundaries at1×/2
 Native1×/2× checks verify caret-column and passive-scroll reopen by exact Copy.
 Full workspace769 app tests/11 ignored; strict Clippy/build/resources pass.
 Remaining fixture reconciliation and the gates below remain open.
+
+## Unicode quick-file checkpoint — 2026-11-05
+
+[Unicode quick-file search](rust-unicode-file-search.md) fixes lowercase-only matching
+through ICU full folding and existing candidate normalization. Sharp-S, final sigma,
+ligatures, long-s and decomposed accents preserve original paths/bytes through raw
+app/native1×/2× picker navigation. Ranking/cancellation tests remain green; full
+workspace771 app tests/11 ignored, strict Clippy/build/resources pass. Other
+behavior/compiler acceptance and final standalone/reuse gates remain open.
 
 ## Remaining acceptance gates
 

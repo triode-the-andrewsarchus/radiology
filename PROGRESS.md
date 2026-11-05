@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-05 — Unicode quick-file case folding (Codex)
+
+Swift fixture/source reconciliation found lowercase-only Rust normalization missed
+`strasse` → `Straße`. A red regression confirms it. Existing QuickFileSearch now
+uses ICU full folding for query/candidate Unicode and preserves ASCII's direct
+path, existing boundaries/ranking and exact original path identity. Two new ICU2.4
+lockfile entries reuse the already installed ICU dependency family; no new table,
+service, worker or API. Unit cases cover sharp-S in both directions, sigma, ligature,
+long-s, paths and accents. A raw-input app workflow plus native1×/2× keyboard/Copy
+checks verify five original Unicode paths and unchanged source/Git/executable hashes.
+
+Locked workspace771 app tests/11 ignored, two binary,13 font,22 text and59 doctests
+pass; strict Clippy, build/resources, fmt/diff pass. Architecture +69 NLOC/two test
+functions, no new hotspot/cycle/structural issue; full clone Counter unchanged
+125/1335. [Detailed contract and evidence](plans/rust-unicode-file-search.md).
+Remaining fixture reconciliation, SDK-backed Android success and the final
+standalone/reuse audit remain open.
+
 ## 2026-11-05 — Restore per-file reading positions and wrapped viewport rows (Codex)
 
 Swift reconciliation found implicit file opens always returned to the start. The

@@ -5,6 +5,7 @@
 //! reference algorithm.
 
 use crate::repository::file_node::RepositoryFile;
+use icu_casemap::CaseMapper;
 use std::collections::HashSet;
 use unicode_normalization::UnicodeNormalization;
 
@@ -208,12 +209,12 @@ impl QuickFileSearch {
         None
     }
 
-    /// Normalizes text by decomposing diacritics via NFD and folding to lowercase.
+    /// Folds case (including expansions) and decomposes diacritics via NFD.
     fn normalize(value: &str) -> Vec<char> {
-        value
+        CaseMapper::new()
+            .fold_string(value)
             .nfd()
             .filter(|&c| !Self::is_combining_mark(c))
-            .flat_map(|c| c.to_lowercase())
             .collect()
     }
 
@@ -232,11 +233,11 @@ impl QuickFileSearch {
                 boundaries.insert(start);
             }
 
-            for norm in ch.to_lowercase() {
-                // Strip combining marks
-                for c in norm.nfd().filter(|&c| !Self::is_combining_mark(c)) {
-                    characters.push(c);
-                }
+            if ch.is_ascii() {
+                characters.push(ch.to_ascii_lowercase());
+            } else {
+                let mut utf8 = [0; 4];
+                characters.extend(Self::normalize(ch.encode_utf8(&mut utf8)));
             }
 
             prev_lower_or_digit = ch.is_lowercase() || ch.is_ascii_digit();
@@ -347,6 +348,26 @@ mod tests {
 
         let resp = QuickFileSearch::search(&files, "cafe", 10);
         assert_eq!(resp.files.len(), 2);
+    }
+
+    #[test]
+    fn unicode_case_folding_matches_expansions_in_queries_names_and_paths() {
+        for (query, path) in [
+            ("strasse", "src/Straße.rs"),
+            ("straße", "src/STRASSE.rs"),
+            ("οσ", "src/ος.rs"),
+            ("office", "src/oﬃce.rs"),
+            ("test", "src/Teſt.rs"),
+            ("strasse/reader", "Straße/Reader.rs"),
+            ("cafe", "src/CAFE\u{301}.rs"),
+        ] {
+            let files = [RepositoryFile::new(path)];
+            let result = QuickFileSearch::search(&files, query, 100);
+            assert_eq!(
+                result.files, files,
+                "query {query:?} must find exact path {path:?}"
+            );
+        }
     }
 
     #[test]

@@ -60,6 +60,7 @@ tree-sitter-typescript = "0.23"
 tree-sitter-go = "0.25"
 tree-sitter-swift = "0.7.4"
 tree-sitter-kotlin-ng = "1.1.0"
+icu_casemap = "2.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 raw-window-handle = "0.6"
