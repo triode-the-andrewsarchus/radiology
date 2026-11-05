@@ -69,6 +69,77 @@ fn opens_steps_reuses_authoritative_source_and_restores_exact_departure() {
 }
 
 #[test]
+fn nested_function_visits_expand_only_the_destination_and_manual_recollapse_survives_repaint() {
+    use crate::syntax::folds::enclosing_function_fold;
+    let source = "fn outer() {\n    fn café() {\n        let s = \"🚀\";\n        work();\n    }\n    café();\n}\nfn sibling() {\n    other_work();\n}\n";
+    for scale in [1.0, 2.0] {
+        let (_owner, mut app) = crate::ui::app::tests::isolated_source("a.rs", source);
+        std::fs::write(
+            app.repository_root.as_ref().unwrap().join("b.rs"),
+            "fn other() {\n next();\n}\n",
+        )
+        .unwrap();
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        let current = app.open_buffer.clone().unwrap();
+        let nested = source.find("café").unwrap();
+        let body = enclosing_function_fold(nested, &app.outline_symbols, &app.fold_ranges)
+            .unwrap()
+            .byte_range
+            .clone();
+        let outer = enclosing_function_fold(0, &app.outline_symbols, &app.fold_ranges)
+            .unwrap()
+            .byte_range
+            .clone();
+        let sibling = enclosing_function_fold(
+            source.find("fn sibling").unwrap(),
+            &app.outline_symbols,
+            &app.fold_ranges,
+        )
+        .unwrap()
+        .byte_range
+        .clone();
+        let selected = trace(
+            &mut app,
+            "Visit functions\na.rs:café:Nested Unicode function\nb.rs:other:Another file",
+        );
+        let initial_folds = app.fold_store.folded_ranges.clone();
+        app.go_to_code_path_step(selected.steps[0].id, 0);
+        assert!(app.is_code_path_loading());
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &current));
+        assert_eq!(app.fold_store.folded_ranges, initial_folds);
+        settle(&mut app);
+        assert_eq!(caret(&app).byte_offset, nested);
+        assert!(!app.fold_store.is_folded(&body) && !app.fold_store.is_folded(&outer));
+        assert!(app.fold_store.is_folded(&sibling));
+        app.fold_store.toggle(body.clone());
+        app.execute_command(&ctx, ToolbarAction::IncreaseSourceFont);
+        settle(&mut app);
+        assert!(app.fold_store.is_folded(&body));
+        let history = format!("{:?}", app.history);
+        app.go_to_code_path_step(selected.steps[0].id, 0);
+        settle(&mut app);
+        assert!(!app.fold_store.is_folded(&body) && app.fold_store.is_folded(&sibling));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(caret(&app).byte_offset, nested);
+        app.go_to_code_path_step(selected.steps[1].id, 0);
+        settle(&mut app);
+        let other = enclosing_function_fold(
+            caret(&app).byte_offset,
+            &app.outline_symbols,
+            &app.fold_ranges,
+        )
+        .unwrap();
+        assert!(!app.fold_store.is_folded(&other.byte_range));
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle(&mut app);
+        assert_eq!(caret(&app).byte_offset, nested);
+        assert!(!app.fold_store.is_folded(&body) && app.fold_store.is_folded(&sibling));
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, source);
+    }
+}
+
+#[test]
 fn opens_first_conditional_then_explicit_variant_and_reports_invalid_variant_atomically() {
     let (_dir, mut app) = opened_repository();
     let source = "#ifdef A\nvoid start() {}\n#else\nvoid start() {}\n#endif\n";

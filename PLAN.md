@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Function-fold and Code Path contracts](plans/rust-function-contracts.md) now
+reconcile the four Swift fold-key tests and nested function-visit test. Unicode
+selection, repeats/modifiers, six-language body ownership, manual recollapse,
+revisit and Back have explicit app/unit/native evidence. Runtime mechanisms already
+satisfy this group; remaining suites and Android acceptance stay open.
+
 [Compact gutter and fold meters](plans/rust-gutter-parity.md) now matches the Swift
 72-point gutter, sparse canonical numbers and logarithmic collapsed-function size
 meters. Wrapped continuations keep one label; capped/measured badges avoid line

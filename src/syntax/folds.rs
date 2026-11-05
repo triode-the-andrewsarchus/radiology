@@ -457,5 +457,29 @@ mod current_function_tests {
         assert!(find("// between").is_none());
         assert!(find("other").is_none());
         assert!(enclosing_function_fold(text.len(), &syntax.symbols, &syntax.folds).is_none());
+        for (path, source) in [
+            ("a.swift", "func target() {\n    work()\n}\n"),
+            ("a.go", "package p\nfunc target() {\n    work()\n}\n"),
+            ("a.py", "def target():\n    work()\n    return 1\n"),
+            ("a.js", "function target() {\n    work();\n}\n"),
+            ("a.ts", "function target(): void {\n    work();\n}\n"),
+            ("a.kt", "fun target(\n    factory: () -> Int = {\n        val value = 1\n        value\n    }\n): Int {\n    return 0\n}\n"),
+        ] {
+            let buffer = SourceBuffer::from_str(path, source);
+            let syntax = super::super::DocumentSyntax::analyze(&buffer);
+            let function = syntax.symbols.iter().find(|symbol| symbol.name == "target").unwrap();
+            let body = enclosing_function_fold(function.selection_range.start, &syntax.symbols, &syntax.folds).unwrap();
+            assert_eq!(body.byte_range.end, function.range.end, "{path}");
+            if path == "a.kt" { assert_eq!(buffer.line_at_byte(body.byte_range.start), 6); }
+        }
+        let buffer =
+            SourceBuffer::from_str("empty.rs", "trait P { fn target(&self); }\nfn short() {}\n");
+        let syntax = super::super::DocumentSyntax::analyze(&buffer);
+        for byte in [
+            buffer.text.find("target").unwrap(),
+            buffer.text.find("short").unwrap(),
+        ] {
+            assert!(enclosing_function_fold(byte, &syntax.symbols, &syntax.folds).is_none());
+        }
     }
 }

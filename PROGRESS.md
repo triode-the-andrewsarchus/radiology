@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-05 — Function-key and nested Code Path assertion audit (Codex)
+
+Existing runtime behavior passes the four Swift ReaderFunctionFoldKeyTests and
+single SourceFunctionNavigationTests contracts. The app key matrix now uses a
+nested Unicode name/emoji body, exact accent selection/Copy and all modifier
+families. Parsed-body coverage adds the six Swift language examples, Kotlin's
+parameter lambda and bodyless declarations. A new prepared Code Path regression
+checks nested/ancestor/sibling choices, manual collapse through source-font work,
+same-file revisit without duplicate history, cross-file visit and exact Back at
+both scales. Rust's atomic source/syntax publication is recorded explicitly.
+
+Native ordinary/Caps Lock X, Shift+X, editable Find and blank-gap checks pass at
+1×/2× with eight exact clipboard checks each, unchanged source/Git/binary and zero
+child exits. Go to Line waits for paint before subsequent source movement. Earlier
+harness timing/socket-path diagnostics remain archived separately from acceptance.
+Workspace787 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict lint/format pass. This adds one test and108 measured NLOC; clone counters
+stay125/1335 with no addition/removal, no new hotspot/cycle/structural issue.
+[Contract mapping and evidence](plans/rust-function-contracts.md). Remaining Swift
+assertions and SDK-backed Android validation stay open.
+
 ## 2026-11-05 — Compact gutter, canonical labels and function-size meters (Codex)
 
 Swift comparison exposed every-row Rust numbering,104-point gutter width and

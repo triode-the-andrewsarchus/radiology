@@ -1634,11 +1634,11 @@ fn indexed_commands_after_a_source_click_resolve_the_clicked_symbol_and_history(
 
 #[test]
 fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_bodies() {
-    let text = "fn outer() {\n fn inner() {\n  work();\n }\n}\nfn sibling() {\n other();\n}\n";
+    let text = "fn outer() {\n fn café() {\n  let s = \"🚀\"; work();\n }\n}\nfn sibling() {\n other();\n}\n";
     for scale in [1.0, 2.0] {
         let (_dir, mut app, ctx) = scaled_reader(text, scale);
         let buffer = app.open_buffer.clone().unwrap();
-        let inner = text.find("fn inner").unwrap();
+        let inner = text.find("café").unwrap() + 3;
         let body = crate::syntax::folds::enclosing_function_fold(
             inner,
             &app.outline_symbols,
@@ -1652,12 +1652,19 @@ fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_b
         app.source_viewport.request_focus(&ctx);
         frame(&mut app, &ctx, vec![]);
         let history = format!("{:?}", app.history);
+        app.source_viewport.select(inner..inner + "é".len());
         frame(
             &mut app,
             &ctx,
             vec![key(Key::X, Modifiers::NONE), Event::Text("x".into())],
         );
         assert!(!app.fold_store.is_folded(&body));
+        assert_eq!(
+            frame(&mut app, &ctx, vec![Event::Copy])
+                .platform_output
+                .copied_text,
+            "é"
+        );
         assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), inner);
         assert_eq!(format!("{:?}", app.history), history);
         let outer = crate::syntax::folds::enclosing_function_fold(
@@ -1678,8 +1685,15 @@ fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_b
         }
         frame(&mut app, &ctx, vec![repeat]);
         assert!(!app.fold_store.is_folded(&body));
-        frame(&mut app, &ctx, vec![key(Key::X, Modifiers::SHIFT)]);
-        assert!(!app.fold_store.is_folded(&body));
+        for modifiers in [
+            Modifiers::SHIFT,
+            Modifiers::CTRL,
+            Modifiers::ALT,
+            Modifiers::COMMAND,
+        ] {
+            frame(&mut app, &ctx, vec![key(Key::X, modifiers)]);
+            assert!(!app.fold_store.is_folded(&body));
+        }
         frame(
             &mut app,
             &ctx,

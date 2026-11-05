@@ -25,9 +25,13 @@ Other behavior assertions retain their checkpoint-specific acceptance boundaries
 canonical numbering, wrapped-continuation labels and logarithmic function meters.
 Both Swift gutter contracts and two meter groups have rendered/native evidence.
 
+[Function contract audit](rust-function-contracts.md) reconciles the four Swift
+fold-key contracts and nested Code Path visit/repaint/revisit/Back contract, with
+additional source/app/native evidence and unchanged runtime mechanisms.
+
 ## Original finding reconciliation
 
-The latest full workspace passes 786 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 787 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
