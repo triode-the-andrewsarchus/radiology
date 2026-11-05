@@ -181,7 +181,7 @@ impl SourceView {
                 breadcrumbs::Header {
                     buffer,
                     symbols: enclosing_symbols,
-                    line: *caret_line,
+                    byte: buffer.byte_offset(*caret_line, *caret_col),
                     changes: line_changes,
                     change: file_change,
                     can_collapse: fold_ranges

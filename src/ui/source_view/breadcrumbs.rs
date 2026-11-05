@@ -7,7 +7,7 @@ use egui::{vec2, Align, FontId, Layout, Sense, TextStyle};
 pub(super) struct Header<'a> {
     pub buffer: &'a SourceBuffer,
     pub symbols: &'a [DocumentSymbol],
-    pub line: usize,
+    pub byte: usize,
     pub changes: Option<&'a FileLineChanges>,
     pub change: Option<&'a crate::pull_request::change::FileChange>,
     pub can_collapse: bool,
@@ -35,10 +35,7 @@ pub(super) fn show(ui: &mut Ui, theme: &AppTheme, header: Header<'_>) -> Option<
         }
     });
     if let Some(diff) = header.changes.filter(|diff| !diff.hunks.is_empty()) {
-        let navigation = diff.navigation_at(
-            header.line,
-            header.buffer.revision.unwrap_or(ReviewRevision::After),
-        );
+        let navigation = diff.navigation_at_byte(header.buffer, header.byte);
         for (icon, enabled, help, event) in [
             (
                 Icon::ArrowDown,
@@ -307,7 +304,7 @@ mod tests {
                                 Header {
                                     buffer: &buffer,
                                     symbols: &symbols,
-                                    line: 4,
+                                    byte: buffer.byte_offset(4, 0),
                                     changes: Some(&changes),
                                     change: None,
                                     can_collapse: true,
@@ -365,7 +362,7 @@ mod tests {
                     Header {
                         buffer: &buffer,
                         symbols: &symbols,
-                        line: 1,
+                        byte: 0,
                         changes: None,
                         change: None,
                         can_collapse: true,

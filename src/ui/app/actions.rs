@@ -371,19 +371,17 @@ impl RadiologyApp {
             .as_ref()
             .zip(self.line_changes.as_ref())
             .map_or_else(Default::default, |(buffer, changes)| {
-                changes.navigation_at(
-                    self.caret_line,
-                    buffer.revision.unwrap_or(ReviewRevision::After),
-                )
+                changes
+                    .navigation_at_byte(buffer, buffer.byte_offset(self.caret_line, self.caret_col))
             })
     }
 
     fn navigate_change(&mut self, next: bool) {
         let targets = self.change_navigation();
-        let line = if next { targets.next } else { targets.previous };
-        if let (Some(line), Some(buffer)) = (line, &self.open_buffer) {
+        let byte = if next { targets.next } else { targets.previous };
+        if let (Some(byte), Some(buffer)) = (byte, &self.open_buffer) {
             self.navigate_target(
-                buffer.location_at_byte(buffer.byte_offset(line, 0)),
+                buffer.location_at_byte(byte),
                 None,
                 source::NavigationIntent {
                     record_history: true,

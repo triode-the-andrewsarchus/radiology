@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-11-05 — Byte-aware change-block destinations and availability (Codex)
+
+Swift boundary reconciliation found an empty-side EOF destination kept Next enabled
+once already reached; line-only targets also skipped the point when caret columns
+advanced on its line. Existing FileLineChanges now calculates exact byte targets,
+reusing source conversion and hunk projection; app/toolbar/header share the result.
+Empty sides remain points without false highlights, clamped EOF duplicates retire,
+and terminated/unterminated EOF follow Swift's rules. Existing line APIs remain.
+
+Two unit/one raw-input app regressions and a public doctest pass. Native real Git
+After deletions/Before insertions at1×/2× verify exact point navigation and Back by
+Copy; source/Git/executable hashes stay unchanged and core exits zero. Full locked
+workspace774 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict Clippy/build/resources/rustdoc/fmt pass. Architecture NEUTRAL,+139 NLOC/four
+functions, new production method CCN8, unchanged125 clone instances/1335 duplicate
+lines, hotspots/cycles/structural counts. See [byte navigation](plans/rust-byte-change-navigation.md).
+Remaining behavior/compiler/final reuse acceptance stays open. New UI observation:
+Before's source status footer wraps “Read Only” in the smaller native window;
+reconcile that responsive layout next.
+
 ## 2026-11-05 — Unicode quick-file case folding (Codex)
 
 Swift fixture/source reconciliation found lowercase-only Rust normalization missed

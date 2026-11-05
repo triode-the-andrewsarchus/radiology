@@ -249,3 +249,36 @@ fn unavailable_revision_commands_keep_the_reader_without_starting_a_failed_read(
         assert_eq!(app.history.current(), history.as_ref());
     }
 }
+
+#[test]
+fn empty_change_side_reaches_unterminated_eof_once_without_inventing_a_changed_line() {
+    use super::focus::{frame, key, settle_frame};
+    use crate::pull_request::diff::UnifiedDiffParser;
+    use egui::{Key, Modifiers};
+    let (_owner, mut app) = reader_with_source("one\ntwo");
+    let ctx = Context::default();
+    frame(&mut app, &ctx, vec![]);
+    app.line_changes = Some(UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n"));
+    app.source_viewport.request_focus(&ctx);
+    frame(&mut app, &ctx, vec![key(Key::ArrowDown, Modifiers::ALT)]);
+    settle_frame(&mut app, &ctx);
+    let source = app.open_buffer.clone().unwrap();
+    assert_eq!(
+        source.byte_offset(app.caret_line, app.caret_col),
+        source.byte_len()
+    );
+    assert_eq!(app.change_navigation(), Default::default());
+    assert!(app
+        .line_changes
+        .as_ref()
+        .unwrap()
+        .changed_lines(ReviewRevision::After)
+        .is_empty());
+    let history = app.history.current().cloned();
+    frame(&mut app, &ctx, vec![key(Key::ArrowDown, Modifiers::ALT)]);
+    settle_frame(&mut app, &ctx);
+    assert_eq!(app.history.current(), history.as_ref());
+    app.execute_command(&ctx, ToolbarAction::NavigateBack);
+    settle_frame(&mut app, &ctx);
+    assert_eq!((app.caret_line, app.caret_col), (1, 0));
+}

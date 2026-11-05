@@ -1,7 +1,7 @@
 //! Unified diff hunk parsing and line-level addition/deletion tracking.
 
 use crate::pull_request::change::{FileChange, FileChangeStatus};
-use crate::source::location::ReviewRevision;
+use crate::source::{location::ReviewRevision, SourceBuffer};
 use std::ops::Range;
 
 /// Represents a single hunk parsed from unified diff output (`git diff -U0`).
@@ -54,7 +54,7 @@ pub struct FileLineChanges {
     pub is_binary: bool,
 }
 
-/// Available previous and next change targets for one canonical caret position.
+/// Available previous and next change targets in the queried coordinate space.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ChangeNavigation {
     /// Previous changed block, or None at the beginning.
@@ -64,12 +64,62 @@ pub struct ChangeNavigation {
 }
 
 impl FileLineChanges {
-    /// Returns the same bounded targets used by controls and command dispatch.
+    /// Returns bounded one-based line targets for a one-based caret line.
     #[must_use]
     pub fn navigation_at(&self, line: usize, revision: ReviewRevision) -> ChangeNavigation {
         ChangeNavigation {
             previous: self.previous_change_line(line, revision),
             next: self.next_change_line(line, revision),
+        }
+    }
+
+    /// Returns bounded original-byte targets for the caret in `buffer`.
+    ///
+    /// Empty hunk sides remain insertion points, including EOF. An unterminated
+    /// changed final line includes its EOF caret; a trailing empty line does not.
+    /// Binary changes have no targets. The buffer's revision selects the hunk side.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::{pull_request::diff::UnifiedDiffParser, source::SourceBuffer};
+    /// let source = SourceBuffer::from_str("a.rs", "one\ntwo");
+    /// let changes = UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n");
+    /// assert_eq!(changes.navigation_at_byte(&source, 0).next, Some(7));
+    /// assert_eq!(changes.navigation_at_byte(&source, 7).next, None);
+    /// ```
+    #[must_use]
+    pub fn navigation_at_byte(&self, buffer: &SourceBuffer, caret: usize) -> ChangeNavigation {
+        let mut blocks: Vec<_> = self
+            .navigation_blocks(buffer.revision.unwrap_or(ReviewRevision::After))
+            .into_iter()
+            .map(|range| buffer.byte_offset(range.start, 0)..buffer.byte_offset(range.end, 0))
+            .collect();
+        blocks.dedup_by_key(|range| range.start);
+        let inside = blocks.iter().position(|range| {
+            range.contains(&caret)
+                || (range.is_empty() && range.start == caret)
+                || (!range.is_empty()
+                    && range.end == buffer.byte_len()
+                    && caret == buffer.byte_len()
+                    && buffer.data.last() != Some(&b'\n'))
+        });
+        if let Some(index) = inside {
+            ChangeNavigation {
+                previous: index.checked_sub(1).map(|index| blocks[index].start),
+                next: blocks.get(index + 1).map(|range| range.start),
+            }
+        } else {
+            ChangeNavigation {
+                previous: blocks
+                    .iter()
+                    .rfind(|range| range.start < caret)
+                    .map(|range| range.start),
+                next: blocks
+                    .iter()
+                    .find(|range| range.start > caret)
+                    .map(|range| range.start),
+            }
         }
     }
 
@@ -116,7 +166,7 @@ impl FileLineChanges {
     ) -> Option<usize> {
         self.navigation_blocks(revision)
             .into_iter()
-            .take_while(|range| range.end <= current_line)
+            .take_while(|range| range.start < current_line && range.end <= current_line)
             .last()
             .map(|range| range.start)
     }
@@ -130,6 +180,9 @@ impl FileLineChanges {
     }
 
     fn navigation_blocks(&self, revision: ReviewRevision) -> Vec<Range<usize>> {
+        if self.is_binary {
+            return Vec::new();
+        }
         self.hunks
             .iter()
             .map(|hunk| {
@@ -139,7 +192,7 @@ impl FileLineChanges {
                 };
                 if range.is_empty() {
                     let anchor = (range.start + 1).max(1);
-                    anchor..anchor + 1
+                    anchor..anchor
                 } else {
                     range
                 }
@@ -420,6 +473,83 @@ index 1111111..2222222 100644
         );
         assert_eq!(files[1].additions, 1);
         assert_eq!(files[1].deletions, 1);
+    }
+
+    #[test]
+    fn byte_navigation_matches_inside_gap_and_unterminated_eof_boundaries() {
+        let source = SourceBuffer::from_str(
+            "a.rs",
+            &(1..=30)
+                .map(|n| format!("line{n}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        let changes =
+            UnifiedDiffParser::parse("@@ -3,3 +3,3 @@\n@@ -12,2 +12,2 @@\n@@ -23 +23 @@\n");
+        for (line, previous, next) in [
+            (4, None, Some(12)),
+            (13, Some(3), Some(23)),
+            (9, Some(3), Some(12)),
+            (1, None, Some(3)),
+            (24, Some(23), None),
+        ] {
+            let expected = ChangeNavigation {
+                previous: previous.map(|line| source.byte_offset(line, 0)),
+                next: next.map(|line| source.byte_offset(line, 0)),
+            };
+            assert_eq!(
+                changes.navigation_at_byte(&source, source.byte_offset(line, 1)),
+                expected
+            );
+        }
+        let last = UnifiedDiffParser::parse("@@ -1 +1 @@\n");
+        for (text, previous) in [("changed", None), ("changed\n", Some(0))] {
+            let source = SourceBuffer::from_str("a.rs", text);
+            assert_eq!(
+                last.navigation_at_byte(&source, source.byte_len()),
+                ChangeNavigation {
+                    previous,
+                    next: None
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn empty_byte_targets_are_points_deduplicate_clamped_eof_and_ignore_binary_changes() {
+        for (revision, patch) in [
+            (ReviewRevision::After, "@@ -3,2 +2,0 @@\n@@ -8 +3,0 @@\n"),
+            (ReviewRevision::Before, "@@ -2,0 +3,2 @@\n@@ -3,0 +8 @@\n"),
+        ] {
+            let mut source = SourceBuffer::from_str("a.rs", "one\ntwo");
+            source.revision = Some(revision);
+            let mut changes = UnifiedDiffParser::parse(patch);
+            assert!(changes.changed_lines(revision).is_empty());
+            assert_eq!(
+                changes.navigation_at_byte(&source, 0).next,
+                Some(source.byte_len())
+            );
+            assert_eq!(
+                changes.navigation_at_byte(&source, source.byte_len()),
+                ChangeNavigation::default()
+            );
+            changes.is_binary = true;
+            assert_eq!(
+                changes.navigation_at_byte(&source, 0),
+                ChangeNavigation::default()
+            );
+        }
+        let source = SourceBuffer::from_str("a.rs", "one\ntwo\nthree\nfour\n");
+        let changes = UnifiedDiffParser::parse("@@ -2,2 +1,0 @@\n@@ -6 +4 @@\n");
+        let point = source.byte_offset(2, 0);
+        assert_eq!(changes.navigation_at_byte(&source, point).previous, None);
+        assert_eq!(
+            changes.navigation_at_byte(&source, point + 1),
+            ChangeNavigation {
+                previous: Some(point),
+                next: Some(source.byte_offset(4, 0))
+            }
+        );
     }
 
     #[test]

@@ -14,8 +14,8 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The latest full workspace passes 771 app tests (eleven opt-in ignored), two binary,
-13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
+The latest full workspace passes 774 app tests (eleven opt-in ignored), two binary,
+13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
 | Finding | Current implementation and evidence rechecked |
@@ -147,6 +147,15 @@ ligatures, long-s and decomposed accents preserve original paths/bytes through r
 app/native1×/2× picker navigation. Ranking/cancellation tests remain green; full
 workspace771 app tests/11 ignored, strict Clippy/build/resources pass. Other
 behavior/compiler acceptance and final standalone/reuse gates remain open.
+
+## Exact-byte change-block checkpoint — 2026-11-05
+
+[Byte-aware change navigation](rust-byte-change-navigation.md) fixes empty-side
+point/EOF availability, preserving inside/gap bounds and exact Back. The app,
+toolbar and source header share byte targets. Unit/app checks cover synthetic EOF;
+native1×/2× real Git checks cover After deletion and Before insertion points.
+Full workspace774 app tests/11 ignored,60 doctests, strict Clippy/build/resources
+pass. Smaller-window Before footer wrapping remains a concrete UI follow-up.
 
 ## Remaining acceptance gates
 

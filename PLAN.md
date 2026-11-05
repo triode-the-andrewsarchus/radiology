@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Exact-byte change navigation](plans/rust-byte-change-navigation.md) now treats
+empty hunk sides as points and handles EOF, revision sides and bounded targets
+consistently across commands and both sets of arrows. App/unit/native1×/2× checks
+preserve exact Back and source bytes. A smaller-window Before status footer wrap
+was observed for separate responsive cleanup; remaining acceptance gates stay open.
+
 [Unicode file search](plans/rust-unicode-file-search.md) now uses full case folding
 for queries and candidate names/paths. Sharp-S, final sigma, ligatures, long-s and
 accented names preserve their original path and bytes through app/native1×/2×
