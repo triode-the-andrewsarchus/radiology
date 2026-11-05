@@ -4,6 +4,14 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Kotlin PR reader and remembered revision choices](plans/rust-kotlin-pr-fixture.md)
+now reconcile the recorded Swift overload/Noise and PR fixtures. The pass found and
+fixed forgotten per-file Before/After choices, reusing accepted navigation transactions
+with rename aliases, bookmarks, semantic After destinations and review scope resets.
+Actual app and native1×/2× checks preserve exact source, history and cached semantics.
+Remaining behavior reconciliation, SDK-backed Android success and final standalone/
+reuse audit remain open.
+
 [Real Gradle/Android failure acceptance](plans/rust-gradle-android-acceptance.md)
 now verifies complete and partial multi-module Kotlin/Java builds, exact cross-module
 UTF-16 navigation, cached partial-build provenance and real AGP9.4.1 missing-SDK

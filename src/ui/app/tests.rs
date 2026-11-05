@@ -2861,3 +2861,6 @@ mod clang;
 mod corpus;
 
 mod stress;
+
+#[cfg(unix)]
+mod kotlin;

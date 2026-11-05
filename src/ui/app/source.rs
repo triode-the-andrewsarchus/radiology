@@ -8,6 +8,8 @@ pub(super) struct NavigationIntent {
     pub reveal: bool,
     pub history_step: Option<bool>,
     pub force_read: bool,
+    // Commit an explicit review-side choice only after navigation succeeds.
+    pub remember_revision: bool,
     pub flash_destination: bool,
 }
 
@@ -383,6 +385,14 @@ impl RadiologyApp {
         let Some(buffer) = &self.open_buffer else {
             return;
         };
+        if intent.remember_revision {
+            if let (Some(review), Some(revision)) = (&self.review, location.revision) {
+                if let Some(change) = review.change(&location.path) {
+                    self.review_revision_choices
+                        .insert(change.path.clone(), revision);
+                }
+            }
+        }
         let byte = location.byte_offset;
         self.files_reveal_pending = true;
         if intent.reveal {

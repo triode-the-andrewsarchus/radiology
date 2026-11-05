@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 761 app tests (eleven opt-in ignored), two binary,
+The current full workspace passes 763 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -113,8 +113,21 @@ independent compilation failure retaining three compiler documents, and Partial
 status/provenance through Update and tool-free cache reload. Real AGP9.4.1 with a
 missing SDK produces explicit failure, no index and unchanged accepted cache/inputs.
 Successful Android compilation remains unverified without SDK-backed evidence.
-The original Kotlin overload/Noise and PR reader fixture checks are specifically
-identified for the next remaining behavior pass. No production runtime/UI change.
+The original Kotlin overload/Noise and PR reader fixture checks are accepted in
+the following checkpoint, which found a separate remembered-revision gap. The
+Gradle/AGP checkpoint itself made no production runtime/UI change.
+
+## Kotlin fixture and remembered side checkpoint — 2026-11-05
+
+[Recorded Kotlin compiler/PR acceptance](rust-kotlin-pr-fixture.md) now covers both
+overloads, UTF-16 bytes after emoji, Noise exclusion, exact definition/reference/Back,
+Before/After availability, partial caches and unchanged review acceptance in app
+frames and native1×/2×. It found and fixed forgotten per-file revision choices through
+the existing accepted-navigation transaction. Alias/bookmark/refresh/failure and
+scope reset checks pass. Recorded SCIP/controlled tool boundaries are explicit;
+this is separate from the preceding fresh real Gradle compilation. Full workspace
+passes763 app tests, eleven ignored; other counts unchanged. Further reader-state
+and behavior reconciliation remains open, including per-file position restoration.
 
 ## Remaining acceptance gates
 

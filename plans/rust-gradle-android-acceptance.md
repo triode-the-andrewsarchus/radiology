@@ -64,8 +64,8 @@ SDK-environment test, but do not substitute for that missing success evidence.
 | --- | --- |
 | KotlinIndexingTests cacheAndReuseRetainUTF16ColumnsAndPartialCompilerCoverage | New real multi-module complete/partial compiler workflow verifies generation, cross-module UTF-16 definition/reference coordinates, Update and normalized reload with truthful partial-build provenance. |
 | KotlinIndexingTests isolatedInputsPreserveBytesModesAndNeverWriteThroughSymlinks; directoryLinksAreRebasedAndTrackedBuildInputsSurviveBrowserFiltering | Existing Rust workspace/input inventory regressions remain authoritative for modes/links/tracked dependencies. This real run additionally proves exact bytes/inventory and absence of viewed Gradle output. |
-| KotlinIndexingTests realCompilerIndexPreservesOverloadsAndUTF16AfterEmoji | New compiler run verifies Unicode and cross-language identities, but not the original overload/Noise fixture assertions. Reconcile that checked-in SCIP fixture next. |
-| PRKotlinNavigationTests changedBlockCaretReferencesAndDefinitionBackRemainInAfter; beforeClearsSemanticsAndAfterRemapsUsingCachedUTF16Contract | Generic Rust UTF-16/pinned navigation and real Clang PR acceptance exist; a direct integrated Rust app run with this Kotlin compiler fixture is still required for the remaining behavior audit. |
+| KotlinIndexingTests realCompilerIndexPreservesOverloadsAndUTF16AfterEmoji | [Recorded compiler-fixture acceptance](rust-kotlin-pr-fixture.md) now verifies the exact overload/Noise assertions through the app, including UTF-16 name bytes, independent identities and source-validated references. |
+| PRKotlinNavigationTests changedBlockCaretReferencesAndDefinitionBackRemainInAfter; beforeClearsSemanticsAndAfterRemapsUsingCachedUTF16Contract | [Kotlin PR app/native acceptance](rust-kotlin-pr-fixture.md) now verifies these named reader invariants and repairs missing per-file side memory. SDK-backed Android success and other behavior checks remain separate. |
 
 Run after provisioning the managed Kotlin root, with full JDK17 on JAVA_HOME/PATH
 and a private GRADLE_USER_HOME/TMPDIR:

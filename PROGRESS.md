@@ -1,5 +1,50 @@
 # Progress
 
+## 2026-11-05 — Kotlin PR fixture and remembered per-file review sides (Codex)
+
+Reconciling Swift's recorded compiler/PR assertions found a real missing behavior:
+choosing Before, visiting another file and reopening the changed file returned After.
+A red regression proves it. One review-scoped canonical-path map now resolves implicit
+opens; explicit locations override it. The existing NavigationIntent/apply_destination
+transaction remembers accepted revision controls, bookmarks, semantic destinations
+and refresh restoration. Failed reads cannot write choices. Rename aliases share
+one choice, refresh prunes unavailable sides, and new PR/repository scopes clear it.
+History replay preserves explicit locations without changing a separate preference.
+No persistent preference/cache worker or public API is introduced.
+
+A four-case actual-app workflow uses the unchanged Swift compiler SCIP and After
+sources, private real Git, controlled Gradle/aggregation and Kotlin normalization.
+Both overloads map exact UTF-16 bytes after café/emoji, resolve to separate exact
+Store definitions, exclude Noise references and support raw Ctrl+Alt+R/F12, row commits
+and exact Back in After. Before clears semantic inputs/commands and visibly retains
+parsed structure; After/cache restore the identity. Two/three-document coverage,
+partial flags, tool-free reload, exact reuse, remembered sides and unchanged review
+acceptance pass at1×/2× (partial/light and complete/dark cases). A separate scope test
+covers aliases, bookmarks, failed binary reads, refresh eviction of unavailable choices,
+new PR and exit. These checks replay recorded compiler data, not fresh compilation.
+
+Standalone native1×/2× runs use the same recorded index, real Git and controlled
+metadata/tools. Both overload declaration lines, references, Back, Before, remembered
+Before after another file, After and tool-free warm restart pass. Twelve exact Copy
+checks per scale; source/HEAD/refs/status and executable hashes remain unchanged
+through each run. Core processes exit zero; endpoint captures inspected. Early harness
+API/history/shortcut assumptions were corrected and retained as diagnostics.
+
+Full locked workspace passes763 app tests/eleven opt-in ignored, two binary,13 font,
+22 text and59 doctests. Strict Clippy, build/resource smoke and fmt/diff pass.
+Architecture: +490 NLOC/three functions (two tests/one fixture), no added hotspot;
+fixture/workflow/scope CCN7/7/1 and changed
+production methods≤10. All125 clone instances/1335 duplicate lines and cycle/structural
+counts unchanged. Raw reports flag old self-clones in the module index and untouched
+Python rank noise; the complete Counter proves no new clone. UI styles are unchanged;
+requested design skills remain unavailable.
+
+[Kotlin PR contract](plans/rust-kotlin-pr-fixture.md). Evidence:
+~/.local/state/radiology-qa/kotlin-pr-fixture-20261105-5b3cdb8. Next: remaining Swift
+reader-state/behavior reconciliation (including per-file position restoration),
+SDK-backed Android success and final clean standalone/resource/reuse audit. Overall
+parity remains active; full accessibility and actual sibling adoption stay deferred.
+
 ## 2026-11-05 — Real Gradle module failures and AGP SDK diagnostics (Codex)
 
 Production ToolProvisioner builds/verifies pinned Kotlin tooling under a private

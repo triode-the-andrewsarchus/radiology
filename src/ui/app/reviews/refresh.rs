@@ -144,6 +144,7 @@ impl RadiologyApp {
                 request: source_request(candidate, &source.buffer),
                 intent: source::NavigationIntent {
                     record_history: true,
+                    remember_revision: true,
                     reveal: true,
                     ..Default::default()
                 },

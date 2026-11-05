@@ -172,6 +172,18 @@ impl RadiologyApp {
     }
 
     pub(super) fn install_review(&mut self, snapshot: Arc<ReviewSnapshot>) {
+        if self.review.as_ref().map(|old| old.summary.number) != Some(snapshot.summary.number) {
+            self.review_revision_choices.clear();
+        }
+        self.review_revision_choices = self
+            .review_revision_choices
+            .drain()
+            .filter_map(|(path, revision)| {
+                let change = snapshot.change(&path)?;
+                change.path_for_revision(revision)?;
+                Some((change.path.clone(), revision))
+            })
+            .collect();
         self.recent_pull_requests.remember(&snapshot.summary);
         self.review_refresh.notice = None;
         self.cancel_source_load();
@@ -212,6 +224,14 @@ impl RadiologyApp {
             return Err("Invalid repository-relative source path".into());
         }
         if let Some(review) = &self.review {
+            if location.revision.is_none() {
+                location.revision = review.change(&location.path).and_then(|change| {
+                    self.review_revision_choices
+                        .get(&change.path)
+                        .copied()
+                        .filter(|revision| change.path_for_revision(*revision).is_some())
+                });
+            }
             return review.resolve(location);
         }
         location.revision = None;

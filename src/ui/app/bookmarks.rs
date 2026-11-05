@@ -41,6 +41,7 @@ impl RadiologyApp {
             crate::source::loader::SourceTarget::Bookmark(bookmark),
             source::NavigationIntent {
                 record_history: true,
+                remember_revision: true,
                 flash_destination: true,
                 reveal: true,
                 force_read: true,

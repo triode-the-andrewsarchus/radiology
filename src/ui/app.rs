@@ -19,7 +19,7 @@ mod tests;
 mod traits;
 
 use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -196,6 +196,7 @@ pub struct RadiologyApp {
     pub pr_changes: Vec<FileChange>,
     /// Active revision (Before or After) during PR review.
     pub active_revision: Option<ReviewRevision>,
+    review_revision_choices: HashMap<String, ReviewRevision>,
     /// Parsed line-level diff hunks for the open document.
     pub line_changes: Option<FileLineChanges>,
     /// Source presentation mode (Normal or Critical Lens).
@@ -366,6 +367,7 @@ impl RadiologyApp {
             pending_open_file: None,
             pr_changes: Vec::new(),
             active_revision: None,
+            review_revision_choices: Default::default(),
             line_changes: None,
             mode: SourceMode::Normal,
             sidebar_tab: SidebarTab::Files,
@@ -589,6 +591,7 @@ impl RadiologyApp {
         self.reset_previews();
         self.active_pr = None;
         self.review = None;
+        self.review_revision_choices.clear();
         self.cancel_review_preparation();
         self.active_revision = None;
         self.pr_changes.clear();

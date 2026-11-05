@@ -460,6 +460,7 @@ impl RadiologyApp {
             },
             source::NavigationIntent {
                 record_history: true,
+                remember_revision: true,
                 flash_destination: true,
                 reveal: true,
                 ..Default::default()
@@ -500,6 +501,7 @@ impl RadiologyApp {
             target,
             source::NavigationIntent {
                 record_history: true,
+                remember_revision: true,
                 reveal: true,
                 ..Default::default()
             },

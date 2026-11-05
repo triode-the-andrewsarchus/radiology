@@ -123,3 +123,13 @@ Archive: ~/.local/state/radiology-qa/selection-collapse-20261102-ea0dcbf.
 This closes plain horizontal selection collapse. Modified and vertical native
 bindings, broader ownership, Unicode/UI text, typography/spacing and final Swift
 feature/corpus acceptance remain in the parity audit.
+
+## Remembered review-side choices — 2026-11-05
+
+[The Kotlin PR pass](rust-kotlin-pr-fixture.md) adds canonical changed-file Before/
+After memory to implicit opens. Explicit history/index locations override that
+preference. A NavigationIntent flag commits choices through accepted publication,
+covering existing-document navigation, revision controls, bookmarks and semantic
+After destinations. Failed/cancelled reads cannot change choices. Same-PR refresh
+keeps available aliases; new PR/repository scope clears them. This does not add
+per-file caret/viewport restoration, which remains in the behavior reconciliation.

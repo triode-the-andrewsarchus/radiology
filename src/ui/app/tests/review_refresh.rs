@@ -366,3 +366,77 @@ fn integrated_changed_files_refresh_and_cache_pressure_preserve_pinned_reader_tr
         "checkout only\n"
     );
 }
+
+#[test]
+fn review_revision_choices_follow_aliases_bookmarks_refresh_and_scope_without_failed_writes() {
+    let (owner, root, first) = crate::pull_request::review::tests::fixture();
+    let (_settings, mut app) = open_review(&root, first.clone(), ReviewRevision::Before);
+    let ctx = Context::default();
+    app.open_file("renamed new.rs");
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
+    settle(&mut app);
+    app.open_file("a file.rs");
+    settle(&mut app);
+    assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::After));
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::OpenBookmark(0));
+    settle(&mut app);
+    assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    app.open_file("added.rs");
+    settle(&mut app);
+    assert_eq!(app.active_revision, Some(ReviewRevision::After));
+    app.open_file("renamed new.rs");
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("renamed old.rs"));
+    assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    let choices = app.review_revision_choices.clone();
+    let buffer = app.open_buffer.clone().unwrap();
+    app.request_navigation(
+        SourceLocation::with_revision("binary.dat", 0, Some(ReviewRevision::After)),
+        crate::source::loader::SourceTarget::Byte(0),
+        super::super::source::NavigationIntent {
+            remember_revision: true,
+            record_history: true,
+            ..Default::default()
+        },
+    );
+    settle(&mut app);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(app.review_revision_choices, choices);
+    app.open_file("a file.rs");
+    settle(&mut app);
+    app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::After));
+    settle(&mut app);
+    app.open_file("added.rs");
+    settle(&mut app);
+    let fresh = advance(&root, owner.path(), &first, |root| {
+        std::fs::remove_file(root.join("a file.rs")).unwrap();
+    });
+    app.accept_review(fresh);
+    settle(&mut app);
+    assert!(
+        !app.review_revision_choices.contains_key("a file.rs"),
+        "unavailable choices retire on refresh"
+    );
+    app.open_file("renamed new.rs");
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("renamed old.rs"));
+    app.open_file("a file.rs");
+    settle(&mut app);
+    assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    let mut summary = app.review.as_ref().unwrap().summary.clone();
+    summary.number += 1;
+    let other = ReviewSnapshot::prepare(&root, summary, &owner.path().join("cache")).unwrap();
+    app.accept_review(other);
+    settle(&mut app);
+    app.open_file("renamed new.rs");
+    settle(&mut app);
+    assert_eq!(app.active_revision, Some(ReviewRevision::After));
+    app.execute_command(&ctx, ToolbarAction::ExitPRReview);
+    settle(&mut app);
+    assert!(app.review_revision_choices.is_empty());
+}
