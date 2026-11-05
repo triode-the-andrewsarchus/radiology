@@ -1633,6 +1633,75 @@ fn indexed_commands_after_a_source_click_resolve_the_clicked_symbol_and_history(
 }
 
 #[test]
+fn function_wash_follows_caret_and_clears_with_accepted_documents_and_repositories() {
+    let source = "struct Shape {\n    side: u32,\n}\n\nimpl Shape {\n    fn area(&self) -> u32 {\n        fn square(x: u32) -> u32 {\n            x * x\n        }\n        let f = |y: u32| y + 1;\n        f(square(self.side))\n    }\n\n    fn name() -> &'static str { \"shape\" }\n}\n";
+    for scale in [1.0, 2.0] {
+        let (owner, mut app, ctx) = scaled_reader(source, scale);
+        let buffer = app.open_buffer.clone().unwrap();
+        app.fold_store.unfold_all();
+        let color = app.theme.function_shade_color();
+        let bands = |output: egui::FullOutput| {
+            output
+                .shapes
+                .into_iter()
+                .filter_map(|shape| match shape.shape {
+                    egui::Shape::Rect(rect) if rect.fill == color => Some(rect.rect),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        for (needle, count) in [
+            ("x * x", 3),
+            ("y + 1", 7),
+            ("fn area", 7),
+            ("\"shape\"", 1),
+            ("\n\n    fn name", 0),
+            ("side: u32", 0),
+            ("struct Shape", 0),
+        ] {
+            let byte = source.find(needle).unwrap();
+            app.caret_line = buffer.line_at_byte(byte);
+            app.caret_col = buffer.column_at_byte(byte);
+            let shade = bands(frame(&mut app, &ctx, vec![]));
+            assert_eq!(shade.len(), count, "{needle}/{scale}");
+            let canvas = ctx
+                .read_response(crate::ui::source_view::SourceViewport::focus_id())
+                .unwrap()
+                .rect;
+            assert!(shade
+                .iter()
+                .all(|rect| (rect.width() - canvas.width()).abs() < 1.0));
+        }
+        let byte = source.find("f(square").unwrap();
+        app.caret_line = buffer.line_at_byte(byte);
+        app.caret_col = buffer.column_at_byte(byte);
+        let caret = (app.caret_line, app.caret_col);
+        app.source_viewport.restore_top(&buffer, 0);
+        assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
+        assert_eq!((app.caret_line, app.caret_col), caret);
+        std::fs::write(
+            app.repository_root.as_ref().unwrap().join("NOTES.md"),
+            "# notes\n",
+        )
+        .unwrap();
+        app.open_file("NOTES.md");
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        settle(&mut app);
+        assert!(bands(frame(&mut app, &ctx, vec![])).is_empty());
+        app.navigate(buffer.location_at_byte(byte), true);
+        settle(&mut app);
+        assert_eq!(bands(frame(&mut app, &ctx, vec![])).len(), 7);
+        let empty = owner.path().join("another");
+        std::fs::create_dir(&empty).unwrap();
+        app.open_repository(&empty);
+        settle(&mut app);
+        assert!(bands(frame(&mut app, &ctx, vec![])).is_empty());
+        assert!(app.open_buffer.is_none());
+        assert_eq!(buffer.text, source);
+    }
+}
+
+#[test]
 fn current_function_toggle_owns_only_source_presses_and_committed_jumps_expand_bodies() {
     let text = "fn outer() {\n fn café() {\n  let s = \"🚀\"; work();\n }\n}\nfn sibling() {\n other();\n}\n";
     for scale in [1.0, 2.0] {

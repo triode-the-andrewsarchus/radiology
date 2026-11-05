@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-05 — Validated function shading and caret ownership (Codex)
+
+A red paint regression found out-of-bounds function ranges were clipped and shaded;
+Swift suppresses them. Existing function_band now rejects empty/out-of-bounds and
+split-UTF-8 ranges with standard boundary checks. Expanded rendered tests cover
+Rust/Python nesting, half-open bounds, folded shrinkage and source/selection safety.
+A new actual-app test checks the Swift Shape fixture's7/3/1-row bands, closures,
+gaps, full-width paint, viewport/caret separation and accepted file/root clearing.
+
+Native1×/2× fixtures confirm area/nested/gap/container/name bands, real passive
+scroll with caret still61, and exact call-line/full-source Copy. Source/Git/binary
+remain unchanged; accepted exits zero. An external consumer now checks stale and
+split-byte metadata rejection with a valid-range control through public SourceView.
+Workspace788 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict lint/doc/format/build/resources pass. Architecture +132 measured NLOC, no
+added clones/hotspots/cycles/structural issues;125/1335 clone counters unchanged.
+
+[Shading evidence and transition boundary](plans/rust-function-shading-audit.md) maps all
+three Swift assertion groups and preserves a remaining presentation distinction:
+Rust keeps the valid accepted reader/shade while another file/root is pending,
+where Swift clears its current-function model immediately. This is not counted as
+identical pending UI. Other assertions, that loading-state alignment and SDK-backed
+Android validation remain open.
+
 ## 2026-11-05 — Function-key and nested Code Path assertion audit (Codex)
 
 Existing runtime behavior passes the four Swift ReaderFunctionFoldKeyTests and

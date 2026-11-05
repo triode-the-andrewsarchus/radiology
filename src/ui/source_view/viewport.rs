@@ -1771,6 +1771,12 @@ fn function_band(
     range: &Range<usize>,
     source: &str,
 ) -> Option<Rect> {
+    if range.is_empty()
+        || !source.is_char_boundary(range.start)
+        || !source.is_char_boundary(range.end)
+    {
+        return None;
+    }
     if part.bytes.is_empty() {
         return range
             .contains(&part.bytes.start)
@@ -3813,33 +3819,53 @@ mod tests {
 
     #[test]
     fn callable_wash_tracks_nested_declarations_and_clears_between_methods() {
-        let text = "struct T;\nimpl T {\n fn outer() {\n  fn inner() { café(); }\n\n }\n\n fn next() {}\n}\n";
-        let mut reader = Reader::new(text);
-        let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
-        let ctx = egui::Context::default();
-        for (needle, expected) in [
-            ("inner()", Some("inner")),
-            ("outer()", Some("outer")),
-            ("\n\n fn next", None),
-            ("struct T", None),
-        ] {
-            let byte = text.find(needle).unwrap();
-            let mut trail = Vec::new();
-            for symbol in &syntax.symbols {
-                symbol.breadcrumbs(byte, &mut trail);
-            }
-            let callable = trail.iter().rev().find(|symbol| symbol.is_callable());
-            assert_eq!(callable.map(|symbol| symbol.name.as_str()), expected);
-            reader.function_shade = callable.map(|symbol| symbol.range.clone());
-            reader.line = reader.source.line_at_byte(byte);
-            let output = reader.frame(&ctx, Vec::new());
-            let bands = filled_bands(&output, reader.theme.function_shade_color());
-            assert_eq!(!bands.is_empty(), expected.is_some());
-            if expected == Some("outer") {
-                // Signature, nested body, empty line and closing brace form one band.
-                assert_eq!(bands.len(), 4);
-                for pair in bands.windows(2) {
-                    assert!((pair[0].bottom() - pair[1].top()).abs() < 0.01);
+        let rust = "struct T;\nimpl T {\n fn outer() {\n  fn inner() { café(); }\n\n }\n\n fn next() {}\n}\n";
+        let python = "class Shape:\n    def area(self):\n        def inner():\n            return 1\n        return inner()\n";
+        for scale in [1.0, 2.0] {
+            for (path, text, cases) in [
+                (
+                    "shape.rs",
+                    rust,
+                    &[
+                        ("inner()", Some("inner")),
+                        ("outer()", Some("outer")),
+                        ("\n\n fn next", None),
+                        ("struct T", None),
+                    ][..],
+                ),
+                (
+                    "shape.py",
+                    python,
+                    &[
+                        ("return 1", Some("inner")),
+                        ("return inner()", Some("area")),
+                        ("class Shape", None),
+                    ][..],
+                ),
+            ] {
+                let mut reader = Reader::new(text);
+                reader.source = SourceBuffer::from_str(path, text);
+                let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+                let ctx = reader_context(scale);
+                for &(needle, expected) in cases {
+                    let byte = text.find(needle).unwrap();
+                    let mut trail = Vec::new();
+                    for symbol in &syntax.symbols {
+                        symbol.breadcrumbs(byte, &mut trail);
+                    }
+                    let callable = trail.iter().rev().find(|symbol| symbol.is_callable());
+                    assert_eq!(callable.map(|symbol| symbol.name.as_str()), expected);
+                    reader.function_shade = callable.map(|symbol| symbol.range.clone());
+                    reader.line = reader.source.line_at_byte(byte);
+                    let output = reader.frame(&ctx, Vec::new());
+                    let bands = filled_bands(&output, reader.theme.function_shade_color());
+                    assert_eq!(!bands.is_empty(), expected.is_some());
+                    if expected == Some("outer") {
+                        assert_eq!(bands.len(), 4);
+                        for pair in bands.windows(2) {
+                            assert!((pair[0].bottom() - pair[1].top()).abs() < 0.01);
+                        }
+                    }
                 }
             }
         }
@@ -3893,19 +3919,41 @@ mod tests {
 
     #[test]
     fn callable_wash_half_open_end_excludes_next_fragment_and_folded_body() {
-        let ctx = egui::Context::default();
-        let mut reader = Reader::new("fn example() {\n\n café 😀();\n}\nnext();\n");
-        reader.function_shade = Some(0..reader.source.text.find("next").unwrap());
-        let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
-        reader.ranges = syntax.folds;
-        let output = reader.frame(&ctx, Vec::new());
-        let bands = filled_bands(&output, reader.theme.function_shade_color());
-        assert_eq!(bands.len(), 4);
-        reader.folds.toggle_header(1, &reader.ranges);
-        let output = reader.frame(&ctx, Vec::new());
-        let folded = filled_bands(&output, reader.theme.function_shade_color());
-        assert!(folded.len() < bands.len());
-        assert!(!folded.is_empty());
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new("fn example() {\n\n café 😀();\n}\nnext();\n");
+            reader.function_shade = Some(0..reader.source.text.find("next").unwrap());
+            let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+            reader.ranges = syntax.folds;
+            let output = reader.frame(&ctx, Vec::new());
+            let bands = filled_bands(&output, reader.theme.function_shade_color());
+            assert_eq!(bands.len(), 4);
+            reader.folds.toggle_header(1, &reader.ranges);
+            let output = reader.frame(&ctx, Vec::new());
+            let folded = filled_bands(&output, reader.theme.function_shade_color());
+            assert!(folded.len() < bands.len());
+            assert!(!folded.is_empty());
+            reader.viewport.select(0..2);
+            let selection = reader.viewport.selection;
+            let accent = reader.source.text.find('é').unwrap();
+            for invalid in [
+                0..reader.source.text.len() + 10,
+                0..0,
+                accent + 1..accent + 2,
+            ] {
+                reader.function_shade = Some(invalid);
+                assert!(filled_bands(
+                    &reader.frame(&ctx, vec![]),
+                    reader.theme.function_shade_color()
+                )
+                .is_empty());
+                assert_eq!(reader.viewport.selection, selection);
+            }
+            assert_eq!(
+                reader.source.text,
+                "fn example() {\n\n café 😀();\n}\nnext();\n"
+            );
+        }
     }
 
     fn feedback_bands(output: &egui::FullOutput, alpha: f32) -> Vec<Rect> {
