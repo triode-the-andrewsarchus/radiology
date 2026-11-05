@@ -248,3 +248,121 @@ fn failed_source_restoration_retains_the_entire_accepted_reader() {
         .contains("Unable to refresh review"));
     assert!(app.pending_pr.is_none());
 }
+
+#[test]
+fn integrated_changed_files_refresh_and_cache_pressure_preserve_pinned_reader_transactions() {
+    use crate::ui::app::tests::focus::{frame, key};
+    use egui::{Event, Key, Modifiers};
+    let original = format!(
+        "fn demo() {{\n{}    before();\n}}\n",
+        "    // stable caller context\n".repeat(8)
+    );
+    let after = original.replace("before()", "after()");
+    let (owner, root, first) =
+        crate::pull_request::review::tests::fixture_with_sources(&original, &after);
+    let summary = first.summary.clone();
+    let first_tree = first.head_root.clone();
+    let (_settings, mut app) = open_review(&root, first.clone(), ReviewRevision::After);
+    let ctx = Context::default();
+    for (path, revision, text) in [
+        ("added.rs", ReviewRevision::After, "new\n"),
+        ("removed.rs", ReviewRevision::Before, "old\n"),
+        ("renamed new.rs", ReviewRevision::After, "keep\n"),
+    ] {
+        app.open_file(path);
+        settle(&mut app);
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.active_revision, Some(revision));
+        assert_eq!(
+            frame(
+                &mut app,
+                &ctx,
+                vec![key(Key::A, Modifiers::CTRL), Event::Copy]
+            )
+            .platform_output
+            .copied_text,
+            text
+        );
+    }
+    app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
+    settle(&mut app);
+    assert_eq!(app.selected_path.as_deref(), Some("renamed old.rs"));
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, "keep\n");
+    let retained = app.open_buffer.clone().unwrap();
+    let history = app.history.current().cloned();
+    app.open_file("binary.dat");
+    settle(&mut app);
+    assert!(app
+        .error
+        .as_ref()
+        .unwrap()
+        .to_lowercase()
+        .contains("binary"));
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &retained));
+    assert_eq!(app.history.current(), history.as_ref());
+    app.navigate(
+        SourceLocation::with_revision(
+            "a file.rs",
+            after.find("after()").unwrap(),
+            Some(ReviewRevision::After),
+        ),
+        true,
+    );
+    settle(&mut app);
+    let line = app.caret_line;
+    let column = app.caret_col;
+    for step in 0..5 {
+        let current = app.review.as_ref().unwrap().clone();
+        let fresh = advance(&root, owner.path(), &current, |root| {
+            if step == 0 {
+                std::fs::rename(root.join("a file.rs"), root.join("moved.rs")).unwrap();
+                std::fs::write(root.join("moved.rs"), format!("// moved\n{after}")).unwrap();
+            } else {
+                std::fs::write(root.join("stamp.txt"), format!("cache pressure {step}\n")).unwrap();
+            }
+        });
+        app.accept_review(fresh);
+        settle(&mut app);
+        frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.selected_path.as_deref(), Some("moved.rs"));
+        assert_eq!((app.caret_line, app.caret_col), (line + 1, column));
+        assert_eq!(
+            app.open_buffer.as_ref().unwrap().text,
+            format!("// moved\n{after}")
+        );
+        assert_eq!(
+            first.read("a file.rs", ReviewRevision::After).unwrap().text,
+            after
+        );
+        assert!(
+            first_tree.exists(),
+            "a live snapshot lease protects its old tree"
+        );
+    }
+    drop(first);
+    let cache = owner.path().join("cache");
+    // Releasing a lease alone leaves three retained trees within the budget.
+    // A new head supplies actual pressure and must evict the oldest idle tree.
+    let current = app.review.as_ref().unwrap().clone();
+    let fresh = advance(&root, owner.path(), &current, |root| {
+        std::fs::write(root.join("stamp.txt"), "final cache pressure\n").unwrap();
+    });
+    app.accept_review(fresh);
+    settle(&mut app);
+    assert!(
+        !first_tree.exists(),
+        "released oldest tree is evicted under pressure"
+    );
+    let reopened = ReviewSnapshot::prepare(&root, summary, &cache).unwrap();
+    assert_ne!(reopened.head_root, first_tree);
+    let (_reopened_settings, mut reopened_app) =
+        open_review(&root, reopened, ReviewRevision::After);
+    frame(&mut reopened_app, &Context::default(), vec![]);
+    assert_eq!(reopened_app.open_buffer.as_ref().unwrap().text, after);
+    assert_eq!(app.selected_path.as_deref(), Some("moved.rs"));
+    assert_eq!(
+        std::fs::read_to_string(root.join("a file.rs")).unwrap(),
+        "checkout only\n"
+    );
+}

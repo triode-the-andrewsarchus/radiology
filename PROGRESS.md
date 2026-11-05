@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-11-05 — Integrated pinned PR/native cache acceptance (Codex)
+
+The new real-Git app regression combines added/removed/renamed exact Copy, binary
+failure retaining buffer/history, caller rename and mapped caret refresh, live
+snapshot leases under pressure, eviction and independent rematerialized reopening.
+It reuses existing fixtures/helpers and adds no production runtime mechanism.
+
+Native standalone 1×/2× workflows pass real Clang cross-file navigation against
+pinned bytes, Before source-only commands, all change kinds, moving head/base,
+project reuse, warm reopen and tree/normalized-index eviction. Reopening an old
+source stays tool-free; its evicted semantic record is honestly unavailable until
+explicit Generate restores it. Four driver/21 total tool calls and 14 exact Copy
+checks per scale. Dirty checkout source hashes, HEAD, refs/status remain unchanged;
+core processes exit zero. Captures inspected. GitHub metadata is controlled JSON;
+Git and scip-clang are real. This does not claim a live remote API test.
+
+QA assumptions were corrected: stable context for a real Git rename, an empty
+commit for identical inputs, waiting for published review state before Generate,
+and respecting separate three-record semantic retention. None required a runtime
+fix. The app eviction assertion now creates actual pressure after releasing a lease.
+The resource check rebuilt the executable during native acceptance; source runtime
+was unchanged, but before/current binary hashes differ, so no unchanged-executable
+claim is made for these runs.
+
+Full locked workspace: 761 app tests/nine ignored, two binary, 13 font, 22 text and
+59 doctests; strict Clippy passes. Integrated regression rerun and resource smoke/
+build/fmt/diff pass. Architecture NEUTRAL: +115 NLOC/one test, CCN4, no added hotspot,
+cycle or structural finding; all 125 clone instances/1335 duplicated lines unchanged.
+No type/UI style change; requested UI skills remain absent.
+
+[PR workflow contract](plans/rust-integrated-pr-flow.md). Evidence:
+~/.local/state/radiology-qa/integrated-pr-flow-20261105-40f3ec4. Next: remaining Swift
+behavior reconciliation, heavy C/C++ and Android/Gradle outcomes, final clean
+standalone/resource/reuse audit. Overall parity remains active.
+
 ## 2026-11-02 — Large-source owners and fragment publication latency (Codex)
 
 The new real-worker stress workflow found a485–506 ms publication frame despite

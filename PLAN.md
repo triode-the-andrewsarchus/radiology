@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Integrated pinned PR acceptance](plans/rust-integrated-pr-flow.md) now covers
+added/deleted/renamed/binary sources, moving head/base, exact real-Clang navigation,
+project reuse, tree/index eviction and explicit semantic restoration at 1×/2×.
+The attached checkout stays unchanged; the new app regression preserves mapped
+caret/history and live snapshot leases. Heavy compiler outcomes, remaining behavior
+reconciliation and the final standalone/reuse audit remain open.
+
 [Current parity reconciliation](plans/rust-parity-status-2026-11-02.md) maps all17
 original findings to current code/test evidence and lists the remaining integrated
 acceptance gates. The October27 Missing/Broken matrix is a historical repair baseline.
