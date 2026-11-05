@@ -156,6 +156,8 @@ impl RadiologyApp {
             self.fold_store
                 .reveal_byte(viewport, &buffer, &self.fold_ranges);
             self.source_viewport.restore_top(&buffer, viewport);
+            self.reading_positions
+                .observe(&buffer, Some(viewport), Some(viewport));
             self.review_refresh.notice = notice;
         } else {
             self.review_refresh.notice = prepared.original.is_some().then(|| {

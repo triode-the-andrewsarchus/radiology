@@ -31,6 +31,13 @@ use selection::{SelectionGesture, SelectionUnit};
 const FRAGMENT_BYTES: usize = 4096;
 const TEXT_INSET: f32 = 12.0;
 
+#[derive(Clone, Copy)]
+enum RevealAlignment {
+    Center,
+    Nearest,
+    Top,
+}
+
 /// Per-view geometry and canonical selection, separate from immutable source.
 #[derive(Default)]
 pub struct SourceViewport {
@@ -40,6 +47,7 @@ pub struct SourceViewport {
     folded: HashSet<Range<usize>>,
     rows: RowHeights,
     scroll_y: f32,
+    painted_top: Option<usize>,
     scroll_x: f32,
     anchor_after_reset: Option<usize>,
     selection: Option<ByteSelection>,
@@ -58,7 +66,7 @@ pub struct SourceViewport {
     pointer: PointerCapture,
     menu_request: Option<egui::Pos2>,
     context_byte: Option<usize>,
-    pending_reveal: Option<(usize, bool)>,
+    pending_reveal: Option<(usize, RevealAlignment)>,
     test_generation: u64,
     hover: crate::critical::hover::CriticalHover,
     hover_popup: crate::ui::critical_hover::HoverPopup,
@@ -229,9 +237,11 @@ impl SourceViewport {
         {
             return None;
         }
-        self.visible
-            .get(self.rows.row_at(self.scroll_y))
-            .map(|&index| self.fragments[index].bytes.start)
+        self.painted_top.or_else(|| {
+            self.visible
+                .get(self.rows.row_at(self.scroll_y))
+                .map(|&index| self.fragments[index].bytes.start)
+        })
     }
 
     pub(crate) fn restore_top(&mut self, buffer: &SourceBuffer, byte: usize) {
@@ -307,7 +317,8 @@ impl SourceViewport {
             self.layout_key = None;
             self.cancel_deferred_input();
             self.context_byte = None;
-            self.pending_reveal = None;
+            self.pending_reveal = restore.map(|(_, _, byte)| (byte, RevealAlignment::Top));
+            self.painted_top = None;
             self.measurement_priority = None;
         }
         if changed {
@@ -510,7 +521,7 @@ impl SourceViewport {
                 content
                     .buffer
                     .byte_offset(*content.caret_line, *content.caret_col),
-                true,
+                RevealAlignment::Nearest,
             ));
         }
         self.retire_input(ui, content, geometry);
@@ -535,9 +546,16 @@ impl SourceViewport {
         keyboard_reveal: bool,
     ) -> f32 {
         if let Some(byte) = self.reveal_target(content) {
-            self.pending_reveal = Some((byte, keyboard_reveal));
+            self.pending_reveal = Some((
+                byte,
+                if keyboard_reveal {
+                    RevealAlignment::Nearest
+                } else {
+                    RevealAlignment::Center
+                },
+            ));
         }
-        if let Some((byte, keyboard_reveal)) = self.pending_reveal {
+        if let Some((byte, alignment)) = self.pending_reveal {
             let rect = self.caret_rect(
                 ui,
                 content,
@@ -546,13 +564,13 @@ impl SourceViewport {
                 geometry.width,
                 geometry.minimum_height,
             );
-            scroll_y = if keyboard_reveal {
-                scroll_y.clamp(
+            scroll_y = match alignment {
+                RevealAlignment::Nearest => scroll_y.clamp(
                     (rect.bottom() - geometry.height).max(0.0),
                     rect.top().max(0.0),
-                )
-            } else {
-                (rect.center().y - geometry.height / 2.0).max(0.0)
+                ),
+                RevealAlignment::Center => (rect.center().y - geometry.height / 2.0).max(0.0),
+                RevealAlignment::Top => rect.top().max(0.0),
             };
             if !content.wrap {
                 let available =
@@ -577,6 +595,7 @@ impl SourceViewport {
     ) -> (Option<SourceViewAction>, bool) {
         let mut action = None;
         let mut reveal_visible = false;
+        self.painted_top = None;
         let origin = ui.max_rect().min;
         let clip = ui.clip_rect().intersect(geometry.code_rect);
         let painter = ui.painter().with_clip_rect(clip);
@@ -614,6 +633,17 @@ impl SourceViewport {
                 row_rect: rect,
                 hit_rect: code_hit,
             } = &frame;
+            if self.painted_top.is_none() && code_hit.intersects(clip) {
+                self.painted_top = Some(hit_byte(
+                    galley,
+                    vec2(
+                        0.0,
+                        (clip.top() - text_origin.y + geometry.tolerance).max(0.0),
+                    ),
+                    fragment,
+                    &content.buffer.text,
+                ));
+            }
             let fragment_painter = painter.with_clip_rect(clip.intersect(*code_hit));
             let response = ui.interact(
                 *code_hit,
@@ -1020,7 +1050,7 @@ impl SourceViewport {
                 content
                     .buffer
                     .byte_offset(*content.caret_line, *content.caret_col),
-                true,
+                RevealAlignment::Nearest,
             ));
         }
         self.layout_key = Some(key);
@@ -1800,9 +1830,11 @@ fn fragment_cursor(
     source: &str,
     byte: usize,
 ) -> Rect {
-    galley.pos_from_ccursor(egui::text::CCursor::new(
-        galley.caret_index(part.char_index(source, byte)),
-    ))
+    // A byte at a soft wrap is the first character of the following visual row.
+    galley.pos_from_ccursor(egui::text::CCursor {
+        index: galley.caret_index(part.char_index(source, byte)),
+        prefer_next_row: true,
+    })
 }
 
 fn layout(

@@ -201,6 +201,7 @@ impl RadiologyApp {
         self.history.clear();
         self.pin_store.clear();
         self.source_viewport = Default::default();
+        self.reading_positions = Default::default();
         self.open_buffer = None;
         self.selected_path = None;
         self.reference_context = Default::default();

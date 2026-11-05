@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-05 — Restore per-file reading positions and wrapped viewport rows (Codex)
+
+Swift reconciliation found implicit file opens always returned to the start. The
+accepted destination transaction now restores the latest reported caret/scroll byte
+through existing exact-content DocumentMemory. Explicit jumps/history stay exact;
+failures/cancellation cannot overwrite memory, changed bytes and new scopes retire
+it, and PR refresh seeds its mapped viewport independently of the caret. Shaped hit
+testing reports wrapped visual rows; deferred reveals now name Center/Nearest/Top
+alignment and avoid soft-wrap boundary drift. No new service, dependency or API.
+
+Two unit/four app tests include1×/2× Unicode wrapping across fragment boundaries,
+passive scrolling, columns, exact Back, stale/canceled sources and refresh. Native
+1×/2× raw keyboard/Copy checks restore column5, then passive line104/column0; source,
+Git and executable hashes stay unchanged. Captures inspected and core exits zero.
+Full locked workspace769 app tests/11 ignored, two binary,13 font,22 text and59
+doctests pass; focused tests, strict Clippy/build/resources/fmt pass. An old fold
+expectation was updated to assert the restored caret and changed-byte invalidation.
+Architecture +325 NLOC/ten functions, no new hotspots/cycles/duplicates; full clone
+Counter unchanged125/1335. Detailed contract/evidence/limits:
+[reading positions](plans/rust-reading-positions.md). Remaining behavior/compiler
+acceptance and final standalone/reuse audit remain open.
+
 ## 2026-11-05 — Kotlin PR fixture and remembered per-file review sides (Codex)
 
 Reconciling Swift's recorded compiler/PR assertions found a real missing behavior:

@@ -420,7 +420,7 @@ impl SourceViewport {
                     if pointer.fragment.is_some()
                         && !matches!(next, Some(SourceViewAction::NavigateToDefinition(_)))
                     {
-                        self.pending_reveal = Some((byte, true));
+                        self.pending_reveal = Some((byte, RevealAlignment::Nearest));
                     }
                     next
                 }

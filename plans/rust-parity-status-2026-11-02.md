@@ -129,6 +129,16 @@ this is separate from the preceding fresh real Gradle compilation. Full workspac
 passes763 app tests, eleven ignored; other counts unchanged. Further reader-state
 and behavior reconciliation remains open, including per-file position restoration.
 
+## Reading-position checkpoint — 2026-11-05
+
+[Per-file reading positions](rust-reading-positions.md) closes the implicit-reopen
+reset and wrapped-row gaps through exact document memory and the existing viewport.
+Caret/scroll precedence, exact Back, content/scope invalidation and mapped refresh
+pass in app frames, including wrapped Unicode across fragment boundaries at1×/2×.
+Native1×/2× checks verify caret-column and passive-scroll reopen by exact Copy.
+Full workspace769 app tests/11 ignored; strict Clippy/build/resources pass.
+Remaining fixture reconciliation and the gates below remain open.
+
 ## Remaining acceptance gates
 
 1. **Remaining behavior and compiler acceptance:** finish mapping the other

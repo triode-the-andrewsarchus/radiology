@@ -10,6 +10,7 @@ pub(super) struct NavigationIntent {
     pub force_read: bool,
     // Commit an explicit review-side choice only after navigation succeeds.
     pub remember_revision: bool,
+    pub restore_position: bool,
     pub flash_destination: bool,
 }
 
@@ -23,14 +24,23 @@ pub(super) struct PendingNavigation {
 impl RadiologyApp {
     /// Publishes actual caret movement even when another source action wins the frame.
     pub(super) fn finish_source_interaction(&mut self, previous: (usize, usize)) {
-        let moved = self.source_viewport.take_caret_movement();
-        if moved || previous != (self.caret_line, self.caret_col) {
+        let moved = self.source_viewport.take_caret_movement()
+            || previous != (self.caret_line, self.caret_col);
+        if moved {
             self.cancel_code_path_navigation();
-            if let Some(buffer) = &self.open_buffer {
-                self.history.update_current(
-                    buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col)),
-                );
+        }
+        if let Some(buffer) = &self.open_buffer {
+            let caret = buffer.byte_offset(self.caret_line, self.caret_col);
+            self.reading_positions.observe(
+                buffer,
+                self.source_viewport.top_byte(buffer),
+                moved.then_some(caret),
+            );
+            if moved {
+                self.history.update_current(buffer.location_at_byte(caret));
             }
+        }
+        if moved {
             self.refresh_symbol_context();
         }
     }
@@ -381,7 +391,7 @@ impl RadiologyApp {
         }
     }
 
-    fn apply_destination(&mut self, intent: NavigationIntent, location: SourceLocation) {
+    fn apply_destination(&mut self, intent: NavigationIntent, mut location: SourceLocation) {
         let Some(buffer) = &self.open_buffer else {
             return;
         };
@@ -393,9 +403,12 @@ impl RadiologyApp {
                 }
             }
         }
-        let byte = location.byte_offset;
+        let (byte, restored) =
+            self.reading_positions
+                .activate(buffer, location.byte_offset, intent.restore_position);
+        location.byte_offset = byte;
         self.files_reveal_pending = true;
-        if intent.reveal {
+        if intent.reveal || restored {
             self.test_code.reveal_byte(buffer, byte);
         }
         self.source_viewport.accept_navigation();
@@ -404,7 +417,10 @@ impl RadiologyApp {
         }
         self.caret_line = buffer.line_at_byte(byte);
         self.caret_col = buffer.column_at_byte(byte);
-        self.scroll_to_line = Some(self.caret_line);
+        self.scroll_to_line = (!restored).then_some(self.caret_line);
+        if restored {
+            self.source_viewport.restore_top(buffer, byte);
+        }
         self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
         if intent.record_history || intent.history_step.is_some() {
             if let Some(fold) = crate::syntax::folds::enclosing_function_fold(

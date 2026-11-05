@@ -11,6 +11,7 @@ pub mod find;
 pub mod history;
 pub mod location;
 pub mod preview;
+pub(crate) mod reading_positions;
 pub mod selection;
 
 pub use buffer::{SourceBuffer, SourceBufferError};

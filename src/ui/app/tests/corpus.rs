@@ -1,5 +1,5 @@
 //! The checked-in Swift language corpus passes through source publication and real app frames.
-use super::focus::{frame, key};
+use super::focus::{frame, key, settle_frame};
 use super::*;
 use egui::{Event, Key, Modifiers};
 
@@ -33,8 +33,7 @@ fn swift_source_corpus_keeps_reader_bytes_folds_copy_and_history_through_recover
         ctx.set_pixels_per_point(scale);
         for (path, text, callable, broken) in cases {
             app.open_file(&path);
-            settle(&mut app);
-            frame(&mut app, &ctx, vec![]);
+            settle_frame(&mut app, &ctx);
             let buffer = app.open_buffer.clone().unwrap();
             assert_eq!(buffer.text, text, "{path}/{scale}");
             assert!(
@@ -106,11 +105,9 @@ fn swift_source_corpus_keeps_reader_bytes_folds_copy_and_history_through_recover
             );
             let departure = buffer.byte_offset(app.caret_line, app.caret_col);
             app.navigate(SourceLocation::new("anchor.txt", 7), true);
-            settle(&mut app);
-            frame(&mut app, &ctx, vec![]);
+            settle_frame(&mut app, &ctx);
             app.execute_command(&ctx, ToolbarAction::NavigateBack);
-            settle(&mut app);
-            frame(&mut app, &ctx, vec![]);
+            settle_frame(&mut app, &ctx);
             assert_eq!(app.selected_path.as_deref(), Some(path.as_str()));
             assert_eq!(
                 buffer.byte_offset(app.caret_line, app.caret_col),

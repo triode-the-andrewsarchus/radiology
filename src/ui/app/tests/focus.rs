@@ -27,6 +27,12 @@ pub(in crate::ui::app) fn frame(
     frame_with_overlay(app, ctx, events, |_| {})
 }
 
+/// Publishes worker results and paints them with the caller's actual scale/input context.
+pub(in crate::ui::app) fn settle_frame(app: &mut RadiologyApp, ctx: &Context) {
+    settle(app);
+    frame(app, ctx, vec![]);
+}
+
 fn scaled_reader(text: &str, scale: f32) -> (tempfile::TempDir, RadiologyApp, Context) {
     let (dir, mut app) = reader_with_source(text);
     let ctx = Context::default();

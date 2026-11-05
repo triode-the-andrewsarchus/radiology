@@ -2,7 +2,7 @@ use super::*;
 use crate::pull_request::review::ReviewSnapshot;
 use crate::repository::test_support::git;
 
-fn advance(
+pub(super) fn advance(
     root: &Path,
     owner: &Path,
     template: &ReviewSnapshot,

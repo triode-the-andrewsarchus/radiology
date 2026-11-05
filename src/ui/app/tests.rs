@@ -1438,10 +1438,16 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     app.open_file("a.rs");
     settle(&mut app);
     assert_folded_headers(&app, &[4]);
+    // The remembered line-2 caret survives Reload, so its enclosing function
+    // remains exposed. Other manual folds must still retire on changed bytes.
+    assert_eq!((app.caret_line, app.caret_col), (2, 1));
+    app.fold_store.toggle_header(4, &app.fold_ranges);
+    assert_folded_headers(&app, &[]);
     std::fs::write(root.join("a.rs"), text.replace("second", "newest")).unwrap();
     app.execute_command(&Context::default(), ToolbarAction::ReloadSource);
     settle(&mut app);
-    assert_folded_headers(&app, &[1, 4]);
+    assert_eq!((app.caret_line, app.caret_col), (2, 1));
+    assert_folded_headers(&app, &[4]);
     app.fold_store.toggle_header(4, &app.fold_ranges);
     let other = dir.path().join("other");
     repository(&other);
@@ -2864,3 +2870,5 @@ mod stress;
 
 #[cfg(unix)]
 mod kotlin;
+
+mod positions;

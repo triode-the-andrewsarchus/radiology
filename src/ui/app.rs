@@ -109,6 +109,7 @@ pub struct RadiologyApp {
     pub source_find: crate::ui::source_find::SourceFindPanel,
     /// Measured source geometry and original-byte selection.
     pub source_viewport: crate::ui::source_view::SourceViewport,
+    reading_positions: crate::source::reading_positions::ReadingPositions,
     /// Linear navigation history.
     pub history: NavigationHistory,
     /// Syntax highlighting engine.
@@ -311,6 +312,7 @@ impl RadiologyApp {
             caret_col: 0,
             source_find: Default::default(),
             source_viewport: Default::default(),
+            reading_positions: Default::default(),
             history: NavigationHistory::new(),
             highlighter: Arc::new(SyntaxHighlighter::new()),
             highlighted_lines: Vec::new(),
@@ -458,6 +460,7 @@ impl RadiologyApp {
             crate::source::loader::SourceTarget::Byte(0),
             source::NavigationIntent {
                 record_history: true,
+                restore_position: true,
                 ..Default::default()
             },
         );
@@ -558,6 +561,7 @@ impl RadiologyApp {
         self.reset_index_state();
         self.source_find = Default::default();
         self.source_viewport = Default::default();
+        self.reading_positions = Default::default();
         self.declaration_summary = Default::default();
         self.reader_input.clear();
         self.deferred_input.clear();

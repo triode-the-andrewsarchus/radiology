@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Per-file reading positions](plans/rust-reading-positions.md) now restore the latest
+caret or passive-scroll anchor on implicit reopen, including wrapped Unicode rows.
+Exact Back remains independent, changed content/scope invalidates saved anchors,
+and PR refresh seeds its mapped viewport. App and native1×/2× checks pass; the
+remaining behavior/compiler and final standalone/reuse gates stay open.
+
 [Kotlin PR reader and remembered revision choices](plans/rust-kotlin-pr-fixture.md)
 now reconcile the recorded Swift overload/Noise and PR fixtures. The pass found and
 fixed forgotten per-file Before/After choices, reusing accepted navigation transactions
