@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Compact source status metadata](plans/rust-source-status-layout.md) fixes the
+Before footer's split Read Only label at the smaller native window. Existing Small
+type/spacing keeps all routine fields on one row there, while diagnostic/narrow
+wrapping and the Line control remain usable. Native dark/light1×/2× and the expanded
+app resize matrix pass. Remaining parity/compiler and final reuse gates stay open.
+
 [Exact-byte change navigation](plans/rust-byte-change-navigation.md) now treats
 empty hunk sides as points and handles EOF, revision sides and bounded targets
 consistently across commands and both sets of arrows. App/unit/native1×/2× checks
-preserve exact Back and source bytes. A smaller-window Before status footer wrap
-was observed for separate responsive cleanup; remaining acceptance gates stay open.
+preserve exact Back and source bytes. The smaller-window Before status footer wrap
+is now [fixed](plans/rust-source-status-layout.md); remaining acceptance gates stay open.
 
 [Unicode file search](plans/rust-unicode-file-search.md) now uses full case folding
 for queries and candidate names/paths. Sharp-S, final sigma, ligatures, long-s and

@@ -13,6 +13,8 @@ pub(super) fn show(
         .show_inside(ui, |ui| {
             action = show_pin_groups(ui, theme, content.pin_store);
             ui.horizontal_wrapped(|ui| {
+                ui.style_mut().override_text_style = Some(egui::TextStyle::Small);
+                ui.spacing_mut().item_spacing.x = 4.0;
                 let language = crate::syntax::language::LanguageRegistry::for_path(&content.buffer.path);
                 ui.colored_label(theme.text_secondary, language.display_name);
                 ui.colored_label(theme.text_muted, "·");
@@ -49,7 +51,7 @@ pub(super) fn show(
                 }
                 ui.colored_label(theme.text_muted, "·");
                 let line_btn = ui.add(egui::Button::new(
-                    RichText::new(format!("Line {}", *content.caret_line)).size(11.5).color(theme.text_secondary)
+                    RichText::new(format!("Line {}", *content.caret_line)).small().color(theme.text_secondary)
                 ).frame(false));
                 if line_btn.on_hover_text("Go to Line (Ctrl+L)").clicked() {
                     action = Some(SourceViewAction::OpenGoToLine);

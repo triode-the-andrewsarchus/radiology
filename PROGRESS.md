@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-05 — Compact source status metadata (Codex)
+
+Before's Read Only label split internally at the smaller native window. The
+existing footer now uses host Small text consistently and4-point metadata spacing;
+all fields/details and content-sized diagnostic/narrow wrapping remain. Three-line
+production change; no new API/dependency/style system. The expanded existing matrix
+uses the real UI face/Small12 and covers checkout/Before/After/diagnostics,1×/2×,
+800/1024/1100/1400/resized widths, label bounds/nonoverlap, exact source and pointer
+Line control. The old footer fails the internal two-row assertion; final passes.
+
+Native dark/light1×/2× captures confirm the formerly failing Before footer fits
+one row. Navigation/Back and five exact Copy checks per scale preserve source/Git/
+executable hashes; core exits zero. Locked workspace774 app tests/11 ignored, two
+binary,13 font,22 text and60 doctests pass; final focused matrix, strict Clippy,
+build/resources/fmt pass. Geometry assertions now have a cohesive test helper;
++56 NLOC/one helper, no new hotspot/cycle/clone. Detailed contract/evidence:
+[source status layout](plans/rust-source-status-layout.md). Remaining behavior,
+Android success and final standalone/reuse acceptance stay open.
+
 ## 2026-11-05 — Byte-aware change-block destinations and availability (Codex)
 
 Swift boundary reconciliation found an empty-side EOF destination kept Next enabled

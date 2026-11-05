@@ -62,5 +62,5 @@ Temporary execution:
 Continue reconciling other Swift behavior fixtures and SDK-backed Android success,
 then perform the clean standalone/resource/library-host audit. Native captures also
 show the Before status footer wrapping “Read Only” at the smaller logical window;
-check that responsive layout separately. Actual sibling adoption and full assistive
+the [subsequent metadata layout repair](rust-source-status-layout.md) closes that issue. Actual sibling adoption and full assistive
 accessibility remain outside the current user scope.

@@ -286,17 +286,91 @@ fn native_ime_area_tracks_the_editor_caret_through_composition_and_resize() {
     }
 }
 
+fn assert_footer_labels(
+    output: &egui::FullOutput,
+    bounds: egui::Rect,
+    labels: &[&str],
+    single_row: bool,
+) {
+    use crate::ui::test_support::text_shapes;
+    let mut rectangles = Vec::new();
+    let mut row_positions = Vec::new();
+    for &label in labels {
+        let text = text_shapes(output)
+            .find(|text| text.galley.job.text == label && text.pos.y >= bounds.top())
+            .unwrap_or_else(|| {
+                panic!(
+                    "missing footer {label}: {:?}",
+                    text_shapes(output)
+                        .map(|text| &text.galley.job.text)
+                        .collect::<Vec<_>>()
+                )
+            });
+        if single_row {
+            assert_eq!(
+                text.galley.rows.len(),
+                1,
+                "{label} wrapped internally in {bounds:?}"
+            );
+        }
+        row_positions.push(text.pos.y);
+        for row in text
+            .galley
+            .rows
+            .iter()
+            .filter(|row| !row.visuals.mesh.vertices.is_empty())
+        {
+            let rect = row.visuals.mesh_bounds.translate(text.pos.to_vec2());
+            assert!(
+                bounds.contains_rect(rect),
+                "{label}: {rect:?} outside footer {bounds:?}"
+            );
+            for previous in &rectangles {
+                assert!(
+                    !rect.intersects(*previous),
+                    "footer overlap {label}: {rect:?} with {previous:?}"
+                );
+            }
+            rectangles.push(rect);
+        }
+    }
+    if single_row {
+        let min = row_positions.iter().copied().fold(f32::INFINITY, f32::min);
+        let max = row_positions
+            .iter()
+            .copied()
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            max - min <= 4.0,
+            "routine footer metadata wrapped in {bounds:?}: {row_positions:?}"
+        );
+    }
+}
+
 #[test]
 fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
-    use crate::ui::test_support::{click, text_center, text_shapes};
+    use crate::ui::test_support::{click, text_center};
     for scale in [1.0, 2.0] {
-        for diagnostics in [false, true] {
-            let (_owner, mut app) = isolated_source("a.rs", "// one\n// café two\n// three\n");
+        for (diagnostics, revision) in [
+            (false, None),
+            (true, None),
+            (false, Some(ReviewRevision::Before)),
+            (false, Some(ReviewRevision::After)),
+        ] {
+            let (_owner, mut app) = isolated_source("a.kt", "// one\n// café two\n// three\n");
             let byte = app.open_buffer.as_ref().unwrap().byte_offset(2, 4);
-            app.jump_to_location("a.rs", 2, byte);
+            app.jump_to_location("a.kt", 2, byte);
             settle(&mut app);
             let ctx = Context::default();
             ctx.set_pixels_per_point(scale);
+            let mut fonts = egui::FontDefinitions::default();
+            reader_fonts::use_ui_font(&mut fonts);
+            ctx.set_fonts(fonts);
+            ctx.style_mut(|style| {
+                style
+                    .text_styles
+                    .insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
+            });
             if diagnostics {
                 app.execute_command(&ctx, ToolbarAction::ToggleTheme);
                 settle(&mut app);
@@ -306,8 +380,9 @@ fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
                 Arc::make_mut(&mut app.native_highlights).error =
                     Some("fixture highlight failure".into());
             }
+            Arc::make_mut(app.open_buffer.as_mut().unwrap()).revision = revision;
             let mut first_height = None;
-            for width in [800.0, 1100.0, 1400.0, 800.0] {
+            for width in [800.0, 1024.0, 1100.0, 1400.0, 800.0] {
                 let size = egui::vec2(width, 800.0);
                 for _ in 0..4 {
                     frame_sized(&mut app, &ctx, vec![], size, |_| {});
@@ -324,12 +399,15 @@ fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
                     ),
                     egui::pos2(canvas.right(), size.y),
                 );
-                let mut rectangles = Vec::new();
                 let mut labels = vec![
-                    "Rust",
+                    "Kotlin",
                     "4 lines",
                     "Line 2",
-                    "No Index",
+                    if revision == Some(ReviewRevision::Before) {
+                        "Not Indexed (Before)"
+                    } else {
+                        "No Index"
+                    },
                     "UTF-8",
                     "Read Only",
                 ];
@@ -341,38 +419,15 @@ fn narrow_source_footer_keeps_metadata_disjoint_and_line_control_usable() {
                         "Basic syntax colors",
                     ]);
                 }
-                for label in labels {
-                    let text = text_shapes(&output)
-                        .find(|text| text.galley.job.text == label)
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "missing {label}; caret {:?}; texts {:?}",
-                                (app.caret_line, app.caret_col),
-                                text_shapes(&output)
-                                    .map(|text| &text.galley.job.text)
-                                    .collect::<Vec<_>>()
-                            )
-                        });
-                    for row in text
-                        .galley
-                        .rows
-                        .iter()
-                        .filter(|row| !row.visuals.mesh.vertices.is_empty())
-                    {
-                        let rect = row.visuals.mesh_bounds.translate(text.pos.to_vec2());
-                        assert!(
-                            footer_bounds.contains_rect(rect),
-                            "{label}: {rect:?} outside footer {footer_bounds:?}"
-                        );
-                        for previous in &rectangles {
-                            assert!(
-                                !rect.intersects(*previous),
-                                "footer overlap {label}: {rect:?} with {previous:?}"
-                            );
-                        }
-                        rectangles.push(rect);
-                    }
+                if let Some(revision) = revision {
+                    labels.push(revision.title());
                 }
+                assert_footer_labels(
+                    &output,
+                    footer_bounds,
+                    &labels,
+                    !diagnostics && width >= 1024.0,
+                );
                 if width == 800.0 {
                     let initial = first_height.get_or_insert(canvas.height());
                     assert!(

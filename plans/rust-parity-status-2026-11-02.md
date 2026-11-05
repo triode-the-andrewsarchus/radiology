@@ -155,7 +155,16 @@ point/EOF availability, preserving inside/gap bounds and exact Back. The app,
 toolbar and source header share byte targets. Unit/app checks cover synthetic EOF;
 native1×/2× real Git checks cover After deletion and Before insertion points.
 Full workspace774 app tests/11 ignored,60 doctests, strict Clippy/build/resources
-pass. Smaller-window Before footer wrapping remains a concrete UI follow-up.
+pass. Smaller-window Before footer wrapping is repaired in the following checkpoint.
+
+## Source status layout checkpoint — 2026-11-05
+
+[Compact source status metadata](rust-source-status-layout.md) fixes Before's split
+Read Only label through existing Small typography and metadata spacing. All details
+remain available; narrower/diagnostic rows wrap safely and Line remains clickable.
+The expanded app matrix and native dark/light1×/2× pass. Full workspace774 app tests,
+60 doctests and strict Clippy/build/resources remain green. Other behavior/compiler
+and final standalone/reuse gates remain open.
 
 ## Remaining acceptance gates
 
