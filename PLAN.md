@@ -4,25 +4,33 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[App-model contracts](plans/rust-app-model-contracts.md) now reconcile all six
+ordinary Swift AppModelTests groups. New both-scale app tests cover latest
+navigation, held retired parsing, Swift/Rust/plain-text fact replacement and
+repeated pointer feedback without duplicate visits. Root selection and passive
+history use their previously fixed contracts. Other Swift suites and Android
+acceptance remain open.
+
 [Passive history trail](plans/rust-passive-history-trail.md) now preserves an
 implicit visit's scrolled reading position when structural navigation starts.
 Fixed stops remain fixed; semantic/bookmark/Code Path routes retain exact caret
 departures. A red app regression and native1×/2× seven-Copy Back/Forward workflows
-verify both policies. Other app-model assertions and Android acceptance remain.
+verify both policies. Other Swift assertions and Android acceptance remain.
 
 [Repository file choice](plans/rust-empty-repository-reader.md) now matches Swift's
 empty reader/history after plain discovery or a drop. Explicit file/PR launches
 and refresh restoration retain their destinations. A gated late-root regression,
 empty-state command checks and four native launch/refresh runs verify the change.
-Other app-model assertions and SDK-backed Android acceptance remain open.
+Other Swift assertions and SDK-backed Android acceptance remain open.
 
 [Structural history](plans/rust-structural-history.md) now preserves committed
 outline/bookmark/line stops alongside exact semantic departures. The
 [passive-trail checkpoint](plans/rust-passive-history-trail.md) further distinguishes
 normal structural navigation from those exact-caret routes.
 A red app regression and native 1×/2× Back/Forward suffix-copy checks verify both
-positions. Failed/canceled navigation preserves the trail. The broader app-model
-audit remains open; repository initial selection is now resolved by the
+positions. Failed/canceled navigation preserves the trail. The
+[app-model checkpoint](plans/rust-app-model-contracts.md) now records all six groups;
+repository initial selection is resolved by the
 [file-choice checkpoint](plans/rust-empty-repository-reader.md).
 
 [Scroll/history contracts](plans/rust-scroll-history-contracts.md) reconcile the

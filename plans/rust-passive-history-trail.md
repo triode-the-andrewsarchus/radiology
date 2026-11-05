@@ -1,5 +1,9 @@
 # Passive reading positions and structural history — 2026-11-05
 
+Update: the four remaining app-model groups recorded below are now reconciled in
+the [six-group app-model checkpoint](rust-app-model-contracts.md). Other Swift
+suites and tool-validation limits remain open.
+
 Swift AppModelTests.passiveScrollingDoesNotReplaceCommittedStructuralTrail starts
 with an implicit file visit, changes its reading position, commits a structural
 stop, scrolls again and navigates elsewhere. Back must restore the committed stop

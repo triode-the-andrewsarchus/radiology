@@ -64,6 +64,15 @@ fn repository(root: &Path) {
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
 }
 
+fn first_outline_target(app: &mut RadiologyApp) -> crate::ui::outline_list::OutlineTarget {
+    use crate::ui::outline_list::OutlineAction;
+    app.sync_outline();
+    match app.outline_list.key(egui::Key::Home) {
+        Some(OutlineAction::Preview(target)) => target,
+        other => panic!("expected first outline preview, got {other:?}"),
+    }
+}
+
 fn open_reader(app: &mut RadiologyApp, root: &Path, path: &str) {
     app.open_repository(root);
     settle(app);
@@ -2917,3 +2926,5 @@ mod stress;
 mod kotlin;
 
 mod positions;
+
+mod model;

@@ -271,10 +271,7 @@ fn outline_commits_keep_implicit_reading_positions_and_fixed_structural_stops() 
         frame(&mut app, &ctx, vec![]);
         assert_eq!(app.caret_line, 1);
         assert_eq!(app.source_viewport.top_byte(&buffer), Some(reading));
-        app.sync_outline();
-        let Some(OutlineAction::Preview(target)) = app.outline_list.key(Key::Home) else {
-            panic!("outline target")
-        };
+        let target = first_outline_target(&mut app);
         app.handle_outline_action(OutlineAction::Activate(target));
         let anchor = buffer.location_at_byte(text.find("first").unwrap());
         assert_eq!(app.history.current(), Some(&anchor));

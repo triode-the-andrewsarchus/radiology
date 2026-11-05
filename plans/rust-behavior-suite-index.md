@@ -56,15 +56,12 @@ assertion groups are now reconciled in the
 function to Rust tests and platform equivalents; the absolute-path opt-in
 performance probe is explicitly unrun.
 
-AppModelTests remains under review. The
-[structural-history checkpoint](rust-structural-history.md) fixes caret motion
-erasing a committed stop while preserving exact departure Back. The
-[repository file-choice checkpoint](rust-empty-repository-reader.md) now reconciles
-its opening-race/empty-source assertion. The
-[passive-trail checkpoint](rust-passive-history-trail.md) reconciles
-passiveScrollingDoesNotReplaceCommittedStructuralTrail through separate structural
-and semantic origins. The other four groups remain under review; the six-function
-suite is not marked reconciled as a whole.
+AppModelTests: all six ordinary functions are now reconciled in the
+[app-model checkpoint](rust-app-model-contracts.md), with an assertion-level table.
+It combines new both-scale app publication/grammar/feedback tests with the
+[root-choice fix](rust-empty-repository-reader.md) and
+[passive-trail fix](rust-passive-history-trail.md). Other suite groups retain their
+checkpoint-specific limits.
 
 ## Bookmarks
 

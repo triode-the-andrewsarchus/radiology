@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-05 — Completed the six-group app-model evidence pass (Codex)
+
+Added three app regressions at both scales for the four remaining AppModelTests
+groups: exact 13/6 latest-navigation/Back behavior; a real 2000-function Swift parse
+held at publication while Current wins; Swift→Rust→plain-text replacement with
+retired syntax/fold errors cleared; and repeated pointer landing feedback with
+fresh jumps, unchanged history and keyboard Commit's distinct non-flashing path.
+Existing runtime already meets these contracts; no production/API change.
+
+All six Swift app-model groups now have an explicit evidence table, including the
+previous root-choice and passive-history repairs. Workspace: 799 app tests/11
+ignored, two binary, 13 font, 22 text and 60 doctests pass. Both shared-helper caller
+groups and strict Clippy/format pass after consolidation. Architecture +209 NLOC,
+one test module/four test-only functions; no new clone/hotspot/cycle/structure,
+full clone multiset unchanged at 123/1323. The source-bound outline fixture is shared
+instead of duplicated. [Mapping and limits](plans/rust-app-model-contracts.md)
+explicitly distinguish held-result/app rendering from native and Swift runtime
+evidence. Other Swift suites and SDK-backed Android acceptance remain open.
+
 ## 2026-11-05 — Passive reading positions survive structural navigation (Codex)
 
 A red rendered-app regression found an implicit scrolled visit returned byte 0

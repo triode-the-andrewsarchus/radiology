@@ -6,10 +6,15 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[App-model contracts](rust-app-model-contracts.md) reconcile all six ordinary
+AppModelTests functions through explicit app assertions and the prior root/history
+fixes. Other Swift suites, opt-in probe limits and Android acceptance remain open.
+
 [Passive history trail](rust-passive-history-trail.md) fixes loss of an implicit
 scrolled visit during structural navigation. Semantic/bookmark/Code Path exact
 caret departures stay separately verified. This closes that app-model assertion;
-other app-model groups and the remaining Swift suites still require review.
+the remaining groups are now reconciled in the
+[app-model checkpoint](rust-app-model-contracts.md). Other Swift suites remain.
 
 [Repository file choice](rust-empty-repository-reader.md) removes automatic source
 selection after plain discovery/drop and closes that Swift opening-race assertion.
@@ -17,8 +22,9 @@ Explicit file/PR and refresh destinations remain verified; other assertions rema
 
 [Structural history](rust-structural-history.md) fixes caret motion erasing
 committed stops and preserves exact departure Back through the existing accepted
-navigation transaction. App/native 1×/2× checks pass; the remaining app-model
-assertions remain under review; initial repository selection is now reconciled
+navigation transaction. App/native 1×/2× checks pass; app-model assertions are
+reconciled in the [six-group checkpoint](rust-app-model-contracts.md), and initial
+repository selection is reconciled
 in the [file-choice checkpoint](rust-empty-repository-reader.md).
 
 [Scroll/history contracts](rust-scroll-history-contracts.md) reconcile one history
