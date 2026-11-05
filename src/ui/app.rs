@@ -113,6 +113,8 @@ pub struct RadiologyApp {
     reading_positions: crate::source::reading_positions::ReadingPositions,
     /// Linear navigation history.
     pub history: NavigationHistory,
+    // Implicit file visits follow the caret; committed structural stops stay fixed.
+    history_tracks_caret: bool,
     /// Syntax highlighting engine.
     pub highlighter: Arc<SyntaxHighlighter>,
     /// Cached highlighted lines for active source buffer.
@@ -316,6 +318,7 @@ impl RadiologyApp {
             source_viewport: Default::default(),
             reading_positions: Default::default(),
             history: NavigationHistory::new(),
+            history_tracks_caret: true,
             highlighter: Arc::new(SyntaxHighlighter::new()),
             highlighted_lines: Vec::new(),
             fold_ranges: Vec::new(),
@@ -468,13 +471,13 @@ impl RadiologyApp {
         );
     }
 
-    fn record_departure(&mut self) {
+    fn record_departure(&mut self, record_history: bool) {
         if let Some(buffer) = &self.open_buffer {
             let location =
                 buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col));
-            if self.history.current().is_some() {
+            if self.history_tracks_caret && self.history.current().is_some() {
                 self.history.update_current(location);
-            } else {
+            } else if record_history {
                 self.history.visit(location);
             }
         }
@@ -580,6 +583,7 @@ impl RadiologyApp {
         self.selected_path = None;
         self.open_buffer = None;
         self.history.clear();
+        self.history_tracks_caret = true;
         self.pin_store.clear();
         self.call_sites = Default::default();
         self.syntactic_occurrences = Default::default();

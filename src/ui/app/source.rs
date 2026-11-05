@@ -36,7 +36,7 @@ impl RadiologyApp {
                 self.source_viewport.top_byte(buffer),
                 moved.then_some(caret),
             );
-            if moved {
+            if moved && self.history_tracks_caret {
                 self.history.update_current(buffer.location_at_byte(caret));
             }
         }
@@ -399,7 +399,7 @@ impl RadiologyApp {
 
     fn commit_departure(&mut self, intent: NavigationIntent) {
         if intent.record_history || intent.history_step.is_some() {
-            self.record_departure();
+            self.record_departure(intent.record_history);
         }
         if let Some(forward) = intent.history_step {
             if forward {
@@ -442,6 +442,7 @@ impl RadiologyApp {
         }
         self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
         if intent.record_history || intent.history_step.is_some() {
+            self.history_tracks_caret = intent.restore_position;
             if let Some(fold) = crate::syntax::folds::enclosing_function_fold(
                 byte,
                 &self.outline_symbols,

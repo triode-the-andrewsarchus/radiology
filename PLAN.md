@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Structural history](plans/rust-structural-history.md) now preserves committed
+outline/bookmark/line stops while recording a changed exact departure separately.
+A red app regression and native 1×/2× Back/Forward suffix-copy checks verify both
+positions. Failed/canceled navigation preserves the trail. The broader app-model
+audit remains open, including repository discovery's automatic initial-file choice.
+
 [Scroll/history contracts](plans/rust-scroll-history-contracts.md) reconcile the
 single Swift history test and 11 ordinary scrolling groups. Expanded rendered/app
 checks cover repeated row 151 restoration,607-row fold compaction after zoom,

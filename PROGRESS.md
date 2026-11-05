@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-05 — Preserved structural anchors with exact departures (Codex)
+
+A red hosted-app regression found caret movement overwrote a committed structural
+history stop. One private app flag now distinguishes implicit caret-tracking file
+visits from fixed explicit/history stops. Existing NavigationIntent and publication
+transactions select/update it. Successful new navigation retains the anchor and
+adds a changed exact departure; Back/Forward do not insert during a history step.
+Failed/canceled requests preserve history, and existing scope teardown resets it.
+
+The new regression checks both scales, keyboard caret motion, failure/cancel and
+Back/Forward. The pointer-pinning test now preserves its structural stop while
+still verifying refreshed metadata and exact moved-caret Back. Native 1×/2× PR
+fixtures independently verify column 1/column 0 using four exact suffix/full-source
+clipboard checks per scale. Source/Git/binary are unchanged; accepted exits zero.
+
+Workspace 794 app tests/11 ignored, two binary, 13 font,22 text and 60 doctests,
+strict Clippy/format and fresh binary build pass. Architecture +67 measured NLOC,
+one test, full clone counters unchanged 125/1335, no new hotspot/cycle/structure.
+[Evidence and remaining app-model review](plans/rust-structural-history.md) record
+the initial-file selection difference still to reconcile. Other Swift assertions
+and SDK-backed Android validation remain open.
+
 ## 2026-11-05 — Scrolling, fold compaction and history assertions (Codex)
 
 Reconciled the Swift history contract and 11 ordinary SourceScrollView assertion

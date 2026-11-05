@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Structural history](rust-structural-history.md) fixes caret motion erasing
+committed stops and preserves exact departure Back through the existing accepted
+navigation transaction. App/native 1×/2× checks pass; the remaining app-model
+assertions, including initial repository selection, are still under review.
+
 [Scroll/history contracts](rust-scroll-history-contracts.md) reconcile one history
 contract and 11 ordinary scrolling groups through expanded app/rendered tests.
 The machine-specific opt-in fold probe is explicitly unrun; other suites remain.

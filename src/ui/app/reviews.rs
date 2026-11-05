@@ -219,6 +219,7 @@ impl RadiologyApp {
         self.active_revision = Some(ReviewRevision::After);
         self.sidebar_tab = SidebarTab::Changes;
         self.history.clear();
+        self.history_tracks_caret = true;
         self.pin_store.clear();
         self.source_viewport = Default::default();
         self.reading_positions = Default::default();

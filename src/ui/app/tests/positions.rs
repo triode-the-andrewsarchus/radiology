@@ -199,3 +199,52 @@ fn wrapped_reading_positions_restore_the_visible_visual_row_inside_a_source_line
         assert_eq!(app.source_viewport.top_byte(&source), Some(top));
     }
 }
+
+#[test]
+fn committed_structural_stops_survive_caret_motion_and_keep_exact_departures() {
+    for scale in [1.0, 2.0] {
+        let text = "// origin\nfn café() {\n work();\n}\n";
+        let (owner, mut app) = isolated_source("a.rs", text);
+        std::fs::write(owner.path().join("checkout/b.rs"), "fn other() {}\n").unwrap();
+        app.open_file("a.rs");
+        settle(&mut app);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        let anchor = SourceLocation::new("a.rs", text.find("café").unwrap());
+        app.navigate(anchor.clone(), true);
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![]);
+        frame(&mut app, &ctx, vec![key(Key::ArrowRight, Modifiers::NONE)]);
+        let buffer = app.open_buffer.clone().unwrap();
+        let departure = buffer.location_at_byte(buffer.byte_offset(app.caret_line, app.caret_col));
+        assert_ne!(departure, anchor);
+        assert_eq!(
+            app.history.current(),
+            Some(&anchor),
+            "caret motion must not erase a committed structural stop"
+        );
+        let history = format!("{:?}", app.history);
+        app.navigate(SourceLocation::new("missing.rs", 0), true);
+        settle_frame(&mut app, &ctx);
+        assert!(app.error.is_some());
+        assert_eq!(format!("{:?}", app.history), history);
+        app.navigate(SourceLocation::new("b.rs", 3), true);
+        app.cancel_source_load();
+        assert_eq!(format!("{:?}", app.history), history);
+        app.navigate(SourceLocation::new("b.rs", 3), true);
+        settle_frame(&mut app, &ctx);
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.history.current(), Some(&departure));
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.history.current(), Some(&anchor));
+        app.execute_command(&ctx, ToolbarAction::NavigateForward);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.history.current(), Some(&departure));
+        app.execute_command(&ctx, ToolbarAction::NavigateForward);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.history.current(), Some(&SourceLocation::new("b.rs", 3)));
+        assert_eq!(buffer.text, text);
+    }
+}

@@ -1760,11 +1760,12 @@ fn source_multi_click_selection_copies_and_keeps_occurrence_pin_policy() {
 }
 
 #[test]
-fn pinning_after_pointer_caret_movement_refreshes_metadata_and_current_history() {
+fn pinning_after_pointer_caret_movement_refreshes_metadata_and_keeps_structural_history() {
     let (_dir, mut app) = reader_with_reference_index();
     app.jump_to_location("b.rs", 1, 4);
     settle(&mut app);
     assert_eq!(app.under_caret.as_ref().unwrap().name, "beta");
+    let structural = app.history.current().cloned();
     let previous = (app.caret_line, app.caret_col);
     let byte = app
         .open_buffer
@@ -1782,10 +1783,23 @@ fn pinning_after_pointer_caret_movement_refreshes_metadata_and_current_history()
     app.finish_source_interaction(previous);
     settle(&mut app);
     assert_eq!(app.under_caret.as_ref().unwrap().name, "alpha");
-    assert_eq!(app.history.current().unwrap().byte_offset, byte);
+    assert_eq!(app.history.current(), structural.as_ref());
+    assert_eq!(
+        app.open_buffer
+            .as_ref()
+            .unwrap()
+            .byte_offset(app.caret_line, app.caret_col),
+        byte
+    );
     app.definition_expanded = true;
     app.finish_source_interaction((2, 5));
     assert!(app.definition_expanded && !app.under_caret_job.is_running());
+    app.navigate(SourceLocation::new("a.rs", 0), true);
+    settle(&mut app);
+    app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
+    settle(&mut app);
+    assert_eq!(app.history.current().unwrap().byte_offset, byte);
+    assert_eq!(app.under_caret.as_ref().unwrap().name, "alpha");
 }
 
 #[test]

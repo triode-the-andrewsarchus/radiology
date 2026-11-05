@@ -56,6 +56,12 @@ assertion groups are now reconciled in the
 function to Rust tests and platform equivalents; the absolute-path opt-in
 performance probe is explicitly unrun.
 
+AppModelTests remains under review. The
+[structural-history checkpoint](rust-structural-history.md) fixes caret motion
+erasing a committed stop while preserving exact departure Back. Repository
+initial-selection behavior is still an explicit difference; the six-function
+suite is not marked reconciled as a whole.
+
 ## Bookmarks
 
 Rust entry points: [store.rs](../src/bookmarks/store.rs), [tests.rs](../src/ui/app/tests.rs), [bookmark_list.rs](../src/ui/bookmark_list.rs).
