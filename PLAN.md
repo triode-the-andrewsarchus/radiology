@@ -4,11 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Repository file choice](plans/rust-empty-repository-reader.md) now matches Swift's
+empty reader/history after plain discovery or a drop. Explicit file/PR launches
+and refresh restoration retain their destinations. A gated late-root regression,
+empty-state command checks and four native launch/refresh runs verify the change.
+Other app-model assertions and SDK-backed Android acceptance remain open.
+
 [Structural history](plans/rust-structural-history.md) now preserves committed
 outline/bookmark/line stops while recording a changed exact departure separately.
 A red app regression and native 1×/2× Back/Forward suffix-copy checks verify both
 positions. Failed/canceled navigation preserves the trail. The broader app-model
-audit remains open, including repository discovery's automatic initial-file choice.
+audit remains open; repository initial selection is now resolved by the
+[file-choice checkpoint](plans/rust-empty-repository-reader.md).
 
 [Scroll/history contracts](plans/rust-scroll-history-contracts.md) reconcile the
 single Swift history test and 11 ordinary scrolling groups. Expanded rendered/app

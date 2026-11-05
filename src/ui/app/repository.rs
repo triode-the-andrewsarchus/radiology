@@ -28,6 +28,9 @@ pub(super) enum RepositoryDestination {
 impl RadiologyApp {
     /// Requests repository discovery while retaining the current reader.
     ///
+    /// A successful plain open leaves the reader empty until a file is chosen.
+    /// Use [`Self::launch`] to supply an explicit startup source destination.
+    ///
     /// Hosts drive [`Self::poll_repository`] or the normal frame loop to publish
     /// the new root and file inventory. Subsequent source and semantic work also
     /// publish asynchronously through [`Self::poll_source`] and [`Self::poll_index`].
@@ -185,18 +188,7 @@ impl RadiologyApp {
             ),
             RepositoryDestination::Default
             | RepositoryDestination::Dropped
-            | RepositoryDestination::RestoreCurrent => {
-                let first = self
-                    .all_files
-                    .iter()
-                    .find(|file| file.path.eq_ignore_ascii_case("readme.md"))
-                    .or_else(|| self.all_files.iter().find(|file| file.is_source))
-                    .or_else(|| self.all_files.first())
-                    .map(|file| file.path.clone());
-                if let Some(path) = first {
-                    self.open_file(&path);
-                }
-            }
+            | RepositoryDestination::RestoreCurrent => {}
         }
 
         self.refresh_git_changes();

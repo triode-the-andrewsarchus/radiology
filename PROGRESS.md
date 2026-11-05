@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-05 — Repository discovery leaves file choice to the user (Codex)
+
+Removed automatic README/first-source selection after a plain root open or drop,
+matching Swift's empty source/history contract. Existing explicit launch/PR and
+refresh restoration handlers remain intact. The gated root-race regression fails
+before the fix and passes with an actually running old worker released after the
+new root accepts. Empty-reader/bookmark availability and same-root reopen checks
+cover both scales; reader fixtures now request their intended file explicitly.
+
+Four native runs (plain/--file at 1×/2×) pass empty-reader/picker/explicit-source and
+exact Ctrl+R restoration, with three exact Copy checks each. Prepared source,
+Git state and executable remain unchanged; all accepted exits zero. Workspace 795
+app tests/11 ignored, two binary, 13 font,22 text and 60 doctests, strict Clippy,
+rustdoc/format and binary build pass. Shared reader setup removes two clone
+instances (125→123;1335→1323 duplicate lines), with no new clone/hotspot/cycle.
+[Evidence and limits](plans/rust-empty-repository-reader.md) close the prior
+initial-selection discrepancy; other app-model assertions and Android remain open.
+
 ## 2026-11-05 — Preserved structural anchors with exact departures (Codex)
 
 A red hosted-app regression found caret movement overwrote a committed structural

@@ -1,5 +1,9 @@
 # Preserve committed structural history — 2026-11-05
 
+Update: the initial repository-selection difference recorded below is resolved by
+the [file-choice checkpoint](rust-empty-repository-reader.md). Other app-model
+assertions remain under review.
+
 Reviewing Swift AppModelTests and AppModel+Semantics exposed a history ownership
 gap. Swift distinguishes an implicit file visit that follows reading position
 from a committed structural anchor. Its exact-caret navigation keeps that anchor

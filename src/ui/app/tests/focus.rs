@@ -1479,6 +1479,12 @@ fn bookmark_empty_states_follow_repository_source_and_last_entry_transitions() {
         settle(&mut app);
         let output = frame(&mut app, &ctx, vec![]);
         text_center(&output, "No Bookmarks");
+        text_center(&output, "No File Selected");
+        assert!(!app.command_enabled(&ToolbarAction::ToggleBookmark));
+        app.open_file("a.rs");
+        settle(&mut app);
+        let output = frame(&mut app, &ctx, vec![]);
+        text_center(&output, "No Bookmarks");
         assert!(app.command_enabled(&ToolbarAction::ToggleBookmark));
         frame(&mut app, &ctx, vec![key(Key::D, Modifiers::CTRL)]);
         let output = frame(&mut app, &ctx, vec![]);

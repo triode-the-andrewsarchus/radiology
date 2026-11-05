@@ -2,6 +2,65 @@ use super::*;
 use crate::repository::discovery::DiscoveredRepository;
 
 #[test]
+fn plain_repository_discovery_waits_for_file_choice_and_rejects_a_late_root() {
+    let (dir, mut app) = reader();
+    let old = dir.path().join("old");
+    repository(&old);
+    let current = dir.path().join("current");
+    std::fs::create_dir(&current).unwrap();
+    std::fs::write(current.join("README.md"), "# Current repository\n").unwrap();
+    std::fs::write(current.join("last.swift"), "struct Current {}\n").unwrap();
+    app.open_repository(&old);
+    let (release, gate) = std::sync::mpsc::channel();
+    let (finished, done) = std::sync::mpsc::channel();
+    let (started, running) = std::sync::mpsc::channel();
+    app.repository_open.spawn(move |_| {
+        started.send(()).unwrap();
+        gate.recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let _ = finished.send(());
+        Ok(DiscoveredRepository {
+            root: old,
+            files: vec![],
+            tree: vec![],
+            filters: Default::default(),
+        })
+    });
+    running
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    app.open_repository(&current);
+    settle(&mut app);
+    release.send(()).unwrap();
+    done.recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    app.poll_repository(&Context::default());
+    assert_eq!(app.repository_root.as_deref(), Some(current.as_path()));
+    assert_eq!(app.all_files.len(), 2);
+    assert!(app.open_buffer.is_none() && app.selected_path.is_none());
+    assert!(app.history.current().is_none());
+    assert!(!app.is_source_loading());
+    assert!(app.repository_error.is_none());
+    for scale in [1.0, 2.0] {
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        rendered_frame(&mut app, &ctx);
+        let output = rendered_frame(&mut app, &ctx);
+        assert!(output.shapes.iter().any(|shape| matches!(&shape.shape,
+            egui::Shape::Text(text) if text.galley.job.text == "No File Selected")));
+    }
+    app.open_file("last.swift");
+    settle(&mut app);
+    assert_eq!(
+        app.open_buffer.as_ref().unwrap().text,
+        "struct Current {}\n"
+    );
+    app.open_repository(&current);
+    settle(&mut app);
+    assert!(app.open_buffer.is_none() && app.history.current().is_none());
+}
+
+#[test]
 fn repository_failure_cancel_and_retry_keep_the_accepted_reader_and_session() {
     let (dir, mut app) = opened_repository();
     let inventory = app.all_files.clone();
@@ -181,7 +240,8 @@ fn dropped_paths_use_repository_transactions_and_only_the_first_local_item() {
     }
     settle(&mut app);
     assert_eq!(app.repository_root.as_deref(), Some(next.as_path()));
-    assert_eq!(app.selected_path.as_deref(), Some("README.md"));
+    assert!(app.selected_path.is_none() && app.open_buffer.is_none());
+    assert!(app.history.current().is_none());
     assert_eq!(app.session.last_repository.as_deref(), next.to_str());
     assert!(!app.history.can_go_back());
     assert!(app.review.is_none() && app.active_revision.is_none());

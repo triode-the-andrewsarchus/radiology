@@ -64,13 +64,19 @@ fn repository(root: &Path) {
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
 }
 
+fn open_reader(app: &mut RadiologyApp, root: &Path, path: &str) {
+    app.open_repository(root);
+    settle(app);
+    app.open_file(path);
+    settle(app);
+}
+
 pub(super) fn isolated_source(path: &str, text: &str) -> (tempfile::TempDir, RadiologyApp) {
     let (owner, mut app) = reader();
     let root = owner.path().join("checkout");
     std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
     std::fs::write(root.join(path), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, path);
     (owner, app)
 }
 
@@ -79,8 +85,7 @@ fn reader_with_source(text: &str) -> (tempfile::TempDir, RadiologyApp) {
     let root = dir.path().join("repo");
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("a.rs"), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     (dir, app)
 }
 
@@ -94,8 +99,7 @@ pub(super) fn opened_repository() -> (tempfile::TempDir, RadiologyApp) {
     let (dir, mut app) = reader();
     let root = dir.path().join("repo");
     repository(&root);
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     (dir, app)
 }
 
@@ -172,8 +176,7 @@ fn repository_transition_clears_prior_index_pins_review_history_and_search() {
     let (dir, mut app) = reader();
     repository(&dir.path().join("first"));
     std::fs::create_dir(dir.path().join("empty")).unwrap();
-    app.open_repository(&dir.path().join("first"));
-    settle(&mut app);
+    open_reader(&mut app, &dir.path().join("first"), "a.rs");
     app.semantic_index = Some(Arc::new(SemanticIndex::default()));
     app.pin_store
         .toggle_pin("alpha", std::iter::once(3..8).collect());
@@ -300,10 +303,7 @@ fn review_navigation_reads_pinned_revisions_and_restores_checkout_scope_on_exit(
     let mut app = RadiologyApp::from_session(SessionStore::load_from(
         dir.path().join("settings/session.json"),
     ));
-    app.open_repository(&root);
-    settle(&mut app);
-    app.open_file("a file.rs");
-    settle(&mut app);
+    open_reader(&mut app, &root, "a file.rs");
     let ctx = Context::default();
     app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
     settle(&mut app);
@@ -480,10 +480,7 @@ fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     let (dir, mut app) = reader();
     let text = "fn production() {\n 1;\n}\n#[cfg(test)]\nmod checks {\n fn hidden_only() {}\n}\nfn tail() {}\n";
     std::fs::write(dir.path().join("mixed.rs"), text).unwrap();
-    app.open_repository(dir.path());
-    settle(&mut app);
-    app.open_file("mixed.rs");
-    settle(&mut app);
+    open_reader(&mut app, dir.path(), "mixed.rs");
     app.fold_store.unfold_all();
     app.fold_store.toggle_header(1, &app.fold_ranges);
     let ctx = Context::default();
@@ -551,14 +548,17 @@ fn current_document_navigation_and_repository_changes_retire_stale_reads() {
     repository(&dir.path().join("first"));
     std::fs::create_dir(dir.path().join("second")).unwrap();
     std::fs::write(dir.path().join("second/new.rs"), "fn new_repository() {}\n").unwrap();
-    app.open_repository(&dir.path().join("first"));
-    settle(&mut app);
+    open_reader(&mut app, &dir.path().join("first"), "a.rs");
     app.open_file("b.rs");
     app.jump_to_location("a.rs", 2, 0);
     assert!(!app.is_source_loading());
     assert_eq!(app.caret_line, 2);
     app.open_file("b.rs");
     app.open_repository(&dir.path().join("second"));
+    settle(&mut app);
+    assert!(app.selected_path.is_none() && app.open_buffer.is_none());
+    assert!(app.history.current().is_none());
+    app.open_file("new.rs");
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("new.rs"));
     assert_eq!(
@@ -613,8 +613,7 @@ fn a_default_file_open_keeps_first_test_region_hidden_until_explicit_navigation(
     )
     .unwrap();
     app.session.source_filters.hides_tests = true;
-    app.open_repository(dir.path());
-    settle(&mut app);
+    open_reader(&mut app, dir.path(), "mixed.rs");
     assert_eq!(
         app.test_code.status().as_deref(),
         Some("1 test region hidden")
@@ -901,8 +900,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     .unwrap();
     let executable = rust_indexer_fixture(dir.path(), "a.rs");
     let ctx = Context::default();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
     assert!(app.is_index_loading());
     assert!(app.semantic_index.is_none());
@@ -943,6 +941,8 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     settle_repository(&mut app);
     assert!(app.semantic_index.is_none());
     settle(&mut app);
+    app.open_file("a.rs");
+    settle(&mut app);
     assert!(app.generation_report().unwrap().cached);
     assert_eq!(
         app.index_cache_status(),
@@ -961,8 +961,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
         .as_ref()
         .unwrap()
         .matches_buffer(app.open_buffer.as_ref().unwrap()));
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     assert!(app.generation_report().unwrap().cached);
     assert!(app.generation_report().unwrap().stale_reason.is_some());
     assert!(!app
@@ -1164,8 +1163,7 @@ fn occurrence_pins_restore_on_return_and_invalidate_only_after_successful_change
     let text =
         "fn alpha() { let one = 1; let two = 2; let three = 3; let four = 4; let five = 5; }\n";
     std::fs::write(root.join("a.rs"), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     for word in ["one", "two", "three", "four", "five"] {
         app.pin_at_byte(text.find(word).unwrap());
     }
@@ -1200,14 +1198,13 @@ fn occurrence_pins_restore_on_return_and_invalidate_only_after_successful_change
 
 #[test]
 fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
-    let (dir, mut app) = reader();
-    let root = dir.path().join("repo");
-    repository(&root);
     let text = "fn demo() { clone(); unknown(); }";
-    std::fs::write(root.join("a.rs"), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    let (dir, mut app) = opened_repository();
+    let root = dir.path().join("repo");
     let ctx = Context::default();
+    std::fs::write(root.join("a.rs"), text).unwrap();
+    app.execute_command(&ctx, ToolbarAction::ReloadSource);
+    settle(&mut app);
     app.execute_command(&ctx, ToolbarAction::ToggleMode(SourceMode::Critical));
     assert!(app.is_critical_loading());
     assert_eq!(app.critical_status(), Some("Preparing Critical Lens…"));
@@ -1298,8 +1295,7 @@ fn critical_marks_refresh_without_reader_changes_and_restore_after_restart() {
     let text = "fn demo() { clone(); unknown(); }";
     std::fs::write(root.join("a.rs"), text).unwrap();
     write_critical_index(&root, text);
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     let start = text.find("clone").unwrap();
     app.jump_to_location("a.rs", 1, start);
     settle(&mut app);
@@ -1352,6 +1348,8 @@ fn critical_marks_refresh_without_reader_changes_and_restore_after_restart() {
     let mut reopened = RadiologyApp::from_session(session);
     reopened.open_repository(&root);
     reopened.set_source_mode(SourceMode::Critical);
+    settle(&mut reopened);
+    reopened.open_file("a.rs");
     settle(&mut reopened);
     assert_eq!(
         reopened
@@ -1440,8 +1438,7 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     repository(&root);
     let text = "fn first() {\n one();\n}\nfn second() {\n two();\n}\n";
     std::fs::write(root.join("a.rs"), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     assert_folded_headers(&app, &[4]);
     app.open_file("b.rs");
     settle(&mut app);
@@ -1484,8 +1481,7 @@ fn fold_choices_restore_on_return_and_reload_but_reveal_destinations_and_reject_
     let other = dir.path().join("other");
     repository(&other);
     std::fs::write(other.join("a.rs"), text).unwrap();
-    app.open_repository(&other);
-    settle(&mut app);
+    open_reader(&mut app, &other, "a.rs");
     assert_folded_headers(&app, &[4]);
 }
 
@@ -1498,10 +1494,7 @@ fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manu
     let mut app = RadiologyApp::from_session(SessionStore::load_from(
         dir.path().join("settings/session.json"),
     ));
-    app.open_repository(&root);
-    settle(&mut app);
-    app.open_file("a file.rs");
-    settle(&mut app);
+    open_reader(&mut app, &root, "a file.rs");
     app.accept_review(snapshot);
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
@@ -1532,8 +1525,7 @@ fn fold_to_definitions_command_exposes_method_and_variant_headers_and_preserves_
     repository(&root);
     let text = crate::syntax::fold_queries::tests::DEFINITIONS;
     std::fs::write(root.join("a.rs"), text).unwrap();
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     let source = app.open_buffer.clone().unwrap();
     let history = format!("{:?}", app.history);
     let caret = (app.caret_line, app.caret_col);
@@ -2330,8 +2322,7 @@ fn syntactic_pins_include_cfg_omissions_but_prefer_complete_semantic_identity() 
     std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("a.rs"), text).unwrap();
     write_critical_index(&root, text);
-    app.open_repository(&root);
-    settle(&mut app);
+    open_reader(&mut app, &root, "a.rs");
     app.select_occurrences_at_byte(text.find("clone").unwrap());
     assert_eq!(app.pin_store.ephemeral.as_ref().unwrap().ranges.len(), 2);
     app.pin_at_byte(text.find("clone").unwrap());
@@ -2391,8 +2382,7 @@ fn transient_occurrences_are_click_owned_clear_on_misses_pins_and_document_chang
     let text = "fn demo() { let value = 1; value; let s = \"value\"; /* value */ }";
     std::fs::write(dir.path().join("a.rs"), text).unwrap();
     std::fs::write(dir.path().join("b.rs"), "fn other() {}\n").unwrap();
-    app.open_repository(dir.path());
-    settle(&mut app);
+    open_reader(&mut app, dir.path(), "a.rs");
     let byte = text.find("value").unwrap();
     app.select_occurrences_at_byte(byte);
     let selected = app.pin_store.ephemeral.clone().unwrap();
@@ -2761,10 +2751,7 @@ fn view_commands_require_source_and_callable_folds_but_keep_global_preferences()
         "struct Only {\n    value: i32,\n}\n",
     )
     .unwrap();
-    app.open_repository(dir.path());
-    settle(&mut app);
-    app.open_file("a.rs");
-    settle(&mut app);
+    open_reader(&mut app, dir.path(), "a.rs");
     assert!(app.command_enabled(&ToolbarAction::CollapseFunctions));
     app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
     assert!(app.current_bookmarked());

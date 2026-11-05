@@ -6,10 +6,15 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Repository file choice](rust-empty-repository-reader.md) removes automatic source
+selection after plain discovery/drop and closes that Swift opening-race assertion.
+Explicit file/PR and refresh destinations remain verified; other assertions remain.
+
 [Structural history](rust-structural-history.md) fixes caret motion erasing
 committed stops and preserves exact departure Back through the existing accepted
 navigation transaction. App/native 1×/2× checks pass; the remaining app-model
-assertions, including initial repository selection, are still under review.
+assertions remain under review; initial repository selection is now reconciled
+in the [file-choice checkpoint](rust-empty-repository-reader.md).
 
 [Scroll/history contracts](rust-scroll-history-contracts.md) reconcile one history
 contract and 11 ordinary scrolling groups through expanded app/rendered tests.
