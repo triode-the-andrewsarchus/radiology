@@ -137,3 +137,12 @@ broader recovery, retention and final visual/accessibility/scaling/font/sibling
 reuse audits. See [implementation queue](rust-parity-implementation.md),
 [provisioning](rust-tool-provisioning.md) and
 [Rust feature acceptance](rust-feature-configuration.md).
+
+## Real module partial builds and Android SDK failure — 2026-11-05
+
+[The new Gradle/Android checkpoint](rust-gradle-android-acceptance.md) reuses the shared
+lifecycle with an expected compiler-partial flag. Real multi-module Kotlin/Java
+complete/partial builds pass exact cross-module navigation, reuse, tool-free reload
+and byte/inventory preservation. Real AGP9.4.1 missing-SDK failure retains the prior
+cache and publishes no index. This extends the small JVM-only evidence above;
+successful Android compilation remains a separate unverified outcome.

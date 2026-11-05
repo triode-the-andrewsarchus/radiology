@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 761 app tests (ten opt-in ignored), two binary,
+The current full workspace passes 761 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -104,6 +104,17 @@ Partial missing generated-header behavior, navigation, normalized reload and reu
 pass. This is a bounded corpus alongside the real seL4 matrix, not the Swift
 11,513-unit tkfiasco corpus or Android/Gradle acceptance. The app suite still passes
 761 tests, now with ten opt-in ignored; the three real Clang tests pass explicitly.
+
+## Real Gradle and AGP failure checkpoint — 2026-11-05
+
+[Real multi-module Gradle/AGP acceptance](rust-gradle-android-acceptance.md) now proves
+complete four-document Kotlin/Java generation, cross-module UTF-16 navigation,
+independent compilation failure retaining three compiler documents, and Partial
+status/provenance through Update and tool-free cache reload. Real AGP9.4.1 with a
+missing SDK produces explicit failure, no index and unchanged accepted cache/inputs.
+Successful Android compilation remains unverified without SDK-backed evidence.
+The original Kotlin overload/Noise and PR reader fixture checks are specifically
+identified for the next remaining behavior pass. No production runtime/UI change.
 
 ## Remaining acceptance gates
 

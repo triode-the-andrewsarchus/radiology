@@ -1,5 +1,42 @@
 # Progress
 
+## 2026-11-05 — Real Gradle module failures and AGP SDK diagnostics (Codex)
+
+Production ToolProvisioner builds/verifies pinned Kotlin tooling under a private
+Temurin17.0.21+9 JDK (release API SHA-256 verified), using Gradle9.7.1 and Kotlin2.4.20.
+The system Java17 lacks javac and remains unchanged. Private Gradle/temp/tool paths
+and a16-CPU JVM cap keep QA isolated; the downloaded JDK archive was removed after
+verification/extraction, while installed private tools remain for follow-up.
+
+A new opt-in service workflow indexes three real modules with four source documents,
+including an app→core Kotlin definition and core Kotlin→Java navigation after emoji.
+Breaking the independent module preserves three genuine compiler documents, records
+one missing source and a partial-build flag. The shared lifecycle helper now accepts
+that expectation and checks exact navigation/UTF-16 bytes, Update and cache reload,
+including unchanged partial-build provenance. Viewed bytes/inventory stay exact;
+build/plugin/workspace output stays private. Existing real Clang cases still pass.
+
+Converting the independent module to AGP9.4.1 with a deliberately missing SDK reaches
+real Android configuration and produces SDK location not found. No index is published,
+and the preceding cache stays byte-for-byte unchanged. This is Android failure
+acceptance, not successful Android compilation or tkos acceptance. No SDK/licenses
+are installed, and no production runtime/UI code changes in this checkpoint.
+
+The warm Gradle-only rerun passes in20.89s (initial61.34s); the final four-case
+Gradle/Clang run with exact failure flags passes in21.36s.
+Architecture NEUTRAL: +139 NLOC/one test, new testCCN7 and shared helper8→9; all125
+clone instances/1335 duplicated lines, cycle/structural counts and36 hotspots remain
+unchanged. Test assertions reuse existing owners rather than duplicating lifecycle
+logic. Full locked workspace passes761 app tests/eleven opt-in ignored, two binary,
+13 font,22 text and59 doctests; strict Clippy/build/resources/fmt/diff pass.
+Reproducible commands accompany the evidence.
+
+[Gradle/Android contract](plans/rust-gradle-android-acceptance.md), archive:
+~/.local/state/radiology-qa/gradle-android-20261105-877e26d. Next: reconcile Swift's
+checked-in Kotlin overload/Noise and PR reader fixtures, other remaining behavior,
+SDK-backed Android success evidence and final standalone/reuse audit. Overall parity
+remains active; full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-05 — Preserve compiler include search for dependency inputs (Codex)
 
 Real dependency acceptance found a production bug: rebasing relative -include and

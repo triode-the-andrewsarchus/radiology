@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Real Gradle/Android failure acceptance](plans/rust-gradle-android-acceptance.md)
+now verifies complete and partial multi-module Kotlin/Java builds, exact cross-module
+UTF-16 navigation, cached partial-build provenance and real AGP9.4.1 missing-SDK
+failure without replacing the accepted cache. Successful Android compilation still
+requires separate SDK-backed evidence; remaining Kotlin fixture/app reconciliation
+is identified explicitly in that contract.
+
 [C/C++ dependency acceptance](plans/rust-clang-dependency-acceptance.md) found and
 fixed relative forced-header/macro-file lookup during compilation-command rebasing.
 Real Clang now passes a 33-unit/59-document tracked-vendor corpus, dependency-only

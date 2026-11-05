@@ -30,6 +30,7 @@ fn clang_fallback_case(install: bool) {
         span: (1, 4, 13),
         encoding: ColumnEncoding::Utf8,
         documents: 3,
+        partial_build: true,
     };
     let artifacts = &["compile_commands.json", "index.scip", "src/api.o"];
     if install {
@@ -82,6 +83,7 @@ fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
                 span: (0, 11, 16),
                 encoding: ColumnEncoding::Utf8,
                 documents: 2,
+                partial_build: false,
             },
             &["main.o", "index.scip"],
         );
@@ -109,6 +111,7 @@ fn pinned_kotlin_java_install_navigation_unicode_reuse_and_reload() {
             span: (2, 4, 9),
             encoding: ColumnEncoding::Utf16,
             documents: 3,
+            partial_build: false,
         },
         &[
             ".gradle",
@@ -169,6 +172,7 @@ fn pinned_python_install_cross_module_navigation_unicode_reuse_and_reload() {
             span: (0, 4, 9),
             encoding: ColumnEncoding::Utf16,
             documents: 2,
+            partial_build: false,
         },
         &["__pycache__", ".venv"],
     );
@@ -193,6 +197,7 @@ fn pinned_go_install_cross_package_navigation_unicode_reuse_and_reload() {
             span: (2, 5, 10),
             encoding: ColumnEncoding::Utf8,
             documents: 2,
+            partial_build: false,
         },
         &["go.sum", "vendor"],
     );
@@ -221,6 +226,7 @@ fn real_rust_analyzer_indexes_feature_gated_workspace_calls_and_reuses_the_resul
             span: (0, 7, 13),
             encoding: ColumnEncoding::Utf8,
             documents: 3,
+            partial_build: false,
         },
         &["Cargo.lock", "target"],
     );
@@ -258,6 +264,7 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
             span: (0, 16, 22),
             encoding: ColumnEncoding::Utf16,
             documents: 2,
+            partial_build: false,
         },
         &["node_modules"],
     );
@@ -321,6 +328,7 @@ fn real_clang_vendor_dependencies_invalidate_reuse_and_preserve_partial_builds()
             span: (1, 4, 13),
             encoding: ColumnEncoding::Utf8,
             documents: 59,
+            partial_build: false,
         },
         &["build/api.o", "build/caller0.o", "index.scip"],
     );
@@ -422,6 +430,124 @@ fn real_clang_vendor_dependencies_invalidate_reuse_and_preserve_partial_builds()
             .starts_with("radiology-build-inputs-")));
 }
 
+#[test]
+#[ignore = "requires RADIOLOGY_REAL_KOTLIN_TOOLS pinned installation, full JDK 17 and network access"]
+fn real_gradle_modules_keep_partial_shards_and_report_missing_android_sdk() {
+    let tool_root = std::env::var_os("RADIOLOGY_REAL_KOTLIN_TOOLS")
+        .map(PathBuf::from)
+        .expect("set RADIOLOGY_REAL_KOTLIN_TOOLS to the private managed tool root");
+    let settings = "pluginManagement { repositories { google(); gradlePluginPortal(); mavenCentral() } }\nrootProject.name = \"radiology-modules\"\ninclude(\":app\", \":core\", \":broken\")\n";
+    let root_build = "plugins { kotlin(\"jvm\") version \"2.4.20\" apply false }\nallprojects { repositories { mavenCentral() }; group = \"radiology.fixture\"; version = \"1.0.0\" }\n";
+    let broken_path = "broken/src/main/kotlin/Broken.kt";
+    let good_broken = "package broken\nfun value(): Int = 5\n";
+    let bad_broken = "package broken\nfun value(): Int = missingSymbol\n";
+    let files = [
+        ("settings.gradle.kts", settings),
+        ("build.gradle.kts", root_build),
+        ("app/build.gradle.kts", "plugins { kotlin(\"jvm\") }\ndependencies { implementation(project(\":core\")) }\n"),
+        ("core/build.gradle.kts", "plugins { kotlin(\"jvm\") }\n"),
+        ("broken/build.gradle.kts", "plugins { kotlin(\"jvm\") }\n"),
+        ("core/src/main/kotlin/Helper.kt", "package support\n\nfun twice(value: Int): Int = JavaHelper.twice(value)\n"),
+        ("core/src/main/java/support/JavaHelper.java", "package support;\npublic class JavaHelper { public static int twice(int value) { return value * 2; } }\n"),
+        ("app/src/main/kotlin/Caller.kt", "package fixture\nimport support.twice\nfun caller(): Int { /* 🦀 */ return twice(21) }\n"),
+        (broken_path, good_broken),
+    ];
+    let fixture = Fixture::new(&files);
+    let mut request = fixture.request();
+    request.tools = ToolDirectory::from_environment(Some(tool_root.canonicalize().unwrap()));
+    request.timeout = Duration::from_secs(600);
+    let artifacts = [
+        ".gradle",
+        ".kotlin",
+        "app/build",
+        "core/build",
+        "broken/build",
+        ".radiology-scip",
+        ".radiology-index-tools",
+    ];
+    for (text, documents, partial_build) in [(good_broken, 4, false), (bad_broken, 3, true)] {
+        fs::write(fixture.source.join(broken_path), text).unwrap();
+        let current: Vec<_> = files
+            .iter()
+            .map(|(path, original)| (*path, if *path == broken_path { text } else { original }))
+            .collect();
+        let index = verify_lifecycle(
+            &fixture,
+            request.clone(),
+            &current,
+            Navigation {
+                caller: "app/src/main/kotlin/Caller.kt",
+                callee: "twice",
+                target: "core/src/main/kotlin/Helper.kt",
+                span: (2, 4, 9),
+                encoding: ColumnEncoding::Utf16,
+                documents,
+                partial_build,
+            },
+            &artifacts,
+        );
+        let helper = SourceBuffer::from_str("core/src/main/kotlin/Helper.kt", files[5].1);
+        let call = index
+            .occurrence_at_byte(&helper, files[5].1.rfind("twice").unwrap())
+            .unwrap();
+        assert_eq!(
+            index.find_definition(&call.symbol).unwrap().0,
+            "core/src/main/java/support/JavaHelper.java"
+        );
+    }
+    // Real AGP configuration must identify a missing SDK rather than publish success.
+    let cache_path = super::super::super::cache::path(&request).unwrap();
+    let accepted_cache = fs::read(&cache_path).unwrap();
+    let android_build = "plugins { id(\"com.android.library\") }\nandroid { namespace = \"radiology.fixture\"; compileSdk = 36; defaultConfig { minSdk = 26 } }\n";
+    let android_root = root_build.replace(
+        "apply false }",
+        "apply false; id(\"com.android.library\") version \"9.4.1\" apply false }",
+    );
+    let local_properties = format!(
+        "sdk.dir={}\n",
+        fixture._owner.path().join("missing-sdk").display()
+    );
+    fs::write(fixture.source.join("build.gradle.kts"), &android_root).unwrap();
+    fs::write(
+        fixture.source.join("broken/build.gradle.kts"),
+        android_build,
+    )
+    .unwrap();
+    fs::write(fixture.source.join(broken_path), good_broken).unwrap();
+    fs::write(fixture.source.join("local.properties"), &local_properties).unwrap();
+    let failed = run(request);
+    eprintln!("Real AGP missing SDK: {:#?}", failed.report);
+    assert!(failed.index.is_none());
+    let outcome = &failed.report.outcomes[0];
+    assert!(outcome.failure.is_some());
+    assert!(
+        outcome.diagnostics.contains("SDK location not found")
+            || outcome.diagnostics.contains("SDK directory"),
+        "{}",
+        outcome.diagnostics
+    );
+    assert_eq!(fs::read(cache_path).unwrap(), accepted_cache);
+    let mut final_files: Vec<_> = files
+        .iter()
+        .map(|(path, original)| {
+            (
+                *path,
+                match *path {
+                    "build.gradle.kts" => android_root.as_str(),
+                    "broken/build.gradle.kts" => android_build,
+                    path if path == broken_path => good_broken,
+                    _ => original,
+                },
+            )
+        })
+        .collect();
+    final_files.push(("local.properties", &local_properties));
+    assert_viewed_inputs_unchanged(&fixture, &final_files);
+    for artifact in artifacts {
+        assert!(!fixture.source.join(artifact).exists());
+    }
+}
+
 struct Navigation<'a> {
     caller: &'a str,
     callee: &'a str,
@@ -429,6 +555,7 @@ struct Navigation<'a> {
     span: (i32, i32, i32),
     encoding: ColumnEncoding,
     documents: usize,
+    partial_build: bool,
 }
 
 fn external_tool_request(
@@ -486,9 +613,14 @@ fn verify_lifecycle(
         .selected
         .iter()
         .any(|strategy| strategy.is_best_effort());
+    let partial = best_effort || expected.partial_build;
+    assert_eq!(
+        generated.report.outcomes[0].partial_build,
+        expected.partial_build
+    );
     assert_eq!(
         generated.report.is_partial(),
-        best_effort,
+        partial,
         "{:#?}",
         generated.report
     );
@@ -534,6 +666,11 @@ fn verify_lifecycle(
             && index.byte_range(&buffer, range) == Some(bytes.clone())));
     request.reuse = true;
     let updated = run(request.clone());
+    assert_eq!(updated.report.is_partial(), partial);
+    assert_eq!(
+        updated.report.outcomes[0].partial_build,
+        generated.report.outcomes[0].partial_build
+    );
     assert_eq!(
         updated.report.outcomes[0].reused_from.as_deref(),
         Some("checkout")
@@ -551,7 +688,11 @@ fn verify_lifecycle(
     loader.start_cached(request);
     let cached = settle(&mut loader);
     assert!(cached.report.cached && cached.report.stale_reason.is_none());
-    assert_eq!(cached.report.is_partial(), best_effort);
+    assert_eq!(cached.report.is_partial(), partial);
+    assert_eq!(
+        cached.report.outcomes[0].partial_build,
+        generated.report.outcomes[0].partial_build
+    );
     if best_effort {
         assert!(cached.report.summary().starts_with("Partial cached index"));
     }

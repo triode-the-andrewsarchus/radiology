@@ -78,3 +78,13 @@ databases/dependencies, Gradle/compiler corpora and final Swift feature/UI cover
 remain open in the master audit. SDK/dependency-version-aware cache behavior is not
 newly certified by this change. Full accessibility and actual sibling adoption
 remain deferred by user scope.
+
+## Actual Gradle/AGP follow-up — 2026-11-05
+
+[Real Gradle module and Android failure acceptance](rust-gradle-android-acceptance.md)
+now supplements the controlled environment test above. Actual Kotlin2.4.20/Gradle9.7.1
+compilation proves complete/partial multi-module data, cross-language navigation and
+cache provenance. Real AGP9.4.1 reaches an explicit missing-SDK error, publishes no
+index and preserves the accepted cache. Successful Android variant compilation and
+SDK-backed navigation remain unverified; no SDK installation or new support-version
+claim follows from this failure check.
