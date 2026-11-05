@@ -86,6 +86,7 @@ pub struct RadiologyApp {
         Result<crate::repository::discovery::DiscoveredRepository, String>,
     >,
     pending_repository: Option<repository::RepositoryRequest>,
+    launch_started: bool,
     repository_error: Option<String>,
     git_refresh:
         crate::background::LatestRead<Result<crate::repository::git_refresh::GitSnapshot, String>>,
@@ -299,6 +300,7 @@ impl RadiologyApp {
             branch_name: None,
             repository_open: Default::default(),
             pending_repository: None,
+            launch_started: false,
             repository_error: None,
             git_refresh: Default::default(),
             git_error: None,

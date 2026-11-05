@@ -19,6 +19,7 @@ pub(super) enum RepositoryDestination {
     },
     Review {
         number: usize,
+        restoring: bool,
         file: Option<String>,
     },
     RestoreCurrent,
@@ -152,7 +153,14 @@ impl RadiologyApp {
         self.recent_pull_requests.open(root.clone());
         self.critical_marks.open(root.clone());
         self.repository_name = Some(name);
-        self.session.active_pr = None;
+        self.session.active_pr = match &destination {
+            RepositoryDestination::Review {
+                number,
+                restoring: true,
+                ..
+            } => Some(*number),
+            _ => None,
+        };
         self.session.record_repository(root.to_string_lossy());
 
         self.all_files = files.into();
@@ -162,7 +170,7 @@ impl RadiologyApp {
         self.load_repository_index();
 
         match destination {
-            RepositoryDestination::Review { number, file } => {
+            RepositoryDestination::Review { number, file, .. } => {
                 self.pending_open_file = file;
                 self.open_pull_request(number);
             }

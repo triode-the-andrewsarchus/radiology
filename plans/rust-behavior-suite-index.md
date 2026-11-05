@@ -24,6 +24,10 @@ Evidence: [rust-reading-positions](rust-reading-positions.md), [rust-reader-retu
 | [SourceFunctionNavigationTests](../Tests/RadiologyTests/SourceFunctionNavigationTests.swift) | 1 |
 | [OccurrencePinningTests](../Tests/RadiologyTests/OccurrencePinningTests.swift) | 4 |
 
+ReaderSessionTests: all seven contracts are reconciled in the
+[session recovery checkpoint](rust-session-recovery.md), with controlled GitHub
+failure and native no-argument relaunch at both scales.
+
 OccurrencePinningTests: all four named assertions are reconciled in the
 [reader-host/pin audit](rust-reader-host-audit.md). Other rows in this group retain
 their checkpoint-specific scope.

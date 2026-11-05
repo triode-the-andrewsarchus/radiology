@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-05 — Recoverable startup sessions (Codex)
+
+Red regressions proved that a missing root discarded saved settings and checkout
+preparation erased the remembered PR. Session validation now leaves availability to
+discovery; existing review requests retain confirmed PR identity during restoration.
+Startup runs once, respects newer repository choices, and same-root saved numbers
+prefill retry. Successful review publication and explicit local choices continue to
+own confirmed session changes; no extra persistence service was introduced.
+
+All seven Swift ReaderSessionTests contracts have explicit evidence in the
+[session checkpoint](plans/rust-session-recovery.md). New app checks cover malformed
+settings, missing-root recovery, fresh restoration, failure/cancel/retry, confirmed
+PR replacement failures, Exit PR and relaunch. Native 1×/2× checks restart without
+CLI arguments, resolve fresh metadata, preserve an offline PR and retry via Ctrl+P.
+Each verifies four clipboard payloads, unchanged source/Git/binary and zero exits.
+
+Workspace 779 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict Clippy/rustdoc, formatting, build/resources pass. Architecture is neutral:
++144 NLOC/two tests, unchanged125 clone instances/1335 duplicated lines and no
+added hotspot/cycle/structural issue. Remaining behavior reconciliation and Android
+SDK authorization remain open; independent host APIs/dependencies are unchanged.
+
 ## 2026-11-05 — Independent reader host and occurrence-pin audit (Codex)
 
 A separate consumer found request_focus/top_byte/restore_top inaccessible despite

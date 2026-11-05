@@ -12,9 +12,14 @@ user's standalone Linux/reusable-reader direction, including intentional Linux
 modifiers and compositor-owned window commands. Full assistive accessibility and
 actual little-screen-clip adoption remain deferred.
 
+[Session recovery](rust-session-recovery.md) now closes all seven Swift session
+contracts, including missing-root retention, failed/canceled PR retry and launch
+supersession, with fresh app and native no-argument relaunch evidence. Other suite
+assertions and the SDK-backed Android gate remain open.
+
 ## Original finding reconciliation
 
-The latest full workspace passes 777 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 779 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 

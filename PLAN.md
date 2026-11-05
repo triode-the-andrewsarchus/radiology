@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Saved session recovery](plans/rust-session-recovery.md) reconciles all seven Swift
+session contracts. Missing roots and failed/canceled PR restores retain recovery
+identity; startup yields to newer choices and runs once. App tests and no-argument
+native relaunch/retry at both scales pass. The remaining suite assertions and
+SDK-backed Android acceptance are still open.
+
 [Independent build and reader-host audit](plans/rust-reader-host-audit.md) now passes
 a clean locked16-job build, an isolated source export, full-reader and asset-only
 external consumers, and resource/host execution with the export renamed away.

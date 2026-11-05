@@ -35,10 +35,11 @@ fn repository_failure_cancel_and_retry_keep_the_accepted_reader_and_session() {
 }
 
 #[test]
-fn replacing_discovery_retires_the_previous_root_and_its_launch_intent() {
-    let (dir, mut app) = opened_repository();
-    let old = dir.path().to_path_buf();
-    let next = old.join("next");
+fn newer_repository_choice_retires_launch_intent_and_repeated_launch_is_ignored() {
+    let (dir, mut app) = reader();
+    let old = dir.path().join("old");
+    repository(&old);
+    let next = dir.path().join("next");
     repository(&next);
     let (old_review, receiver) = std::sync::mpsc::channel();
     app.review_job.spawn(move |_| {
@@ -55,17 +56,24 @@ fn replacing_discovery_retires_the_previous_root_and_its_launch_intent() {
         super::super::repository::RepositoryDestination::Review { number: 123, .. }
     ));
     let (release, gate) = std::sync::mpsc::channel();
+    let retired_root = old.clone();
     app.repository_open.spawn(move |_| {
         gate.recv_timeout(std::time::Duration::from_secs(5))
             .unwrap();
         Ok(DiscoveredRepository {
-            root: old,
+            root: retired_root,
             files: vec![],
             tree: vec![],
             filters: Default::default(),
         })
     });
-    app.launch(Some(&next), None, Some("b.rs"));
+    app.request_repository(super::super::repository::RepositoryRequest {
+        path: next.clone(),
+        destination: super::super::repository::RepositoryDestination::Source {
+            location: SourceLocation::new("b.rs", 0),
+            target: crate::source::loader::SourceTarget::Byte(0),
+        },
+    });
     let _ = release.send(());
     settle(&mut app);
     assert_eq!(app.repository_root.as_deref(), Some(next.as_path()));
@@ -73,6 +81,11 @@ fn replacing_discovery_retires_the_previous_root_and_its_launch_intent() {
     assert!(app.pending_pr.is_none());
     assert!(app.review.is_none());
     assert!(app.error.is_none());
+    app.launch(Some(&old), Some(123), Some("stale.rs"));
+    assert!(!app.is_repository_opening());
+    assert_eq!(app.repository_root.as_deref(), Some(next.as_path()));
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert!(app.pending_pr.is_none() && app.review.is_none());
 }
 
 #[test]
@@ -233,4 +246,110 @@ fn refresh_availability_blocks_replacement_of_pending_repository_or_review_work(
     assert!(!app.is_repository_opening());
     app.pending_pr = None;
     assert!(app.command_enabled(&ToolbarAction::Refresh));
+}
+
+#[test]
+fn missing_saved_repository_keeps_recovery_identity_and_invalid_sessions_remain_empty() {
+    let (owner, mut app) = reader();
+    let root = owner.path().join("saved");
+    repository(&root);
+    app.session.record_repository(root.display().to_string());
+    app.session.set_active_pr(Some(758));
+    let settings = owner.path().join("settings/session.json");
+    let remembered = app.session.last_repository.clone();
+    std::fs::rename(&root, owner.path().join("unavailable")).unwrap();
+    let mut restored = RadiologyApp::from_session(SessionStore::load_from(&settings));
+    assert_eq!(restored.session.last_repository, remembered);
+    restored.restore_session();
+    settle(&mut restored);
+    assert!(restored.repository_root.is_none());
+    assert!(restored.repository_error.is_some());
+    assert_eq!(SessionStore::load_from(&settings).active_pr, Some(758));
+    let other = owner.path().join("other");
+    repository(&other);
+    restored.open_repository(&other);
+    settle(&mut restored);
+    assert_eq!(restored.repository_root.as_deref(), Some(other.as_path()));
+    assert!(restored.repository_error.is_none());
+    assert_eq!(SessionStore::load_from(&settings).active_pr, None);
+    let invalid_payloads = [("relative", Some(758)), ("/tmp", Some(0))].map(|(path, pr)| {
+        let mut invalid = SessionStore::default();
+        invalid.last_repository = Some(path.into());
+        invalid.active_pr = pr;
+        serde_json::to_vec(&invalid).unwrap()
+    });
+    for payload in invalid_payloads.into_iter().chain([b"broken".to_vec()]) {
+        std::fs::write(&settings, payload).unwrap();
+        let mut empty = RadiologyApp::from_session(SessionStore::load_from(&settings));
+        empty.restore_session();
+        settle(&mut empty);
+        assert!(empty.repository_root.is_none() && empty.repository_error.is_none());
+        assert_eq!(empty.session.active_pr, None);
+    }
+}
+
+#[test]
+fn saved_review_identity_survives_checkout_preparation_failure_cancel_and_fresh_restore() {
+    let (_repository, root, mut snapshot) = crate::pull_request::review::tests::fixture();
+    snapshot.summary.number = 758;
+    let (owner, mut app) = reader();
+    app.session.record_repository(root.display().to_string());
+    app.session.set_active_pr(Some(758));
+    let settings = owner.path().join("settings/session.json");
+    let ctx = Context::default();
+    let mut restored = RadiologyApp::from_session(SessionStore::load_from(&settings));
+    restored.restore_session();
+    settle_repository(&mut restored);
+    assert_eq!(SessionStore::load_from(&settings).active_pr, Some(758));
+    restored.review_job.spawn(|_| Err("fixture offline".into()));
+    settle(&mut restored);
+    assert!(
+        restored.review.is_none()
+            && restored
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("fixture offline")
+    );
+    restored.show_pull_request_prompt();
+    assert!(matches!(&restored.modal, ActiveModal::PullRequest(prompt) if prompt.pr_str == "758"));
+    let mut fresh = RadiologyApp::from_session(SessionStore::load_from(&settings));
+    fresh.restore_session();
+    settle_repository(&mut fresh);
+    assert_eq!(fresh.pending_pr, Some(758));
+    fresh.cancel_review_preparation();
+    fresh.poll_review(&ctx);
+    assert_eq!(SessionStore::load_from(&settings).active_pr, Some(758));
+    fresh.open_pull_request(758);
+    fresh.review_job.spawn(move |_| Ok(snapshot));
+    settle(&mut fresh);
+    assert_eq!(fresh.active_pr.as_ref().unwrap().number, 758);
+    assert_eq!(fresh.repository_root.as_deref(), Some(root.as_path()));
+    assert_ne!(fresh.review.as_ref().unwrap().head_root, root);
+    assert_eq!(
+        SessionStore::load_from(&settings)
+            .last_repository
+            .as_deref(),
+        root.to_str()
+    );
+    fresh.open_pull_request(999);
+    fresh
+        .review_job
+        .spawn(|_| Err("unavailable replacement".into()));
+    settle(&mut fresh);
+    assert_eq!(fresh.active_pr.as_ref().unwrap().number, 758);
+    assert_eq!(SessionStore::load_from(&settings).active_pr, Some(758));
+    fresh.open_pull_request(888);
+    fresh.cancel_review_preparation();
+    settle(&mut fresh);
+    assert_eq!(fresh.active_pr.as_ref().unwrap().number, 758);
+    assert_eq!(SessionStore::load_from(&settings).active_pr, Some(758));
+    fresh.execute_command(&ctx, ToolbarAction::ExitPRReview);
+    settle(&mut fresh);
+    assert_eq!(SessionStore::load_from(&settings).active_pr, None);
+    let mut local = RadiologyApp::from_session(SessionStore::load_from(&settings));
+    local.restore_session();
+    settle(&mut local);
+    assert_eq!(local.repository_root.as_deref(), Some(root.as_path()));
+    assert!(local.review.is_none() && local.pending_pr.is_none());
 }

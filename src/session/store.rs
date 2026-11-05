@@ -82,11 +82,11 @@ impl SessionStore {
         Some(dir.join("session.json"))
     }
 
-    /// Validates whether the session data represents a valid, existing repository on disk.
+    /// Validates saved session structure independently of repository availability.
     #[must_use]
     pub fn is_valid(&self) -> bool {
         if let Some(repo) = &self.last_repository {
-            if !repo.starts_with('/') || !Path::new(repo).is_dir() {
+            if !Path::new(repo).is_absolute() {
                 return false;
             }
         }

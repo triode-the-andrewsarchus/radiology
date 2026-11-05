@@ -5,13 +5,22 @@ use super::*;
 pub(super) use refresh::ReviewRefresh;
 
 impl RadiologyApp {
-    /// Applies explicit launch intent before considering a saved session.
+    /// Applies launch intent once, with explicit arguments taking precedence.
+    ///
+    /// An accepted repository or an ongoing user request takes precedence over
+    /// startup restoration. Later choices use [`Self::open_repository`].
     pub fn launch(
         &mut self,
         repository: Option<&Path>,
         pull_request: Option<usize>,
         file: Option<&str>,
     ) {
+        if std::mem::replace(&mut self.launch_started, true)
+            || self.repository_root.is_some()
+            || self.is_repository_opening()
+        {
+            return;
+        }
         let saved = self.session.clone();
         let root = repository
             .map(Path::to_path_buf)
@@ -24,6 +33,7 @@ impl RadiologyApp {
                 destination: if let Some(number) = number {
                     repository::RepositoryDestination::Review {
                         number,
+                        restoring: repository.is_none() && pull_request.is_none(),
                         file: file.map(str::to_owned),
                     }
                 } else if let Some(file) = file {
@@ -44,11 +54,21 @@ impl RadiologyApp {
 
     pub(super) fn show_pull_request_prompt(&mut self) {
         if self.can_choose_review() {
+            let remembered = (self.session.last_repository.as_deref().map(Path::new)
+                == self.repository_root.as_deref())
+            .then_some(self.session.active_pr)
+            .flatten();
             let number = self
                 .active_pr
                 .as_ref()
-                .or_else(|| self.recent_pull_requests.items().first())
-                .map(|pr| pr.number);
+                .map(|pr| pr.number)
+                .or(remembered)
+                .or_else(|| {
+                    self.recent_pull_requests
+                        .items()
+                        .first()
+                        .map(|pr| pr.number)
+                });
             self.modal = ActiveModal::PullRequest(PullRequestModal::new(number));
         }
     }
