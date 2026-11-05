@@ -64,6 +64,12 @@ fn rebases_absolute_and_relative_paths_preserving_duplicate_configurations_and_l
         "--sysroot=/",
         "-include",
         original.join("include/header.h"),
+        "-include",
+        "header.h",
+        "-imacros",
+        "header.h",
+        "-includeheader.h",
+        "-imacrosheader.h",
         macro_literal,
         "-MT",
         "literal-target",
@@ -100,6 +106,17 @@ fn rebases_absolute_and_relative_paths_preserving_duplicate_configurations_and_l
         arguments[3],
         format!("-isystem{}", fixture.workspace.join("include").display())
     );
+    // Relative forced headers use the compiler's -I search, not an absolute cwd path.
+    assert_eq!(
+        arguments
+            .iter()
+            .filter(|value| **value == json!("header.h"))
+            .count(),
+        2
+    );
+    assert!(arguments.contains(&json!("-includeheader.h")));
+    assert!(arguments.contains(&json!("-imacrosheader.h")));
+    assert!(arguments.contains(&json!(fixture.workspace.join("include/header.h"))));
     assert!(arguments.contains(&json!("/usr/include")));
     assert!(arguments.contains(&json!("--sysroot=/")));
     assert!(arguments.contains(&json!(macro_literal)));

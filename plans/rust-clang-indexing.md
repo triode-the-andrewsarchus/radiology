@@ -100,3 +100,13 @@ the earlier tracked/unignored-only discovery limit for compilation databases in
 Git checkouts. Root/nested ignored databases now flow through shared project
 inspection, isolated generation and cache fingerprinting. Other ignored inputs,
 non-Git build directories and external build/dependency support remain open.
+
+## Forced dependency include search — 2026-11-05
+
+[Real dependency acceptance](rust-clang-dependency-acceptance.md) exposed and repaired
+relative -include/-imacros operands being made absolute under the project root.
+They now retain Clang's include-search spelling; absolute repository operands still
+rebase. The 33-unit/59-document tracked-vendor corpus verifies complete generation,
+dependency-only invalidation, partial generated-header failure, navigation and cache
+reload/reuse. Earlier partial caches require Reindex to replace. Other external/
+generated-input and broad-corpus limits above are not superseded by this check.

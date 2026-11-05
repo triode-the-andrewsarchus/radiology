@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-05 — Preserve compiler include search for dependency inputs (Codex)
+
+Real dependency acceptance found a production bug: rebasing relative -include and
+-imacros operands to absolute project-root paths bypassed Clang's -I lookup. The
+existing path rebaser now preserves relative search operands and still rebases
+absolute repository operands. Both separated/joined forms share this repair; no
+new helper, dependency, runtime owner or UI styling. The expanded existing unit
+regression and final valid real-tool fixture fail against the old runtime.
+
+The new opt-in workflow uses 33 C++17 translation units and 59 documents, including
+24 chained tracked vendor template headers and a vendor macro file, an ignored
+build database and nested GNU response files. Real scip-clang0.4.0 passes complete
+coverage, exact Unicode navigation, reuse/reload, vendor-only invalidation, truthful
+Partial generated-header failure and retained navigation/cache flags. An escaping
+response input fails explicitly. Full viewed inventory/byte checks and cleanup pass.
+All three real Clang lifecycle tests pass together. This bounded dependency corpus
+supplements seL4; it does not claim tkfiasco-scale or Android/AGP acceptance.
+
+Early QA corrected an authored template brace and the expectation that a stale
+checkout cache is absent. A broad filter accidentally included the Rust real-tool
+case without its private rust-analyzer prerequisite; the final explicit Clang-only
+run is green. Existing caches are not migrated; Reindex replaces earlier bad partial
+results. Source-level compatibility outside the recorded corpus remains limited.
+
+Full locked workspace: 761 app tests/ten opt-in ignored, two binary, 13 font, 22 text
+and59 doctests. Architecture NEUTRAL: +185 NLOC/one test, path CCN6→8, test CCN9;
+all125 clone instances/1335 duplicated lines and structural/cycle counts unchanged.
+No new hotspot. Full strict/build/resource/fmt/diff results are retained with the
+[dependency acceptance contract](plans/rust-clang-dependency-acceptance.md).
+Evidence: ~/.local/state/radiology-qa/clang-dependencies-20261105-0877ee3.
+Next: real Android/Gradle outcomes, remaining Swift behavior reconciliation and
+final standalone/reuse audit. Overall parity remains active.
+
 ## 2026-11-05 — Integrated pinned PR/native cache acceptance (Codex)
 
 The new real-Git app regression combines added/removed/renamed exact Copy, binary

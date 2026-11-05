@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[C/C++ dependency acceptance](plans/rust-clang-dependency-acceptance.md) found and
+fixed relative forced-header/macro-file lookup during compilation-command rebasing.
+Real Clang now passes a 33-unit/59-document tracked-vendor corpus, dependency-only
+cache invalidation and partial generated-header failure/reload/reuse checks.
+Android/Gradle and the broader final acceptance gates remain open.
+
 [Integrated pinned PR acceptance](plans/rust-integrated-pr-flow.md) now covers
 added/deleted/renamed/binary sources, moving head/base, exact real-Clang navigation,
 project reuse, tree/index eviction and explicit semantic restoration at 1×/2×.

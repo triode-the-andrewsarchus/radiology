@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The current full workspace passes 761 app tests (nine opt-in ignored), two binary,
+The current full workspace passes 761 app tests (ten opt-in ignored), two binary,
 13 font, 22 text and 59 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -94,6 +94,16 @@ GitHub metadata is controlled JSON; Git and Clang are real. Final native runs re
 the separate three-record retention policies and verify unavailable semantics after
 eviction rather than assuming an old record survives. Full workspace: 761 app tests,
 nine ignored; other counts unchanged. No production runtime change in this checkpoint.
+
+## C/C++ dependency checkpoint — 2026-11-05
+
+[Real tracked-vendor/response-input acceptance](rust-clang-dependency-acceptance.md)
+now covers 33 translation units/59 documents and fixed relative forced-header and
+macro-file include search. Complete generation, dependency-only invalidation,
+Partial missing generated-header behavior, navigation, normalized reload and reuse
+pass. This is a bounded corpus alongside the real seL4 matrix, not the Swift
+11,513-unit tkfiasco corpus or Android/Gradle acceptance. The app suite still passes
+761 tests, now with ten opt-in ignored; the three real Clang tests pass explicitly.
 
 ## Remaining acceptance gates
 

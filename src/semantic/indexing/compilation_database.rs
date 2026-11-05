@@ -153,7 +153,19 @@ impl<'a> RebaseContext<'a> {
         Ok(canonical)
     }
 
-    fn path(&self, directory: &Path, value: &str, output: bool) -> Result<String, String> {
+    fn path(
+        &self,
+        directory: &Path,
+        value: &str,
+        output: bool,
+        option: &str,
+    ) -> Result<String, String> {
+        // Clang searches -include/-imacros operands through its include paths.
+        // Keeping relative spellings preserves that lookup in the copied cwd;
+        // absolute repository operands still need the ordinary rebasing below.
+        if matches!(option, "-include" | "-imacros") && Path::new(value).is_relative() {
+            return Ok(value.into());
+        }
         if value.is_empty() || value.starts_with('=') {
             return Ok(value.into());
         }
@@ -209,6 +221,7 @@ impl<'a> RebaseContext<'a> {
                     &directory,
                     output.to_str().ok_or("Output is not UTF-8")?,
                     true,
+                    "-o",
                 )
                 .map(PathBuf::from)
             })
@@ -279,10 +292,14 @@ impl<'a> RebaseContext<'a> {
                 let operand = operands
                     .next()
                     .ok_or_else(|| format!("Missing operand for {argument}"))?;
+                let path = self.path(directory, &operand, output, &argument)?;
                 rebased.push(argument);
-                rebased.push(self.path(directory, &operand, output)?);
+                rebased.push(path);
             } else if let Some((prefix, value, output)) = joined_path_option(&argument) {
-                rebased.push(format!("{prefix}{}", self.path(directory, value, output)?));
+                rebased.push(format!(
+                    "{prefix}{}",
+                    self.path(directory, value, output, prefix)?
+                ));
             } else if ["-D", "-U", "-x", "-MT", "-MQ", "-target"].contains(&argument.as_str()) {
                 let operand = operands
                     .next()
@@ -310,7 +327,7 @@ impl<'a> RebaseContext<'a> {
                 .repository_path(&absolute)
                 .is_ok_and(|path| path.exists())
         {
-            self.path(directory, argument, false)
+            self.path(directory, argument, false, "")
         } else {
             Ok(argument.into())
         }

@@ -263,6 +263,165 @@ fn pinned_typescript_install_generation_navigation_and_cache_reload() {
     );
 }
 
+#[test]
+#[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
+fn real_clang_vendor_dependencies_invalidate_reuse_and_preserve_partial_builds() {
+    use crate::pull_request::review::tests::git;
+    let mut owned = vec![
+        (".gitignore".to_owned(), "build/\n".to_owned()),
+        ("include/api.hpp".into(), "int transform(int value);\n".into()),
+        ("vendor/dependency/config.hpp".into(), "#define DEPENDENCY_OFFSET 5\n".into()),
+        ("src/api.cpp".into(), "#include <api.hpp>\nint transform(int value) { return dependency::stage23<7>::apply(value) + DEPENDENCY_OFFSET; }\n".into()),
+        ("compile.rsp".into(), "@nested.rsp -Iinclude -Ivendor -include dependency/stage23.hpp -imacros dependency/config.hpp\n".into()),
+        ("nested.rsp".into(), "-std=c++17 -DNAME='literal spaces;not shell'\n".into()),
+    ];
+    for number in 0..24 {
+        let text = if number == 0 {
+            "#pragma once\nnamespace dependency { template<int N> struct stage0 { static int apply(int value) { return value + N; } }; }\n".into()
+        } else {
+            format!("#pragma once\n#include \"stage{}.hpp\"\nnamespace dependency {{ template<int N> struct stage{number} {{ static int apply(int value) {{ return stage{}<N>::apply(value); }} }}; }}\n", number - 1, number - 1)
+        };
+        owned.push((format!("vendor/dependency/stage{number}.hpp"), text));
+    }
+    let mut commands = vec![serde_json::json!({
+        "directory": ".", "file": "src/api.cpp",
+        "arguments": ["clang++", "@compile.rsp", "-c", "src/api.cpp", "-o", "build/api.o"]
+    })];
+    for number in 0..32 {
+        let path = format!("src/caller{number:02}.cpp");
+        owned.push((path.clone(), format!("#include <api.hpp>\nint caller{number}() {{ /* 🦀 */ return transform({number}); }}\n")));
+        commands.push(serde_json::json!({
+            "directory": ".", "file": path,
+            "arguments": ["clang++", "@compile.rsp", "-c", path, "-o", format!("build/caller{number}.o")]
+        }));
+    }
+    owned.push((
+        "build/compile_commands.json".into(),
+        serde_json::to_string(&commands).unwrap(),
+    ));
+    let files: Vec<_> = owned
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let fixture = Fixture::new(&files);
+    git(&fixture.source, &["init", "-q"]);
+    git(&fixture.source, &["add", "."]);
+    assert!(git(&fixture.source, &["ls-files", "vendor"]).contains("stage23.hpp"));
+    assert!(git(&fixture.source, &["ls-files", "build"]).is_empty());
+    let status = git(&fixture.source, &["status", "--porcelain"]);
+    let mut request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
+    let accepted = verify_lifecycle(
+        &fixture,
+        request.clone(),
+        &files,
+        Navigation {
+            caller: "src/caller00.cpp",
+            callee: "transform",
+            target: "src/api.cpp",
+            span: (1, 4, 13),
+            encoding: ColumnEncoding::Utf8,
+            documents: 59,
+        },
+        &["build/api.o", "build/caller0.o", "index.scip"],
+    );
+    assert_eq!(git(&fixture.source, &["status", "--porcelain"]), status);
+    // A dependency-only edit must invalidate both normalized and project reuse.
+    fs::write(
+        fixture.source.join("vendor/dependency/config.hpp"),
+        "#define DEPENDENCY_OFFSET 9\n",
+    )
+    .unwrap();
+    request.reuse = true;
+    let stale = super::super::super::cache::load(&request, &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(stale.report.stale_reason.is_some());
+    let changed = run(request.clone());
+    eprintln!("Dependency edit: {:#?}", changed.report);
+    assert!(changed.report.outcomes[0].reused_from.is_none());
+    assert!(!changed.report.is_partial());
+    assert_eq!(changed.report.documents, 59);
+    let config = SourceBuffer::from_str(
+        "vendor/dependency/config.hpp",
+        "#define DEPENDENCY_OFFSET 9\n",
+    );
+    assert!(!accepted.matches_buffer(&config));
+    assert!(changed.index.unwrap().matches_buffer(&config));
+    // An unavailable generated header must not erase independent compiler data.
+    let broken = "#include <missing/generated.hpp>\nint unavailable() { return 1; }\n";
+    fs::write(fixture.source.join("src/caller31.cpp"), broken).unwrap();
+    let partial = run(request.clone());
+    eprintln!("Missing generated dependency: {:#?}", partial.report);
+    let outcome = &partial.report.outcomes[0];
+    assert!(outcome.partial_build && partial.report.is_partial());
+    assert!(outcome.reused_from.is_none());
+    assert!(outcome.diagnostics.contains("missing/generated.hpp"));
+    assert!(partial.report.stale_reason.is_none() && partial.report.cache_warning.is_none());
+    let partial_index = partial
+        .index
+        .expect("successful independent translation units survive");
+    let text = files
+        .iter()
+        .find(|(path, _)| *path == "src/caller00.cpp")
+        .unwrap()
+        .1;
+    let caller = SourceBuffer::from_str("src/caller00.cpp", text);
+    let call = partial_index
+        .occurrence_at_byte(&caller, text.find("transform").unwrap())
+        .unwrap();
+    assert_eq!(
+        partial_index.find_definition(&call.symbol).unwrap().0,
+        "src/api.cpp"
+    );
+    let cached = super::super::super::cache::load(&request, &AtomicBool::new(false))
+        .unwrap()
+        .unwrap();
+    assert!(cached.report.cached && cached.report.is_partial());
+    assert!(cached.report.outcomes[0].partial_build);
+    assert_eq!(
+        cached.index.unwrap().find_definition(&call.symbol),
+        partial_index.find_definition(&call.symbol)
+    );
+    let reused = run(request.clone());
+    assert!(reused.report.is_partial() && reused.report.outcomes[0].partial_build);
+    assert!(reused.report.outcomes[0].reused_from.is_some());
+    // Escaping response inputs fail explicitly before executing arbitrary build inputs.
+    fs::write(
+        fixture.source.join("compile.rsp"),
+        "@/outside/not-copied.rsp\n",
+    )
+    .unwrap();
+    let failed = run(request);
+    assert!(failed.index.is_none());
+    assert!(failed.report.outcomes[0]
+        .failure
+        .as_ref()
+        .unwrap()
+        .contains("outside"));
+    let modified: Vec<_> = files
+        .iter()
+        .map(|(path, original)| {
+            let expected = match *path {
+                "vendor/dependency/config.hpp" => "#define DEPENDENCY_OFFSET 9\n",
+                "src/caller31.cpp" => broken,
+                "compile.rsp" => "@/outside/not-copied.rsp\n",
+                _ => original,
+            };
+            (*path, expected)
+        })
+        .collect();
+    assert_viewed_inputs_unchanged(&fixture, &modified);
+    assert!(!fixture.source.join("build/api.o").exists());
+    assert!(!fixture.source.join("index.scip").exists());
+    assert!(walkdir::WalkDir::new(&fixture.cache)
+        .into_iter()
+        .map(Result::unwrap)
+        .all(|entry| !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("radiology-build-inputs-")));
+}
+
 struct Navigation<'a> {
     caller: &'a str,
     callee: &'a str,
