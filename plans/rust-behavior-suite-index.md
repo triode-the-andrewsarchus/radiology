@@ -50,6 +50,12 @@ OccurrencePinningTests: all four named assertions are reconciled in the
 [reader-host/pin audit](rust-reader-host-audit.md). Other rows in this group retain
 their checkpoint-specific scope.
 
+NavigationHistoryTests' single contract and SourceScrollViewTests'11 ordinary
+assertion groups are now reconciled in the
+[scroll/history checkpoint](rust-scroll-history-contracts.md). It maps each
+function to Rust tests and platform equivalents; the absolute-path opt-in
+performance probe is explicitly unrun.
+
 ## Bookmarks
 
 Rust entry points: [store.rs](../src/bookmarks/store.rs), [tests.rs](../src/ui/app/tests.rs), [bookmark_list.rs](../src/ui/bookmark_list.rs).

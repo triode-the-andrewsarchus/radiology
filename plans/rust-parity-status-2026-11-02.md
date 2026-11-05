@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Scroll/history contracts](rust-scroll-history-contracts.md) reconcile one history
+contract and 11 ordinary scrolling groups through expanded app/rendered tests.
+The machine-specific opt-in fold probe is explicitly unrun; other suites remain.
+
 [Dialog focus](rust-dialog-focus.md) fixes premature focus completion for File/Symbol
 queries, PR entry and Code Path import. Hosted regressions cover inactive/disabled
 editors and deliberate Tab ownership; the prior line-prompt rule is retained.
@@ -113,7 +117,7 @@ workspace now passes760 app tests and22 text tests; other counts are unchanged.
 [Integrated app/native PR acceptance](rust-integrated-pr-flow.md) now combines
 added/deleted/renamed/binary sources, moving head/base, exact pinned real-Clang
 navigation, project-cache reuse, managed-tree and normalized-index eviction,
-tool-free source reopening and explicit semantic restoration at 1×/2×. The app
+tool-free source reopening and explicit semantic restoration at1×/2×. The app
 regression additionally verifies mapped caret retention, failed-open history and
 live snapshot leases. Dirty attached source/HEAD/refs/status remain unchanged.
 GitHub metadata is controlled JSON; Git and Clang are real. Final native runs respect

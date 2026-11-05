@@ -2117,6 +2117,13 @@ mod tests {
             }
         }
 
+        fn copy_all(&mut self, ctx: &egui::Context) -> String {
+            self.viewport.request_focus(ctx);
+            self.frame(ctx, vec![key(Key::A, Modifiers::CTRL), egui::Event::Copy])
+                .platform_output
+                .copied_text
+        }
+
         fn set_index(&mut self, index: crate::semantic::SemanticIndex) {
             let buffer = Arc::new(self.source.clone());
             self.hover_inputs = Some(Arc::new(crate::critical::worker::GraphInputs {
@@ -3494,6 +3501,11 @@ mod tests {
                 0,
             );
             let selected = reader.pins.ephemeral.clone();
+            reader.frame(&ctx, Vec::new());
+            reader
+                .viewport
+                .select(selected.as_ref().unwrap().active.clone());
+            let selection = reader.viewport.selection;
             let output = reader.frame(&ctx, Vec::new());
             let pin_base = reader
                 .theme
@@ -3514,7 +3526,13 @@ mod tests {
             assert!(filled_bands(&output, reader.theme.accent.gamma_multiply(0.28)).is_empty());
             assert!(filled_bands(&output, reader.theme.accent.gamma_multiply(0.16)).is_empty());
             assert_eq!(reader.pins.ephemeral, selected);
-            assert!(reader.viewport.selection.is_none());
+            assert_eq!(reader.viewport.selection, selection);
+            reader.pins.clear();
+            let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+            assert!(filled_bands(&output, pin_fill).is_empty());
+            assert_eq!(reader.viewport.selection, selection);
+            assert_eq!(output.platform_output.copied_text, "café");
+            assert_eq!(reader.source.text, text);
         }
     }
 
@@ -3569,29 +3587,37 @@ mod tests {
 
     #[test]
     fn indentation_disclosure_uses_the_preceding_header_and_reveals_whole_body() {
-        let ctx = egui::Context::default();
-        let mut reader = Reader::new("");
-        reader.source = SourceBuffer::from_str("a.py", "def f():\n    one()\n    two()\nnext()\n");
-        reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
-        let fold = reader
-            .ranges
-            .iter()
-            .find(|fold| fold.kind == crate::syntax::FoldKind::Callable)
-            .unwrap()
-            .clone();
-        assert_eq!(fold.header_line(&reader.source), 1);
-        assert_eq!(fold.hidden_range(&reader.source), fold.byte_range);
-        reader.frame(&ctx, Vec::new());
-        let point = pos2(20.0, 18.0);
-        reader.frame(&ctx, pointer(point, true));
-        reader.frame(&ctx, pointer(point, false));
-        let output = reader.frame(&ctx, Vec::new());
-        assert!(reader.folds.is_folded(&fold.byte_range));
-        assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("one()") || text.galley.job.text.contains("two()"))));
-        reader
-            .folds
-            .reveal_byte(fold.byte_range.start, &reader.source, &reader.ranges);
-        assert!(!reader.folds.is_folded(&fold.byte_range));
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new("");
+            let text = "def render():\n    parts = [\"胸部\"]\n    return parts\nnext()\n";
+            reader.source = SourceBuffer::from_str("a.py", text);
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            let fold = reader
+                .ranges
+                .iter()
+                .find(|fold| fold.kind == crate::syntax::FoldKind::Callable)
+                .unwrap()
+                .clone();
+            assert_eq!(fold.header_line(&reader.source), 1);
+            assert_eq!(fold.hidden_range(&reader.source), fold.byte_range);
+            reader.frame(&ctx, Vec::new());
+            let point = pos2(20.0, 18.0);
+            reader.frame(&ctx, pointer(point, true));
+            reader.frame(&ctx, pointer(point, false));
+            let output = reader.frame(&ctx, Vec::new());
+            assert!(reader.folds.is_folded(&fold.byte_range));
+            assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("parts") || text.galley.job.text.contains("胸部"))));
+            reader
+                .folds
+                .reveal_byte(fold.byte_range.start, &reader.source, &reader.ranges);
+            assert!(!reader.folds.is_folded(&fold.byte_range));
+            let output = reader.frame(&ctx, vec![]);
+            text_shape(&output, "    parts = [\"胸部\"]");
+            text_shape(&output, "    return parts");
+            assert_eq!(reader.copy_all(&ctx), text);
+            assert_eq!(reader.source.text, text);
+        }
     }
 
     #[test]
@@ -3783,6 +3809,62 @@ mod tests {
     }
 
     #[test]
+    fn multiline_large_function_compacts_after_expansion_and_font_changes() {
+        let prefix = "// preceding source row\n".repeat(8);
+        let signature = "async fn open(\n    &self,\n    executor_id: &str,\n    realtime: Option<String>,\n    fork_from: Option<&str>,\n) -> Result<String, String>\n{\n";
+        let body = (0..607)
+            .map(|index| {
+                if index == 300 {
+                    "    let closure = || { nested(); };\n".into()
+                } else {
+                    format!("    work_{index}();\n")
+                }
+            })
+            .collect::<String>();
+        let text =
+            prefix + signature + &body + "}\n\nfn complete_tool() {}\n\nfn request_observe() {}\n";
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(&text);
+            reader.wrap = false;
+            reader.font_size = 18.0;
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            let fold = reader
+                .ranges
+                .iter()
+                .find(|fold| fold.hidden_line_count(&reader.source) == 608)
+                .unwrap()
+                .clone();
+            reader
+                .folds
+                .apply_initial_defaults(&reader.source, &reader.ranges, None);
+            reader.frame(&ctx, vec![]);
+            let collapsed = reader.viewport.rows.total_height();
+            assert!(reader.viewport.visible.len() < 25);
+            assert!(collapsed < 28.0 * 25.0);
+            reader
+                .viewport
+                .preview_byte(&reader.source, fold.byte_range.start);
+            let output = reader.frame(&ctx, vec![]);
+            text_shape(&output, "{}");
+            assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape,
+                egui::Shape::Text(text) if text.galley.job.text.contains("work_0"))));
+            reader.folds.toggle(fold.byte_range.clone());
+            for _ in 0..8 {
+                reader.frame(&ctx, vec![]);
+            }
+            assert!(reader.viewport.rows.total_height() > collapsed * 20.0);
+            reader.font_size = 13.0;
+            reader.folds.toggle(fold.byte_range.clone());
+            reader.frame(&ctx, vec![]);
+            assert!(reader.viewport.visible.len() < 25);
+            assert!(reader.viewport.rows.total_height() < 28.0 * 25.0);
+            assert_eq!(reader.copy_all(&ctx), text);
+            assert_eq!(reader.source.text, text);
+        }
+    }
+
+    #[test]
     fn large_line_numbers_omit_crowded_badges_without_losing_meter_or_disclosure() {
         for scale in [1.0, 2.0] {
             let ctx = reader_context(scale);
@@ -3962,47 +4044,62 @@ mod tests {
 
     #[test]
     fn landing_feedback_owns_one_wrapped_unicode_row_and_preserves_source_selection() {
-        let ctx = egui::Context::default();
-        let mut reader = Reader::new(&format!("{}\r\nend", "é😀 word ".repeat(1200)));
-        reader.now = Some(1.0);
-        reader.frame(&ctx, Vec::new());
-        reader.viewport.select(0..2);
-        let selection = reader.viewport.selection;
-        let byte = reader.source.text.rfind("word").unwrap();
-        reader.viewport.preview_byte(&reader.source, byte);
-        reader.viewport.flash_destination(&reader.source, byte);
-        reader.now = Some(1000.0);
-        let output = reader.frame(&ctx, Vec::new());
-        let bands = feedback_bands(&output, 0.18);
-        assert_eq!(
-            bands.len(),
-            1,
-            "continuation fragments must not duplicate feedback"
-        );
-        let (row, _) = reader.viewport.row_for_byte(byte).unwrap();
-        assert!(bands[0].height() > 0.0);
-        assert!(
-            bands[0].height()
-                < (reader.viewport.rows.offset(row + 1) - reader.viewport.rows.offset(row)) / 2.0,
-            "only the destination's wrapped visual row should flash"
-        );
-        assert!(bands[0].width() > 200.0);
-        assert_eq!((reader.line, reader.column), (1, 0));
-        assert_eq!(reader.viewport.selection, selection);
-        reader.now = Some(1001.005);
-        assert_eq!(
-            feedback_bands(&reader.frame(&ctx, Vec::new()), 0.09).len(),
-            1
-        );
-        reader.now = Some(1001.2);
-        let output = reader.frame(&ctx, Vec::new());
-        assert!(reader.viewport.destination_frame.is_none());
-        assert!(feedback_bands(&output, 0.18).is_empty());
-        assert_eq!(reader.viewport.selection, selection);
-        reader.viewport.flash_destination(&reader.source, byte);
-        reader.viewport.preview_byte(&reader.source, 0);
-        reader.now = Some(2000.0);
-        assert!(feedback_bands(&reader.frame(&ctx, Vec::new()), 0.18).is_empty());
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(&format!("{}\r\nend", "é😀 word ".repeat(1200)));
+            reader.now = Some(1.0);
+            reader.frame(&ctx, Vec::new());
+            reader.viewport.select(0..2);
+            let selection = reader.viewport.selection;
+            let byte = reader.source.text.rfind("word").unwrap();
+            reader.viewport.preview_byte(&reader.source, byte);
+            reader.viewport.flash_destination(&reader.source, byte);
+            reader.now = Some(1000.0);
+            let output = reader.frame(&ctx, Vec::new());
+            let bands = feedback_bands(&output, 0.18);
+            assert_eq!(
+                bands.len(),
+                1,
+                "continuation fragments must not duplicate feedback"
+            );
+            let (row, _) = reader.viewport.row_for_byte(byte).unwrap();
+            assert!(bands[0].height() > 0.0);
+            assert!(
+                bands[0].height()
+                    < (reader.viewport.rows.offset(row + 1) - reader.viewport.rows.offset(row))
+                        / 2.0,
+                "only the destination's wrapped visual row should flash"
+            );
+            assert!(bands[0].width() > 200.0);
+            assert_eq!((reader.line, reader.column), (1, 0));
+            assert_eq!(reader.viewport.selection, selection);
+            reader.now = Some(1001.005);
+            assert_eq!(
+                feedback_bands(&reader.frame(&ctx, Vec::new()), 0.09).len(),
+                1
+            );
+            let earlier = reader.source.text.find("word").unwrap();
+            reader.viewport.preview_byte(&reader.source, earlier);
+            reader.viewport.flash_destination(&reader.source, earlier);
+            reader.now = Some(1001.1);
+            let restarted = reader.frame(&ctx, vec![]);
+            assert_eq!(reader.viewport.destination_frame.unwrap().byte, earlier);
+            assert_eq!(feedback_bands(&restarted, 0.18).len(), 1);
+            assert_eq!(reader.viewport.selection, selection);
+            reader.now = Some(1002.3);
+            let output = reader.frame(&ctx, Vec::new());
+            assert!(reader.viewport.destination_frame.is_none());
+            assert!(feedback_bands(&output, 0.18).is_empty());
+            assert_eq!(reader.viewport.selection, selection);
+            reader.viewport.flash_destination(&reader.source, byte);
+            reader.viewport.preview_byte(&reader.source, 0);
+            reader.now = Some(2000.0);
+            assert!(feedback_bands(&reader.frame(&ctx, Vec::new()), 0.18).is_empty());
+            assert_eq!(
+                reader.source.text,
+                format!("{}\r\nend", "é😀 word ".repeat(1200))
+            );
+        }
     }
 
     #[test]

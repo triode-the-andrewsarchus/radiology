@@ -132,8 +132,14 @@ mod tests {
 
         history.visit(loc1.clone());
         assert_eq!(history.entries.len(), 1);
+        let loc1 = SourceLocation::new("a.rs", 100);
+        history.update_current(loc1.clone());
+        assert_eq!(history.entries.len(), 1);
+        assert_eq!(history.current(), Some(&loc1));
 
         history.visit(loc2.clone());
+        history.visit(loc2.clone());
+        assert_eq!(history.entries.len(), 2);
         assert!(history.can_go_back());
         assert!(!history.can_go_forward());
         assert_eq!(history.current(), Some(&loc2));
@@ -158,5 +164,10 @@ mod tests {
         assert_eq!(history.entries.len(), 3);
         assert!(!history.can_go_forward());
         assert_eq!(history.current(), Some(&loc4));
+        assert_eq!(history.back(), Some(loc2.clone()));
+        assert_eq!(history.forward(), Some(loc4));
+        assert_eq!(history.back(), Some(loc2));
+        assert_eq!(history.back(), Some(loc1));
+        assert_eq!(history.back(), None);
     }
 }

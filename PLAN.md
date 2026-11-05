@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Scroll/history contracts](plans/rust-scroll-history-contracts.md) reconcile the
+single Swift history test and 11 ordinary scrolling groups. Expanded rendered/app
+checks cover repeated row 151 restoration,607-row fold compaction after zoom,
+Unicode indentation bodies, selection-safe occurrence paint and restarted landing
+feedback. Runtime already supports these contracts; the machine-specific opt-in
+probe and other suites retain their explicit acceptance limits.
+
 [Dialog focus](plans/rust-dialog-focus.md) extends confirmed focus acquisition to
 File/Symbol queries, PR entry and Code Path import. Inactive or disabled editors
 keep their initial-focus request pending; Tab remains owned by the chosen control.
@@ -111,7 +118,7 @@ Android/Gradle and the broader final acceptance gates remain open.
 
 [Integrated pinned PR acceptance](plans/rust-integrated-pr-flow.md) now covers
 added/deleted/renamed/binary sources, moving head/base, exact real-Clang navigation,
-project reuse, tree/index eviction and explicit semantic restoration at 1×/2×.
+project reuse, tree/index eviction and explicit semantic restoration at1×/2×.
 The attached checkout stays unchanged; the new app regression preserves mapped
 caret/history and live snapshot leases. Heavy compiler outcomes, remaining behavior
 reconciliation and the final standalone/reuse audit remain open.
@@ -241,7 +248,7 @@ pass. The exposed narrow-footer overlap is resolved by the measured footer above
 [Contextual refresh](plans/rust-contextual-refresh.md) now exposes checkout Reload
 in the repository menu, switches to Refresh PR during review, and prevents repeated
 menu/keyboard refresh from replacing pending repository/review work. Actual app
-frames cover discovery/restoration and worker retention at 1×/2×.
+frames cover discovery/restoration and worker retention at1×/2×.
 
 [Ignored Git compilation databases](plans/rust-ignored-compilation-databases.md)
 now participate in checkout project discovery, isolated generation and cache
@@ -328,7 +335,7 @@ and standalone packaging checks pass. Broader parity remains open.
 [Native repository drops](plans/rust-repository-drop.md) now open folders or a
 dropped file’s parent through the existing asynchronous repository transaction.
 The standalone Wayland receiver fills winit’s missing delivery path; actual
-file-manager drops, root replacement and exact source copy pass at 1×/2×. Hosts
+file-manager drops, root replacement and exact source copy pass at1×/2×. Hosts
 can use the public drop method without native frontend state. Broader parity
 remains open.
 
@@ -362,7 +369,7 @@ itself and broader parity remain open.
 name-first summaries, metadata and signatures above usable reference controls.
 Bounded summary/coverage scrolling and a 160-point declaration minimum repair the
 observed clipping; exact signature/source copies, indexed navigation and Follow
-Caret pass at 1×/2×. Broader inspector and whole-app acceptance remain open.
+Caret pass at1×/2×. Broader inspector and whole-app acceptance remain open.
 
 [Shared native declaration queries](plans/rust-native-outline-parity.md#shared-declaration-queries-for-the-remaining-native-languages--2026-11-01)
 now cover Rust trait requirements/unions/macros, Go interfaces and file-scope

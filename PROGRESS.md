@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-11-05 — Scrolling, fold compaction and history assertions (Codex)
+
+Reconciled the Swift history contract and 11 ordinary SourceScrollView assertion
+groups against their Rust equivalents. Existing runtime required no changes.
+Expanded tests check updated history coordinates/branch retirement, three exact
+row 151 restores in 300 Unicode rows,607-line multiline function compaction and
+font recollapse at 1×/2×, full Unicode indentation reveal/Copy, selection-safe
+occurrence paint/fold/clear, and restarted/fading destination feedback.
+
+Workspace 793 app tests/11 ignored, two binary, 13 font,22 text and 60 doctests pass;
+final 71 viewport tests, strict Clippy and formatting pass. Architecture +116 NLOC,
+two test-only functions; full clone multiset unchanged 125/1335, no new hotspot,
+cycle or structural issue. Copy test setup is shared instead of duplicated.
+[Contract table and evidence](plans/rust-scroll-history-contracts.md) distinguish
+portable Rust behavior from TextKit details and the unrun machine-specific probe.
+Other Swift assertions and SDK-backed Android validation remain open.
+
 ## 2026-11-05 — Confirmed dialog focus and preserved Tab ownership (Codex)
 
 Extended the prior Go to Line focus fix to shared File/Symbol queries, PR entry

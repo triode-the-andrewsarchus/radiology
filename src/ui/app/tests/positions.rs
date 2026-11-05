@@ -13,7 +13,7 @@ fn reopen_via(app: &mut RadiologyApp, ctx: &Context, other: &str, path: &str) {
 #[test]
 fn implicit_file_reopens_restore_reported_reading_positions_without_replacing_exact_back() {
     for scale in [1.0, 2.0] {
-        let text: String = (1..=160)
+        let text: String = (1..=300)
             .map(|n| format!("// row {n:03} café 🦀 reading anchor\n"))
             .collect();
         let (owner, mut app) = isolated_source("a.rs", &text);
@@ -38,7 +38,7 @@ fn implicit_file_reopens_restore_reported_reading_positions_without_replacing_ex
         );
         // A passive scroll replaces the reading anchor, without moving the caret.
         app.scroll_to_line = None;
-        let top = source.byte_offset(65, 0);
+        let top = source.byte_offset(151, 0);
         app.source_viewport.restore_top(&source, top);
         frame(&mut app, &ctx, vec![]);
         assert_eq!(app.source_viewport.top_byte(&source), Some(top));
@@ -55,9 +55,19 @@ fn implicit_file_reopens_restore_reported_reading_positions_without_replacing_ex
         app.scroll_to_line = None;
         app.source_viewport.restore_top(&source, top);
         frame(&mut app, &ctx, vec![]);
-        reopen_via(&mut app, &ctx, "b.rs", "a.rs");
+        for _ in 0..3 {
+            reopen_via(&mut app, &ctx, "b.rs", "a.rs");
+            assert_eq!(source.byte_offset(app.caret_line, app.caret_col), top);
+            assert_eq!(
+                app.source_viewport.top_byte(&source),
+                Some(top),
+                "restoration must not drift by one line on each return"
+            );
+        }
+        app.source_viewport.restore_top(&source, 0);
+        frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.source_viewport.top_byte(&source), Some(0));
         assert_eq!(source.byte_offset(app.caret_line, app.caret_col), top);
-        assert_eq!(app.source_viewport.top_byte(&source), Some(top));
         assert_eq!(std::fs::read_to_string(root.join("a.rs")).unwrap(), text);
     }
 }
