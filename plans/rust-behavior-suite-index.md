@@ -24,6 +24,10 @@ Evidence: [rust-reading-positions](rust-reading-positions.md), [rust-reader-retu
 | [SourceFunctionNavigationTests](../Tests/RadiologyTests/SourceFunctionNavigationTests.swift) | 1 |
 | [OccurrencePinningTests](../Tests/RadiologyTests/OccurrencePinningTests.swift) | 4 |
 
+SourceCaretTests: all three contracts are reconciled in the
+[caret checkpoint](rust-caret-parity.md), including rendered geometry, focus/menu
+ownership and native selection/editor transitions at both scales.
+
 ReaderSessionTests: all seven contracts are reconciled in the
 [session recovery checkpoint](rust-session-recovery.md), with controlled GitHub
 failure and native no-argument relaunch at both scales.

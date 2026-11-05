@@ -1569,6 +1569,29 @@ impl SourceViewport {
         }
         paint_occurrences(painter, galley, origin, part, content);
         galley.paint(painter, origin, theme.text_primary);
+        self.paint_caret(painter, galley, origin, part, content);
+    }
+
+    fn paint_caret(
+        &self,
+        painter: &egui::Painter,
+        galley: &reader_fonts::EmojiGalley,
+        origin: egui::Pos2,
+        part: &SourceFragment,
+        content: &CanvasContent<'_>,
+    ) {
+        if content.buffer.text.is_empty()
+            || !content.keyboard_enabled
+            || !self.has_focus(painter.ctx())
+            || !painter.ctx().input(|input| input.focused)
+            || self
+                .selection
+                .is_some_and(|selection| selection.anchor != selection.focus)
+            || self.menu_request.is_some()
+            || crate::ui::commands::context_menu_is_open(painter.ctx())
+        {
+            return;
+        }
         let byte = content
             .buffer
             .byte_offset(*content.caret_line, *content.caret_col);
@@ -1580,7 +1603,7 @@ impl SourceViewport {
                 .translate(origin.to_vec2());
             painter.line_segment(
                 [caret.left_top(), caret.left_bottom()],
-                Stroke::new(1.5_f32, theme.accent),
+                Stroke::new(1.5_f32, content.theme.accent),
             );
         }
     }
@@ -1851,6 +1874,15 @@ fn fragment_cursor(
     source: &str,
     byte: usize,
 ) -> Rect {
+    // Painting/reveal snap an interior byte to the grapheme's start without
+    // changing the canonical caret. Pointer hits retain caret_index's trailing
+    // edge behavior. Projection boundaries keep hidden spans independent.
+    let previous = part.adjacent_grapheme(source, byte, false);
+    let byte = if part.adjacent_grapheme(source, previous, true) > byte {
+        previous
+    } else {
+        byte
+    };
     // A byte at a soft wrap is the first character of the following visual row.
     galley.pos_from_ccursor(egui::text::CCursor {
         index: galley.caret_index(part.char_index(source, byte)),
@@ -2196,6 +2228,8 @@ mod tests {
         theme: AppTheme,
         changes: Vec<Range<usize>>,
         menu_raw_hook: bool,
+        window_focused: bool,
+        keyboard_enabled: bool,
     }
 
     impl Reader {
@@ -2224,6 +2258,8 @@ mod tests {
                 theme: AppTheme::dark(),
                 changes: Vec::new(),
                 menu_raw_hook: false,
+                window_focused: true,
+                keyboard_enabled: true,
             }
         }
 
@@ -2266,6 +2302,7 @@ mod tests {
                     .unwrap_or_default(),
                 events,
                 time: self.now,
+                focused: self.window_focused,
                 ..Default::default()
             };
             if self.menu_raw_hook {
@@ -2300,7 +2337,7 @@ mod tests {
                             wrap: self.wrap,
                             font_size: self.font_size,
                             target: &mut self.target,
-                            keyboard_enabled: true,
+                            keyboard_enabled: self.keyboard_enabled,
                             find: &mut self.find,
                         },
                     );
@@ -3923,6 +3960,163 @@ mod tests {
         ctx.set_fonts(definitions);
         ctx.set_pixels_per_point(scale);
         ctx
+    }
+
+    fn insertion_carets(output: egui::FullOutput) -> Vec<[egui::Pos2; 2]> {
+        output
+            .shapes
+            .into_iter()
+            .filter_map(|shape| match shape.shape {
+                egui::Shape::LineSegment { points, stroke }
+                    if stroke.color == AppTheme::dark().accent && stroke.width == 1.5 =>
+                {
+                    Some(points)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn insertion_caret_requires_empty_selection_reader_ownership_and_active_window() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new("let café = 1;\n");
+            reader.menu_raw_hook = true;
+            assert!(
+                insertion_carets(reader.frame(&ctx, vec![])).is_empty(),
+                "unfocused reader"
+            );
+            reader.viewport.request_focus(&ctx);
+            let shown = insertion_carets(reader.frame(&ctx, vec![]));
+            assert_eq!(shown.len(), 1);
+            reader.viewport.select(4..9);
+            let selected = reader.viewport.selection;
+            assert!(
+                insertion_carets(reader.frame(&ctx, vec![])).is_empty(),
+                "selection replaces caret"
+            );
+            assert_eq!(reader.viewport.selection, selected);
+            reader.viewport.select(9..9);
+            assert_eq!(insertion_carets(reader.frame(&ctx, vec![])).len(), 1);
+            reader.window_focused = false;
+            assert!(
+                insertion_carets(reader.frame(&ctx, vec![])).is_empty(),
+                "inactive window"
+            );
+            reader.window_focused = true;
+            reader.viewport.request_focus(&ctx);
+            assert_eq!(insertion_carets(reader.frame(&ctx, vec![])).len(), 1);
+            reader.keyboard_enabled = false;
+            assert!(
+                insertion_carets(reader.frame(&ctx, vec![])).is_empty(),
+                "host sheet owns input"
+            );
+            reader.keyboard_enabled = true;
+            ctx.memory_mut(|memory| memory.request_focus(Id::new("other editor")));
+            assert!(
+                insertion_carets(reader.frame(&ctx, vec![])).is_empty(),
+                "another control"
+            );
+            reader.viewport.request_focus(&ctx);
+            let point = shown[0][0] + vec2(1.0, 5.0);
+            let output = reader.frame(&ctx, crate::ui::test_support::secondary_click(point));
+            assert!(crate::ui::commands::context_menu_is_open(&ctx));
+            assert!(insertion_carets(output).is_empty(), "menu opening frame");
+            assert!(insertion_carets(reader.frame(&ctx, vec![])).is_empty());
+            reader.frame(&ctx, vec![key(Key::Escape, Modifiers::NONE)]);
+            assert_eq!(insertion_carets(reader.frame(&ctx, vec![])).len(), 1);
+            assert_eq!(reader.source.text, "let café = 1;\n");
+            assert_eq!((reader.line, reader.column), (1, 0));
+        }
+    }
+
+    #[test]
+    fn insertion_caret_geometry_follows_tabs_graphemes_line_ends_and_eof() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut fonts = egui::FontDefinitions::default();
+            reader_fonts::append_fallbacks(&mut fonts);
+            reader_fonts::register_composition(&mut fonts);
+            ctx.set_fonts(fonts);
+            let mut reader = Reader::new("a\tb🚀c\nxy\n");
+            reader.viewport.request_focus(&ctx);
+            let first: Vec<_> = (0..=5)
+                .map(|column| {
+                    reader.column = column;
+                    insertion_carets(reader.frame(&ctx, vec![]))[0]
+                })
+                .collect();
+            for pair in first.windows(2) {
+                assert!(pair[0][0].x < pair[1][0].x);
+                assert_eq!(pair[0][0].y, pair[1][0].y);
+            }
+            let cell = first[1][0].x - first[0][0].x;
+            assert!(first[2][0].x - first[1][0].x > cell * 2.0);
+            reader.line = 2;
+            reader.column = 0;
+            let second = insertion_carets(reader.frame(&ctx, vec![]))[0];
+            reader.line = 3;
+            let eof = insertion_carets(reader.frame(&ctx, vec![]))[0];
+            assert_eq!(first[0][0].x, second[0].x);
+            assert_eq!(second[0].x, eof[0].x);
+            assert!(first[0][0].y < second[0].y && second[0].y < eof[0].y);
+            for text in ["🚀", "x👨‍👩‍👧", "xe\u{301}"] {
+                let mut plain = Reader::new(text);
+                plain.viewport.request_focus(&ctx);
+                let start = insertion_carets(plain.frame(&ctx, vec![]))[0];
+                plain.column = text.chars().count();
+                let end = insertion_carets(plain.frame(&ctx, vec![]))[0];
+                assert!(start[0].x < end[0].x);
+                assert_eq!(start[0].y, end[0].y);
+                let mut extended = Reader::new(&format!("{text}!"));
+                extended.column = plain.column;
+                extended.viewport.request_focus(&ctx);
+                let extended_end = insertion_carets(extended.frame(&ctx, vec![]))[0];
+                // Separate galleys round their final advance differently;
+                // placement must agree within half a physical pixel.
+                assert!((extended_end[0] - end[0]).length() < 0.5 / scale);
+                assert!((extended_end[1] - end[1]).length() < 0.5 / scale);
+                let cluster_start = usize::from(text.starts_with('x'));
+                plain.column = cluster_start;
+                let cluster = insertion_carets(plain.frame(&ctx, vec![]))[0];
+                for inside in (cluster_start + 1)..text.chars().count() {
+                    plain.column = inside;
+                    let snapped = insertion_carets(plain.frame(&ctx, vec![]))[0];
+                    assert!((snapped[0] - cluster[0]).length() < 0.001);
+                    assert_eq!(plain.column, inside, "painting preserves canonical caret");
+                }
+                assert_eq!(plain.source.text, text);
+            }
+        }
+    }
+
+    #[test]
+    fn insertion_caret_skips_folded_bytes_and_empty_documents() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let source = "fn scan() {\n    work();\n}\nfn next() {}\n";
+            let mut reader = Reader::new(source);
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.viewport.request_focus(&ctx);
+            reader.line = 2;
+            reader.column = 4;
+            assert!(insertion_carets(reader.frame(&ctx, vec![])).is_empty());
+            reader.line = 1;
+            reader.column = source.find('{').unwrap();
+            let header = insertion_carets(reader.frame(&ctx, vec![]))[0];
+            reader.line = 3;
+            reader.column = 0;
+            assert_eq!(insertion_carets(reader.frame(&ctx, vec![])).len(), 1);
+            reader.line = 4;
+            let next = insertion_carets(reader.frame(&ctx, vec![]))[0];
+            assert!(header[0].y < next[0].y);
+            let mut empty = Reader::new("");
+            empty.viewport.request_focus(&ctx);
+            assert!(insertion_carets(empty.frame(&ctx, vec![])).is_empty());
+            assert_eq!(reader.source.text, source);
+        }
     }
 
     #[test]

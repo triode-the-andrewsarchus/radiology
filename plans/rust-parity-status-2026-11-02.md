@@ -17,9 +17,13 @@ contracts, including missing-root retention, failed/canceled PR retry and launch
 supersession, with fresh app and native no-argument relaunch evidence. Other suite
 assertions and the SDK-backed Android gate remain open.
 
+[Caret parity](rust-caret-parity.md) closes the three Swift caret contracts for
+focused empty selections, folded/empty source and typeset grapheme/EOF placement.
+Other behavior assertions retain their checkpoint-specific acceptance boundaries.
+
 ## Original finding reconciliation
 
-The latest full workspace passes 779 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 782 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 

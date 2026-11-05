@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Insertion caret parity](plans/rust-caret-parity.md) reconciles all three Swift
+caret tests. Rust now hides the caret for range selections, inactive/unfocused
+readers, menus, sheets and empty documents. Interior grapheme bytes paint at their
+cluster start while keeping canonical source coordinates. Rendered geometry and
+native focus/selection checks pass at both scales; other suite assertions remain.
+
 [Saved session recovery](plans/rust-session-recovery.md) reconciles all seven Swift
 session contracts. Missing roots and failed/canceled PR restores retain recovery
 identity; startup yields to newer choices and runs once. App tests and no-argument

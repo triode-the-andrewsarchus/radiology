@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-05 — Focused insertion caret and grapheme placement (Codex)
+
+Swift caret assertions exposed unconditional Rust paint under selections/other
+input owners, a caret in an empty read-only document and trailing-edge geometry
+for interior composed-character bytes. Existing focus/selection/menu state now
+controls a cohesive caret painter; existing projected grapheme movement supplies
+visual placement without changing canonical source/navigation or pointer hits.
+
+Three 1×/2× rendered-output regressions reconcile SourceCaretTests: tab/glyph/EOF
+placement, folded-body suppression and selection/window/control/menu ownership.
+Native source selection, collapse, Go to Line, Find and refocus captures pass with
+two exact Copy checks per scale, unchanged source/Git/binary and zero child exits.
+The external full-reader host reruns against the current crate; public APIs and
+shared-crate dependency boundaries are unchanged.
+
+Workspace 782 app tests/11 ignored, two binary,13 font,22 text and60 doctests pass;
+strict lint/doc/format/build/resource checks pass. Measured NLOC +186; all125 clone
+instances/1335 lines remain identical by file-pair/fragment counters, with no new
+hotspot/cycle/structural finding. Raw diff warnings refer to unchanged old tests;
+Rust test parsing limits are recorded in the [caret checkpoint](plans/rust-caret-parity.md).
+Other behavior suites and SDK-backed Android acceptance remain open.
+
 ## 2026-11-05 — Recoverable startup sessions (Codex)
 
 Red regressions proved that a missing root discarded saved settings and checkout
