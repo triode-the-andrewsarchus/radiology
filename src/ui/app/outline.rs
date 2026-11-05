@@ -74,6 +74,7 @@ impl RadiologyApp {
                 None,
                 source::NavigationIntent {
                     record_history: true,
+                    reading_departure: true,
                     reveal: true,
                     flash_destination: matches!(action, OutlineAction::Activate(_)),
                     ..Default::default()

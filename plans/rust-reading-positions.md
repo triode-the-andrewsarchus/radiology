@@ -1,5 +1,9 @@
 # Per-file reading positions — 2026-11-05
 
+Update: the [passive-trail checkpoint](rust-passive-history-trail.md) distinguishes
+structural reading-position history from exact semantic/bookmark/Code Path Back.
+The exact-caret restoration regression now explicitly uses a bookmark route.
+
 ## Contract and implementation
 
 Swift `AppModel.openFile` restores `positions[location.positionKey]`; its

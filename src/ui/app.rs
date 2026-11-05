@@ -113,8 +113,8 @@ pub struct RadiologyApp {
     reading_positions: crate::source::reading_positions::ReadingPositions,
     /// Linear navigation history.
     pub history: NavigationHistory,
-    // Implicit file visits follow the caret; committed structural stops stay fixed.
-    history_tracks_caret: bool,
+    // Implicit file visits follow reading position; committed structural stops stay fixed.
+    history_tracks_position: bool,
     /// Syntax highlighting engine.
     pub highlighter: Arc<SyntaxHighlighter>,
     /// Cached highlighted lines for active source buffer.
@@ -318,7 +318,7 @@ impl RadiologyApp {
             source_viewport: Default::default(),
             reading_positions: Default::default(),
             history: NavigationHistory::new(),
-            history_tracks_caret: true,
+            history_tracks_position: true,
             highlighter: Arc::new(SyntaxHighlighter::new()),
             highlighted_lines: Vec::new(),
             fold_ranges: Vec::new(),
@@ -465,25 +465,32 @@ impl RadiologyApp {
             crate::source::loader::SourceTarget::Byte(0),
             source::NavigationIntent {
                 record_history: true,
+                reading_departure: true,
                 restore_position: true,
                 ..Default::default()
             },
         );
     }
 
-    fn record_departure(&mut self, record_history: bool) {
+    fn record_departure(&mut self, intent: source::NavigationIntent) {
         if let Some(buffer) = &self.open_buffer {
-            let location =
-                buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col));
-            if self.history_tracks_caret && self.history.current().is_some() {
-                self.history.update_current(location);
-            } else if record_history {
-                self.history.visit(location);
+            let caret = buffer.byte_offset(self.caret_line, self.caret_col);
+            let byte = if intent.reading_departure {
+                self.reading_positions.current_byte().unwrap_or(caret)
+            } else {
+                caret
+            };
+            if self.history_tracks_position && self.history.current().is_some() {
+                self.history.update_current(buffer.location_at_byte(byte));
+            } else if intent.record_history
+                && (!intent.reading_departure || self.history.current().is_none())
+            {
+                self.history.visit(buffer.location_at_byte(byte));
             }
         }
     }
 
-    /// Requests exact canonical bytes, retaining the revision and departure.
+    /// Requests exact canonical bytes, retaining the revision and structural reading trail.
     ///
     /// Existing-document navigation is immediate; new documents publish atomically
     /// through [`Self::poll_source`] after their read and analysis finish.
@@ -493,6 +500,7 @@ impl RadiologyApp {
             None,
             source::NavigationIntent {
                 record_history,
+                reading_departure: true,
                 reveal: true,
                 ..Default::default()
             },
@@ -520,6 +528,7 @@ impl RadiologyApp {
             (byte_offset == 0).then_some(line),
             source::NavigationIntent {
                 record_history: true,
+                reading_departure: true,
                 reveal: true,
                 ..Default::default()
             },
@@ -583,7 +592,7 @@ impl RadiologyApp {
         self.selected_path = None;
         self.open_buffer = None;
         self.history.clear();
-        self.history_tracks_caret = true;
+        self.history_tracks_position = true;
         self.pin_store.clear();
         self.call_sites = Default::default();
         self.syntactic_occurrences = Default::default();

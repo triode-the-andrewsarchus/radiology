@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Passive history trail](rust-passive-history-trail.md) fixes loss of an implicit
+scrolled visit during structural navigation. Semantic/bookmark/Code Path exact
+caret departures stay separately verified. This closes that app-model assertion;
+other app-model groups and the remaining Swift suites still require review.
+
 [Repository file choice](rust-empty-repository-reader.md) removes automatic source
 selection after plain discovery/drop and closes that Swift opening-race assertion.
 Explicit file/PR and refresh destinations remain verified; other assertions remain.

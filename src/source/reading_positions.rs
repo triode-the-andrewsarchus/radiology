@@ -9,6 +9,11 @@ pub(crate) struct ReadingPositions {
 }
 
 impl ReadingPositions {
+    /// Returns the latest caret or passive anchor of the accepted active document.
+    pub(crate) fn current_byte(&self) -> Option<usize> {
+        self.byte
+    }
+
     /// Resolves a successfully accepted destination against exact document memory.
     /// Explicit navigation always wins; a restore reports whether an anchor existed.
     pub(crate) fn activate(

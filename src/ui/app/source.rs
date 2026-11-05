@@ -5,6 +5,8 @@ use crate::source::loader::{PreparedSource, SourceLoadRequest, SourceRead, Sourc
 #[derive(Clone, Copy, Default)]
 pub(super) struct NavigationIntent {
     pub record_history: bool,
+    // Structural moves keep the reading trail; semantic moves record the exact caret.
+    pub reading_departure: bool,
     pub reveal: bool,
     pub history_step: Option<bool>,
     pub force_read: bool,
@@ -36,7 +38,7 @@ impl RadiologyApp {
                 self.source_viewport.top_byte(buffer),
                 moved.then_some(caret),
             );
-            if moved && self.history_tracks_caret {
+            if moved && self.history_tracks_position {
                 self.history.update_current(buffer.location_at_byte(caret));
             }
         }
@@ -399,7 +401,7 @@ impl RadiologyApp {
 
     fn commit_departure(&mut self, intent: NavigationIntent) {
         if intent.record_history || intent.history_step.is_some() {
-            self.record_departure(intent.record_history);
+            self.record_departure(intent);
         }
         if let Some(forward) = intent.history_step {
             if forward {
@@ -442,7 +444,7 @@ impl RadiologyApp {
         }
         self.fold_store.reveal_byte(byte, buffer, &self.fold_ranges);
         if intent.record_history || intent.history_step.is_some() {
-            self.history_tracks_caret = intent.restore_position;
+            self.history_tracks_position = intent.restore_position;
             if let Some(fold) = crate::syntax::folds::enclosing_function_fold(
                 byte,
                 &self.outline_symbols,

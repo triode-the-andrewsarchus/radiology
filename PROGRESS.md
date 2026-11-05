@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-05 — Passive reading positions survive structural navigation (Codex)
+
+A red rendered-app regression found an implicit scrolled visit returned byte 0
+instead of 3143 after an outline/file trail. Existing NavigationIntent now marks
+structural departures so they retain ReadingPositions' accepted byte and fixed
+stops. Definition/reference/trait, bookmark and Code Path routes keep exact-caret
+departures. The app history flag is renamed to track position; no extra cache,
+persistence, dependency or reader-host mechanism is added.
+
+App tests cover both scales, passive caret independence, real outline activation,
+later fixed-stop scrolling, and separate bookmark/definition exact-departure paths.
+Native 1×/2× interactive Git fixtures verify three Back/Forward stops with uniquely
+numbered rows and seven exact Copy checks each. Source/Git/binary remain unchanged;
+accepted exits zero. The independent post-run verifier passes both manifests.
+
+Workspace 796 app tests/11 ignored, two binary, 13 font,22 text and 60 doctests,
+strict Clippy/rustdoc/format and build pass. Architecture +69 measured NLOC, no
+new clone/hotspot/cycle; full clone counters unchanged 123/1323. The
+[policy/evidence checkpoint](plans/rust-passive-history-trail.md) supersedes the
+older generic Go to File departure claim. Four other app-model groups and the
+remaining Swift/Android acceptance work stay open.
+
 ## 2026-11-05 — Repository discovery leaves file choice to the user (Codex)
 
 Removed automatic README/first-source selection after a plain root open or drop,

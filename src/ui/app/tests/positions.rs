@@ -43,7 +43,9 @@ fn implicit_file_reopens_restore_reported_reading_positions_without_replacing_ex
         frame(&mut app, &ctx, vec![]);
         assert_eq!(app.source_viewport.top_byte(&source), Some(top));
         assert_eq!(source.byte_offset(app.caret_line, app.caret_col), caret);
-        app.navigate(SourceLocation::new("b.rs", 0), true);
+        app.bookmarks
+            .toggle(&crate::source::SourceBuffer::from_str("b.rs", &text), 0);
+        app.open_bookmark(0);
         settle_frame(&mut app, &ctx);
         app.execute_command(&ctx, ToolbarAction::NavigateBack);
         settle_frame(&mut app, &ctx);
@@ -223,15 +225,19 @@ fn committed_structural_stops_survive_caret_motion_and_keep_exact_departures() {
             Some(&anchor),
             "caret motion must not erase a committed structural stop"
         );
+        app.bookmarks.toggle(
+            &crate::source::SourceBuffer::from_str("b.rs", "fn other() {}\n"),
+            3,
+        );
         let history = format!("{:?}", app.history);
         app.navigate(SourceLocation::new("missing.rs", 0), true);
         settle_frame(&mut app, &ctx);
         assert!(app.error.is_some());
         assert_eq!(format!("{:?}", app.history), history);
-        app.navigate(SourceLocation::new("b.rs", 3), true);
+        app.open_bookmark(0);
         app.cancel_source_load();
         assert_eq!(format!("{:?}", app.history), history);
-        app.navigate(SourceLocation::new("b.rs", 3), true);
+        app.open_bookmark(0);
         settle_frame(&mut app, &ctx);
         app.execute_command(&ctx, ToolbarAction::NavigateBack);
         settle_frame(&mut app, &ctx);
@@ -245,6 +251,50 @@ fn committed_structural_stops_survive_caret_motion_and_keep_exact_departures() {
         app.execute_command(&ctx, ToolbarAction::NavigateForward);
         settle_frame(&mut app, &ctx);
         assert_eq!(app.history.current(), Some(&SourceLocation::new("b.rs", 3)));
+        assert_eq!(buffer.text, text);
+    }
+}
+
+#[test]
+fn outline_commits_keep_implicit_reading_positions_and_fixed_structural_stops() {
+    use crate::ui::outline_list::OutlineAction;
+    for scale in [1.0, 2.0] {
+        let text = "fn first() {}\n".to_owned() + &"// passive café row\n".repeat(300);
+        let (owner, mut app) = isolated_source("a.rs", &text);
+        std::fs::write(owner.path().join("checkout/b.rs"), "fn other() {}\n").unwrap();
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        frame(&mut app, &ctx, vec![]);
+        let buffer = app.open_buffer.clone().unwrap();
+        let reading = buffer.byte_offset(151, 0);
+        app.source_viewport.restore_top(&buffer, reading);
+        frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.caret_line, 1);
+        assert_eq!(app.source_viewport.top_byte(&buffer), Some(reading));
+        app.sync_outline();
+        let Some(OutlineAction::Preview(target)) = app.outline_list.key(Key::Home) else {
+            panic!("outline target")
+        };
+        app.handle_outline_action(OutlineAction::Activate(target));
+        let anchor = buffer.location_at_byte(text.find("first").unwrap());
+        assert_eq!(app.history.current(), Some(&anchor));
+        frame(&mut app, &ctx, vec![]);
+        app.scroll_to_line = None;
+        app.source_viewport
+            .restore_top(&buffer, buffer.byte_offset(201, 0));
+        frame(&mut app, &ctx, vec![]);
+        app.open_file("b.rs");
+        settle_frame(&mut app, &ctx);
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.history.current(), Some(&anchor));
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(
+            app.history.current(),
+            Some(&buffer.location_at_byte(reading))
+        );
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), reading);
         assert_eq!(buffer.text, text);
     }
 }

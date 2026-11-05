@@ -539,7 +539,10 @@ fn pending_source_keeps_the_reader_and_history_until_success_or_cancellation() {
     app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
     settle(&mut app);
     assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
-    assert_eq!(app.caret_col, 7);
+    assert_eq!(
+        app.caret_col, 5,
+        "plain file navigation preserves the committed structural stop"
+    );
 }
 
 #[test]
@@ -1786,7 +1789,7 @@ fn pinning_after_pointer_caret_movement_refreshes_metadata_and_keeps_structural_
     app.definition_expanded = true;
     app.finish_source_interaction((2, 5));
     assert!(app.definition_expanded && !app.under_caret_job.is_running());
-    app.navigate(SourceLocation::new("a.rs", 0), true);
+    app.execute_command(&Context::default(), ToolbarAction::GoToDefinition);
     settle(&mut app);
     app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
     settle(&mut app);

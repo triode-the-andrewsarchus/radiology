@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Passive history trail](plans/rust-passive-history-trail.md) now preserves an
+implicit visit's scrolled reading position when structural navigation starts.
+Fixed stops remain fixed; semantic/bookmark/Code Path routes retain exact caret
+departures. A red app regression and native1×/2× seven-Copy Back/Forward workflows
+verify both policies. Other app-model assertions and Android acceptance remain.
+
 [Repository file choice](plans/rust-empty-repository-reader.md) now matches Swift's
 empty reader/history after plain discovery or a drop. Explicit file/PR launches
 and refresh restoration retain their destinations. A gated late-root regression,
@@ -11,7 +17,9 @@ empty-state command checks and four native launch/refresh runs verify the change
 Other app-model assertions and SDK-backed Android acceptance remain open.
 
 [Structural history](plans/rust-structural-history.md) now preserves committed
-outline/bookmark/line stops while recording a changed exact departure separately.
+outline/bookmark/line stops alongside exact semantic departures. The
+[passive-trail checkpoint](plans/rust-passive-history-trail.md) further distinguishes
+normal structural navigation from those exact-caret routes.
 A red app regression and native 1×/2× Back/Forward suffix-copy checks verify both
 positions. Failed/canceled navigation preserves the trail. The broader app-model
 audit remains open; repository initial selection is now resolved by the

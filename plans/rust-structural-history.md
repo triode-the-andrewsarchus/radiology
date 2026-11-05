@@ -1,5 +1,10 @@
 # Preserve committed structural history — 2026-11-05
 
+Update: [passive-trail ownership](rust-passive-history-trail.md) now distinguishes
+normal structural moves from semantic/bookmark/Code Path exact-caret departures.
+The Go to File native sequence below records the earlier generic policy; the new
+combined bookmark/outline/scroll native workflow verifies the refined behavior.
+
 Update: the initial repository-selection difference recorded below is resolved by
 the [file-choice checkpoint](rust-empty-repository-reader.md). Other app-model
 assertions remain under review.

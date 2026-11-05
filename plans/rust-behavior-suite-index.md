@@ -60,8 +60,11 @@ AppModelTests remains under review. The
 [structural-history checkpoint](rust-structural-history.md) fixes caret motion
 erasing a committed stop while preserving exact departure Back. The
 [repository file-choice checkpoint](rust-empty-repository-reader.md) now reconciles
-its opening-race/empty-source assertion. The six-function suite is not marked
-reconciled as a whole.
+its opening-race/empty-source assertion. The
+[passive-trail checkpoint](rust-passive-history-trail.md) reconciles
+passiveScrollingDoesNotReplaceCommittedStructuralTrail through separate structural
+and semantic origins. The other four groups remain under review; the six-function
+suite is not marked reconciled as a whole.
 
 ## Bookmarks
 
