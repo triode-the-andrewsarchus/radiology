@@ -354,6 +354,54 @@ impl SourceViewport {
         y < self.rows.offset(group.end) - label
     }
 
+    fn follow_definition(&self, content: &mut CanvasContent<'_>) -> Option<SourceViewAction> {
+        if content.buffer.revision == Some(ReviewRevision::Before) {
+            return None;
+        }
+        let index = content.mark_context?.index;
+        let query = self
+            .selection
+            .map(ByteSelection::range)
+            .filter(|range| !range.is_empty())
+            .unwrap_or_else(|| {
+                let byte = content
+                    .buffer
+                    .byte_offset(*content.caret_line, *content.caret_col);
+                byte..byte
+            });
+        let departure = query.start;
+        let target = [departure, departure.saturating_sub(1)]
+            .into_iter()
+            .find_map(|byte| {
+                let occurrence =
+                    index
+                        .occurrence_at_byte(content.buffer, byte)
+                        .filter(|occurrence| {
+                            !occurrence.symbol.is_empty()
+                                && occurrence.symbol_roles
+                                    & crate::semantic::scip_proto::SCIP_ROLE_IMPORT
+                                    == 0
+                        })?;
+                let bytes = index.byte_range(content.buffer, occurrence.range.as_ref()?)?;
+                if query.end > bytes.end || (byte != departure && bytes.end != departure) {
+                    return None;
+                }
+                let id = crate::semantic::index::SemanticSymbolID::new(
+                    &occurrence.symbol,
+                    &content.buffer.path,
+                );
+                crate::semantic::context::DefinitionDestination::for_occurrence(
+                    content.buffer,
+                    index,
+                    &index.definition_locations_for_id(&id),
+                    &bytes,
+                )
+            })?;
+        *content.caret_line = content.buffer.line_at_byte(departure);
+        *content.caret_col = content.buffer.column_at_byte(departure);
+        Some(SourceViewAction::FollowDefinition(target))
+    }
+
     fn dispatch_source_events(
         &mut self,
         ui: &Ui,
@@ -365,6 +413,7 @@ impl SourceViewport {
             let caret = (*content.caret_line, *content.caret_col);
             let next = match event {
                 SourceInput::Command(command) => Some(SourceViewAction::ReaderCommand(command)),
+                SourceInput::FollowDefinition => self.follow_definition(content),
                 SourceInput::Copy => {
                     self.copy(ui.ctx(), content.buffer);
                     None
@@ -427,7 +476,13 @@ impl SourceViewport {
             };
             self.caret_moved |= caret != (*content.caret_line, *content.caret_col);
             self.pending_input.pop_front();
-            if matches!(next, Some(SourceViewAction::NavigateToDefinition(_))) {
+            if matches!(
+                next,
+                Some(
+                    SourceViewAction::NavigateToDefinition(_)
+                        | SourceViewAction::FollowDefinition(_)
+                )
+            ) {
                 self.cancel_source_input(ui.ctx());
                 action = next;
                 break;

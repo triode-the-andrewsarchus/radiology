@@ -21,6 +21,33 @@ pub struct DefinitionDestination {
 }
 
 impl DefinitionDestination {
+    pub(crate) fn for_occurrence(
+        buffer: &SourceBuffer,
+        index: &SemanticIndex,
+        definitions: &[(&str, &ScipRange)],
+        bytes: &Range<usize>,
+    ) -> Option<Self> {
+        definitions
+            .iter()
+            .copied()
+            .filter(|(path, range)| {
+                *path != buffer.path
+                    || index
+                        .byte_range(buffer, range)
+                        .is_some_and(|range| &range != bytes)
+            })
+            .filter_map(|(path, range)| Self::indexed(path, range))
+            .min_by_key(|target| {
+                (
+                    target.path.clone(),
+                    target.range.start_line,
+                    target.range.start_col,
+                    target.range.end_line,
+                    target.range.end_col,
+                )
+            })
+    }
+
     fn indexed(path: &str, range: &ScipRange) -> Option<Self> {
         (crate::source::SourceLocation::is_repository_path(path)
             && range.start_line >= 0
@@ -123,15 +150,8 @@ impl UnderCaretContext {
             )
         });
         definitions.dedup();
-        let destination = definitions
-            .iter()
-            .filter(|(path, range)| {
-                *path != buffer.path
-                    || index
-                        .byte_range(buffer, range)
-                        .is_some_and(|range| range != bytes)
-            })
-            .find_map(|(path, range)| DefinitionDestination::indexed(path, range));
+        let destination =
+            DefinitionDestination::for_occurrence(buffer, index, &definitions, &bytes);
         let local_definition_line = definitions
             .iter()
             .filter(|(path, _)| *path == buffer.path)

@@ -1,5 +1,6 @@
 use super::*;
-use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipSymbolInformation};
+use crate::semantic::test_support::document;
+use crate::semantic::{ScipIndex, ScipOccurrence, ScipSymbolInformation};
 
 fn site(
     buffer: &SourceBuffer,
@@ -15,15 +16,6 @@ fn site(
     }
     .unwrap();
     super::super::test_support::occurrence(buffer, byte..byte + token.len(), symbol, definition)
-}
-
-fn document(buffer: &SourceBuffer, occurrences: Vec<ScipOccurrence>) -> ScipDocument {
-    ScipDocument {
-        relative_path: buffer.path.clone(),
-        position_encoding: 2,
-        occurrences,
-        ..Default::default()
-    }
 }
 
 fn prepare(buffer: &SourceBuffer, index: &SemanticIndex, byte: usize) -> UnderCaretContext {

@@ -23,6 +23,19 @@ pub(crate) fn occurrence(
     }
 }
 
+/// Builds the UTF-16 document matching occurrences constructed above.
+pub(crate) fn document(
+    buffer: &SourceBuffer,
+    occurrences: Vec<ScipOccurrence>,
+) -> super::ScipDocument {
+    super::ScipDocument {
+        relative_path: buffer.path.clone(),
+        position_encoding: 2,
+        occurrences,
+        ..Default::default()
+    }
+}
+
 /// Requests one deterministic retirement pulse within a real processing loop.
 pub(crate) fn cancel_at(
     checks: &std::sync::atomic::AtomicUsize,

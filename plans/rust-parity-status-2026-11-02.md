@@ -14,7 +14,7 @@ actual little-screen-clip adoption remain deferred.
 
 ## Original finding reconciliation
 
-The latest full workspace passes 774 app tests (eleven opt-in ignored), two binary,
+The latest full workspace passes 777 app tests (eleven opt-in ignored), two binary,
 13 font, 22 text and 60 doctests. The examples below are bounded evidence for the
 original failures; the remaining integrated acceptance is listed afterward.
 
@@ -165,6 +165,16 @@ remain available; narrower/diagnostic rows wrap safely and Line remains clickabl
 The expanded app matrix and native dark/light1×/2× pass. Full workspace774 app tests,
 60 doctests and strict Clippy/build/resources remain green. Other behavior/compiler
 and final standalone/reuse gates remain open.
+
+## Reader Return checkpoint — 2026-11-05
+
+[Selection-aware Return](rust-reader-return-selection.md) fixes over-wide selection
+navigation and exact departure semantics through shared non-self destinations.
+App/UTF-16/native1×/2× checks pass, with full workspace777 app tests/11 ignored.
+[The behavior-suite index](rust-behavior-suite-index.md) now names all66 ordinary
+Swift suite files and links their Rust/evidence entry points; assertion-level
+reconciliation remains explicit. SDK package installation awaits the user's Google
+license authorization. Final standalone/library-host checks remain open.
 
 ## Remaining acceptance gates
 

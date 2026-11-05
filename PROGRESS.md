@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-05 — Selection-aware Return and explicit behavior inventory (Codex)
+
+Rechecking Swift ReaderReturnKeyTests found plain Return ignored selection bounds.
+A red app regression follows the caret despite a selection crossing an occurrence.
+A distinct ordered source input now validates one occurrence and shares the
+inspector's non-self destination rules. Word selection departs at its lower byte;
+an end caret departs at that exact byte. Existing destination/history publication
+handles the new FollowDefinition action; F12/dedicated definition commands keep
+working. Invalid selections, external/self-only targets, modifiers and Before stay
+quiet and retain source/selection. No new tool dependency or persistence service.
+
+Two app regressions and a UTF-16 reader matrix pass. Native1×/2× recorded-Kotlin
+compiler workflows verify wide selection retention, exact definition/Back and
+Before with seven exact Copy checks per scale, unchanged source/Git/executable
+hashes and zero core exits. Locked workspace777 app tests/11 ignored, two binary,
+13 font,22 text and60 doctests pass; strict Clippy/build/resources/fmt pass.
+Architecture +211 NLOC/five functions; existing UTF-16 document fixture constructor
+shared, clones unchanged125/1335 and no new CCN>15 hotspot/cycle/structural count.
+Details: [Return contract/evidence](plans/rust-reader-return-selection.md).
+
+[Behavior inventory](plans/rust-behavior-suite-index.md):81 root Swift files,
+66 ordinary suites/11 probes/four support files,334 annotated test functions. All
+ordinary suite files have Rust entry points/evidence links; assertion-level
+reconciliation remains required. Android SDK is absent; a private296 MiB setup
+proposal is prepared, but Google requires license agreement before downloading.
+User authorization is pending, so no SDK package/license changes were made. Continue
+independent behavior audit and final standalone/library-host checks meanwhile.
+
 ## 2026-11-05 — Compact source status metadata (Codex)
 
 Before's Read Only label split internally at the smaller native window. The

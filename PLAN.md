@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Selection-aware reader Return](plans/rust-reader-return-selection.md) now validates
+one semantic occurrence, preserves rejected selections and restores exact word/end
+caret departures through Back. App/UTF-16/native1×/2× checks pass. The new
+[Swift behavior-suite evidence index](plans/rust-behavior-suite-index.md) maps all66
+ordinary suites to implementation/evidence entry points without claiming all
+assertions reconciled. SDK license authorization and final acceptance remain open.
+
 [Compact source status metadata](plans/rust-source-status-layout.md) fixes the
 Before footer's split Read Only label at the smaller native window. Existing Small
 type/spacing keeps all routine fields on one row there, while diagnostic/narrow

@@ -41,6 +41,8 @@ pub enum SourceViewAction {
     FindReferences(usize),
     /// Navigates a pointer or menu destination independently of the current caret.
     NavigateToDefinition(crate::semantic::index::SemanticSymbolID),
+    /// Follows a validated Return selection while retaining its departure caret.
+    FollowDefinition(crate::semantic::context::DefinitionDestination),
     /// Requests expanding or collapsing the code fold starting at the given line number.
     ToggleFold(std::ops::Range<usize>),
     /// Toggles one detected test region without changing manual folds.

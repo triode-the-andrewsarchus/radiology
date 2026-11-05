@@ -1775,3 +1775,53 @@ fn unicode_file_queries_commit_original_paths_and_preserve_reader_bytes() {
         }
     }
 }
+
+#[test]
+fn source_return_rejects_a_selection_crossing_an_occurrence_boundary() {
+    let (_owner, mut app) = reader_at_indexed_call();
+    let ctx = Context::default();
+    app.source_viewport.request_focus(&ctx);
+    frame(&mut app, &ctx, vec![]);
+    let source = app.open_buffer.clone().unwrap();
+    let call = source.text.find("alpha").unwrap();
+    app.source_viewport.select(call - 1..call + 5);
+    let before = app.history.current().cloned();
+    frame(&mut app, &ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+    settle_frame(&mut app, &ctx);
+    assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+    assert_eq!(app.history.current(), before.as_ref());
+    let output = frame(&mut app, &ctx, vec![Event::Copy]);
+    assert_eq!(output.platform_output.copied_text, " alpha");
+    frame(&mut app, &ctx, vec![key(Key::F12, Modifiers::NONE)]);
+    settle_frame(&mut app, &ctx);
+    assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+}
+
+#[test]
+fn source_return_follows_word_or_end_caret_and_back_uses_the_swift_departure() {
+    for scale in [1.0, 2.0] {
+        for selection in [false, true] {
+            let (_owner, mut app) = reader_at_indexed_call();
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            let source = app.open_buffer.clone().unwrap();
+            let start = source.text.find("alpha").unwrap();
+            let departure = if selection { start } else { start + 5 };
+            app.caret_col = source.column_at_byte(start + 5);
+            app.finish_source_interaction((2, 5));
+            app.source_viewport.request_focus(&ctx);
+            frame(&mut app, &ctx, vec![]);
+            if selection {
+                app.source_viewport.select(start..start + 5);
+            }
+            frame(&mut app, &ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.selected_path.as_deref(), Some("a.rs"));
+            assert_eq!((app.caret_line, app.caret_col), (1, 3));
+            app.execute_command(&ctx, ToolbarAction::NavigateBack);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.selected_path.as_deref(), Some("b.rs"));
+            assert_eq!(source.byte_offset(app.caret_line, app.caret_col), departure);
+        }
+    }
+}

@@ -1018,6 +1018,9 @@ impl RadiologyApp {
                             SourceViewAction::NavigateToDefinition(id) => {
                                 self.navigate_to_indexed_symbol(&id)
                             }
+                            SourceViewAction::FollowDefinition(target) => {
+                                self.navigate_to_indexed_range(&target.path, &target.range)
+                            }
                             SourceViewAction::FindReferences(byte) => {
                                 self.find_references_at_byte(byte)
                             }

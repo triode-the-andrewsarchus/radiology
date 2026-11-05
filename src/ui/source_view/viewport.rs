@@ -1572,6 +1572,7 @@ impl SourceViewport {
 
 #[derive(Clone)]
 enum SourceInput {
+    FollowDefinition,
     Command(crate::ui::commands::ReaderCommand),
     Copy,
     SelectAll,
@@ -1581,6 +1582,10 @@ enum SourceInput {
 }
 
 fn source_input(event: &egui::Event) -> Option<SourceInput> {
+    if matches!(event, egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. } if modifiers.is_none())
+    {
+        return Some(SourceInput::FollowDefinition);
+    }
     if let Some(command) = crate::ui::commands::source_command(event) {
         return Some(SourceInput::Command(command));
     }
@@ -2516,18 +2521,16 @@ mod tests {
     #[test]
     fn deferred_control_click_preserves_departure_and_uses_current_semantic_target() {
         use crate::semantic::test_support::occurrence;
-        use crate::semantic::{ScipDocument, ScipIndex, SemanticIndex};
         let ctx = reader_context(1.0);
         let mut reader = distant_reader(&ctx);
         let point = pos2(180.0, 18.0);
         let byte = shaped_byte_at(&ctx, &reader, reader.viewport.scroll_x + point.x - 124.0);
         let symbol = "rust-analyzer cargo fixture 0 target().";
         let destination = reader.source.text.find("next").unwrap();
-        let index = SemanticIndex::from_scip(ScipIndex {
-            documents: vec![ScipDocument {
-                relative_path: reader.source.path.clone(),
-                position_encoding: 2,
-                occurrences: vec![
+        let index = crate::semantic::SemanticIndex::from_scip(crate::semantic::ScipIndex {
+            documents: vec![crate::semantic::test_support::document(
+                &reader.source,
+                vec![
                     occurrence(
                         &reader.source,
                         byte..byte
@@ -2541,8 +2544,7 @@ mod tests {
                     ),
                     occurrence(&reader.source, destination..destination + 4, symbol, true),
                 ],
-                ..Default::default()
-            }],
+            )],
             ..Default::default()
         });
         let buffer = Arc::new(reader.source.clone());
@@ -4495,6 +4497,87 @@ mod tests {
                 crate::ui::commands::context_menu_is_open(&ctx),
                 "{label} must remain disabled"
             );
+        }
+    }
+
+    #[test]
+    fn return_uses_one_utf16_occurrence_and_preserves_selection_or_falls_through() {
+        use crate::semantic::test_support::{document, occurrence};
+        let text = "let 🚀 = \"é\"; appel(x); extern_call(); défini();\nfn destination() {}\n";
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(text);
+            let call = text.find("appel").unwrap();
+            let external = text.find("extern_call").unwrap();
+            let here = text.find("défini").unwrap();
+            let target = text.find("destination").unwrap();
+            let index = crate::semantic::SemanticIndex::from_scip(crate::semantic::ScipIndex {
+                documents: vec![document(
+                    &reader.source,
+                    vec![
+                        occurrence(&reader.source, call..call + 5, "local 0", false),
+                        occurrence(&reader.source, target..target + 11, "local 0", true),
+                        occurrence(&reader.source, external..external + 11, "local 1", false),
+                        occurrence(&reader.source, here..here + 7, "local 2", true),
+                    ],
+                )],
+                ..Default::default()
+            });
+            reader.set_index(index);
+            for (start, end, departure) in [
+                (call + 2, None, Some(call + 2)),
+                (call + 5, None, Some(call + 5)),
+                (call, Some(call + 5), Some(call)),
+                (call - 1, Some(call + 5), None),
+                (call, Some(call + 7), None),
+                (external + 2, None, None),
+                (here + 2, None, None),
+                (0, None, None),
+            ] {
+                reader.viewport.accept_navigation();
+                reader.line = reader.source.line_at_byte(start);
+                reader.column = reader.source.column_at_byte(start);
+                reader.viewport.request_focus(&ctx);
+                reader.frame(&ctx, vec![]);
+                if let Some(end) = end {
+                    reader.viewport.select(start..end);
+                }
+                let selection = reader.viewport.selection;
+                reader.frame(&ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+                assert_eq!(
+                    reader.last_action.is_some(),
+                    departure.is_some(),
+                    "{start}/{end:?}"
+                );
+                assert_eq!(reader.viewport.selection, selection);
+                if let Some(departure) = departure {
+                    assert!(matches!(
+                        reader.last_action,
+                        Some(SourceViewAction::FollowDefinition(_))
+                    ));
+                    assert_eq!(
+                        reader.source.byte_offset(reader.line, reader.column),
+                        departure
+                    );
+                }
+            }
+            for modifiers in [
+                Modifiers::SHIFT,
+                Modifiers::CTRL,
+                Modifiers::ALT,
+                Modifiers::COMMAND,
+            ] {
+                reader.viewport.accept_navigation();
+                reader.line = 1;
+                reader.column = reader.source.column_at_byte(call + 2);
+                reader.frame(&ctx, vec![key(Key::Enter, modifiers)]);
+                assert!(reader.last_action.is_none());
+            }
+            reader.source.revision = Some(ReviewRevision::Before);
+            reader.frame(&ctx, vec![]);
+            reader.viewport.select(call..call + 5);
+            reader.frame(&ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+            assert!(reader.last_action.is_none());
         }
     }
 
