@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-11-09 — Call-site extraction assertion reconciliation (Codex)
+
+All four Swift CallSiteExtraction groups now have explicit mappings. The exact
+twelve-fixture corpus checks supported/nonempty named calls, contained original
+ranges, anchor sorting and unique expressions plus the exact Go/Swift/Python/
+Kotlin names. Sample Rust checks distinguish macros, calls, abstract requirements
+and the zero-site closure within main. The exact dynamic outer/adder/inner source
+keeps two unknown callees, direct invocation order, separate conditional ownership
+and only the two actual helper calls. Existing Critical Lens summarize and its
+synthetic-index test helpers supply the conditional/no-body proof; this does not
+claim fresh real-compiler navigation evidence.
+
+This is test-only: five call-query and five graph-summary tests, formatting and
+strict all-target Clippy pass. Production remains the full-verified 2e089e9 code;
+no new full-run result is claimed for these added assertions. Architecture +204
+NLOC/three tests, no new files/helpers/hotspots/cycles, avg/max CCN 3.42/132 and all
+125 clones unchanged with zero multiset additions/removals. Source/syntax is now
+20/66 mapped; five remaining suites contain 46 groups, followed by compiler/
+inspector reconciliation and final integrated/native/standalone/reuse acceptance.
+[Call-site mapping](plans/rust-callsite-extraction-contracts.md); logs:
+~/.local/state/radiology-qa/callsite-contracts-20261109-5769978/.
+
 ## 2026-11-09 — Source buffer/outline contracts and combined full gate (Codex)
 
 The combined full gate at 2e089e9 passes: 891 app checks, eleven existing opt-in

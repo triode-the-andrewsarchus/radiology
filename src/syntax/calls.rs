@@ -396,4 +396,53 @@ mod tests {
             .iter()
             .all(|site| site.kind == "dynamic" && site.name.is_none()));
     }
+    #[test]
+    fn swift_corpus_call_sites_keep_names_ranges_order_and_unique_expressions() {
+        for &(path, text, _) in crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES {
+            let buffer = SourceBuffer::from_str(path, text);
+            let sites = DocumentSyntax::analyze(&buffer).calls;
+            assert!(sites.supported && sites.error.is_none(), "{path}");
+            let names = sites
+                .sites
+                .iter()
+                .filter_map(|site| site.name.as_ref().map(|range| &text[range.clone()]))
+                .collect::<Vec<_>>();
+            assert!(!names.is_empty(), "{path}: no named calls");
+            for site in &sites.sites {
+                if let Some(name) = &site.name {
+                    assert!(site.range.start <= name.start && name.end <= site.range.end);
+                    assert!(!text[name.clone()].is_empty());
+                }
+            }
+            let anchors = sites
+                .sites
+                .iter()
+                .map(|site| {
+                    site.name
+                        .as_ref()
+                        .map_or(site.range.start, |name| name.start)
+                })
+                .collect::<Vec<_>>();
+            assert!(anchors.windows(2).all(|pair| pair[0] <= pair[1]), "{path}");
+            assert_eq!(
+                sites
+                    .sites
+                    .iter()
+                    .map(|site| site.range.clone())
+                    .collect::<std::collections::HashSet<_>>()
+                    .len(),
+                sites.sites.len()
+            );
+            let expected = match path {
+                "sample.go" => &["Sprintf", "append"][..],
+                "sample.swift" => &["append", "joined"][..],
+                "sample.py" => &["open", "read"][..],
+                "sample.kt" => &["max", "mutableListOf"][..],
+                _ => &[],
+            };
+            for name in expected {
+                assert!(names.contains(name), "{path}: missing {name}");
+            }
+        }
+    }
 }

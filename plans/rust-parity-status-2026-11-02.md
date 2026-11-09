@@ -1,10 +1,10 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
-Current source reconciliation: [buffer/outline contracts](rust-buffer-outline-contracts.md)
-bring the section to 16/66 mapped groups. The combined full gate at 2e089e9 passes
+Current source reconciliation: [call-site contracts](rust-callsite-extraction-contracts.md)
+bring the section to 20/66 mapped groups. The combined full gate at 2e089e9 passes
 891 app checks and all 66 doctests, closing the caller keyboard regression; later
-test-only additions pass focused checks. Fifty source groups, compiler/inspector
-and final acceptance remain. Earlier checkpoint-time counts below are historical.
+test-only additions pass focused checks. Forty-six source groups, compiler/
+inspector and final acceptance remain. Earlier counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

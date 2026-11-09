@@ -396,6 +396,12 @@ The combined production gate at 2e089e9 passes 891 app tests and all 66 doctests
 these later test-only checks and strict Clippy also pass. Sixteen of 66 source
 groups are now mapped; 50 remain to reconcile before the later acceptance gates.
 
+[Call-site extraction contracts](rust-callsite-extraction-contracts.md) reconcile
+all four CallSiteExtractionTests groups using the exact corpus and dynamic Rust
+source, shared call facts and existing graph summaries. Five call-query and five
+graph checks plus strict Clippy pass. The source total is 20/66 mapped, leaving
+46 groups across language/query/worker/test-presentation/test-region suites.
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

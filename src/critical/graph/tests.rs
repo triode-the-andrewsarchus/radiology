@@ -173,3 +173,160 @@ fn abstract_stale_before_missing_encoding_and_parse_errors_never_prove_zero() {
     )
     .is_err());
 }
+
+#[test]
+fn swift_rust_fixture_keeps_macros_abstract_bodies_and_zero_site_closures() {
+    let text = crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES
+        .iter()
+        .find(|fixture| fixture.0 == "sample.rs")
+        .unwrap()
+        .1;
+    let buffer = SourceBuffer::from_str("sample.rs", text);
+    let sites = DocumentSyntax::analyze(&buffer).calls;
+    assert!(sites.sites.iter().all(|site| site.name.is_some()));
+    for (name, kind) in [
+        ("format", "macro"),
+        ("println", "macro"),
+        ("to_string", "call"),
+        ("render", "call"),
+        ("default", "call"),
+    ] {
+        let site = sites
+            .sites
+            .iter()
+            .find(|site| {
+                site.name
+                    .as_ref()
+                    .is_some_and(|range| &text[range.clone()] == name)
+            })
+            .unwrap();
+        assert_eq!(site.kind, kind, "{name}");
+    }
+    assert!(!sites.sites.iter().any(|site| site
+        .name
+        .as_ref()
+        .is_some_and(|range| &text[range.clone()] == "closure")));
+    let renders = sites
+        .scopes
+        .iter()
+        .enumerate()
+        .filter(|(_, scope)| {
+            scope
+                .name
+                .as_ref()
+                .is_some_and(|range| &text[range.clone()] == "render")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(renders.len(), 2);
+    let body = renders
+        .iter()
+        .find(|(_, scope)| scope.has_body())
+        .unwrap()
+        .0;
+    let requirement = renders
+        .iter()
+        .find(|(_, scope)| !scope.has_body())
+        .unwrap()
+        .0;
+    let main = sites
+        .scopes
+        .iter()
+        .position(|scope| {
+            scope
+                .name
+                .as_ref()
+                .is_some_and(|range| &text[range.clone()] == "main")
+        })
+        .unwrap();
+    for (owner, expected) in [
+        (body, &["format", "println"][..]),
+        (main, &["to_string", "default", "render", "println"][..]),
+    ] {
+        let names = sites
+            .sites
+            .iter()
+            .filter(|site| site.owner == Some(owner))
+            .map(|site| &text[site.name.clone().unwrap()])
+            .collect::<Vec<_>>();
+        assert_eq!(names, expected);
+    }
+    let index = indexed(&buffer, &sites);
+    assert!(matches!(
+        summary(&buffer, &sites, &index, requirement).coverage,
+        CallCoverage::NoBody(NoBodyReason::Abstract)
+    ));
+    let main_summary = summary(&buffer, &sites, &index, main);
+    assert_eq!(main_summary.conditional.len(), 1);
+    assert!(main_summary.conditional[0].scope.closure);
+    assert_eq!(main_summary.conditional[0].site_count, 0);
+}
+
+#[test]
+fn swift_dynamic_callees_and_nested_execution_preserve_exact_syntactic_boundaries() {
+    let text = r#"fn outer(f: fn(i32) -> i32, g: &dyn Fn()) {
+    (f)(1);
+    (g)();
+    let adder = |x: i32| helper(x);
+    fn inner() { helper(2); }
+    adder(3);
+    inner();
+    // helper(99) in a comment and "helper(100)" in a string are not sites
+    let s = "helper(100)";
+}
+fn helper(x: i32) -> i32 { x }
+"#;
+    let buffer = SourceBuffer::from_str("dyn.rs", text);
+    let sites = DocumentSyntax::analyze(&buffer).calls;
+    assert!(!sites.parse_errors && sites.supported);
+    let dynamic = sites
+        .sites
+        .iter()
+        .filter(|site| site.kind == "dynamic")
+        .collect::<Vec<_>>();
+    assert_eq!(dynamic.len(), 2);
+    assert!(dynamic.iter().all(|site| site.name.is_none()));
+    let direct = sites
+        .sites
+        .iter()
+        .filter(|site| site.owner == Some(0))
+        .map(|site| {
+            site.name
+                .as_ref()
+                .map_or("<dynamic>", |range| &text[range.clone()])
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(direct, ["<dynamic>", "<dynamic>", "adder", "inner"]);
+    let index = indexed(&buffer, &sites);
+    let result = summary(&buffer, &sites, &index, 0);
+    assert_eq!(
+        result
+            .conditional
+            .iter()
+            .map(|callable| callable.scope.closure)
+            .collect::<Vec<_>>(),
+        [true, false]
+    );
+    assert_eq!(
+        result
+            .conditional
+            .iter()
+            .map(|callable| callable.site_count)
+            .collect::<Vec<_>>(),
+        [1, 1]
+    );
+    assert_eq!(
+        &text[result.conditional[1].scope.name.clone().unwrap()],
+        "inner"
+    );
+    assert_eq!(
+        sites
+            .sites
+            .iter()
+            .filter(|site| site
+                .name
+                .as_ref()
+                .is_some_and(|range| &text[range.clone()] == "helper"))
+            .count(),
+        2
+    );
+}
