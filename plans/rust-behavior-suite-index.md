@@ -146,9 +146,9 @@ below still need their own reconciliation. Additional evidence:
 | [ReviewFoldDefaultsTests](../Tests/RadiologyTests/ReviewFoldDefaultsTests.swift) | 7 |
 | [ReviewRepositoryTests](../Tests/RadiologyTests/ReviewRepositoryTests.swift) | 4 |
 
-The [PR refresh lifecycle audit](rust-pr-refresh-contracts.md) maps six groups;
-failure/retry remains partial because explicit recovery actions and failed-number
-ownership still need implementation. The separate review, presentation, fold and
+The [PR refresh lifecycle audit](rust-pr-refresh-contracts.md) and
+[owned recovery](rust-review-recovery.md) map all seven refresh groups, including
+real CLI retries of the failed target. The separate review, presentation, fold and
 repository suites listed above remain open.
 
 ## Critical Lens and hover

@@ -199,7 +199,7 @@ impl RadiologyApp {
             }
             OpenGoToLine => self.modal = ActiveModal::GoToLine(GoToLineModal::new(self.caret_line)),
             OpenGoToSymbol => self.modal = ActiveModal::GoToSymbol(GoToSymbolModal::default()),
-            OpenPRDialog => self.show_pull_request_prompt(),
+            OpenPRDialog => self.show_pull_request_prompt(None),
             OpenPullRequest(number) => self.open_pull_request(number),
             RefreshPRList => self.recent_pull_requests.refresh(),
             CancelPRList => self.recent_pull_requests.cancel(),

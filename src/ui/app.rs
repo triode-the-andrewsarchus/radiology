@@ -223,7 +223,7 @@ pub struct RadiologyApp {
     pending_navigation: Option<source::PendingNavigation>,
     /// Target line to scroll and center into view in the code editor.
     pub scroll_to_line: Option<usize>,
-    /// Most recent recoverable error shown in the reader.
+    /// Generic reader/command error. Review failures use [`Self::review_error`].
     pub error: Option<String>,
     error_notice: crate::ui::error_notice::ErrorNotice,
     reveal_job: crate::background::LatestRead<Result<(), String>>,

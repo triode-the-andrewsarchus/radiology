@@ -6,9 +6,14 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Owned review recovery](rust-review-recovery.md) implements Try Again/Choose Number
+and failed-request ownership. Real private CLI, source retry, scope retirement,
+bounds and keyboard checks map the last partial refresh group. All seven refresh
+functions are mapped; other review suites and final acceptance remain open.
+
 [PR refresh lifecycle](rust-pr-refresh-contracts.md) fixes misleading operation
 wording and strengthens metadata/viewport/revision/retirement workflows. Six groups
-have mapped evidence; explicit failure recovery remains partial and is next work.
+were mapped here; the explicit recovery gap is now repaired above.
 
 [Change metadata and identity](rust-change-metadata-contracts.md) close the two
 remaining unified-diff groups. Pinned changes now carry actual SHA-1/SHA-256 IDs,

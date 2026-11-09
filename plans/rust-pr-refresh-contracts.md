@@ -4,9 +4,10 @@ Reference: seven functions in
 [PRRefreshTests.swift](../Tests/RadiologyTests/PRRefreshTests.swift),
 [AppModel+PRRefresh.swift](../Sources/Radiology/AppModel+PRRefresh.swift) and
 [RootView.swift](../Sources/Radiology/UI/RootView.swift).
-Reviewed from Rust `9f8a624`. Six groups have mapped app/service evidence below;
-the failure/retry group remains partial because explicit recovery UI is missing.
-Overall PR refresh parity is not claimed.
+Reviewed from Rust `9f8a624`. Six groups were mapped at this checkpoint and the
+failure/retry group was partial. The subsequent
+[owned recovery checkpoint](rust-review-recovery.md) implements and verifies that
+gap. Combined native/whole-app acceptance and other suites remain open.
 
 ## Current fix and UI organization
 
@@ -30,7 +31,7 @@ large app renderer. Existing widgets/type roles are reused; no typography change
 | `sameHeadAndBaseIsMetadataOnlyAndCommandRouteCoalesces` | New `metadata_refresh_coalesces_commands_and_preserves_reader_fact_owners` holds a live metadata completion, sends two actual Ctrl+R events at 1×/2×, checks visible refresh wording and disabled duplicate submission while the reader stays eligible, then accepts Fresh title into review/recent list. Source, outline, native captures, calls and an explicitly seeded semantic-index Arc retain identity, as do caret/history/pins. Existing recent-list publication helper supplies the accepted list; no new runtime injection API. First CLI invocation/count is a composed service/route boundary, not a new end-to-end gh count assertion. Outside-review refresh is separately covered by existing same-root repository/position contracts. |
 | `changedHeadRestoresLatestCaretAndViewportAndPreservesOptions` | Extended existing positions test holds metadata completion while changing caret to 110:1 and painted top row to 20. A real inserted-prefix snapshot accepts 111:1/top 21, retaining font 17, wrap, both source filters, a real src disclosure and Files tab, while clearing obsolete history/other-file position memory. Existing latest-rename/pin regression now explicitly retains Critical mode; other tests verify changed bytes drop pins and unchanged lines keep columns. These are complementary workflows, not one synthetic assertion of every option combination. |
 | `sameHeadNewBaseRefreshesBeforeBytesAndDiffs` | Reworked existing moving-base test now proves head equality while advancing the merge base to an actual ancestor commit. It checks newer Before bytes, mapped 3:5 caret, one remaining change, Before preference and cleared history. Existing fallback/missing-file and commit-scoped semantic tests cover unavailable-side and index ownership policies. |
-| `failuresRetryIntentAndProtectedWorktreeSurvivesPreparationFailure` | **Partial.** New error-context regression checks metadata failure for the active versus another PR at both scales, retained accepted source/history/review and re-enabled Refresh. Existing unreadable refreshed source test retains the old reader; service cancellation and cache-pressure tests protect live trees and allow retry. Swift's explicit Try Again/Choose Number actions and retained failed-number intent still need implementation and a direct app recovery test. Do not count this group complete. |
+| `failuresRetryIntentAndProtectedWorktreeSurvivesPreparationFailure` | **Partial at this checkpoint; now repaired in [owned recovery](rust-review-recovery.md).** New error-context regression checks metadata failure for the active versus another PR at both scales, retained accepted source/history/review and re-enabled Refresh. Existing unreadable refreshed source test retains the old reader; service cancellation and cache-pressure tests protect live trees and allow retry. Swift's explicit Try Again/Choose Number actions and retained failed-number intent were outstanding here; the follow-up supplies the direct app recovery test. Do not count this group complete. |
 | `pendingRevisionLoadAtPreparationRestoresLatestRequestedReader` | Extended existing moving-reader test retains navigation to an added file, then separately queues another candidate and starts an actual Before command while its source load is pending. Accepted refresh uses the latest Before request, exact base bytes/new head and a fresh history instead of an earlier prepared After reader. |
 | `renamePreservesExactBytePinsAndMissingFileFallsBackHonestly` | Existing latest-rename test checks exact unchanged bytes, latest caret/pin groups, clean ephemeral state and fresh fold defaults. Existing missing/fallback test checks Before-only fallback notice and, for a former addition absent from both sides, empty source/Changes/absent notice. Positions and cache-pressure tests add exact reading restoration and retained leased old bytes. |
 | `cancelDifferentPRAndRepositorySwitchDiscardRefreshCompletion` | New `retired_refresh_results_cannot_reopen_cancelled_exited_or_replaced_review_scopes` gates a confirmed live metadata worker, deliberately ignores its cancellation when attempting publication, and proves cancelled flag plus closed receiver at 1×/2× for Cancel, Exit, another PR and a real root switch. After settling frames, the intended scope survives with no stale error or pending PR. The other-PR branch explicitly stages replacement acceptance after retirement; it does not launch a real gh request. |
@@ -49,21 +50,22 @@ setup correction, not a product bug. A filter-field typo and single-range Clippy
 lint were also corrected before final gates. The red operation diagnostic remains
 the product regression. No test binary is rebuilt while the final suite is live.
 
-## Missing recovery feature: next implementation
+## Recovery feature identified here (subsequently implemented)
 
 Swift RootView presents Try Again, Choose Number and Cancel after a failed open or
-refresh. Rust currently offers generic diagnostics/Dismiss and the ordinary toolbar
-route. Refresh can retry the accepted PR, but a failed attempt to open a different
-number has already cleared `pending_pr`, so the failed target cannot be recovered
-from `active_pr`. Source/error presentation tests alone cannot establish parity.
+refresh. At this checkpoint Rust offered generic diagnostics/Dismiss and the ordinary
+toolbar route. Refresh could retry the accepted PR, but a failed attempt to open a
+different number had cleared `pending_pr`, so `active_pr` could not recover the
+failed target. Source/error presentation tests alone did not establish parity.
 
-The next change must retain failed-request number/root/operation ownership, expose
+The follow-up needed to retain failed-request number/root/operation ownership, expose
 the two recovery actions with bounded diagnostics, and retire stale recovery intent
 on retry/replacement, dismissal, Exit or repository switch. Initial metadata failure
 and later source-restoration failure both need coverage, including a different
 failed PR while another remains accepted. A fresh successful retry must preserve
 or atomically replace the accepted reader as appropriate. Reuse the existing
-request entry point and error UI; avoid a second refresh state machine.
+request entry point and error UI; avoid a second refresh state machine. These
+requirements are now addressed in [owned review recovery](rust-review-recovery.md).
 
 Other review/presentation/fold/repository suites remain separate audit work.
 Full accessibility and actual sibling-app adoption remain deferred. Final combined
@@ -99,4 +101,4 @@ The new status wording is checked in rendered app frames at 1×/2×. No fresh na
 compositor or Swift/AppKit run is claimed. Earlier native reader/rename/viewport/
 failure/recovery observations are historical evidence in
 [rust-pr-refresh-restoration](rust-pr-refresh-restoration.md); they do not close
-the explicit recovery-control gap above.
+the recovery-control gap by themselves; the follow-up supplies direct evidence.

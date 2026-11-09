@@ -12,6 +12,8 @@ pub(in crate::ui::app) struct ReviewRefresh {
     candidate: Option<Arc<ReviewSnapshot>>,
     job: LatestRead<Result<PreparedRefresh, String>>,
     pub notice: Option<String>,
+    pub(super) failure: Option<super::recovery::ReviewFailure>,
+    pub(super) failure_notice: crate::ui::error_notice::ErrorNotice,
 }
 
 struct PreparedRefresh {
@@ -105,8 +107,9 @@ impl RadiologyApp {
     }
 
     fn fail_review_refresh(&mut self, error: String) {
+        let number = self.pending_pr;
         self.cancel_review_preparation();
-        self.error = Some(format!("Unable to refresh review: {error}"));
+        self.record_review_failure(number, format!("Unable to refresh review: {error}"));
     }
 
     fn commit_review_refresh(
@@ -185,6 +188,7 @@ impl RadiologyApp {
             });
         }
 
+        self.show_review_recovery(ctx);
         if let Some(notice) = self.review_refresh.notice.clone() {
             TopBottomPanel::top("review_refresh_notice").show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {

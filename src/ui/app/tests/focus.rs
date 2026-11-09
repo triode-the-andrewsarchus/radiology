@@ -605,8 +605,7 @@ fn repository_menu_refresh_is_contextual_and_pending_review_cannot_restart() {
         settle(&mut app);
         assert!(Arc::ptr_eq(app.review.as_ref().unwrap(), &accepted));
         assert!(app
-            .error
-            .as_ref()
+            .review_error()
             .unwrap()
             .contains("controlled refresh failure"));
     }

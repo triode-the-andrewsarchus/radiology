@@ -364,14 +364,9 @@ fn saved_review_identity_survives_checkout_preparation_failure_cancel_and_fresh_
     restored.review_job.spawn(|_| Err("fixture offline".into()));
     settle(&mut restored);
     assert!(
-        restored.review.is_none()
-            && restored
-                .error
-                .as_deref()
-                .unwrap()
-                .contains("fixture offline")
+        restored.review.is_none() && restored.review_error().unwrap().contains("fixture offline")
     );
-    restored.show_pull_request_prompt();
+    restored.show_pull_request_prompt(None);
     assert!(matches!(&restored.modal, ActiveModal::PullRequest(prompt) if prompt.pr_str == "758"));
     let mut fresh = RadiologyApp::from_session(SessionStore::load_from(&settings));
     fresh.restore_session();

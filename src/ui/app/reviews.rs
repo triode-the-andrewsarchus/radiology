@@ -1,5 +1,6 @@
 //! Review preparation and publication, separate from window rendering.
 
+pub(super) mod recovery;
 mod refresh;
 use super::*;
 pub(super) use refresh::ReviewRefresh;
@@ -58,23 +59,24 @@ impl RadiologyApp {
         self.repository_root.is_some() && !self.is_repository_opening()
     }
 
-    pub(super) fn show_pull_request_prompt(&mut self) {
+    pub(super) fn show_pull_request_prompt(&mut self, preferred: Option<usize>) {
         if self.can_choose_review() {
             let remembered = (self.session.last_repository.as_deref().map(Path::new)
                 == self.repository_root.as_deref())
             .then_some(self.session.active_pr)
             .flatten();
-            let number = self
-                .active_pr
-                .as_ref()
-                .map(|pr| pr.number)
-                .or(remembered)
-                .or_else(|| {
-                    self.recent_pull_requests
-                        .items()
-                        .first()
-                        .map(|pr| pr.number)
-                });
+            let number = preferred.or_else(|| {
+                self.active_pr
+                    .as_ref()
+                    .map(|pr| pr.number)
+                    .or(remembered)
+                    .or_else(|| {
+                        self.recent_pull_requests
+                            .items()
+                            .first()
+                            .map(|pr| pr.number)
+                    })
+            });
             self.modal = ActiveModal::PullRequest(PullRequestModal::new(number));
         }
     }
@@ -129,12 +131,15 @@ impl RadiologyApp {
         };
         match self.review_job.poll() {
             Ok(Some(result)) => {
-                self.pending_pr = None;
+                let number = self.pending_pr.take();
                 match result {
                     Ok(snapshot) => self.accept_review(snapshot),
                     Err(error) => {
                         self.pending_open_file = None;
-                        self.error = Some(format!("Unable to {operation} review: {error}"));
+                        self.record_review_failure(
+                            number,
+                            format!("Unable to {operation} review: {error}"),
+                        );
                     }
                 }
             }
@@ -143,14 +148,19 @@ impl RadiologyApp {
             }
             Ok(None) => {}
             Err(_) => {
+                let number = self.pending_pr;
                 self.cancel_review_preparation();
-                self.error = Some("Review preparation stopped unexpectedly".into());
+                self.record_review_failure(
+                    number,
+                    "Review preparation stopped unexpectedly".into(),
+                );
             }
         }
         self.poll_review_refresh(ctx);
     }
 
     pub(super) fn accept_review(&mut self, snapshot: ReviewSnapshot) {
+        self.review_refresh.failure = None;
         self.reveal_job.stop();
         self.cancel_repository_open();
         self.git_refresh.stop();

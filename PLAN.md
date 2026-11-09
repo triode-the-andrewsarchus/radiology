@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Owned review recovery](plans/rust-review-recovery.md) now retains failed PR targets
+and provides Try Again/Choose Number with bounded diagnostics. Real isolated CLI
+retries, source-restoration recovery, stale-action retirement, narrow layouts and
+status-widget keyboard choice pass at both scales. Review errors have their own
+`review_error()` API. All seven refresh groups are mapped; other suites remain open.
+
 [PR refresh lifecycle](plans/rust-pr-refresh-contracts.md) now names active refresh
 progress/errors correctly and groups its status UI. Combined metadata, latest
 viewport/preferences, unchanged-head/new-base and retired-result workflows pass.
-Six Swift groups have mapped evidence; the seventh remains partial because explicit
-Try Again/Choose Number recovery controls and failed-target intent are still missing.
+Six groups were mapped here; the missing recovery controls and failed-target intent
+are now implemented in the checkpoint above.
 
 [Change metadata and document identity](plans/rust-change-metadata-contracts.md)
 now retain real pinned SHA-1/SHA-256 IDs and copy similarity through shared raw/name

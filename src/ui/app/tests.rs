@@ -1062,6 +1062,21 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
 }
 
 #[cfg(target_os = "linux")]
+fn assert_isolated_test(name: &str, environment: &[(&str, std::ffi::OsString)]) {
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--nocapture"])
+        .envs(environment.iter().map(|(key, value)| (*key, value)))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[cfg(target_os = "linux")]
 #[test]
 fn idle_reader_construction_does_not_create_default_configuration() {
     const MARKER: &str = "RADIOLOGY_TEST_IDLE_CONFIG";
@@ -1078,21 +1093,12 @@ fn idle_reader_construction_does_not_create_default_configuration() {
     }
     let owner = tempfile::tempdir().unwrap();
     let directory = owner.path().join("uncreated-config");
-    let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "ui::app::tests::idle_reader_construction_does_not_create_default_configuration",
-            "--nocapture",
-        ])
-        .env("XDG_CONFIG_HOME", &directory)
-        .env(MARKER, &directory)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+    assert_isolated_test(
+        "ui::app::tests::idle_reader_construction_does_not_create_default_configuration",
+        &[
+            ("XDG_CONFIG_HOME", directory.as_os_str().to_owned()),
+            (MARKER, directory.as_os_str().to_owned()),
+        ],
     );
     assert!(!directory.exists());
 }
@@ -2951,3 +2957,5 @@ mod model;
 mod bookmarks;
 
 mod repository;
+
+mod review_recovery;

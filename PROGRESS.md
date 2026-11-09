@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Owned review failure recovery and real CLI retry workflows (Codex)
+
+A red app regression confirmed missing Try Again. Failed request root/number/message
+now belong to the review lifecycle, with bounded diagnostics and Try Again/Choose
+Number controls. Retry reuses the existing request path and targets the failed PR,
+not whichever PR remains accepted. Prompt prefill prefers that failed number.
+Dismiss/Exit/root changes and successful/replacement requests retire stale intent.
+Reader errors remain independently owned; hosts read review failures through the
+new `review_error()` getter instead of the generic `error` field.
+
+Two final workflows cover actual app controls at both scales, private-child gh
+requests for first-open/same-PR/other-PR and binary-restoration retries, exact query
+target/counts and pinned source bytes. Narrow 320/480/900 controls remain visible;
+status-widget Tab/Enter chooses the failed number without a query. The accepted
+reader, saved review restore and unrelated errors are preserved. Existing fixture,
+self-relaunch and diagnostic code is reused; no global environment mutation.
+
+Focused recovery/saved-state checks, strict Clippy, normal build and warning-free
+API docs pass. The initial full run passed 829 app tests and found one older menu
+test still reading the generic error field. Its getter migration passes; the final
+locked offline serial rerun passes 830 app tests/11 existing ignored, two binary/
+13 font/22 text tests and all 64 doctests. Architecture +352
+measured NLOC/eight measured functions/two files, unchanged full clone multisets,
+hotspots and cycles. [Evidence and API migration](plans/rust-review-recovery.md)
+close the prior partial failure/retry group, mapping all seven refresh functions.
+Other review suites, final native integration, parallel timing limits and Android
+acceptance remain open. Next: verify per-file diff isolation when an old rename
+path is reused as a directory, using the upstream ReviewRepository test.
+
 ## 2026-11-08 — PR refresh operation context and lifecycle contracts (Codex)
 
 A red regression confirmed refresh metadata errors incorrectly said open. Shared

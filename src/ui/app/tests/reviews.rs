@@ -33,7 +33,7 @@ fn cancelled_and_failed_review_jobs_keep_the_accepted_reader_and_drop_launch_int
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert!(app.error.as_ref().unwrap().contains("fixture timeout"));
+    assert!(app.review_error().unwrap().contains("fixture timeout"));
     assert!(app.pending_open_file.is_none());
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(app.history.current(), history.as_ref());

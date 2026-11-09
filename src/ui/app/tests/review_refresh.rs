@@ -295,8 +295,7 @@ fn failed_source_restoration_retains_the_entire_accepted_reader() {
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
     assert_eq!(app.history.current(), history.as_ref());
     assert!(app
-        .error
-        .as_ref()
+        .review_error()
         .unwrap()
         .contains("Unable to refresh review"));
     assert!(app.pending_pr.is_none());
@@ -511,7 +510,7 @@ fn refresh_failures_name_the_operation_and_preserve_accepted_retry_context() {
             let expected = format!("Unable to {operation} review: offline");
             assert_eq!(
                 (
-                    app.error.as_deref(),
+                    app.review_error(),
                     app.history.current(),
                     app.active_pr.as_ref().unwrap().number
                 ),
