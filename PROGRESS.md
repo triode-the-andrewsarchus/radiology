@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-09 — Test-region assertion reconciliation (Codex)
+
+All thirteen Swift detector groups now have exact mappings: fifteen source
+variants plus generated depth 4,000, including Rust cfg reachability, attached
+attributes/docs, test-only files, Unicode/CRLF byte boundaries, Kotlin classes,
+Python imports/decorators and TS/TSX/CommonJS framework versus production bindings.
+Exact line spans and the two explicit byte-slice/terminator contracts pass through
+the existing parser and detector. No runtime/API/dependency change.
+
+Seven detector tests, all 82 syntax tests, strict all-target Clippy, formatting
+and diff checks pass. Architecture +62 NLOC/two tests, avg/max CCN 3.43/132,
+36 hotspots/one cycle and all 125 clone instances unchanged (zero normalized
+additions/removals). The raw touched-file clone/chokepoint alerts are pre-existing.
+Latest full production gate remains c20eba6; this test-only checkpoint adds no
+new full-run claim. Source/syntax is 59/66 mapped; seven test-presentation groups,
+compiler/inspector and final whole-app acceptance remain.
+[Mapping](plans/rust-test-region-contracts.md); evidence:
+~/.local/state/radiology-qa/test-region-20261109-47b6c30/.
+
 ## 2026-11-09 — Syntax-worker assertion reconciliation (Codex)
 
 All nine Swift worker groups now have explicit mappings: exact Rust root/impl

@@ -1,0 +1,201 @@
+[
+  {
+    "group": "pytestRequiresUnderscoreAndVitestElseRemainsProduction",
+    "variant": "python",
+    "path": "api.py",
+    "source": "import pytest\ndef testing_helper(): pass\ndef testify(): pass\ndef testConnection(): pass\ndef test_connection(): pass",
+    "lines": [
+      [
+        5,
+        5
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "pytestRequiresUnderscoreAndVitestElseRemainsProduction",
+    "variant": "ts",
+    "path": "api.ts",
+    "source": "if (import.meta.vitest) {\n  test('x', () => {});\n} else {\n  production();\n}",
+    "lines": [],
+    "test_only": false
+  },
+  {
+    "group": "rustTestHelperInTheMiddleOfAnImplEndsExactlyBeforeProductionCode",
+    "variant": "source",
+    "path": "app.rs",
+    "source": "impl HarnessApp {\n    #[cfg(test)]\n    pub(crate) fn detached_for_test(\n        engine: Arc<Engine>,\n    ) -> Arc<Self> {\n        Arc::new(Self { engine })\n    }\n    fn create_durable_agent(&self) -> u8 {\n        1\n    }\n}",
+    "lines": [
+      [
+        2,
+        7
+      ]
+    ],
+    "test_only": false,
+    "exact_regions": [
+      "    #[cfg(test)]\n    pub(crate) fn detached_for_test(\n        engine: Arc<Engine>,\n    ) -> Arc<Self> {\n        Arc::new(Self { engine })\n    }"
+    ],
+    "following_byte": 10
+  },
+  {
+    "group": "rustCfgLogicHidesOnlyCodeAbsentFromEveryProductionBuild",
+    "variant": "source",
+    "path": "lib.rs",
+    "source": "#[cfg(test)]\nmod tests;\n#[cfg(all(test, feature = \"x\"))]\nfn all_test() {}\n\n#[cfg(any(test, feature = \"prod\"))]\nfn shared_with_production() {}\n#[cfg(not(test))]\nfn production_only() {}\n#[cfg_attr(test, derive(Debug))]\nstruct Traced;\n#[cfg(any())]\nfn disabled() {}\n#[cfg(feature = \"test\")]\nfn feature_named_test() {}\nfn contest() {}\nfn test_connection() {}\n#[cfg(any(test, doctest))]\nfn doctest_helper() {}",
+    "lines": [
+      [
+        1,
+        4
+      ],
+      [
+        18,
+        19
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "rustTestAttributesModulesDocCommentsAndInnerAttributes",
+    "variant": "source",
+    "path": "lib.rs",
+    "source": "pub fn production() {}\n\n/// Builds a fixture.\n#[test]\n#[should_panic]\nfn panics() {}\n#[tokio::test(flavor = \"multi_thread\")]\nasync fn async_case() {}\n#[rstest]\nfn parameterized(#[values(1, 2)] value: u8) {}\n// A production comment.\npub fn after() {}\nmod inner {\n    #![cfg(test)]\n    fn helper() {}\n}\n#[derive(Debug)]\n#[cfg(test)] // trailing note\nstruct Probe {\n    #[cfg(test)]\n    counter: usize,\n}",
+    "lines": [
+      [
+        3,
+        10
+      ],
+      [
+        13,
+        22
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "kotlinTestClassesFunctionsAndSpecs",
+    "variant": "source",
+    "path": "Mixed.kt",
+    "source": "package inc.tk\n\nimport org.junit.Test\n\nclass Production {\n    fun test(): Int = 1\n    @Deprecated(\"x\") fun old() {}\n}\n\nclass FontFilesTest {\n    private val bytes = byteArrayOf(0)\n\n    @Test fun `downloads once`() {\n        println(bytes)\n    }\n}\n\n@RunWith(JUnit4::class)\nclass Runner { fun helper() {} }\n\nclass CalculatorSpec : StringSpec({\n    \"adds\" { }\n})\n\nfun production() {}\n/** KDoc for a test. */\n@org.junit.jupiter.api.Test\nfun qualified() {}\nfun after() {}",
+    "lines": [
+      [
+        10,
+        23
+      ],
+      [
+        26,
+        28
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "pythonUnittestClassesAndPytestOnlyWhenImported",
+    "variant": "production",
+    "path": "pr_local.py",
+    "source": "import unittest\n\ndef test_connection(host):\n    return True\n\nclass TestHarness:\n    pass\n\nclass PrLocalTest(unittest.TestCase):\n    def test_a(self):\n        pass\n\nclass Runner(object):\n    pass",
+    "lines": [
+      [
+        9,
+        11
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "pythonUnittestClassesAndPytestOnlyWhenImported",
+    "variant": "pytest",
+    "path": "conftest_like.py",
+    "source": "import os, pytest\n\n@pytest.fixture\ndef repo():\n    return 1\n\ndef helper():\n    return 2\n\nasync def test_async(repo):\n    pass\nclass TestThings:\n    def test_x(self):\n        pass\n\n@pytest.mark.parametrize(\"n\", [1])\ndef check(n):\n    pass",
+    "lines": [
+      [
+        3,
+        5
+      ],
+      [
+        10,
+        18
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "typescriptFrameworkCallsAndInSourceBlocks",
+    "variant": "source",
+    "path": "home-design-inspect.test.ts",
+    "source": "import { test, expect } from 'bun:test';\nimport { summaryReport } from './home-design-inspect.ts';\n\nexport function report() { return summaryReport(); }\n\ntest('text contrast', () => {\n  expect(1).toBe(1);\n});\n\ndescribe.each([1, 2])('case %s', (n) => {\n  it('works', () => {});\n});\nif (import.meta.vitest) {\n  const { it } = import.meta.vitest;\n  it('inline', () => {});\n}\nDeno.test(\"deno\", () => {});",
+    "lines": [
+      [
+        6,
+        17
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "typescriptProductionCallsSharingTestSpellingStayVisible",
+    "variant": "source",
+    "path": "regex.ts",
+    "source": "import { test } from './regex';\nconst it = makeIterator();\nfunction describe(value: unknown) { return String(value); }\n\ntest('pattern', () => true);\nit('x', () => {});\ndescribe(() => 1);\nsuite.add('benchmark');\nbeforeEach;",
+    "lines": [],
+    "test_only": false
+  },
+  {
+    "group": "tsxAndCommonJSRequireFromTestModules",
+    "variant": "tsx",
+    "path": "View.tsx",
+    "source": "import { render } from './render';\nexport const View = () => <div>{render()}</div>;\nit('renders', () => {\n  expect(<View />).toBeTruthy();\n});",
+    "lines": [
+      [
+        3,
+        5
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "tsxAndCommonJSRequireFromTestModules",
+    "variant": "commonJS",
+    "path": "suite.js",
+    "source": "const { describe, it } = require('node:test');\nconst test = require('./not-a-test-runner');\ndescribe('suite', () => { it('case', () => {}); });\ntest('production', function () {});",
+    "lines": [
+      [
+        3,
+        3
+      ]
+    ],
+    "test_only": false
+  },
+  {
+    "group": "rustFileWithInnerCfgTestIsATestOnlyDocument",
+    "variant": "source",
+    "path": "tests.rs",
+    "source": "//! Tests.\n#![cfg(test)]\nfn a() {}\n",
+    "lines": [],
+    "test_only": true
+  },
+  {
+    "group": "rustRegionsUseCanonicalBytesAfterUnicodeAndCRLF",
+    "variant": "source",
+    "path": "u.rs",
+    "source": "// 🩻 胸部\r\nfn a() {}\r\n#[cfg(test)]\r\nmod t {\r\n    fn é() {}\r\n}\r\nfn b() {}\r\n",
+    "lines": [
+      [
+        3,
+        6
+      ]
+    ],
+    "test_only": false,
+    "exact_regions": [
+      "#[cfg(test)]\r\nmod t {\r\n    fn é() {}\r\n}"
+    ],
+    "following_byte": 13
+  },
+  {
+    "group": "languagesWithoutDetectionReportNothing",
+    "variant": "source",
+    "path": "x_test.go",
+    "source": "func TestX(t *testing.T) {}\n",
+    "lines": [],
+    "test_only": false
+  }
+]

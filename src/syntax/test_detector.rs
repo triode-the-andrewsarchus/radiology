@@ -243,6 +243,70 @@ mod tests {
     }
 
     #[test]
+    fn swift_region_contracts_keep_exact_lines_and_canonical_bytes() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("test_fixtures/test-region-contracts.json")).unwrap();
+        for case in cases.as_array().unwrap() {
+            let source = case["source"].as_str().unwrap();
+            let result = detected(case["path"].as_str().unwrap(), source);
+            let lines: Vec<_> = result
+                .regions
+                .iter()
+                .map(|region| {
+                    assert_eq!(region.header_line, region.line_range.start, "{case}");
+                    assert!(source.get(region.byte_range.clone()).is_some(), "{case}");
+                    [region.line_range.start, region.line_range.end - 1]
+                })
+                .collect();
+            assert_eq!(
+                serde_json::to_value(lines).unwrap(),
+                case["lines"],
+                "{case}"
+            );
+            assert_eq!(
+                result.is_test_only_document,
+                case["test_only"].as_bool().unwrap(),
+                "{case}"
+            );
+            if let Some(exact) = case["exact_regions"].as_array() {
+                let slices: Vec<_> = result
+                    .regions
+                    .iter()
+                    .map(|region| {
+                        assert_eq!(
+                            source.as_bytes()[region.byte_range.end],
+                            case["following_byte"].as_u64().unwrap() as u8
+                        );
+                        &source[region.byte_range.clone()]
+                    })
+                    .collect();
+                assert_eq!(
+                    serde_json::to_value(slices).unwrap(),
+                    serde_json::Value::Array(exact.clone()),
+                    "{case}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn deeply_nested_generated_source_keeps_following_test_region() {
+        let source = format!(
+            "fn generated() -> i32 {{ {}1{} }}\n#[cfg(test)]\nmod tests {{}}\n",
+            "(".repeat(4_000),
+            ")".repeat(4_000)
+        );
+        let result = detected("generated.rs", &source);
+        assert!(!result.is_test_only_document);
+        assert_eq!(result.regions.len(), 1);
+        assert_eq!(result.regions[0].line_range, 2..4);
+        assert_eq!(
+            &source[result.regions[0].byte_range.clone()],
+            "#[cfg(test)]\nmod tests {}"
+        );
+    }
+
+    #[test]
     fn rust_cfg_requires_test_only_reachability_and_ignores_strings_and_macros() {
         for predicate in [
             "test",

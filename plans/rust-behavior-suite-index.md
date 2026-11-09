@@ -415,6 +415,14 @@ exact declaration/astral/cfg fixtures and shared malformed-source app evidence.
 Eighty syntax checks, app recovery and strict Clippy pass. Source total: 46/66;
 the remaining 20 are presentation (7) and region detection (13).
 
+### Test-region detector reconciliation
+
+All thirteen TestRegionDetectorTests groups now map to exact line/byte contracts,
+including fifteen literal sources and generated depth 4,000. Existing detection
+passes unchanged; [mapping and evidence](rust-test-region-contracts.md). Current
+source/syntax total is 59/66; seven presentation groups remain.
+
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).
