@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Review repository assertion reconciliation (Codex)
+
+A real older-clone regression reproduced missing commit IDs in failed fetch
+messages. Base/head errors now name the requested ID through the existing fetch
+path. The new test proves private fetching of commits absent from the attached
+clone, preserving its HEAD, refs, staged index bytes, status and local/untracked
+files through success and both failures. Accepted pinned source remains usable.
+
+A second combined fixture advances main independently and checks the original
+three-dot merge base, exact change membership/status/counts, separated Unicode
+CRLF hunks, edited rename and Before materialization. Existing cache tests now
+check every materialized file's Git blob identity, repository-discovery inventory,
+pinned HEAD, added/deleted membership and replacement of damaged .git metadata.
+Existing active-lease/clone pressure tests cover three-tree idle LRU convergence.
+
+All 41 pull-request and six final tree-cache checks, strict all-target Clippy,
+build and formatting pass. The full locked offline serial run passes 833 app tests
+(11 existing ignored), two binary, 13 font, 22 text tests and all 64 doctests.
+Architecture +229 measured NLOC,
+two test functions/no new files, unchanged full clone multisets/hotspots/cycles.
+[Four-group repository audit](plans/rust-review-repository-contracts.md) explains
+private fetched-object ownership and leased-tree retention differences from Swift.
+All four repository groups now have explicit mappings. Review/presentation/fold
+assertion audits, final native integration, known parallel timing limits and
+Android remain open. Next: reconcile ReviewChangesPresentationTests and rendered
+Changes behavior without disturbing the accepted reader/filter state.
+
 ## 2026-11-09 — Exact per-file review diffs and Git-link mode preservation (Codex)
 
 A real Git regression showed unchanged renamed files inheriting highlights from

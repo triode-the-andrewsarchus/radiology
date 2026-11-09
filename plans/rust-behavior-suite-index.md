@@ -148,11 +148,13 @@ below still need their own reconciliation. Additional evidence:
 
 The [PR refresh lifecycle audit](rust-pr-refresh-contracts.md) and
 [owned recovery](rust-review-recovery.md) map all seven refresh groups, including
-real CLI retries of the failed target. The separate review, presentation, fold and
-repository suites listed above remain open. The
+real CLI retries of the failed target. The separate review, presentation and fold
+suites listed above remain open. The
 [per-file isolation checkpoint](rust-blob-diff-isolation.md) explicitly maps
 `ReviewRepositoryTests.renamedBlobDiffExcludesAChildOfTheReusedOldPath` (one of four
-repository functions); the other three still need assertion-level reconciliation.
+repository functions). The follow-up [repository audit](rust-review-repository-contracts.md)
+now maps all four, strengthening older-clone fetch, merge-base/bytes and exact
+worktree/cache evidence. Separate review/presentation/fold suites remain open.
 
 ## Critical Lens and hover
 

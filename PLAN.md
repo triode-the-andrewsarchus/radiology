@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Review repository contracts](plans/rust-review-repository-contracts.md) now map
+all four Swift groups. A clone predating the PR stays unchanged through private
+fetches and failures, missing-commit errors name the requested ID, and combined
+three-dot/CRLF/rename/Before and exact-tree/cache checks pass. Separate review UI
+and fold audits and final acceptance remain open.
+
 [Per-file diff isolation](plans/rust-blob-diff-isolation.md) fixes unrelated-child
 highlights/counts when a rename's old path becomes a directory. Exact object pairs,
 shared private empty blobs and mode-aware Git-link pointer diffs preserve existing
-review behavior. One of four repository-suite groups is explicitly mapped; the
-remaining groups and other suites stay open.
+review behavior. This mapped one repository group; the follow-up above maps
+the remaining three. Separate review UI/fold suites stay open.
 
 [Owned review recovery](plans/rust-review-recovery.md) now retains failed PR targets
 and provides Try Again/Choose Number with bounded diagnostics. Real isolated CLI

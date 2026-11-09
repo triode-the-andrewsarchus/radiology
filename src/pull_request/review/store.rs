@@ -209,12 +209,12 @@ impl GitStore<'_> {
             return Ok(());
         }
         if !self.fetch_object(origin, oid)? {
-            let number = number.ok_or("Unable to fetch base commit")?;
+            let number = number.ok_or_else(|| format!("Unable to fetch base commit {oid}"))?;
             // A unique ref proves what this request fetched without shared FETCH_HEAD.
             let reference = format!("refs/radiology/requests/{}", uuid::Uuid::new_v4());
             let refspec = format!("refs/pull/{number}/head:{reference}");
             if !self.fetch_object(origin, &refspec)? {
-                return Err("Unable to fetch pinned pull request commit".into());
+                return Err(format!("Unable to fetch pinned pull request commit {oid}"));
             }
             let fetched = self.text(&["rev-parse", &reference])?;
             self.bytes(&["update-ref", "-d", &reference])?;

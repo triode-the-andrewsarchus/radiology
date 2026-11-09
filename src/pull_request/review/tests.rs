@@ -376,3 +376,206 @@ fn per_file_diffs_exclude_children_of_reused_paths_for_renames_additions_and_del
         );
     }
 }
+
+#[test]
+fn fetches_pinned_commits_missing_from_the_attached_clone_and_names_unavailable_ids() {
+    let (owner, origin, template) = fixture();
+    let attached = owner.path().join("older clone");
+    git(
+        owner.path(),
+        &[
+            "clone",
+            "--no-local",
+            "--single-branch",
+            "--branch",
+            "main",
+            origin.to_str().unwrap(),
+            attached.to_str().unwrap(),
+        ],
+    );
+    let cancel = AtomicBool::new(false);
+    let control = ReviewControl::new(&cancel);
+    assert!(control
+        .git(&attached)
+        .optional(&["cat-file", "-e", &template.head])
+        .unwrap()
+        .is_none());
+    std::fs::write(attached.join("a file.rs"), "staged local\n").unwrap();
+    git(&attached, &["add", "a file.rs"]);
+    std::fs::write(attached.join("untracked.rs"), "local untracked\n").unwrap();
+    let status = git(&attached, &["status", "--porcelain", "--branch"]);
+    let refs = git(&attached, &["for-each-ref"]);
+    let index = std::fs::read(attached.join(".git/index")).unwrap();
+    let head = git(&attached, &["rev-parse", "HEAD"]);
+    let snapshot = ReviewSnapshot::prepare(
+        &attached,
+        template.summary.clone(),
+        &owner.path().join("older-cache"),
+    )
+    .unwrap();
+    assert_eq!(snapshot.head, template.head);
+    assert_eq!(
+        snapshot
+            .read("a file.rs", ReviewRevision::After)
+            .unwrap()
+            .text,
+        "one\nchanged\nthree\n"
+    );
+    let missing = "f".repeat(template.head.len());
+    for before in [true, false] {
+        let mut summary = template.summary.clone();
+        if before {
+            summary.base_ref_oid = Some(missing.clone());
+        } else {
+            summary.head_ref_oid = Some(missing.clone());
+        }
+        let error = ReviewSnapshot::prepare(&attached, summary, &owner.path().join("older-cache"))
+            .unwrap_err();
+        assert!(error.contains(&missing), "before={before}: {error}");
+    }
+    assert!(control
+        .git(&attached)
+        .optional(&["cat-file", "-e", &template.head])
+        .unwrap()
+        .is_none());
+    assert_eq!(git(&attached, &["rev-parse", "HEAD"]), head);
+    assert_eq!(git(&attached, &["for-each-ref"]), refs);
+    assert_eq!(std::fs::read(attached.join(".git/index")).unwrap(), index);
+    assert_eq!(
+        git(&attached, &["status", "--porcelain", "--branch"]),
+        status
+    );
+    assert_eq!(
+        std::fs::read(attached.join("a file.rs")).unwrap(),
+        b"staged local\n"
+    );
+    assert_eq!(
+        std::fs::read(attached.join("untracked.rs")).unwrap(),
+        b"local untracked\n"
+    );
+    assert_eq!(
+        snapshot
+            .read("a file.rs", ReviewRevision::After)
+            .unwrap()
+            .text,
+        "one\nchanged\nthree\n"
+    );
+}
+
+#[test]
+fn three_dot_changes_keep_exact_crlf_unicode_and_edited_rename_blobs_without_later_main_files() {
+    let before = "one\r\ntwo café\r\nthree\r\nfour\r\n";
+    let after = "one\r\nchanged 🦀\r\nthree\r\nFOUR\r\n";
+    let renamed = (0..20)
+        .map(|n| format!("stable line {n}\n"))
+        .collect::<String>();
+    let edited = format!("{renamed}extra line\n");
+    let (owner, root, first) = fixture_with_tree_edits(
+        before,
+        after,
+        |root| std::fs::write(root.join("renamed old.rs"), &renamed).unwrap(),
+        |root| std::fs::write(root.join("renamed new.rs"), &edited).unwrap(),
+    );
+    git(&root, &["restore", "."]);
+    std::fs::write(root.join("later-main.rs"), "not in the PR\n").unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-m", "main advanced independently"]);
+    let main = git(&root, &["rev-parse", "HEAD"]);
+    std::fs::write(root.join("a file.rs"), "checkout only\n").unwrap();
+    let status = git(&root, &["status", "--porcelain"]);
+    let mut summary = first.summary.clone();
+    summary.base_ref_oid = Some(main.clone());
+    let review = ReviewSnapshot::prepare(&root, summary, &owner.path().join("cache")).unwrap();
+    assert_eq!(review.base, first.base);
+    assert_eq!(review.head, first.head);
+    assert_eq!(
+        review
+            .changes
+            .iter()
+            .map(|c| c.path.as_str())
+            .collect::<std::collections::BTreeSet<_>>(),
+        [
+            "a file.rs",
+            "added.rs",
+            "binary.dat",
+            "removed.rs",
+            "renamed new.rs"
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert_eq!(
+        review.diffs["a file.rs"].changed_lines(ReviewRevision::After),
+        vec![2..3, 4..5]
+    );
+    assert_eq!(
+        review.diffs["a file.rs"].changed_lines(ReviewRevision::Before),
+        vec![2..3, 4..5]
+    );
+    let rename = review.change("renamed new.rs").unwrap();
+    assert!(matches!(
+        rename.status,
+        FileChangeStatus::Renamed {
+            similarity: 50..=99
+        }
+    ));
+    assert_eq!(rename.old_path.as_deref(), Some("renamed old.rs"));
+    for (path, status, additions, deletions, binary) in [
+        ("a file.rs", FileChangeStatus::Modified, 2, 2, false),
+        ("added.rs", FileChangeStatus::Added, 1, 0, false),
+        ("removed.rs", FileChangeStatus::Deleted, 0, 1, false),
+        ("renamed new.rs", rename.status.clone(), 1, 0, false),
+        ("binary.dat", FileChangeStatus::Added, 0, 0, true),
+    ] {
+        let change = review.change(path).unwrap();
+        assert_eq!(
+            (
+                change.status.clone(),
+                change.additions,
+                change.deletions,
+                change.is_binary
+            ),
+            (status, additions, deletions, binary),
+            "{path}"
+        );
+    }
+    for (path, revision, bytes) in [
+        ("a file.rs", ReviewRevision::Before, before),
+        ("a file.rs", ReviewRevision::After, after),
+        ("removed.rs", ReviewRevision::Before, "old\n"),
+        ("renamed old.rs", ReviewRevision::Before, renamed.as_str()),
+        ("renamed new.rs", ReviewRevision::After, edited.as_str()),
+    ] {
+        assert_eq!(review.read(path, revision).unwrap().data, bytes.as_bytes());
+    }
+    assert_eq!(
+        review.diffs["renamed new.rs"].changed_lines(ReviewRevision::After),
+        std::iter::once(21..22).collect::<Vec<_>>()
+    );
+    assert!(review.diffs["renamed new.rs"]
+        .changed_lines(ReviewRevision::Before)
+        .is_empty());
+    assert_eq!(
+        review.diffs["removed.rs"].changed_lines(ReviewRevision::Before),
+        std::iter::once(1..2).collect::<Vec<_>>()
+    );
+    assert!(review.diffs["removed.rs"]
+        .changed_lines(ReviewRevision::After)
+        .is_empty());
+    let cancel = AtomicBool::new(false);
+    let (base_tree, _lease) = review.reveal_tree(ReviewRevision::Before, &cancel).unwrap();
+    assert_eq!(
+        std::fs::read(base_tree.join("removed.rs")).unwrap(),
+        b"old\n"
+    );
+    assert_eq!(
+        std::fs::read(base_tree.join("renamed old.rs")).unwrap(),
+        renamed.as_bytes()
+    );
+    assert_eq!(git(&root, &["rev-parse", "HEAD"]), main);
+    assert_eq!(git(&root, &["status", "--porcelain"]), status);
+    assert_eq!(
+        std::fs::read(root.join("a file.rs")).unwrap(),
+        b"checkout only\n"
+    );
+}

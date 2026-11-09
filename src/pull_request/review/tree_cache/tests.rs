@@ -51,6 +51,33 @@ fn exact_reuse_rejects_changes_hidden_from_the_git_index_and_preserves_leased_ol
     let second = ReviewSnapshot::prepare(&root, first.summary.clone(), &cache).unwrap();
     assert_eq!(first.head_root, second.head_root);
     assert_eq!(paths(&cache).len(), 1);
+    assert_eq!(text(&first.head_root, &["rev-parse", "HEAD"]), first.head);
+    assert!(first.head_root.join("added.rs").is_file());
+    assert!(!first.head_root.join("removed.rs").exists());
+    for file in &first.files {
+        assert_eq!(
+            text(
+                &first.head_root,
+                &["hash-object", "--no-filters", "--", &file.path]
+            ),
+            text(
+                &first.object_dir,
+                &["rev-parse", &format!("{}:{}", first.head, file.path)]
+            ),
+            "{}",
+            file.path
+        );
+    }
+    let discovered =
+        crate::repository::discovery::RepositoryDiscovery::discover_files(&first.head_root)
+            .unwrap();
+    assert_eq!(
+        discovered
+            .iter()
+            .map(|f| f.path.as_str())
+            .collect::<std::collections::BTreeSet<_>>(),
+        first.files.iter().map(|f| f.path.as_str()).collect()
+    );
     let clone = first.clone();
     assert!(Arc::ptr_eq(
         first._tree_lease.as_ref().unwrap(),
@@ -135,7 +162,7 @@ fn type_mode_inventory_and_head_corruption_cannot_be_reused_or_overwrite_a_live_
     let outside = owner.path().join("outside");
     fs::write(&outside, "outside bytes").unwrap();
     let mut previous = initial;
-    for kind in ["mode", "link", "extra", "missing", "head"] {
+    for kind in ["mode", "link", "extra", "missing", "head", "metadata"] {
         match kind {
             "mode" => fs::set_permissions(
                 previous.head_root.join("a file.rs"),
@@ -148,6 +175,7 @@ fn type_mode_inventory_and_head_corruption_cannot_be_reused_or_overwrite_a_live_
             }
             "extra" => fs::write(previous.head_root.join("untracked.rs"), "extra").unwrap(),
             "missing" => fs::remove_file(previous.head_root.join("a file.rs")).unwrap(),
+            "metadata" => fs::write(previous.head_root.join(".git"), "tampered").unwrap(),
             "head" => git(
                 &previous.head_root,
                 &["checkout", "--detach", &previous.base],

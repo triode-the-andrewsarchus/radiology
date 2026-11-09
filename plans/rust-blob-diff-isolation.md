@@ -72,3 +72,7 @@ repository groups, separate review/presentation/fold suites, final integration
 acceptance and Android remain open. A dedicated app-level reused-path workflow
 would strengthen this service-level proof; existing app diff/navigation checks
 run in the full suite, but do not independently reproduce this exact path shape.
+
+Follow-up: [review repository contracts](rust-review-repository-contracts.md)
+map the other three repository functions and improve failed-fetch diagnostics.
+The app-level reused-path workflow remains optional strengthening.
