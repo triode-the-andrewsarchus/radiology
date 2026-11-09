@@ -117,7 +117,10 @@ bookmark/ripgrep and nested Before app workflows and platform boundaries recorde
 
 Rust entry points: [ripgrep.rs](../src/search/ripgrep.rs), [session.rs](../src/search/session.rs), [results.rs](../src/ui/sidebar/tests/results.rs).
 
-Evidence: [rust-repository-search](rust-repository-search.md).
+Evidence: [rust-repository-search](rust-repository-search.md),
+[six-function contracts](rust-search-contracts.md). All six ordinary SearchTests
+functions have explicit mappings; cancellation now reports an error at the shared
+service boundary, while UI Stop retains its prior presentation policy.
 
 | Swift suite | Annotated functions |
 | --- | ---: |

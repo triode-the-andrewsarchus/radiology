@@ -15,6 +15,9 @@ pub const SEARCH_RESULT_LIMIT: usize = 5000;
 /// Describes errors encountered during search execution.
 #[derive(Error, Debug)]
 pub enum SearchError {
+    /// The caller cancelled the request before it completed.
+    #[error("Search cancelled")]
+    Cancelled,
     /// The `rg` executable was not found in `PATH`.
     #[error("ripgrep (rg) was not found in PATH")]
     NotFound,
@@ -120,6 +123,8 @@ impl SearchRunner {
     ///
     /// # Errors
     ///
+    /// Returns [`SearchError::Cancelled`] if the cancellation flag is set before
+    /// launch or during execution. Already delivered batches remain owned by the caller.
     /// Returns [`SearchError::NotFound`] if `rg` is not installed.
     /// Returns [`SearchError::Process`] if `rg` terminates with an unexpected error status.
     pub async fn search(
@@ -153,6 +158,9 @@ impl SearchRunner {
         cancel: &AtomicBool,
         mut on_batch: impl FnMut(Vec<SearchMatch>),
     ) -> Result<bool, SearchError> {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(SearchError::Cancelled);
+        }
         if options.query.is_empty() {
             return Ok(false);
         }
@@ -179,7 +187,7 @@ impl SearchRunner {
             if cancel.load(Ordering::Relaxed) {
                 let _ = child.kill().await;
                 let _ = stderr_task.await;
-                return Ok(false);
+                return Err(SearchError::Cancelled);
             }
 
             let line = tokio::select! {
@@ -217,20 +225,19 @@ impl SearchRunner {
         let status = child.wait().await?;
         let stderr_output = stderr_task.await.unwrap_or_default();
 
-        if !limited
-            && !cancel.load(Ordering::Relaxed)
-            && !matches!(status.code(), Some(0) | Some(1))
-        {
-            let trimmed = stderr_output.trim();
-            let msg = if trimmed.is_empty() {
-                format!("ripgrep exited with code {:?}", status.code())
-            } else {
-                trimmed.to_string()
-            };
-            return Err(SearchError::Process(msg));
+        match (cancel.load(Ordering::Relaxed), limited, status.code()) {
+            (true, _, _) => Err(SearchError::Cancelled),
+            (_, true, _) | (_, _, Some(0 | 1)) => Ok(limited),
+            _ => {
+                let trimmed = stderr_output.trim();
+                let message = if trimmed.is_empty() {
+                    format!("ripgrep exited with code {:?}", status.code())
+                } else {
+                    trimmed.to_string()
+                };
+                Err(SearchError::Process(message))
+            }
         }
-
-        Ok(limited)
     }
 }
 
@@ -240,17 +247,78 @@ mod tests {
 
     #[test]
     fn test_search_options_args() {
-        let opt = SearchOptions {
-            query: "SourceBuffer".to_string(),
-            case_sensitive: true,
-            include_glob: "*.rs".to_string(),
-            ..Default::default()
-        };
+        for is_regex in [false, true] {
+            for case_sensitive in [false, true] {
+                let options = SearchOptions {
+                    query: "--help".into(),
+                    is_regex,
+                    case_sensitive,
+                    include_glob: "*.swift".into(),
+                    exclude_glob: "Tests/**".into(),
+                };
+                let args = options.build_arguments();
+                assert_eq!(&args[args.len() - 3..], ["--", "--help", "."]);
+                assert_eq!(args.iter().any(|arg| arg == "--fixed-strings"), !is_regex);
+                assert_eq!(
+                    args.iter().any(|arg| arg == "--case-sensitive"),
+                    case_sensitive
+                );
+                assert_eq!(
+                    args.iter().any(|arg| arg == "--ignore-case"),
+                    !case_sensitive
+                );
+                for glob in ["*.swift", "!Tests/**", "!.git/**", "!target/**"] {
+                    assert!(args.windows(2).any(|pair| pair == ["--glob", glob]));
+                }
+            }
+        }
+    }
 
-        let args = opt.build_arguments();
-        assert!(args.contains(&"--case-sensitive".to_string()));
-        assert!(args.contains(&"--fixed-strings".to_string()));
-        assert!(args.contains(&"*.rs".to_string()));
-        assert!(args.contains(&"SourceBuffer".to_string()));
+    #[tokio::test]
+    async fn streaming_search_caps_submatches_and_reports_cancellation() {
+        let owner = tempfile::tempdir().unwrap();
+        // The first case crosses the limit inside one JSON record.
+        // The cancellation cases cover launch, the final short batch and streaming.
+        for (line, repeats, cancel_after, expected_count) in [
+            ("needle needle needle\n", 2000, None, SEARCH_RESULT_LIMIT),
+            ("needle\n", 0, Some(0), 0),
+            ("needle\n", 10, Some(1), 10),
+            ("needle\n", 10000, Some(1), 40),
+        ] {
+            std::fs::write(owner.path().join("large.txt"), line.repeat(repeats)).unwrap();
+            let cancel = Arc::new(AtomicBool::new(cancel_after == Some(0)));
+            let mut matches = Vec::new();
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                SearchRunner::search(
+                    owner.path(),
+                    &SearchOptions {
+                        query: "needle".into(),
+                        ..Default::default()
+                    },
+                    Arc::clone(&cancel),
+                    |batch| {
+                        matches.extend(batch);
+                        if cancel_after.is_some_and(|count| matches.len() >= count) {
+                            cancel.store(true, Ordering::Relaxed);
+                        }
+                    },
+                ),
+            )
+            .await
+            .expect("search did not finish");
+            if cancel_after.is_some() {
+                assert!(matches!(result, Err(SearchError::Cancelled)), "{result:?}");
+            } else {
+                assert!(result.unwrap());
+            }
+            assert_eq!(matches.len(), expected_count);
+            let words_per_line = line.split_whitespace().count();
+            for (index, hit) in matches.iter().enumerate() {
+                assert_eq!(hit.path, "large.txt");
+                assert_eq!(hit.line, index / words_per_line + 1);
+                assert_eq!(hit.byte_offset, index * 7);
+            }
+        }
     }
 }

@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Repository search contracts](rust-search-contracts.md) reconcile all six Swift
+functions and fix the shared runner's successful cancellation result. Exact Unicode
+records, argument boundaries, no-match/error recovery and result caps are checked.
+Other suites and integrated acceptance remain open.
+
 [Files reveal contracts](rust-files-reveal-contracts.md) map the four Swift groups
 to accepted-source app outcomes. Extended bookmark/search/nested Before workflows
 pass without runtime changes; shared search-test completion removes a clone.

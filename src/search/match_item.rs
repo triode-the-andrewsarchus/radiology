@@ -150,4 +150,36 @@ mod tests {
         assert_eq!(m.byte_offset, 214);
         assert_eq!(m.preview, "    println!(\"hello\");");
     }
+
+    #[test]
+    fn unicode_submatches_keep_byte_columns_locations_and_distinct_ids() {
+        use base64::Engine;
+        for encoded in [false, true] {
+            let value = |text: &str| {
+                if encoded {
+                    serde_json::json!({"bytes": base64::engine::general_purpose::STANDARD.encode(text)})
+                } else {
+                    serde_json::json!({"text": text})
+                }
+            };
+            let event = serde_json::json!({
+                "type": "match", "data": {
+                    "path": value("./A.swift"), "lines": value("🙂 foo foo\r\n"),
+                    "line_number": 3, "absolute_offset": 30,
+                    "submatches": [{"start":5,"end":8},{"start":9,"end":12}]
+                }
+            });
+            let matches = SearchMatch::decode_rg_json_line(&event.to_string());
+            assert_eq!(matches.len(), 2);
+            for (hit, column, byte) in [(&matches[0], 6, 35), (&matches[1], 10, 39)] {
+                assert_eq!(hit.path, "A.swift");
+                assert_eq!(hit.line, 3);
+                assert_eq!(hit.column, column);
+                assert_eq!(hit.byte_offset, byte);
+                assert_eq!(hit.preview, "🙂 foo foo");
+                assert_eq!(hit.location(), SourceLocation::new("A.swift", byte));
+            }
+            assert_ne!(matches[0].id(), matches[1].id());
+        }
+    }
 }

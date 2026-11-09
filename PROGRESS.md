@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-08 — Explicit search cancellation and six search contracts (Codex)
+
+A direct runner regression reproduced cancellation being reported as successful
+`Ok(false)`. The shared runner now returns `SearchError::Cancelled` before launch,
+during streaming and after a final callback. One ordered completion match preserves
+normal/no-match/result-limit success and tool diagnostics. UI Stop continues to
+retire the existing publication channel and keep previously presented matches.
+No runtime helper, module, dependency or worker mechanism was added.
+
+All six Swift search functions now have explicit mappings. Two new matrix tests
+check exact Unicode text/base64 submatches, distinct IDs/locations and the 5,000
+result cap crossing inside a three-match JSON record, plus pre-launch/streaming/
+final-batch cancellation. Existing argument and real-rg session tests now check
+leading-dash boundaries, option combinations, exact emoji/case offsets and no-match
+recovery. All 28 search-filtered tests, strict Clippy, offline build and warning-free
+API docs pass. The locked offline serial workspace run passes 818 app tests/11
+existing ignored, two binary/13 font/22 text tests and all 61 doctests.
+
+Architecture +114 measured NLOC/two test functions; runner CCN 15→14. All full
+clone multisets, hotspots and cycles remain unchanged. The raw comparison flags only
+an unchanged decoder clone in a touched file.
+[Evidence and scope](plans/rust-search-contracts.md) identify two source-inspected
+next gaps in diff error handling and revision line mapping. Other suite reviews,
+final integration, concurrent timing limits and Android acceptance remain open.
+
 ## 2026-11-08 — Files reveal workflows and shared search test completion (Codex)
 
 Extended three existing Files app tests to map all four Swift reveal groups at the

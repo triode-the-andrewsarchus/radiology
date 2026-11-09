@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Repository search contracts](plans/rust-search-contracts.md) now map all six Swift
+functions. Shared-runner cancellation returns an explicit error, while UI Stop
+keeps its retired-channel behavior. Exact Unicode records, argument boundaries,
+no-match/error recovery and bounded multi-match result caps are checked. Other
+suites and final acceptance remain open.
+
 [Files reveal contracts](plans/rust-files-reveal-contracts.md) now map the four
 Swift groups to accepted-source Rust outcomes. Extended app tests cover real
 bookmark/ripgrep routes, preserved unrelated folders and nested deleted Before

@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn real_search_reports_glob_matches_and_regex_errors() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.rs"), "needle\nneedle\n").unwrap();
+        std::fs::write(dir.path().join("a.rs"), "🙂 needle\nNEEDLE\n").unwrap();
         std::fs::write(dir.path().join("b.txt"), "needle\n").unwrap();
         let mut search = RepositorySearch::default();
         search.start(
@@ -206,6 +206,25 @@ mod tests {
         finish_search(&mut search);
         assert!(search.error.is_none(), "{:?}", search.error);
         assert_eq!(search.matches.len(), 2);
+        assert_eq!(
+            search
+                .matches
+                .iter()
+                .map(|hit| (hit.path.as_str(), hit.line, hit.column, hit.byte_offset))
+                .collect::<Vec<_>>(),
+            [("a.rs", 1, 6, 5), ("a.rs", 2, 1, 12)]
+        );
+        search.start(
+            dir.path(),
+            SearchOptions {
+                query: "absent".into(),
+                ..Default::default()
+            },
+        );
+        finish_search(&mut search);
+        assert!(search.error.is_none());
+        assert!(search.matches.is_empty());
+        assert!(!search.limited);
         search.start(
             dir.path(),
             SearchOptions {
