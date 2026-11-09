@@ -3014,5 +3014,6 @@ mod change_blocks;
 
 mod critical_model;
 
+mod context_navigation;
 mod semantic_identity;
 mod semantic_navigation;

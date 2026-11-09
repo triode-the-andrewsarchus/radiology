@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Context navigation contracts](rust-context-navigation-contracts.md) now map all
+nine Swift groups. A real sidebar click exposed and repaired viewport departure
+for declaration links. Both-scale passive preview, named/keyboard/caller actions,
+exact Back/Forward, pending source ownership, coverage and Unicode caret checks
+pass. Separate ContextModel/reference suites and final acceptance remain open.
+
 [Generated semantic navigation](rust-semantic-navigation-contracts.md) now maps
 all four Swift groups. Explicit definition activation reports here/external
 failures without changing reader/history and uses Context's canonical resolver

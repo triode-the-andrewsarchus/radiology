@@ -283,6 +283,13 @@ activation and root replacement. Explicit external/definition-here errors now us
 the same destination choice as Context, independently of metadata publication.
 Other Context/navigation/reference/call-tree suites in this section remain open.
 
+[Context navigation](rust-context-navigation-contracts.md) reconciles all nine
+ContextNavigationTests groups, including the repaired declaration-link departure,
+real painted distant scrolling, passive Context/preview ownership, named/keyboard/
+caller activation, exact Back/Forward, accepted-source retirement and file coverage.
+The separate eighteen ContextModel groups and reference/call-tree/palette suites
+remain open.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

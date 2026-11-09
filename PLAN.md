@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Context navigation contracts](plans/rust-context-navigation-contracts.md) now map
+all nine Swift groups. The actual declaration link now records the exact caret
+instead of the scrolled viewport; both-scale passive preview, reference/caller
+activation, held publication, file coverage and Unicode-caret scrolling checks
+pass. Separate ContextModel/reference suites and final acceptance stay open.
+
 [Generated semantic navigation](plans/rust-semantic-navigation-contracts.md) maps
 all four Swift groups. Go to Definition now explains external and current
 local definitions consistently before/after metadata publication. Both-scale

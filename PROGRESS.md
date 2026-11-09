@@ -1,5 +1,45 @@
 # Progress
 
+## 2026-11-09 — Context navigation and exact declaration departure (Codex)
+
+All nine Swift ContextNavigationTests groups now have explicit evidence. An actual
+sidebar click after scrolling to line 120 returned Back to viewport byte 4453
+instead of body-caret byte 183. Removing the inspector declaration action's
+reading-departure flag restores the existing exact-caret transaction; reveal,
+flash and history publication remain shared. No new runtime helper/API/dependency.
+
+Three both-scale app tests use real Swift index data. They check passive token/
+declaration updates, unchanged source/history/viewport/restoration, cross-file
+preview and disclosure, named-row override of keyboard selection, invalid-row
+rejection, source/caller preparation, keyboard/caller commits and exact Back/
+Forward. The real scrolled inspector definition/declaration actions return to
+8:21 and 7:10. Held source publication hides transient Context while retaining
+the accepted reader internally; acceptance restores the new declaration. Real
+Cargo file coverage differs from an unindexed Rust repository, where a keyboard
+caret after emoji and a distant rendered scroll retain the enclosing function.
+A draft test incorrectly retained an Arc across Back; final passive checks capture
+the active accepted buffer each time, allowing validated fresh reads.
+
+Focused tests, strict all-target Clippy, normal build and warning-free docs pass.
+The locked offline full run passes 873 app tests (11 existing opt-in ignored),
+two binary/13 font/22 text checks and all 66 doctests. Workspace builds use -j 1
+with serial tests; normal half-core configuration remains 16 jobs. The separate
+parallel timing/linking investigation is still open.
+Architecture +265 measured NLOC/three tests/one focused file, one production flag
+removed; average/max CCN 3.42/132, 36 hotspots and cycles stay unchanged. Full clone
+multisets are identical (124 instances, zero additions/removals). The raw old
+app/tests.rs clone flag and equal-score Python chokepoint exchanges are unchanged
+debt, not introduced code. Existing fixtures, input, Context/disclosure/reference,
+source publication, viewport and exact-caret navigation mechanisms are reused.
+[Contract mapping](plans/rust-context-navigation-contracts.md), PLAN and behavior/
+parity indexes record archive
+`~/.local/state/radiology-qa/context-navigation-20261109-847e1f0/`.
+
+Next: eighteen ContextModel groups, reference/call-tree/palette assertions,
+source/syntax, compiler/indexing and inspector reconciliation, then final native/
+standalone acceptance. Known parallel timing/linking limits and Android remain
+open. Full accessibility and actual sibling-app integration remain deferred.
+
 ## 2026-11-09 — Generated semantic navigation and failure feedback (Codex)
 
 All four Swift SemanticNavigationTests groups now have explicit mapping. A new
