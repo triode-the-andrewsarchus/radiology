@@ -19,7 +19,11 @@ while [ "$#" -gt 0 ]; do case "$1" in --index-output-path) shift; output=$1;; es
 base=$(/usr/bin/dirname "$0")
 printf '%s\n' "$@" > "$base/curl-args"
 if [ -f "$base/download-fails" ]; then echo 'controlled download failure' >&2; exit 22; fi
-if [ -f "$base/pause" ]; then printf '%s' "$$" > "$base/paused.pid"; exec /bin/sleep 30; fi
+if [ -f "$base/pause" ]; then
+    printf '%s' "$$" > "$base/child.pid"
+    printf '%s' "$PPID" > "$base/paused.pid"
+    exec /bin/sleep 30
+fi
 for destination do :; done
 /bin/cp "$base/clang-download" "$destination"
 "#,

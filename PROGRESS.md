@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-09 — Installer child-versus-descendant interruption checks (Codex)
+
+The Clang fixture had required curl's PID to disappear immediately after joining
+the installer. The runner kills the process group and waits for its direct shell;
+curl is a descendant whose new parent may reap it later. The failed full run did
+not capture that PID's state, so its precise cause is not retrospectively proven.
+The fixture now records both shell and curl: the unchanged shared interruption
+helper strictly requires the shell PID to be reaped (ESRCH), and the existing
+Linux descendant check separately requires curl to terminate for both cancel and
+timeout. A live descendant still fails within two seconds. Preserved executable,
+fresh retry, and staging cleanup assertions remain in the same interruption loop.
+
+The process group's existing descendant helper moves into Linux-only shared test
+support and is reused by its original tests and provisioning. Production process
+cleanup is unchanged. Eleven process and thirteen provisioning tests pass, as does
+strict all-target Clippy. The fresh locked/offline serial workspace run passes
+885 app tests (eleven existing opt-in ignores), two binary/13 font/22 text tests
+and all 66 doctests. This also verifies the committed same-file preview changes.
+Compilation uses -j 1 with serial tests; normal half-core jobs=16 is unchanged.
+Architecture +14 measured NLOC/two measured functions/one test-support file,
+unchanged average/max CCN 3.42/132, 36 hotspots and cycles. Complete normalized
+124-instance clone multisets have zero additions/removals. Raw preview clone flags
+refer to unchanged pre-existing content.
+[Contract/evidence](plans/rust-installer-process-contract.md); archive
+`~/.local/state/radiology-qa/memory-preview-20261109-1511674/`.
+
+Next: complete ContextModel/reference/call-tree/palette, source/syntax, compiler/
+indexing and inspector reconciliation and final native/standalone acceptance.
+Known parallel timing/linking limits and Android remain open. Full accessibility
+and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Immediate same-file definition previews (Codex)
 
 Cold same-file previews now reuse the accepted buffer and prepared outline when

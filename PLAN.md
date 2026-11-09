@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Installer interruption checks](plans/rust-installer-process-contract.md) now
+distinguish strictly reaped direct shells from terminated curl descendants,
+reusing the existing process-group check. Focused tests, strict Clippy and the
+fresh complete workspace run pass (885 app tests and all 66 doctests).
+
 [Prepared same-file previews](plans/rust-memory-definition-previews.md) now use
 accepted source/outline facts as soon as symbol metadata publishes, with no second
 worker, parse, disk read or mutex wait. Source ownership/range checks and bounded

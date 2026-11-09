@@ -505,3 +505,6 @@ fn run_inner(
 
 #[cfg(all(test, unix))]
 mod tests;
+
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod test_support;

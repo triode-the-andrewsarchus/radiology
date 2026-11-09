@@ -63,9 +63,12 @@ locked/offline serial workspace attempt reaches 884 passing app tests and eleven
 existing ignored checks, with one failure in the existing Clang provisioning
 interruption test: its curl descendant PID is still present immediately after
 joining the installer. That test passes in isolation. The workspace stopped there,
-so this checkpoint does not claim a full workspace pass. Process cleanup and the
+so that initial attempt does not establish a full workspace pass. Process cleanup and the
 test's direct-child-versus-descendant contract need separate follow-up; the new
-preview tests passed in the full attempt.
+preview tests passed in the full attempt. The subsequent
+[installer process-contract correction](rust-installer-process-contract.md)
+passes the fresh complete workspace run, including all 885 app tests and 66
+doctests, and verifies this same preview implementation.
 
 Architecture adds 289 measured NLOC/seven functions and no files. The additions
 are the prepared request route, one shared publication path, reusable test waits/

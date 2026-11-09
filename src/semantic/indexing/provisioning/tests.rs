@@ -228,6 +228,12 @@ fn interrupted_installation(fixture: &Fixture, indexer: Indexer) {
         crate::pull_request::test_support::interrupted(&control, &marker, timeout, || {
             install(request, &cancel, &Mutex::new(String::new()))
         });
+        #[cfg(target_os = "linux")]
+        if indexer == Indexer::Clang {
+            // paused.pid names the direct installer shell; curl is its child.
+            // Keep strict shell reaping and separately require curl termination.
+            crate::process::test_support::assert_child_stopped(&fixture.bin);
+        }
         assert_eq!(fs::read(&executable).unwrap(), previous);
         // A fresh request must recover after descriptor retirement, including
         // concurrent fork/exec; an instantaneous nonblocking probe is too strict.
