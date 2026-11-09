@@ -17,9 +17,12 @@ fn fold_only_counts_bind_to_exact_bytes_and_revision_and_keep_coverage_detail() 
     let (_dir, inputs) = fixture();
     let folds = DocumentSyntax::analyze(&inputs.buffer).folds;
     let mut entries = BTreeMap::new();
-    compute(inputs.clone(), &folds, &AtomicBool::new(false), |batch| {
-        entries.extend(batch)
-    })
+    compute(
+        inputs.clone(),
+        folded_scopes(&inputs.calls, &folds),
+        &AtomicBool::new(false),
+        |batch| entries.extend(batch),
+    )
     .unwrap();
     let result = SourceAnnotations {
         buffer: inputs.buffer.clone(),
@@ -40,10 +43,12 @@ fn fold_only_counts_bind_to_exact_bytes_and_revision_and_keep_coverage_detail() 
     )
     .unwrap();
     assert!(result.at_line(&before, 1).is_none());
-    assert!(compute(inputs, &[], &AtomicBool::new(true), |_| panic!(
-        "cancelled publication"
-    ))
-    .is_err());
+    assert!(
+        compute(inputs, BTreeMap::new(), &AtomicBool::new(true), |_| panic!(
+            "cancelled publication"
+        ))
+        .is_err()
+    );
 }
 
 #[test]
@@ -108,9 +113,12 @@ fn six_function_batches_publish_before_completion_and_cancellation_stops_later_r
     let (inputs, folds) = seven_scopes();
     assert_eq!(folds.len(), 7);
     let mut batches = Vec::new();
-    compute(inputs.clone(), &folds, &AtomicBool::new(false), |batch| {
-        batches.push(batch)
-    })
+    compute(
+        inputs.clone(),
+        folded_scopes(&inputs.calls, &folds),
+        &AtomicBool::new(false),
+        |batch| batches.push(batch),
+    )
     .unwrap();
     assert_eq!(
         batches.iter().map(BTreeMap::len).collect::<Vec<_>>(),
@@ -133,7 +141,8 @@ fn six_function_batches_publish_before_completion_and_cancellation_stops_later_r
         .all(|value| value.count.label() == "0"));
     let cancel = AtomicBool::new(false);
     let mut first = None;
-    assert!(compute(inputs, &folds, &cancel, |batch| {
+    let targets = folded_scopes(&inputs.calls, &folds);
+    assert!(compute(inputs, targets, &cancel, |batch| {
         assert!(first.is_none(), "no publication after cancellation");
         first = Some(batch);
         cancel.store(true, Ordering::Relaxed);
@@ -159,7 +168,8 @@ fn completed_counts_are_visible_during_a_live_job_and_survive_a_later_failure() 
     let (published, observed) = mpsc::channel();
     let (release, proceed) = mpsc::channel();
     service.job.spawn(move |cancel| {
-        compute(inputs, &folds, cancel, |batch| {
+        let targets = folded_scopes(&inputs.calls, &folds);
+        compute(inputs, targets, cancel, |batch| {
             pending.publish(batch);
             published.send(()).unwrap();
             proceed.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -220,7 +230,8 @@ fn late_progress_from_a_retired_request_cannot_overwrite_a_new_policy() {
     let old_inputs = inputs.clone();
     let old_folds = folds.clone();
     service.job.spawn(move |cancel| {
-        let result = compute(old_inputs, &old_folds, cancel, |batch| {
+        let targets = folded_scopes(&old_inputs.calls, &old_folds);
+        let result = compute(old_inputs, targets, cancel, |batch| {
             published.send(()).unwrap();
             proceed.recv_timeout(Duration::from_secs(5)).unwrap();
             retired.publish(batch);
@@ -263,7 +274,8 @@ fn shared_header_counts_bind_to_callable_body_ranges_instead_of_the_container() 
     inputs.buffer = buffer.clone();
     inputs.calls = Arc::new(syntax.calls);
     let mut entries = BTreeMap::new();
-    compute(inputs, &syntax.folds, &AtomicBool::new(false), |batch| {
+    let targets = folded_scopes(&inputs.calls, &syntax.folds);
+    compute(inputs, targets, &AtomicBool::new(false), |batch| {
         entries.extend(batch)
     })
     .unwrap();
@@ -283,5 +295,34 @@ fn shared_header_counts_bind_to_callable_body_ranges_instead_of_the_container() 
             counts.at_range(&buffer, &fold.byte_range).is_some(),
             fold.kind == crate::syntax::FoldKind::Callable
         );
+    }
+}
+
+#[test]
+fn sources_without_folded_callable_bodies_never_schedule_annotation_work() {
+    let (original, folds) = seven_scopes();
+    for text in [
+        "trait API { fn operation(&self); }",
+        "trait API {\n fn operation(&self);\n}\n",
+        "impl API {\n fn operation(&self) {}\n}\n",
+        "enum Value {\n First,\n Second,\n}\n",
+    ] {
+        let mut service = CriticalAnnotations::default();
+        service.start(original.clone(), folds.clone());
+        settle(&mut service);
+        assert!(service.current(&original.buffer).is_some());
+        let buffer = Arc::new(SourceBuffer::from_str("abstract.rs", text));
+        let syntax = DocumentSyntax::analyze(&buffer);
+        let mut next = original.clone();
+        next.source = crate::source::loader::SourceRead::Buffer(buffer.clone());
+        next.buffer = buffer.clone();
+        next.calls = Arc::new(syntax.calls);
+        service.start(next, syntax.folds);
+        assert!(!service.is_running(), "no fold-count consumer: {text}");
+        assert!(service.pending.is_none());
+        assert!(service.current(&buffer).is_none());
+        assert!(service.current(&original.buffer).is_none());
+        service.poll();
+        assert!(service.error().is_none());
     }
 }

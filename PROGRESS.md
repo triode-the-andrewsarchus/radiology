@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-09 — Critical summary scheduling and hover transit (Codex)
+
+Red regressions found unnecessary annotation jobs for sources with no folded
+callable body and premature popup closure in the source-to-popup gap. Scheduling
+now selects exact callable body folds before allocating progress/worker state.
+Source glyph geometry reuses the existing match-rectangle path; transit follows
+the displayed anchor/popup union with six-point padding. Popup serial ownership
+freezes that anchor until replacement dwell finishes, avoiding pending-anchor
+capture. Dwell/grace and source-click dismissal retain their existing behavior.
+
+Four Swift summary-model and two popup-host groups now have explicit mapping.
+Both-scale app tests use Swift's wire fixture to preserve reference selection,
+disclosure, definition state, caret and history through mode changes; marks change
+counts one/zero/one, caret keys reuse graph inputs, and selected-reference navigation
+still returns to the exact departure caret. Source frames exercise Loading/Ready
+identity, popup padding/gap, distant dismissal, reopening and definition clicks.
+The first worker group uses the same fixture for cross-file bodies, cache retention,
+ordinary traversal and external no-body state. Four worker and three drawing
+groups remain open; this is egui evidence, not a fresh native/AppKit acceptance run.
+
+All 54 service tests, nine app/popup checks, named transit ownership regression,
+strict all-target Clippy, normal build and warning-free API docs pass.
+The full locked offline workspace run passes 854 app tests (11 existing ignored),
+two binary/13 font/22 text tests and all 65 doctests. It uses one Cargo build job
+and serial tests after the prior checkpoint's unconfirmed parallel-link SIGBUS;
+normal half-core Cargo configuration remains 16 jobs.
+Architecture +386 measured NLOC/six functions: one private production selector,
+one shared fixture helper and four tests. Complete clone multisets remain identical
+at 122 instances; average/max CCN, 36 hotspots and cycles are unchanged. Existing
+matching, worker, source geometry and test fixtures are reused.
+[Summary/hover mapping](plans/rust-critical-summary-contracts.md), PLAN, behavior
+index and parity ledger record the scope and archive
+`~/.local/state/radiology-qa/critical-summary-20261109-8441a22/`.
+Other suites, final whole-app acceptance, known parallel timing limits and Android
+remain open. Full accessibility and actual sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Critical Lens model/projection parity (Codex)
 
 A red app regression confirmed unsupported Cargo.toml still published an empty

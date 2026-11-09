@@ -204,8 +204,15 @@ status. Other model, worker and hover rows still need their remaining audit.
 [Model/projection reconciliation](rust-critical-model-projection-contracts.md)
 now maps four CriticalLensModelTests and three CriticalProjectionTests groups.
 It fixes unsupported-source publication and strengthens combined app, persistence,
-real-fixture and byte-ownership checks. Drawing, worker and summary/hover rows
-remain subject to their separate remaining audit.
+real-fixture and byte-ownership checks. Summary/hover are reconciled below;
+drawing and the remaining worker groups retain their separate audit.
+
+[Summary/hover reconciliation](rust-critical-summary-contracts.md) now maps all
+four CriticalSummaryModelTests and both HoverPopoverInteractionTests groups,
+including no-consumer scheduling, real-fixture count/reference stability, actual
+gap/padding hit regions and presented-anchor ownership during replacement dwell.
+The first CallGraphWorkerTests group uses the same wire fixture; its remaining
+four groups and all three drawing groups still require their separate audit.
 
 ## Code Paths
 

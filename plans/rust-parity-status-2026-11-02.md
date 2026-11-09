@@ -6,10 +6,17 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Critical summary/hover contracts](rust-critical-summary-contracts.md) now map
+four summary-model and two popup-host groups, plus the first worker group. No-fold
+sources schedule no annotation work; glyph-anchored transit stays attached to the
+presented popup until replacement dwell finishes. Four worker and three drawing
+groups remain open, along with other suites and final acceptance.
+
 Seven [Critical model/projection groups](rust-critical-model-projection-contracts.md)
 are now reconciled. Unsupported files stop app projection work, while decoded-index
 constant/caret flows and Swift's actual Rust-analyzer fixture establish the model
-and byte-range contracts. Summary/hover/worker/drawing acceptance remains open.
+and byte-range contracts. Summary/hover are reconciled above; remaining worker/
+drawing and final acceptance stay open.
 
 The [frontier audit](rust-critical-frontier-contracts.md) closes all three Swift
 reachability groups and repairs false proven-zero results from independently

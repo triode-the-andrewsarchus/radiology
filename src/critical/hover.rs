@@ -106,6 +106,7 @@ impl CriticalHover {
 
     /// Advances pointer tracking, deadlines and worker publication.
     ///
+    /// `popup_hovered` also covers the host's source-to-popup transit region.
     /// `interrupted` means a source/outside click, key or scroll. It suppresses
     /// reopening at the same idle byte until a subsequent pointer movement.
     /// Returns whether popup content/visibility changed and needs repainting.

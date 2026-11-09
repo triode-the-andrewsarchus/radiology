@@ -122,3 +122,124 @@ fn noncall_marks_mode_toggles_and_caret_frames_preserve_the_reader_at_both_scale
         assert_eq!(std::fs::read_to_string(root.join("a.rs")).unwrap(), text);
     }
 }
+
+#[test]
+fn summary_modes_preserve_loaded_references_and_caret_moves_keep_count_inputs() {
+    use crate::ui::reference_list::ReferenceAction;
+    let owner = crate::semantic::test_support::scip_rust_fixture();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) = checkout_context(owner.path(), "src/lib.rs", scale);
+        let source = app.open_buffer.clone().unwrap();
+        let area = source.text.find("area()").unwrap();
+        app.navigate(source.location_at_byte(area), false);
+        settle_frame(&mut app, &ctx);
+        app.find_references_at_caret();
+        settle_frame(&mut app, &ctx);
+        let row = app
+            .reference_context
+            .results
+            .hits
+            .iter()
+            .position(|hit| hit.is_definition)
+            .unwrap();
+        app.reference_context.select(row);
+        app.reference_context.expand(row, true);
+        settle_frame(&mut app, &ctx);
+        app.definition_expanded = true;
+        let references = app.reference_context.results.clone();
+        let disclosure = app.reference_context.disclosures[&row].phase().clone();
+        let under_caret = app.under_caret.clone();
+        let definition = app.definition_identity.clone();
+        let history = format!("{:?}", app.history);
+        let caret = (app.caret_line, app.caret_col);
+        for mode in [
+            SourceMode::Critical,
+            SourceMode::Normal,
+            SourceMode::Critical,
+        ] {
+            app.set_source_mode(mode);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.reference_context.results, references);
+            assert_eq!(app.reference_context.selected, Some(row));
+            assert_eq!(app.reference_context.disclosures[&row].phase(), &disclosure);
+            assert!(app.definition_expanded);
+            assert_eq!(app.under_caret, under_caret);
+            assert_eq!(app.definition_identity, definition);
+            assert_eq!(format!("{:?}", app.history), history);
+            assert_eq!((app.caret_line, app.caret_col), caret);
+            assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &source));
+            if mode == SourceMode::Normal {
+                assert!(app.critical_annotations().is_none());
+            } else {
+                assert_eq!(
+                    app.critical_annotations()
+                        .unwrap()
+                        .at_line(&source, 5)
+                        .unwrap()
+                        .count
+                        .label(),
+                    "1"
+                );
+            }
+        }
+        for (decision, expected) in [(Some(Criticality::Ordinary), "0"), (None, "1")] {
+            let symbol = app.under_caret.as_ref().unwrap().id.symbol.clone();
+            assert!(app.apply_critical_mark(MarkEdit {
+                target: MarkTarget::Symbol(symbol),
+                decision
+            }));
+            assert!(app.critical_annotations().is_none());
+            settle_frame(&mut app, &ctx);
+            assert_eq!(
+                app.critical_annotations()
+                    .unwrap()
+                    .at_line(&source, 5)
+                    .unwrap()
+                    .count
+                    .label(),
+                expected
+            );
+        }
+        let inputs = app.critical_graph_inputs.clone().unwrap();
+        let counts = app.critical_lens.cache_counts();
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![]);
+        for _ in 0..2 {
+            frame(
+                &mut app,
+                &ctx,
+                vec![key(egui::Key::ArrowRight, egui::Modifiers::NONE)],
+            );
+        }
+        let departure = app
+            .open_buffer
+            .as_ref()
+            .unwrap()
+            .location_at_byte(source.byte_offset(app.caret_line, app.caret_col));
+        assert!(Arc::ptr_eq(
+            app.critical_graph_inputs.as_ref().unwrap(),
+            &inputs
+        ));
+        assert_eq!(app.critical_lens.cache_counts(), counts);
+        assert_eq!(app.reference_context.results, references);
+        assert_eq!(app.reference_context.selected, Some(row));
+        app.handle_reference_action(ReferenceAction::Commit(Some(row)));
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.selected_path.as_deref(), Some("src/shapes.rs"));
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(
+            app.open_buffer
+                .as_ref()
+                .unwrap()
+                .location_at_byte(source.byte_offset(app.caret_line, app.caret_col)),
+            departure
+        );
+        app.open_file("Cargo.toml");
+        settle_frame(&mut app, &ctx);
+        assert!(app.critical_annotations().is_none());
+        app.open_repository(owner.path());
+        settle_frame(&mut app, &ctx);
+        assert!(app.critical_annotations().is_none() && app.critical_graph_inputs.is_none());
+    }
+}

@@ -5,7 +5,11 @@ use super::{
     worker::{CallGraphWorker, GraphInputs},
     CountAnnotation,
 };
-use crate::{background::LatestRead, source::SourceBuffer, syntax::FoldRange};
+use crate::{
+    background::LatestRead,
+    source::SourceBuffer,
+    syntax::{calls::CallSites, FoldRange},
+};
 use std::{
     collections::BTreeMap,
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -87,15 +91,21 @@ pub struct CriticalAnnotations {
 
 impl CriticalAnnotations {
     /// Schedules a fold-only sweep on the existing bounded read-worker pool.
+    ///
+    /// Sources without a folded callable body retire old counts without starting work.
     pub fn start(&mut self, inputs: GraphInputs, folds: Vec<FoldRange>) {
         self.stop();
+        let targets = folded_scopes(&inputs.calls, &folds);
+        if targets.is_empty() {
+            return;
+        }
         let pending = PendingCounts {
             buffer: inputs.buffer.clone(),
             entries: Default::default(),
         };
         self.pending = Some(pending.clone());
         self.job
-            .spawn(move |cancel| compute(inputs, &folds, cancel, |batch| pending.publish(batch)));
+            .spawn(move |cancel| compute(inputs, targets, cancel, |batch| pending.publish(batch)));
     }
 
     /// Retires pending work and all publications when any captured input changes.
@@ -162,16 +172,12 @@ impl CriticalAnnotations {
     }
 }
 
-fn compute(
-    inputs: GraphInputs,
-    folds: &[FoldRange],
-    cancel: &AtomicBool,
-    mut publish: impl FnMut(BTreeMap<(usize, usize), FoldAnnotation>),
-) -> Result<(), String> {
-    check_cancel(cancel)?;
+fn folded_scopes(calls: &CallSites, folds: &[FoldRange]) -> BTreeMap<(usize, usize), usize> {
+    if folds.is_empty() {
+        return BTreeMap::new();
+    }
     let mut scopes = BTreeMap::new();
-    for (i, scope) in inputs
-        .calls
+    for (i, scope) in calls
         .scopes
         .iter()
         .enumerate()
@@ -184,16 +190,29 @@ fn compute(
             ))
             .or_insert(i);
     }
+    folds
+        .iter()
+        .filter_map(|fold| {
+            let key = (fold.byte_range.start, fold.byte_range.end);
+            scopes.get(&key).map(|&scope| (key, scope))
+        })
+        .collect()
+}
+
+fn compute(
+    inputs: GraphInputs,
+    targets: BTreeMap<(usize, usize), usize>,
+    cancel: &AtomicBool,
+    mut publish: impl FnMut(BTreeMap<(usize, usize), FoldAnnotation>),
+) -> Result<(), String> {
+    check_cancel(cancel)?;
     let mut worker = CallGraphWorker::new(inputs);
     let mut entries = BTreeMap::new();
-    for fold in folds {
+    for (range, scope) in targets {
         check_cancel(cancel)?;
-        let Some(&scope) = scopes.get(&(fold.byte_range.start, fold.byte_range.end)) else {
-            continue;
-        };
         let frontier = worker.frontier_in_source(scope, cancel)?;
         entries.insert(
-            (fold.byte_range.start, fold.byte_range.end),
+            range,
             FoldAnnotation {
                 count: frontier.annotation(),
                 detail: frontier.status_detail(),

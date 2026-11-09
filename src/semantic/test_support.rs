@@ -2,7 +2,7 @@
 
 use super::{ScipOccurrence, ScipRange};
 use crate::source::SourceBuffer;
-use std::ops::Range;
+use std::{ops::Range, path::Path};
 
 pub(crate) fn occurrence(
     buffer: &SourceBuffer,
@@ -42,4 +42,16 @@ pub(crate) fn cancel_at(
     step: usize,
 ) -> impl Fn() -> bool + Sync + '_ {
     move || checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1 == step
+}
+
+/// Copies the checked-in Swift Rust-analyzer fixture into an isolated checkout.
+pub(crate) fn scip_rust_fixture() -> tempfile::TempDir {
+    let owner = tempfile::tempdir().unwrap();
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("Tests/RadiologyTests/Fixtures/scip-rust");
+    std::fs::create_dir(owner.path().join("src")).unwrap();
+    for path in ["Cargo.toml", "index.scip", "src/lib.rs", "src/shapes.rs"] {
+        std::fs::copy(fixture.join(path), owner.path().join(path)).unwrap();
+    }
+    owner
 }

@@ -27,7 +27,7 @@ fn document(buffer: &SourceBuffer, names: &[(&str, &str)]) -> ScipDocument {
     document
 }
 
-pub(in crate::critical) fn fixture() -> (tempfile::TempDir, GraphInputs) {
+pub(crate) fn fixture() -> (tempfile::TempDir, GraphInputs) {
     let dir = tempfile::tempdir().unwrap();
     let root = Arc::new(SourceBuffer::from_str(
         "a.rs",
@@ -285,4 +285,72 @@ fn retired_or_expired_file_reads_do_not_poison_a_later_frontier() {
         .unwrap();
     assert_eq!(result.annotation().label(), "1");
     assert!(worker.files["b.rs"].is_ok());
+}
+
+#[test]
+fn swift_fixture_resolves_cross_file_bodies_cache_and_ordinary_marks() {
+    let owner = crate::semantic::test_support::scip_rust_fixture();
+    let buffer = Arc::new(
+        SourceBuffer::from_bytes(
+            "src/lib.rs",
+            std::fs::read(owner.path().join("src/lib.rs")).unwrap(),
+            None,
+        )
+        .unwrap(),
+    );
+    let index = SemanticIndex::from_scip(
+        ScipIndex::decode(&std::fs::read(owner.path().join("index.scip")).unwrap()).unwrap(),
+    );
+    let mut inputs = GraphInputs {
+        source: SourceRead::Checkout(owner.path().into()),
+        calls: Arc::new(DocumentSyntax::analyze(&buffer).calls),
+        buffer,
+        index: Arc::new(index),
+        overrides: Default::default(),
+    };
+    let cancel = AtomicBool::new(false);
+    let mut worker = CallGraphWorker::new(inputs.clone());
+    let root = worker.frontier_in_source(0, &cancel).unwrap();
+    assert_eq!(root.status_line(), "1 direct · complete");
+    assert_eq!(root.summary.calls.len(), 1);
+    let area = &root.summary.calls[0];
+    assert_eq!(area.display_name, "area");
+    assert_eq!(
+        area.classification.reason,
+        crate::critical::CriticalityReason::RepositoryDefinition
+    );
+    assert_eq!(area.definition.as_ref().unwrap().path, "src/shapes.rs");
+    assert_eq!(area.site_count, 1);
+    let frontier = worker.frontier_of(&area.callee, &cancel).unwrap();
+    assert_eq!(
+        frontier.summary.body.as_ref().unwrap().path,
+        "src/shapes.rs"
+    );
+    assert!(frontier.summary.calls.is_empty());
+    assert_eq!(frontier.annotation().label(), "0");
+    let bytes = worker.source_bytes;
+    let path = owner.path().join("src/shapes.rs");
+    let original = std::fs::read(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(worker.frontier_of(&area.callee, &cancel).unwrap(), frontier);
+    assert_eq!(worker.source_bytes, bytes);
+    std::fs::write(path, original).unwrap();
+    inputs
+        .overrides
+        .set_symbol(&area.callee.symbol, Some(Criticality::Ordinary));
+    let mut marked = CallGraphWorker::new(inputs);
+    let root = marked.frontier_in_source(0, &cancel).unwrap();
+    assert!(root.paths.is_empty());
+    assert_eq!(root.traversed_bodies, 1);
+    assert_eq!(root.annotation().label(), "0");
+    let external = marked
+        .frontier_of(
+            &SemanticSymbolID::new("rust-analyzer cargo core . option/Option#unwrap().", ""),
+            &cancel,
+        )
+        .unwrap();
+    assert_eq!(
+        external.coverage,
+        CallCoverage::NoBody(NoBodyReason::External)
+    );
 }

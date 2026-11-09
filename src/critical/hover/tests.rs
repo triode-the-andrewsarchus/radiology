@@ -52,14 +52,16 @@ fn popup_entry_and_anchor_return_cancel_grace_and_interruptions_suppress_idle_re
     let (_dir, inputs) = fixture();
     let byte = inputs.buffer.text.find("helper").unwrap();
     let mut hover = CriticalHover::default();
-    hover.configure(Some(Arc::new(inputs)));
+    hover.configure(Some(Arc::new(inputs.clone())));
     hover.update(Some(byte), false, false, 0.0);
     hover.update(Some(byte), false, false, 0.4);
     ready(&mut hover, byte, 0.4);
     hover.update(None, false, false, 0.5);
     hover.update(None, true, false, 1.1);
-    hover.update(None, true, false, 2.0);
-    assert!(hover.presentation().is_some());
+    let serial = hover.presentation().unwrap().serial;
+    let other_callable = inputs.buffer.text.find("root").unwrap();
+    hover.update(Some(other_callable), true, false, 2.0);
+    assert_eq!(hover.presentation().unwrap().serial, serial);
     hover.update(None, false, false, 2.1);
     hover.update(Some(byte), false, false, 2.7);
     assert!(hover.presentation().is_some());
@@ -102,13 +104,24 @@ fn leaving_before_dwell_and_reconfiguration_retire_pending_and_loaded_presentati
 fn external_critical_is_honest_while_plumbing_locals_stale_and_before_do_not_open() {
     let (_dir, inputs) = fixture();
     let byte = inputs.buffer.text.find("helper").unwrap();
-    for (symbol, expected) in [
-        ("rust-analyzer cargo std 0 fs/open().", true),
-        ("rust-analyzer cargo core 0 clone().", false),
-        ("rust-analyzer cargo thirdparty 0 unknown().", false),
-        ("local 0", false),
+    for (symbol, mark, expected) in [
+        ("rust-analyzer cargo std 0 fs/open().", None, true),
+        ("rust-analyzer cargo core 0 clone().", None, false),
+        (
+            "rust-analyzer cargo core 0 clone().",
+            Some(Criticality::Critical),
+            true,
+        ),
+        ("rust-analyzer cargo thirdparty 0 unknown().", None, false),
+        ("local 0", None, false),
+        (
+            "rust-analyzer cargo core . f64/consts/PI.",
+            Some(Criticality::Critical),
+            false,
+        ),
     ] {
         let mut next = inputs.clone();
+        next.overrides.set_symbol(symbol, mark);
         Arc::make_mut(&mut next.index)
             .documents
             .get_mut("a.rs")

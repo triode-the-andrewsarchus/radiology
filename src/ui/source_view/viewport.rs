@@ -73,7 +73,7 @@ pub struct SourceViewport {
     hover: crate::critical::hover::CriticalHover,
     hover_popup: crate::ui::critical_hover::HoverPopup,
     hover_pointer: Option<usize>,
-    hover_origin: egui::Pos2,
+    hover_anchor: Option<Rect>,
     preview: Option<(String, String, usize)>,
     restore: Option<(String, String, usize)>,
     destination: super::destination::DestinationFeedback,
@@ -443,9 +443,12 @@ impl SourceViewport {
     }
 
     fn show_hover(&mut self, ui: &Ui, theme: &AppTheme) -> Option<SourceViewAction> {
-        let popup = self
-            .hover_popup
-            .show(ui.ctx(), &self.hover, self.hover_origin, theme);
+        let popup = self.hover_popup.show(
+            ui.ctx(),
+            &self.hover,
+            self.hover_anchor.unwrap_or(Rect::ZERO),
+            theme,
+        );
         let interrupted = ui.input(|input| {
             (input.pointer.any_pressed() && !popup.hovered)
                 || input.raw_scroll_delta != egui::Vec2::ZERO
@@ -457,10 +460,12 @@ impl SourceViewport {
                 })
         });
         let now = ui.input(|input| input.time);
-        if self
-            .hover
-            .update(self.hover_pointer, popup.hovered, interrupted, now)
-        {
+        if self.hover.update(
+            self.hover_pointer,
+            popup.hovered || popup.in_transit,
+            interrupted,
+            now,
+        ) {
             ui.ctx().request_repaint();
         }
         if let Some(destination) = popup.destination {
@@ -857,23 +862,25 @@ impl SourceViewport {
     fn track_hover_geometry(
         &mut self,
         hit: Option<(usize, f32)>,
-        galley: &egui::Galley,
+        galley: &reader_fonts::EmojiGalley,
         origin: egui::Pos2,
         part: &SourceFragment,
         buffer: &SourceBuffer,
     ) {
-        let Some((byte, x)) = hit else {
+        let Some((byte, _)) = hit else {
             return;
         };
         self.hover_pointer = Some(byte);
-        if self
+        if let Some(range) = self
             .hover
             .anchor_range()
-            .is_some_and(|range| range.contains(&byte))
+            .filter(|range| range.contains(&byte))
         {
-            let chars = part.char_index(&buffer.text, byte);
-            let cursor = galley.pos_from_ccursor(egui::text::CCursor::new(chars));
-            self.hover_origin = pos2(x, origin.y + cursor.bottom());
+            let mut anchor = Rect::NOTHING;
+            for_each_match_rect(galley, origin, part, &buffer.text, range.clone(), |rect| {
+                anchor = anchor.union(rect);
+            });
+            self.hover_anchor = anchor.is_finite().then_some(anchor);
         }
     }
 
@@ -5133,17 +5140,67 @@ mod tests {
         reader.now = Some(0.36);
         reader.frame(&ctx, Vec::new());
         assert!(reader.viewport.hover.presentation().is_some());
+        let serial = reader.viewport.hover.presentation().unwrap().serial;
+        reader.frame(&ctx, vec![]); // Paint the loading presentation before polling.
+        let loading_origin = ctx
+            .memory(|memory| memory.area_rect(egui::Id::new("radiology_critical_hover")))
+            .unwrap()
+            .min;
         reader.hover_ready_frame(&ctx, 0.4);
+        let popup = ctx
+            .memory(|memory| memory.area_rect(egui::Id::new("radiology_critical_hover")))
+            .unwrap();
+        assert_eq!(popup.min, loading_origin);
+        let padding = popup.min + vec2(2.0, 2.0);
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(padding)]);
+        reader.now = Some(2.0);
+        reader.frame(&ctx, vec![]);
+        assert_eq!(reader.viewport.hover.presentation().unwrap().serial, serial);
+        let gap = pos2(popup.center().x, popup.top() - 2.0);
+        assert!(!popup.contains(gap));
+        reader.now = Some(2.1);
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(gap)]);
+        reader.now = Some(3.0);
+        reader.frame(&ctx, vec![]);
+        assert_eq!(
+            reader.viewport.hover.presentation().unwrap().serial,
+            serial,
+            "the transit gap must retain the popup beyond grace"
+        );
+        assert_eq!((reader.line, reader.column), (1, 0));
         reader.frame(&ctx, vec![key(Key::Escape, Modifiers::NONE)]);
         assert!(reader.viewport.hover.presentation().is_none());
-        reader.now = Some(0.8);
+        reader.now = Some(3.5);
         reader.frame(&ctx, Vec::new());
         assert!(reader.viewport.hover.presentation().is_none());
         reader.frame(&ctx, vec![egui::Event::PointerMoved(pos2(350.0, 330.0))]);
         reader.frame(&ctx, vec![egui::Event::PointerMoved(point)]);
-        reader.now = Some(1.2);
+        reader.now = Some(4.0);
         reader.frame(&ctx, Vec::new());
-        let ready = reader.hover_ready_frame(&ctx, 1.3);
+        reader.hover_ready_frame(&ctx, 4.1);
+        let popup = ctx
+            .memory(|memory| memory.area_rect(egui::Id::new("radiology_critical_hover")))
+            .unwrap();
+        reader.now = Some(4.2);
+        reader.frame(
+            &ctx,
+            vec![egui::Event::PointerMoved(pos2(
+                popup.right() + 30.0,
+                popup.top() - 20.0,
+            ))],
+        );
+        reader.now = Some(5.0);
+        reader.frame(&ctx, vec![]);
+        assert!(
+            reader.viewport.hover.presentation().is_none(),
+            "distant text is outside the transit region"
+        );
+        reader.frame(&ctx, vec![egui::Event::PointerMoved(point)]);
+        reader.frame(&ctx, vec![]); // Retire the closed Area's previous-frame hit region.
+        assert!(reader.viewport.hover.anchor_range().is_some());
+        reader.now = Some(5.5);
+        reader.frame(&ctx, vec![]);
+        let ready = reader.hover_ready_frame(&ctx, 5.6);
         crate::ui::test_support::assert_visible_text(&ready, "1 direct · 2 conditional · partial");
         let (title, _) = text_shape(&ready, "helper · Definition");
         assert_eq!((reader.line, reader.column), (1, 0));

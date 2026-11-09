@@ -4,11 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Critical summary/hover contracts](plans/rust-critical-summary-contracts.md) map
+four summary-model and two popup-host groups plus the first worker group. No-fold
+sources skip annotation work, and popup transit follows the displayed occurrence
+through loading and replacement dwell. Four worker and three drawing groups,
+other suite reconciliation and final acceptance remain open.
+
 [Critical model/projection contracts](plans/rust-critical-model-projection-contracts.md)
 now map seven Swift groups. Unsupported source clears the app projection; both-scale
 constant markings and real caret frames preserve reader state and reuse facts.
 The same Rust-analyzer fixture as Swift and a Unicode-rich byte matrix verify
-projection semantics. Summary/hover/worker/drawing and final acceptance remain open.
+projection semantics. Summary/hover are reconciled above; remaining worker/drawing
+and final acceptance stay open.
 
 [Critical frontier contracts](plans/rust-critical-frontier-contracts.md) now map
 all three Swift reachability groups. Supplied conditional summaries cannot prove
