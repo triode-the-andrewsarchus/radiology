@@ -118,3 +118,7 @@ frames plus real process/Git requests. Shared fonts and visual roles are reused;
 full accessibility and actual sibling-app adoption remain deferred. Final combined
 native acceptance, the recorded concurrent semantic/selection timing limits and
 SDK-backed Android acceptance remain open. Radiology remains standalone.
+
+The next-priority reused-path defect is now fixed and mapped in
+[per-file diff isolation](rust-blob-diff-isolation.md). Other repository assertions
+remain open.

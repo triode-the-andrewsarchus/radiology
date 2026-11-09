@@ -20,6 +20,15 @@ pub(crate) fn fixture_with_sources(
     before: &str,
     after: &str,
 ) -> (tempfile::TempDir, PathBuf, ReviewSnapshot) {
+    fixture_with_tree_edits(before, after, |_| {}, |_| {})
+}
+
+pub(crate) fn fixture_with_tree_edits(
+    before: &str,
+    after: &str,
+    edit_base: impl FnOnce(&Path),
+    edit_head: impl FnOnce(&Path),
+) -> (tempfile::TempDir, PathBuf, ReviewSnapshot) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("attached");
     std::fs::create_dir(&root).unwrap();
@@ -29,6 +38,7 @@ pub(crate) fn fixture_with_sources(
     std::fs::write(root.join("a file.rs"), before).unwrap();
     std::fs::write(root.join("removed.rs"), "old\n").unwrap();
     std::fs::write(root.join("renamed old.rs"), "keep\n").unwrap();
+    edit_base(&root);
     git(&root, &["add", "."]);
     git(&root, &["commit", "-m", "base"]);
     let base = git(&root, &["rev-parse", "HEAD"]);
@@ -38,6 +48,7 @@ pub(crate) fn fixture_with_sources(
     std::fs::remove_file(root.join("removed.rs")).unwrap();
     std::fs::rename(root.join("renamed old.rs"), root.join("renamed new.rs")).unwrap();
     std::fs::write(root.join("binary.dat"), [1, 0, 2]).unwrap();
+    edit_head(&root);
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-m", "head"]);
     let head = git(&root, &["rev-parse", "HEAD"]);
@@ -259,11 +270,109 @@ fn malformed_patch_does_not_replace_pinned_changes_or_counts() {
     };
     let changes = review.changes.clone();
     let diffs = review.diffs.clone();
-    let error = review.add_change(changes[0].clone(), &control).unwrap_err();
+    let error = review
+        .add_change(changes[0].clone(), "", &control)
+        .unwrap_err();
     assert!(
         error.contains("Unrecognized diff hunk header: @@ -x +1 @@"),
         "{error}"
     );
     assert_eq!(review.changes, changes);
     assert_eq!(review.diffs, diffs);
+}
+
+#[test]
+fn per_file_diffs_exclude_children_of_reused_paths_for_renames_additions_and_deletions() {
+    let before = format!(
+        "fn demo() {{\r\n{}}}\r\n",
+        (0..20)
+            .map(|n| format!("    let item{n:02} = \"café\";\r\n"))
+            .collect::<String>()
+    );
+    for edited in [false, true] {
+        let after = if edited {
+            before.replace("item10 = \"café\"", "item10 = \"edited 🦀\"")
+        } else {
+            before.clone()
+        };
+        let (_owner, root, review) = fixture_with_tree_edits(
+            &before,
+            &after,
+            |root| {
+                std::fs::create_dir(root.join("was directory")).unwrap();
+                std::fs::write(root.join("was directory/child.rs"), "nested before\n").unwrap();
+            },
+            |root| {
+                git(root, &["mv", "a file.rs", "moved café.rs"]);
+                std::fs::create_dir(root.join("a file.rs")).unwrap();
+                std::fs::write(
+                    root.join("a file.rs/unrelated.rs"),
+                    "unrelated rename child\n",
+                )
+                .unwrap();
+                std::fs::create_dir(root.join("removed.rs")).unwrap();
+                std::fs::write(
+                    root.join("removed.rs/child.rs"),
+                    "unrelated deletion child\n",
+                )
+                .unwrap();
+                std::fs::remove_dir_all(root.join("was directory")).unwrap();
+                std::fs::write(root.join("was directory"), "new file 🦀\r\n").unwrap();
+            },
+        );
+        let change = review.change("moved café.rs").unwrap();
+        assert!(matches!(change.status, FileChangeStatus::Renamed { .. }));
+        let diff = &review.diffs["moved café.rs"];
+        let expected: Vec<_> = edited.then_some(12..13).into_iter().collect();
+        assert_eq!(
+            diff.changed_lines(ReviewRevision::After),
+            expected,
+            "edited={edited}"
+        );
+        assert_eq!(diff.changed_lines(ReviewRevision::Before), expected);
+        assert_eq!(review.diffs["a file.rs"], *diff);
+        assert_eq!(
+            (change.additions, change.deletions),
+            if edited { (1, 1) } else { (0, 0) }
+        );
+        for line in [1, 3, 20] {
+            assert_eq!(diff.map_line(line, ReviewRevision::Before), line);
+        }
+        for (path, additions, deletions) in [
+            ("a file.rs/unrelated.rs", 1, 0),
+            ("removed.rs", 0, 1),
+            ("removed.rs/child.rs", 1, 0),
+            ("was directory", 1, 0),
+            ("was directory/child.rs", 0, 1),
+        ] {
+            let change = review.change(path).unwrap();
+            assert_eq!(
+                (change.additions, change.deletions),
+                (additions, deletions),
+                "{path}"
+            );
+            let diff = &review.diffs[path];
+            assert_eq!(diff.total_additions(), additions);
+            assert_eq!(diff.total_deletions(), deletions);
+        }
+        assert_eq!(
+            review
+                .read("moved café.rs", ReviewRevision::After)
+                .unwrap()
+                .data,
+            after.as_bytes()
+        );
+        assert_eq!(
+            review
+                .read("a file.rs", ReviewRevision::Before)
+                .unwrap()
+                .data,
+            before.as_bytes()
+        );
+        assert_eq!(git(&root, &["rev-parse", "HEAD"]), review.base);
+        assert_eq!(
+            std::fs::read_to_string(root.join("a file.rs")).unwrap(),
+            "checkout only\n"
+        );
+    }
 }

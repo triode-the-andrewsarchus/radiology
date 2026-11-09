@@ -546,6 +546,8 @@ mod tests {
                 path: "new.rs".into(),
                 old_path: Some("old.rs".into()),
                 status,
+                before_mode: 0,
+                after_mode: 0,
                 before_blob: "before".into(),
                 after_blob: "after".into(),
                 additions: 1,

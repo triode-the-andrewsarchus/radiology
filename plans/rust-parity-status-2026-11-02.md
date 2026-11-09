@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Per-file diff isolation](rust-blob-diff-isolation.md) repairs reused-path rename
+contamination through exact object comparisons while preserving Git-link modes
+and pointers. One of four repository groups is mapped; the rest remain open.
+
 [Owned review recovery](rust-review-recovery.md) implements Try Again/Choose Number
 and failed-request ownership. Real private CLI, source retry, scope retirement,
 bounds and keyboard checks map the last partial refresh group. All seven refresh

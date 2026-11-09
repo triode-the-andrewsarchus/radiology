@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-09 — Exact per-file review diffs and Git-link mode preservation (Codex)
+
+A real Git regression showed unchanged renamed files inheriting highlights from
+children created under their former path. Per-file patches now compare exact
+Before/After object pairs. Added/deleted sides share one private empty blob per
+batch; raw modes distinguish Git-link commit pointers, whose display lines are
+hashed privately. Counts, hunks and old-path aliases stay isolated. The attached
+checkout and HEAD remain unchanged; existing cancellation/deadline paths cover
+the empty-object phase as well as metadata and patch reads.
+
+The matrix covers pure/edited Unicode CRLF renames, file/directory replacement,
+exact source bytes and line maps. Existing Git-link, raw SHA-1/SHA-256 metadata,
+SHA-256 cache/workspace proof and interruption tests are strengthened. Public
+FileChange literals now require before_mode/after_mode; old serialized records
+read with zero defaults. No dependency, new worker or sibling coupling is added.
+
+The full serial locked offline workspace run passes 831 app tests/11 existing
+ignored, two binary/13 font/22 text tests and all 64 doctests. Final strict-octal
+mode validation was tightened after that run; the affected pull-request suite,
+strict Clippy, build and docs are rerun for that small change. Architecture +192
+measured NLOC/three measured functions, unchanged clones/hotspots/cycles.
+[Per-file isolation evidence](plans/rust-blob-diff-isolation.md) maps one of four
+ReviewRepositoryTests functions. The other three, separate review/presentation/
+fold suites, final native acceptance, parallel timing limits and Android remain
+open. An app workflow reproducing this exact reused-path shape is still useful.
+
 ## 2026-11-09 — Owned review failure recovery and real CLI retry workflows (Codex)
 
 A red app regression confirmed missing Try Again. Failed request root/number/message

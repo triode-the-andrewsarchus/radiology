@@ -37,14 +37,40 @@ impl GitStore<'_> {
         Ok(object_dir)
     }
 
-    pub(super) fn bytes(&self, args: &[&str]) -> Result<Vec<u8>, String> {
+    pub(super) fn bytes(&self, args: &[impl AsRef<std::ffi::OsStr>]) -> Result<Vec<u8>, String> {
         self.0.required(args)
     }
-    pub(super) fn text(&self, args: &[&str]) -> Result<String, String> {
+    pub(super) fn text(&self, args: &[impl AsRef<std::ffi::OsStr>]) -> Result<String, String> {
         String::from_utf8(self.bytes(args)?)
             .map(|text| text.trim_end().to_string())
             .map_err(|error| error.to_string())
     }
+    /// Gitlinks carry a commit pointer rather than a blob from this repository.
+    /// Compare its usual display line without fetching or traversing the submodule.
+    pub(super) fn diff_blob<'a>(
+        &self,
+        object: &'a str,
+        mode: u32,
+    ) -> Result<std::borrow::Cow<'a, str>, String> {
+        if mode != 0o160000 {
+            return Ok(std::borrow::Cow::Borrowed(object));
+        }
+        use std::io::Write;
+        let mut file =
+            tempfile::NamedTempFile::new_in(self.0.root).map_err(|error| error.to_string())?;
+        file.write_all(format!("Subproject commit {object}\n").as_bytes())
+            .map_err(|error| error.to_string())?;
+        let blob = self.text(&[
+            std::ffi::OsString::from("hash-object"),
+            "-w".into(),
+            file.path().as_os_str().to_owned(),
+        ])?;
+        if !super::super::change::is_object_id(&blob) || blob.len() != object.len() {
+            return Err("Git returned an invalid gitlink display blob ID".into());
+        }
+        Ok(std::borrow::Cow::Owned(blob))
+    }
+
     pub(super) fn files(&self, commit: &str) -> Result<Vec<RepositoryFile>, String> {
         let paths = self.bytes(&["ls-tree", "-rz", "--name-only", commit])?;
         let mut files = paths

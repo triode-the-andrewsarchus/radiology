@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Per-file diff isolation](plans/rust-blob-diff-isolation.md) fixes unrelated-child
+highlights/counts when a rename's old path becomes a directory. Exact object pairs,
+shared private empty blobs and mode-aware Git-link pointer diffs preserve existing
+review behavior. One of four repository-suite groups is explicitly mapped; the
+remaining groups and other suites stay open.
+
 [Owned review recovery](plans/rust-review-recovery.md) now retains failed PR targets
 and provides Try Again/Choose Number with bounded diagnostics. Real isolated CLI
 retries, source-restoration recovery, stale-action retirement, narrow layouts and

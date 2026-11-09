@@ -21,6 +21,8 @@ impl Results {
             path: path.clone(),
             old_path: Some(format!("old/{path}")),
             status: FileChangeStatus::Renamed { similarity: 85 },
+            before_mode: 0,
+            after_mode: 0,
             before_blob: String::new(),
             after_blob: String::new(),
             additions: 12,

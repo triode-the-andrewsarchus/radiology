@@ -48,6 +48,7 @@ fn fetch_materialization_and_patch_interruption_preserve_accepted_snapshots_and_
         "*\"fetch --no-tags\"*",
         "*\"worktree add\"*",
         "*\"diff --no-ext-diff --no-textconv --raw\"*",
+        "*\"hash-object -w --stdin\"*",
         "*\"diff --no-ext-diff --no-textconv -U0\"*",
     ] {
         for timeout in [false, true] {
@@ -125,5 +126,5 @@ exec /usr/bin/git "$@"
             assert_eq!(fresh.changes.len(), accepted.changes.len());
         }
     }
-    println!("PR snapshots: fetch/worktree/raw metadata/patch live Cancel + timeout reap children, clean partial trees, retain accepted bytes and retry successfully");
+    println!("PR snapshots: fetch/worktree/raw metadata/empty blob/patch live Cancel + timeout reap children, clean partial trees, retain accepted bytes and retry successfully");
 }

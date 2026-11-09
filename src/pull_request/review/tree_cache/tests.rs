@@ -269,6 +269,10 @@ fn checkout_ignores_smudge_hooks_and_eol_attributes_and_verifies_modes_links_and
         fs::read_link(snapshot.head_root.join("link.rs")).unwrap(),
         PathBuf::from("a file.rs")
     );
+    let module = snapshot.change("module").unwrap();
+    assert_eq!((module.before_mode, module.after_mode), (0, 0o160000));
+    assert_eq!((module.additions, module.deletions), (1, 0));
+    assert_eq!(snapshot.diffs["module"].total_additions(), 1);
     assert!(snapshot.head_root.join("module").is_dir());
     assert_eq!(
         fs::read_dir(snapshot.head_root.join("module"))
@@ -289,10 +293,13 @@ fn sha256_snapshots_reuse_exact_trees_and_the_shared_workspace_blob_proof_accept
     git(&root, &["config", "user.name", "Test"]);
     git(&root, &["config", "user.email", "test@example.invalid"]);
     fs::write(root.join("a.rs"), "before\n").unwrap();
+    fs::write(root.join("gone.rs"), "gone\n").unwrap();
     git(&root, &["add", "."]);
     git(&root, &["commit", "-m", "base"]);
     let base = text(&root, &["rev-parse", "HEAD"]);
     fs::write(root.join("a.rs"), "after\n").unwrap();
+    fs::remove_file(root.join("gone.rs")).unwrap();
+    fs::write(root.join("added.rs"), "new\n").unwrap();
     git(&root, &["add", "."]);
     git(&root, &["commit", "-m", "head"]);
     let head = text(&root, &["rev-parse", "HEAD"]);
@@ -316,6 +323,10 @@ fn sha256_snapshots_reuse_exact_trees_and_the_shared_workspace_blob_proof_accept
     );
     assert_eq!(change.before_blob.len(), 64);
     assert_eq!(change.after_blob.len(), 64);
+    assert_eq!(first.diffs["added.rs"].total_additions(), 1);
+    assert_eq!(first.diffs["added.rs"].total_deletions(), 0);
+    assert_eq!(first.diffs["gone.rs"].total_additions(), 0);
+    assert_eq!(first.diffs["gone.rs"].total_deletions(), 1);
     let cancel = AtomicBool::new(false);
     let inventory = InputInventory::from_paths(["a.rs".into()]).unwrap();
     let workspace = IndexingWorkspace::create(

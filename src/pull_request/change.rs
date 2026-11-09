@@ -96,6 +96,8 @@ impl FileChangeStatus {
 ///     path: "src/new.rs".to_string(),
 ///     old_path: None,
 ///     status: FileChangeStatus::Added,
+///     before_mode: 0,
+///     after_mode: 0,
 ///     before_blob: String::new(),
 ///     after_blob: "abcdef".to_string(),
 ///     additions: 15,
@@ -113,12 +115,19 @@ pub struct FileChange {
     pub old_path: Option<String>,
     /// Status classification of this change.
     pub status: FileChangeStatus,
-    /// Git object blob ID in the merge base revision.
+    /// Git mode in Before, including object kind and permission bits (for example `0o100644`).
+    /// Zero means absent or unavailable in a name/status-only record.
+    #[serde(default)]
+    pub before_mode: u32,
+    /// Git mode in After, with the same absence rules as [`Self::before_mode`].
+    #[serde(default)]
+    pub after_mode: u32,
+    /// Git object ID in the merge base revision. Gitlinks identify commits, not blobs.
     ///
     /// Raw records retain an all-zero ID for an absent side. Name/status-only
     /// records have an empty ID because their format does not include one.
     pub before_blob: String,
-    /// Git object blob ID in the head revision, with the same absence rules as
+    /// Git object ID in the head revision, with the same absence rules as
     /// [`Self::before_blob`].
     pub after_blob: String,
     /// Number of lines added.
@@ -169,10 +178,10 @@ impl FileChange {
         let mut fields = nul_records(bytes)?;
         let mut changes = Vec::new();
         while let Some(header) = fields.next() {
-            let (status, before_blob, after_blob) = if raw {
+            let (status, before_blob, after_blob, before_mode, after_mode) = if raw {
                 raw_header(header)?
             } else {
-                (header, "", "")
+                (header, "", "", 0, 0)
             };
             let first = fields.next().ok_or("Missing changed path")?;
             let (old_path, path) = if status.starts_with('R') || status.starts_with('C') {
@@ -191,6 +200,8 @@ impl FileChange {
                 path: path.into(),
                 old_path: old_path.map(str::to_owned),
                 status,
+                before_mode,
+                after_mode,
                 before_blob: before_blob.into(),
                 after_blob: after_blob.into(),
                 additions: 0,
@@ -283,7 +294,7 @@ fn numstat(bytes: &[u8]) -> Result<HashMap<String, (usize, usize, bool)>, String
     Ok(stats)
 }
 
-fn raw_header(header: &str) -> Result<(&str, &str, &str), String> {
+fn raw_header(header: &str) -> Result<(&str, &str, &str, u32, u32), String> {
     let fields: Vec<_> = header
         .strip_prefix(':')
         .ok_or("Missing raw diff header")?
@@ -292,15 +303,16 @@ fn raw_header(header: &str) -> Result<(&str, &str, &str), String> {
     let [before_mode, after_mode, before, after, status] = fields.as_slice() else {
         return Err("Invalid raw diff header".into());
     };
-    if ![before_mode, after_mode]
-        .iter()
-        .all(|mode| mode.len() == 6 && mode.bytes().all(|byte| matches!(byte, b'0'..=b'7')))
-        || ![before, after].iter().all(|id| is_object_id(id))
-        || before.len() != after.len()
-    {
-        return Err("Invalid raw diff mode or object ID".into());
+    let modes = [before_mode, after_mode].map(|mode| {
+        if mode.len() != 6 || !mode.bytes().all(|byte| matches!(byte, b'0'..=b'7')) {
+            return Err("Invalid raw diff mode");
+        }
+        u32::from_str_radix(mode, 8).map_err(|_| "Invalid raw diff mode")
+    });
+    if ![before, after].iter().all(|id| is_object_id(id)) || before.len() != after.len() {
+        return Err("Invalid raw diff object ID".into());
     }
-    Ok((status, before, after))
+    Ok((status, before, after, modes[0]?, modes[1]?))
 }
 
 pub(crate) fn is_object_id(value: &str) -> bool {
@@ -329,6 +341,8 @@ pub(crate) fn nul_records(bytes: &[u8]) -> Result<std::str::SplitTerminator<'_, 
 ///         path: "src/main.rs".to_string(),
 ///         old_path: None,
 ///         status: FileChangeStatus::Modified,
+///         before_mode: 0,
+///         after_mode: 0,
 ///         before_blob: String::new(),
 ///         after_blob: String::new(),
 ///         additions: 10,
@@ -339,6 +353,8 @@ pub(crate) fn nul_records(bytes: &[u8]) -> Result<std::str::SplitTerminator<'_, 
 ///         path: "README.md".to_string(),
 ///         old_path: None,
 ///         status: FileChangeStatus::Modified,
+///         before_mode: 0,
+///         after_mode: 0,
 ///         before_blob: String::new(),
 ///         after_blob: String::new(),
 ///         additions: 5,
@@ -471,6 +487,19 @@ mod tests {
                     "img.png"
                 ]
             );
+            assert_eq!(
+                changes
+                    .iter()
+                    .map(|c| (c.before_mode, c.after_mode))
+                    .collect::<Vec<_>>(),
+                [
+                    (0, 0o100644),
+                    (0o100644, 0o100644),
+                    (0o100644, 0),
+                    (0o100644, 0o100644),
+                    (0o100644, 0o100644)
+                ]
+            );
             assert_eq!(changes[0].status, FileChangeStatus::Added);
             assert_eq!(changes[0].path_for_revision(ReviewRevision::Before), None);
             assert_eq!(
@@ -570,6 +599,7 @@ mod tests {
             format!(":100644 100644 {before} {after} C101\0a.rs\0b.rs\0"),
             format!(":100644 100644 {before} {after} Rno\0a.rs\0b.rs\0"),
             format!(":bad 100644 {before} {after} M\0a.rs\0"),
+            format!(":+00644 100644 {before} {after} M\0a.rs\0"),
             format!(":100644 100644 shortened {after} M\0a.rs\0"),
             format!(":100644 100644 {} {after} M\0a.rs\0", "z".repeat(40)),
             format!(":100644 100644 {before} {} M\0a.rs\0", "2".repeat(64)),

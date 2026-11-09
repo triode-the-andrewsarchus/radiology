@@ -177,6 +177,8 @@ fn added_file(root: &Path, path: &str) -> Result<Option<FileChange>, String> {
         path: path.into(),
         old_path: None,
         status: FileChangeStatus::Added,
+        before_mode: 0,
+        after_mode: 0,
         before_blob: String::new(),
         after_blob: String::new(),
         additions,

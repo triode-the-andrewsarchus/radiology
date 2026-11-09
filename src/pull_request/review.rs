@@ -188,9 +188,27 @@ impl ReviewSnapshot {
             &self.base,
             &self.head,
         ])?;
-        for change in FileChange::parse_raw(&bytes)? {
+        let changes = FileChange::parse_raw(&bytes)?;
+        // One format-correct empty object for every absent side in this batch.
+        // GitRead supplies EOF on stdin and writes only into the private store.
+        let empty = if changes.iter().any(|change| {
+            matches!(
+                change.status,
+                FileChangeStatus::Added | FileChangeStatus::Deleted
+            )
+        }) {
+            let empty =
+                GitStore(control.git(&self.object_dir)).text(&["hash-object", "-w", "--stdin"])?;
+            if !super::change::is_object_id(&empty) || empty.len() != self.head.len() {
+                return Err("Git returned an invalid empty blob ID".into());
+            }
+            empty
+        } else {
+            String::new()
+        };
+        for change in changes {
             control.check()?;
-            self.add_change(change, control)?;
+            self.add_change(change, &empty, control)?;
         }
         Ok(())
     }
@@ -198,22 +216,29 @@ impl ReviewSnapshot {
     fn add_change(
         &mut self,
         mut change: FileChange,
+        empty: &str,
         control: &ReviewControl<'_>,
     ) -> Result<(), String> {
         let path = change.path.as_str();
         let old = change.old_path.as_deref();
         let store = GitStore(control.git(&self.object_dir));
+        let before = change
+            .path_for_revision(ReviewRevision::Before)
+            .map_or(empty, |_| change.before_blob.as_str());
+        let after = change
+            .path_for_revision(ReviewRevision::After)
+            .map_or(empty, |_| change.after_blob.as_str());
+        let before = store.diff_blob(before, change.before_mode)?;
+        let after = store.diff_blob(after, change.after_mode)?;
+        // Pathspecs can include unrelated children when an old file becomes a
+        // directory. Blob pairs keep counts and source coordinates per file.
         let patch = store.text(&[
             "diff",
             "--no-ext-diff",
             "--no-textconv",
             "-U0",
-            "-M",
-            &self.base,
-            &self.head,
-            "--",
-            old.unwrap_or(path),
-            path,
+            before.as_ref(),
+            after.as_ref(),
         ])?;
         let diff = UnifiedDiffParser::parse(&patch).map_err(|error| error.to_string())?;
         change.additions = diff.total_additions();
