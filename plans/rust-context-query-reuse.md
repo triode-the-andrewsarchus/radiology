@@ -111,8 +111,9 @@ parallel timing/linking investigation remains open.
 The complete ContextModel assertion mapping remains open, including lifecycle,
 fallback, formatting and Unicode cases not fully reconciled here. Swift's
 SemanticQueryWorker also retains up to four parsed destination structures across
-different uncached preview targets; Rust still extracts structure for each missed
-definition preview. That parsed-structure reuse remains an identified follow-up.
+different uncached preview targets. The subsequent
+[structure reuse checkpoint](rust-preview-structure-reuse.md) now closes that
+identified gap and maps its cross-file preview assertion group.
 Reference/call-tree/palette, source/syntax, compiler/indexing and inspector suites,
 final native/standalone acceptance, known parallel timing/linking limits and
 Android remain open. Full accessibility and actual sibling integration are deferred.

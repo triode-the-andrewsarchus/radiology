@@ -4,19 +4,17 @@ use super::{
     loader::{check_source, SOURCE_READ_TIMEOUT},
     ReviewRevision, SourceBuffer,
 };
-use crate::{
-    background::LatestRead,
-    semantic::ScipRange,
-    syntax::{DocumentSymbol, SymbolExtractor},
-};
+use crate::{background::LatestRead, semantic::ScipRange};
 use std::{
     ops::Range,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::Instant,
 };
+
+mod structure;
 
 /// One numbered canonical source line in a bounded preview.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +82,7 @@ pub struct SourcePreviewLoader {
     job: LatestRead<Result<SourcePreview, String>>,
     phase: PreviewPhase,
     cache: super::queries::QueryCache<PreviewTarget, SourcePreview, 64>,
+    structure: Arc<Mutex<structure::Cache>>,
 }
 
 impl SourcePreviewLoader {
@@ -98,7 +97,9 @@ impl SourcePreviewLoader {
         inputs: Option<Arc<SourceQueryInputs>>,
         target: Option<PreviewTarget>,
     ) -> bool {
-        self.cache.prepare(inputs.as_ref());
+        if self.cache.prepare(inputs.as_ref()) {
+            self.structure = Arc::default();
+        }
         let same_inputs = match (&self.inputs, &inputs) {
             (Some(old), Some(new)) => Arc::ptr_eq(old, new),
             (None, None) => true,
@@ -119,8 +120,9 @@ impl SourcePreviewLoader {
             let inputs = inputs.clone();
             let target = target.clone();
             self.phase = PreviewPhase::Loading;
+            let structure = self.structure.clone();
             self.job
-                .spawn(move |cancel| prepare(&inputs, &target, cancel));
+                .spawn(move |cancel| prepare_with_structure(&inputs, &target, cancel, &structure));
         }
         true
     }
@@ -160,10 +162,25 @@ impl SourcePreviewLoader {
     }
 }
 
+#[cfg(test)]
 fn prepare(
     inputs: &SourceQueryInputs,
     target: &PreviewTarget,
     cancel: &AtomicBool,
+) -> Result<SourcePreview, String> {
+    let inputs = Arc::new(SourceQueryInputs {
+        source: inputs.source.clone(),
+        buffer: inputs.buffer.clone(),
+        index: inputs.index.clone(),
+    });
+    prepare_with_structure(&inputs, target, cancel, &Mutex::default())
+}
+
+fn prepare_with_structure(
+    inputs: &Arc<SourceQueryInputs>,
+    target: &PreviewTarget,
+    cancel: &AtomicBool,
+    structure: &Mutex<structure::Cache>,
 ) -> Result<SourcePreview, String> {
     check_cancel(cancel)?;
     if inputs.buffer.revision == Some(ReviewRevision::Before) {
@@ -177,25 +194,19 @@ fn prepare(
         .byte_range(&buffer, &target.range)
         .filter(|range| !range.is_empty())
         .ok_or("The index no longer matches this source. Reindex to refresh its preview.")?;
-    excerpt(&buffer, target, &range, cancel, deadline)
-}
-
-fn definition_end_line(
-    buffer: &SourceBuffer,
-    byte: usize,
-    cancel: &AtomicBool,
-    deadline: Instant,
-) -> Result<Option<usize>, String> {
-    let symbols =
-        SymbolExtractor::extract_cancellable(buffer, || check_source(cancel, deadline).is_err());
-    check_source(cancel, deadline)?;
-    Ok(declaration_end(&symbols?, byte).map(|end| buffer.line_at_byte(end.saturating_sub(1))))
+    let end = if target.kind == PreviewKind::Definition {
+        structure::end_line(structure, inputs, &buffer, range.start, cancel, deadline)?
+    } else {
+        None
+    };
+    excerpt(&buffer, target, &range, end, cancel, deadline)
 }
 
 fn excerpt(
     buffer: &SourceBuffer,
     target: &PreviewTarget,
     range: &Range<usize>,
+    definition_end: Option<usize>,
     cancel: &AtomicBool,
     deadline: Instant,
 ) -> Result<SourcePreview, String> {
@@ -207,10 +218,12 @@ fn excerpt(
             5,
             false,
         ),
-        PreviewKind::Definition => {
-            let end = definition_end_line(buffer, range.start, cancel, deadline)?;
-            (first, end.unwrap_or(buffer.line_count()), 12, end.is_none())
-        }
+        PreviewKind::Definition => (
+            first,
+            definition_end.unwrap_or(buffer.line_count()),
+            12,
+            definition_end.is_none(),
+        ),
     };
     let mut lines = Vec::new();
     let mut number = start;
@@ -232,15 +245,6 @@ fn excerpt(
         lines,
         truncated,
     })
-}
-
-fn declaration_end(symbols: &[DocumentSymbol], byte: usize) -> Option<usize> {
-    symbols
-        .iter()
-        .filter_map(|symbol| symbol.find_innermost(byte))
-        .filter(|symbol| symbol.selection_range.contains(&byte))
-        .min_by_key(|symbol| (symbol.selection_range.start != byte, symbol.range.len()))
-        .map(|symbol| symbol.range.end)
 }
 
 pub(crate) fn preview_line(
@@ -350,6 +354,186 @@ mod tests {
             .lines
             .iter()
             .all(|line| !line.text.contains("neighbor")));
+    }
+
+    #[test]
+    fn adjacent_cross_file_definition_previews_reuse_one_exact_parse() {
+        let owner = tempfile::tempdir().unwrap();
+        let text = "pub fn restore_base(image: Vec<u8>) -> PreparedBase {\n    restore(image)\n}\npub fn restore_app(image: Vec<u8>) -> PreparedApp {\n    restore(image)\n}\nfn restore(image: Vec<u8>) -> Restored {\n    let café = \"🚀\";\n    Restored\n}\n";
+        std::fs::write(owner.path().join("app_image.rs"), text).unwrap();
+        let mut config = inputs(SourceBuffer::from_str("app_image.rs", text));
+        let captured = Arc::get_mut(&mut config).unwrap();
+        captured.source = SourceRead::Checkout(owner.path().into());
+        captured.buffer = Arc::new(SourceBuffer::from_str("host.rs", "// displayed host\n"));
+        let notes = SourceBuffer::from_str("notes.txt", "one\ntwo\n\nthree\n");
+        std::fs::write(owner.path().join("notes.txt"), &notes.text).unwrap();
+        let index = Arc::make_mut(&mut captured.index);
+        index.documents.insert(
+            notes.path.clone(),
+            ScipDocument {
+                relative_path: notes.path.clone(),
+                position_encoding: 2,
+                ..Default::default()
+            },
+        );
+        index
+            .source_digests
+            .insert(notes.path.clone(), notes.content_digest().into());
+        let mut loader = SourcePreviewLoader::default();
+        for (path, range, expected, last, parses) in [
+            ("app_image.rs", [3, 7, 18], vec![4, 5, 6], "}", 1),
+            ("app_image.rs", [6, 3, 10], vec![7, 8, 9, 10], "}", 1),
+            ("notes.txt", [0, 0, 3], vec![1, 2], "two", 2),
+        ] {
+            loader.request(
+                Some(config.clone()),
+                Some(PreviewTarget {
+                    path: path.into(),
+                    range: ScipRange::from_packed(&range).unwrap(),
+                    kind: PreviewKind::Definition,
+                }),
+            );
+            settle(&mut loader);
+            let PreviewPhase::Loaded(preview) = loader.phase() else {
+                panic!("{:?}", loader.phase());
+            };
+            assert_eq!(
+                preview
+                    .lines
+                    .iter()
+                    .map(|line| line.number)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(!preview.truncated);
+            assert_eq!(preview.lines.last().unwrap().text, last);
+            assert_eq!(
+                loader.structure.lock().unwrap().parses,
+                parses,
+                "different symbols in one exact destination must share its parsed structure"
+            );
+            if path == "notes.txt" {
+                assert_eq!(preview.lines[0].text, "one");
+            }
+        }
+    }
+
+    #[test]
+    fn structure_reuse_is_bounded_and_observed_byte_changes_reparse_the_destination() {
+        let config = inputs(SourceBuffer::from_str("host.rs", "// captured host\n"));
+        let cache = Mutex::new(structure::Cache::default());
+        let buffers = (0..5)
+            .map(|i| SourceBuffer::from_str(format!("file{i}.rs"), "fn work() {}\n"))
+            .collect::<Vec<_>>();
+        for buffer in &buffers {
+            assert_eq!(
+                structure::end_line(
+                    &cache,
+                    &config,
+                    buffer,
+                    3,
+                    &AtomicBool::new(false),
+                    Instant::now() + SOURCE_READ_TIMEOUT
+                )
+                .unwrap(),
+                Some(1)
+            );
+        }
+        assert_eq!(cache.lock().unwrap().parses, 5);
+        structure::end_line(
+            &cache,
+            &config,
+            &buffers[4],
+            3,
+            &AtomicBool::new(false),
+            Instant::now() + SOURCE_READ_TIMEOUT,
+        )
+        .unwrap();
+        assert_eq!(cache.lock().unwrap().parses, 5);
+        structure::end_line(
+            &cache,
+            &config,
+            &buffers[0],
+            3,
+            &AtomicBool::new(false),
+            Instant::now() + SOURCE_READ_TIMEOUT,
+        )
+        .unwrap();
+        assert_eq!(
+            cache.lock().unwrap().parses,
+            6,
+            "a fifth destination evicts the oldest of four parsed files"
+        );
+        let edited = SourceBuffer::from_str("file0.rs", "fn work() {\n    other();\n}\n");
+        for _ in 0..2 {
+            assert_eq!(
+                structure::end_line(
+                    &cache,
+                    &config,
+                    &edited,
+                    3,
+                    &AtomicBool::new(false),
+                    Instant::now() + SOURCE_READ_TIMEOUT
+                )
+                .unwrap(),
+                Some(3)
+            );
+            assert_eq!(cache.lock().unwrap().parses, 7);
+        }
+    }
+
+    #[test]
+    fn structure_cache_waits_honor_cancellation_and_deadlines_without_acquiring_the_lock() {
+        let config = inputs(SourceBuffer::from_str("a.rs", "fn work() {}\n"));
+        let cache = Mutex::new(structure::Cache::default());
+        let held = cache.lock().unwrap();
+        assert!(structure::end_line(
+            &cache,
+            &config,
+            &config.buffer,
+            3,
+            &AtomicBool::new(true),
+            Instant::now() + SOURCE_READ_TIMEOUT
+        )
+        .is_err());
+        assert!(structure::end_line(
+            &cache,
+            &config,
+            &config.buffer,
+            3,
+            &AtomicBool::new(false),
+            Instant::now() + std::time::Duration::from_millis(5)
+        )
+        .is_err());
+        assert_eq!(held.parses, 0);
+        drop(held);
+        assert_eq!(
+            structure::end_line(
+                &cache,
+                &config,
+                &config.buffer,
+                3,
+                &AtomicBool::new(false),
+                Instant::now() + SOURCE_READ_TIMEOUT
+            )
+            .unwrap(),
+            Some(1)
+        );
+        assert_eq!(cache.lock().unwrap().parses, 1);
+        let mut loader = SourcePreviewLoader::default();
+        loader.request(Some(config.clone()), None);
+        let shared = loader.structure.clone();
+        let held = shared.lock().unwrap();
+        loader.request(
+            Some(config.clone()),
+            Some(target(&config.buffer, "work", PreviewKind::Definition)),
+        );
+        assert!(loader.is_running());
+        assert!(Arc::ptr_eq(&shared, &loader.structure));
+        loader.request(Some(config), None);
+        assert!(!loader.is_running());
+        assert_eq!(loader.phase(), &PreviewPhase::None);
+        assert_eq!(held.parses, 0);
     }
 
     #[test]

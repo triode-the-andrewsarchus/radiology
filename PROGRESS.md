@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-11-09 — Parsed destination reuse for previews (Codex)
+
+A real cross-file loader regression counted two extractions for adjacent targets
+in one destination, where Swift reuses one. The preview worker now retains four
+exact-source symbol slices using the shared QueryCache and its payload bound.
+Reads/index-coordinate validation still precede lookup; changed bytes and scope
+ownership retire old structure. The UI exchanges/clones ownership without locking
+or parsing. The existing Critical Lens checked mutex loop becomes one shared
+background helper, retaining its 2 ms polling and poison recovery while preview
+supplies source cancellation/deadline checks. No new pool/protocol/dependency/API.
+
+Three regressions check exact adjacent 4–6/7–10 bounds and one extraction, real
+plain-text blank-line fallback, four-entry eviction, changed-body reparse/reuse,
+cancelled and expiring lock waits, and UI request/cancel while the worker lock is
+held. Eleven preview tests include existing pinned-child cancellation/reaping;
+all 56 Critical service tests pass. Duplicated new table setup was consolidated
+without weakening assertions. This maps ContextModel's cross-file preview group;
+the remaining seventeen groups are not claimed complete.
+
+Clippy, normal build and warning-free docs pass. The locked offline workspace run
+passes 882 app tests (11 existing opt-in ignored), two binary/13 font/22 text tests
+and all 66 doctests. The consolidated final test table also passes all eleven
+preview checks and strict all-target Clippy. Runtime code is unchanged by that
+test-only consolidation. Compilation uses -j 1 with serial tests; normal half-core
+Cargo configuration remains 16 jobs. Parallel timing/linking limits remain open.
+Architecture +258 measured NLOC/five net functions/one focused file, average/max
+CCN 3.42/132, 36 hotspots and cycles unchanged. Complete normalized 124-instance
+clone multisets have zero additions/removals after merging the actual new clone.
+Existing extraction, declaration-end logic, bounds, query ownership and publication
+are reused; the old Critical-only lock implementation is removed.
+[Structure contract](plans/rust-preview-structure-reuse.md), PLAN and behavior/parity
+indexes record archive `~/.local/state/radiology-qa/preview-structure-20261109-a9f0459/`.
+
+Next: cold same-file previews from prepared syntax (Swift's immediate memory path)
+and remaining ContextModel/reference/call-tree/palette assertions, then source/
+syntax, compiler/indexing and inspector reconciliation and final native/standalone
+acceptance. Known parallel timing/linking limits and Android remain open. Full
+accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Bounded Context preview/reference reuse (Codex)
 
 Both new regressions failed on returning to previously loaded identities: Rust

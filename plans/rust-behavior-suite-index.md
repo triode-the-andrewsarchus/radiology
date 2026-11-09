@@ -295,7 +295,13 @@ reuse identified in the first two ContextModel groups. Backend and both-scale
 real-fixture app checks verify stable token/declaration ownership and immediate
 preview/reference restoration, with bounds and source/scope invalidation. This is
 not yet a complete mapping of the eighteen ContextModel groups. Parsed-structure
-reuse across distinct uncached previews remains an explicit follow-up.
+reuse across distinct uncached previews is now closed in the checkpoint below.
+
+[Parsed destination structures](rust-preview-structure-reuse.md) maps
+ContextModelTests.crossFilePreviewsEndAtTheirTreeSitterDeclaration through real
+checkout reads, exact adjacent bounds, plain-text fallback and one extraction for
+two targets. Four-entry reuse, changed bytes and contended deadline/UI cancellation
+checks pass. The remaining seventeen ContextModel groups need reconciliation.
 
 ## Source, syntax, projection and test regions
 

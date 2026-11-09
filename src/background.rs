@@ -104,3 +104,20 @@ impl<T> Drop for LatestRead<T> {
         self.stop();
     }
 }
+
+/// Waits for worker-owned state while honoring the caller's cancellation/deadline.
+pub(crate) fn lock_checked<T>(
+    mutex: &std::sync::Mutex<T>,
+    check: impl Fn() -> Result<(), String>,
+) -> Result<std::sync::MutexGuard<'_, T>, String> {
+    loop {
+        check()?;
+        match mutex.try_lock() {
+            Ok(guard) => return Ok(guard),
+            Err(std::sync::TryLockError::Poisoned(error)) => return Ok(error.into_inner()),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+    }
+}

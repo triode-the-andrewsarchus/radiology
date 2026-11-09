@@ -6,8 +6,7 @@ use crate::critical::{
     CriticalityPolicy,
 };
 use std::collections::VecDeque;
-use std::sync::{atomic::AtomicBool, MutexGuard, TryLockError, Weak};
-use std::time::Duration;
+use std::sync::{atomic::AtomicBool, Weak};
 
 const ENTRY_LIMIT: usize = 8;
 const BYTE_LIMIT: usize = 16 * 1024 * 1024;
@@ -58,7 +57,7 @@ pub(super) fn project(
     overrides: CriticalityOverrides,
     cancel: &AtomicBool,
 ) -> Result<SourceProjection, String> {
-    let mut cache = lock(cache, cancel)?;
+    let mut cache = crate::background::lock_checked(cache, || check_cancel(cancel))?;
     check_cancel(cancel)?;
     cache.prepare(index, overrides);
     if let Some(projection) = cache.get(buffer, &calls) {
@@ -88,20 +87,6 @@ pub(super) fn project(
     cache.insert(calls, projection.clone());
     tracing::debug!(cache_hit = false, source = %buffer.path, "Critical Lens projection");
     Ok(projection)
-}
-
-fn lock<'a>(
-    cache: &'a Mutex<ProjectionCache>,
-    cancel: &AtomicBool,
-) -> Result<MutexGuard<'a, ProjectionCache>, String> {
-    loop {
-        check_cancel(cancel)?;
-        match cache.try_lock() {
-            Ok(guard) => return Ok(guard),
-            Err(TryLockError::Poisoned(error)) => return Ok(error.into_inner()),
-            Err(TryLockError::WouldBlock) => std::thread::sleep(Duration::from_millis(2)),
-        }
-    }
 }
 
 impl ProjectionCache {

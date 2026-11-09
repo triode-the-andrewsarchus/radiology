@@ -6,11 +6,17 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Parsed preview structures](rust-preview-structure-reuse.md) now retain four exact
+source/index-owned structures, sharing one extraction across adjacent definition
+targets. Checked worker locking preserves cancellation/deadline behavior; file
+edits and eviction reparse correctly. This maps the cross-file ContextModel group;
+remaining ContextModel assertions and final acceptance stay open.
+
 [Context query reuse](rust-context-query-reuse.md) closes restarted preview/
 reference work when returning to known identities. Shared bounded scope/source
 ownership, immutable result rows and retained Load More budgets preserve existing
-worker publication. The ContextModel suite's complete assertion mapping and
-cross-target parsed-structure reuse remain open.
+worker publication. Cross-target parsed-structure reuse is now closed above;
+complete ContextModel assertion reconciliation remains open.
 
 [Context navigation contracts](rust-context-navigation-contracts.md) now map all
 nine Swift groups. A real sidebar click exposed and repaired viewport departure
