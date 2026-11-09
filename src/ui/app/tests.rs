@@ -95,6 +95,37 @@ fn open_reader(app: &mut RadiologyApp, root: &Path, path: &str) {
     settle(app);
 }
 
+fn checkout_context(
+    root: &Path,
+    path: &str,
+    scale: f32,
+) -> (tempfile::TempDir, RadiologyApp, Context) {
+    let (settings, mut app) = reader();
+    open_reader(&mut app, root, path);
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    focus::settle_frame(&mut app, &ctx);
+    (settings, app, ctx)
+}
+
+fn one_search_result(
+    app: &mut RadiologyApp,
+    query: &str,
+    include: &str,
+) -> crate::search::match_item::SearchMatch {
+    app.search_options.query = query.into();
+    app.search_options.include_glob = include.into();
+    app.start_repository_search();
+    crate::search::session::finish_search(&mut app.repository_search);
+    assert!(
+        app.repository_search.error.is_none(),
+        "{:?}",
+        app.repository_search.error
+    );
+    assert_eq!(app.repository_search.matches.len(), 1);
+    app.repository_search.matches[0].clone()
+}
+
 pub(super) fn isolated_source(path: &str, text: &str) -> (tempfile::TempDir, RadiologyApp) {
     let (owner, mut app) = reader();
     let root = owner.path().join("checkout");
@@ -2248,10 +2279,71 @@ fn outline_keys_preview_without_caret_history_changes_and_commit_exact_departure
     }
 }
 
+fn marked_outline_names(app: &mut RadiologyApp, labels: &[&str], scale: f32) -> Vec<String> {
+    app.sync_outline();
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    let output = ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(300.0, 400.0),
+            )),
+            ..Default::default()
+        },
+        |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                app.outline_list.show(ui, &app.theme);
+            });
+        },
+    );
+    let dots: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Circle(circle)
+                if circle.radius == 3.0 && circle.fill == app.theme.accent =>
+            {
+                Some(circle.center.y)
+            }
+            _ => None,
+        })
+        .collect();
+    let mut names: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text)
+                if labels.contains(&text.galley.job.text.as_str())
+                    && dots
+                        .iter()
+                        .any(|y| (*y - text.pos.y - text.galley.size().y / 2.0).abs() < 0.5) =>
+            {
+                Some(text.galley.job.text.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        dots.len(),
+        names.len(),
+        "every visible marker belongs to a callable label"
+    );
+    names.sort();
+    names
+}
+
 #[test]
 fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
     let before = "// café 😀\nfn removed_only() {\n old();\n}\n\nfn edited() {\n old();\n}\n\nfn untouched() {\n same();\n}\n";
     let after = "// café 😀\nfn edited() {\n new();\n}\n\nfn untouched() {\n same();\n}\n\nfn added_only() {\n new();\n}\n";
+    let labels = [
+        "removed_only",
+        "edited",
+        "untouched",
+        "added_only",
+        "checkout_only",
+    ];
     let (dir, root, review) =
         crate::pull_request::review::tests::fixture_with_sources(before, after);
     let mut app = RadiologyApp::from_session(SessionStore::load_from(
@@ -2263,77 +2355,27 @@ fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
     settle(&mut app);
     app.open_file("a file.rs");
     settle(&mut app);
-    let marked = |app: &mut RadiologyApp| {
-        app.sync_outline();
-        let ctx = Context::default();
-        let output = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(300.0, 400.0),
-                )),
-                ..Default::default()
-            },
-            |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    app.outline_list.show(ui, &app.theme);
-                });
-            },
-        );
-        let dots: Vec<_> = output
-            .shapes
-            .iter()
-            .filter_map(|shape| match &shape.shape {
-                egui::Shape::Circle(circle)
-                    if circle.radius == 3.0 && circle.fill == app.theme.accent =>
-                {
-                    Some(circle.center.y)
-                }
-                _ => None,
-            })
-            .collect();
-        let mut names: Vec<_> = output
-            .shapes
-            .iter()
-            .filter_map(|shape| match &shape.shape {
-                egui::Shape::Text(text)
-                    if [
-                        "removed_only",
-                        "edited",
-                        "untouched",
-                        "added_only",
-                        "checkout_only",
-                    ]
-                    .contains(&text.galley.job.text.as_str())
-                        && dots.iter().any(|y| {
-                            (*y - text.pos.y - text.galley.size().y / 2.0).abs() < 0.5
-                        }) =>
-                {
-                    Some(text.galley.job.text.clone())
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            dots.len(),
-            names.len(),
-            "every visible marker belongs to a callable label"
-        );
-        names.sort();
-        names
-    };
     assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
-    assert_eq!(marked(&mut app), ["added_only", "edited"]);
+    assert_eq!(
+        marked_outline_names(&mut app, &labels, 1.0),
+        ["added_only", "edited"]
+    );
     let ctx = Context::default();
     assert_eq!(app.caret_line, 1);
     app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
     assert_eq!(app.caret_line, 1);
-    assert_eq!(marked(&mut app), ["edited", "removed_only"]);
+    assert_eq!(
+        marked_outline_names(&mut app, &labels, 1.0),
+        ["edited", "removed_only"]
+    );
     app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::After));
     settle(&mut app);
-    assert_eq!(marked(&mut app), ["added_only", "edited"]);
+    assert_eq!(
+        marked_outline_names(&mut app, &labels, 1.0),
+        ["added_only", "edited"]
+    );
     assert_eq!(app.caret_line, 1);
     // A real dirty checkout callable must not inherit the pinned review markers.
     let checkout = "fn checkout_only() {\n dirty();\n}\n";
@@ -2343,7 +2385,7 @@ fn outline_change_dots_use_pinned_revision_source_and_clear_on_checkout() {
     app.open_file("a file.rs");
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, checkout);
-    assert!(marked(&mut app).is_empty());
+    assert!(marked_outline_names(&mut app, &labels, 1.0).is_empty());
 }
 
 #[test]

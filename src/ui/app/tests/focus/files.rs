@@ -108,13 +108,8 @@ fn files_reveal_centers_committed_jumps_and_preserves_passive_scroll_and_caret()
         assert!(file_row(&output, "file055.rs").is_none());
         assert!(!app.expanded_dirs.contains("z/deep"));
         app.sidebar_tab = SidebarTab::Search;
-        app.search_options.query = "work".into();
-        app.search_options.include_glob = "b/deep/file044.rs".into();
-        app.start_repository_search();
-        crate::search::session::finish_search(&mut app.repository_search);
-        assert!(app.repository_search.error.is_none());
-        assert_eq!(app.repository_search.matches.len(), 1);
-        assert_eq!(app.repository_search.matches[0].byte_offset, 19);
+        let result = one_search_result(&mut app, "work", "b/deep/file044.rs");
+        assert_eq!(result.byte_offset, 19);
         let output = frame(&mut app, &ctx, vec![]);
         let point = crate::ui::test_support::text_center(&output, "b/deep/file044.rs:2");
         frame(&mut app, &ctx, click(point));

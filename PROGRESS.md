@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-09 — Integrated PR browsing and exact-caret departures (Codex)
+
+Red command and painted-button regressions showed unchanged files offered Before.
+The shared review navigation resolver now rejects it with an After-byte hint, and
+the revision buttons use After-only availability when no change record exists.
+Unavailable commands stay idle; rejected explicit navigation preserves source and
+history without starting a read. Raw object reads retain base-byte capability.
+
+A real caret report plus passive scroll reproduced Back returning line 80 instead
+of caret line 1/column 2. Revision switches and changed-block jumps now use the
+existing exact-caret history intent. Ordinary file navigation keeps its reading
+trail. No second navigation/history mechanism or runtime function was introduced.
+
+The new both-scale real Git/app/ripgrep flow checks snapshot-specific source rows,
+empty review entry, modified/added/deleted/unchanged availability, exact hunks and
+painted changed-callable markers, Before source-only semantics, exact caret Back,
+renamed Markdown filtering without source/history mutation, search forcing After,
+and checkout/recent-list restoration with attached HEAD/status/bytes unchanged.
+Shared paint/search/checkout-context helpers reuse existing mechanisms and remove
+two draft clones. Prior outline, Files reveal and fresh-entry tests share them.
+
+The integrated flow, 44 review-related checks, final Files/outline/revision-button
+checks, formatting, strict all-target Clippy, build and warning-free docs pass.
+The full locked offline serial run passes 842 app tests (11 existing ignored),
+two binary/13 font/22 text tests and all 65 doctests. Architecture +285 measured NLOC/three measured test functions, unchanged
+complete clone multisets, hotspots and cycles.
+[Browsing contracts](plans/rust-pr-browsing-contracts.md) now map the second
+PullRequestReview group, making two of four with the metadata checkpoint. The
+changed-block group's test-region/EOF/stale-input combined assertions and the
+retired-load group remain open, alongside other unreconciled suites, final native
+acceptance, known parallel timing limits and Android. Next: complete the combined
+changed-block navigation group through hidden tests and EOF.
+
 ## 2026-11-09 — Complete GitHub summary metadata (Codex)
 
 A red Swift-fixture roundtrip confirmed that Rust discarded author/login,

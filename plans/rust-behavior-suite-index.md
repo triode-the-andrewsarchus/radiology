@@ -162,7 +162,10 @@ The separate integrated-review suite remains open. The
 [fresh-entry checkpoint](rust-pr-review-entry.md) repairs two assertions in its
 browsing flow. [GitHub metadata contracts](rust-github-metadata-contracts.md) now
 map `decodesGhSummariesAndTimesOutSlowCommands` (one of four integrated groups);
-the three combined browsing/change-navigation/retired-load mappings remain open.
+[integrated browsing](rust-pr-browsing-contracts.md) maps
+`opensAPullRequestBrowsesAfterTogglesBeforeAndExits` and repairs unchanged Before
+availability/exact-caret returns. Two of four groups are now mapped; the combined
+changed-block and retired-load mappings remain open.
 
 ## Critical Lens and hover
 

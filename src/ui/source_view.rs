@@ -340,7 +340,9 @@ fn revision_buttons(
 ) -> Option<ReviewRevision> {
     let mut action = None;
     for revision in [ReviewRevision::After, ReviewRevision::Before] {
-        let available = change.is_none_or(|change| change.path_for_revision(revision).is_some());
+        let available = change.map_or(revision == ReviewRevision::After, |change| {
+            change.path_for_revision(revision).is_some()
+        });
         let response = ui.add_enabled(
             available,
             egui::SelectableLabel::new(current == revision, revision.title()),
@@ -512,37 +514,44 @@ mod tests {
         use crate::ui::test_support::{click, painted_frame, text_center};
         for (status, current, requested, expected) in [
             (
-                FileChangeStatus::Added,
+                Some(FileChangeStatus::Added),
                 ReviewRevision::After,
                 ReviewRevision::Before,
                 None,
             ),
             (
-                FileChangeStatus::Deleted,
+                Some(FileChangeStatus::Deleted),
                 ReviewRevision::Before,
                 ReviewRevision::After,
                 None,
             ),
             (
-                FileChangeStatus::Modified,
+                Some(FileChangeStatus::Modified),
                 ReviewRevision::After,
                 ReviewRevision::Before,
                 Some(ReviewRevision::Before),
             ),
             (
-                FileChangeStatus::Renamed { similarity: 100 },
+                Some(FileChangeStatus::Renamed { similarity: 100 }),
                 ReviewRevision::Before,
                 ReviewRevision::After,
                 Some(ReviewRevision::After),
             ),
             (
-                FileChangeStatus::Added,
+                Some(FileChangeStatus::Added),
                 ReviewRevision::After,
                 ReviewRevision::After,
                 None,
             ),
+            (None, ReviewRevision::After, ReviewRevision::Before, None),
+            (
+                None,
+                ReviewRevision::Before,
+                ReviewRevision::After,
+                Some(ReviewRevision::After),
+            ),
         ] {
-            let change = FileChange {
+            let change = status.map(|status| FileChange {
                 path: "new.rs".into(),
                 old_path: Some("old.rs".into()),
                 status,
@@ -553,18 +562,18 @@ mod tests {
                 additions: 1,
                 deletions: 1,
                 is_binary: false,
-            };
+            });
             let ctx = egui::Context::default();
             let size = egui::vec2(240.0, 80.0);
             let mut action = None;
             let output = painted_frame(&ctx, size, vec![], |ui| {
-                action = revision_buttons(ui, current, Some(&change));
+                action = revision_buttons(ui, current, change.as_ref());
             });
             let target = text_center(&output, requested.title());
             painted_frame(&ctx, size, click(target), |ui| {
-                action = revision_buttons(ui, current, Some(&change));
+                action = revision_buttons(ui, current, change.as_ref());
             });
-            assert_eq!(action, expected, "{:?}", change.status);
+            assert_eq!(action, expected, "{change:?}");
         }
     }
 }

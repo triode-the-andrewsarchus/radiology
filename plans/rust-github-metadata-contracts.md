@@ -87,3 +87,7 @@ changed-block and retired-load combined mappings remain open, together with fina
 native acceptance, other unreconciled suites, known parallel timing limits and
 Android. The fresh-entry gap is repaired in the linked checkpoint, and the separate
 repository/presentation/fold suites retain their explicit mappings.
+
+Follow-up: [integrated browsing](rust-pr-browsing-contracts.md) maps the second
+integrated group and fixes unchanged Before availability and exact-caret returns.
+The two remaining combined groups stay open.

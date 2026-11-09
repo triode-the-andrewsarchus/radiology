@@ -227,7 +227,12 @@ fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_im
 
 #[test]
 fn unavailable_revision_commands_keep_the_reader_without_starting_a_failed_read() {
-    let (_owner, root, snapshot) = crate::pull_request::review::tests::fixture();
+    let (_owner, root, snapshot) = crate::pull_request::review::tests::fixture_with_tree_edits(
+        "one\ntwo\nthree\n",
+        "one\nchanged\nthree\n",
+        |root| std::fs::write(root.join("unchanged.rs"), "fn stable() {}\n").unwrap(),
+        |_| {},
+    );
     let (_settings, mut app) = reader();
     app.open_repository(&root);
     settle(&mut app);
@@ -236,6 +241,11 @@ fn unavailable_revision_commands_keep_the_reader_without_starting_a_failed_read(
     for (path, current, unavailable) in [
         ("added.rs", ReviewRevision::After, ReviewRevision::Before),
         ("removed.rs", ReviewRevision::Before, ReviewRevision::After),
+        (
+            "unchanged.rs",
+            ReviewRevision::After,
+            ReviewRevision::Before,
+        ),
     ] {
         app.open_file(path);
         settle(&mut app);
@@ -249,6 +259,18 @@ fn unavailable_revision_commands_keep_the_reader_without_starting_a_failed_read(
         app.execute_command(&Context::default(), ToolbarAction::ToggleCurrentRevision);
         assert!(!app.is_source_loading());
         assert!(app.error.is_none());
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert_eq!(app.history.current(), history.as_ref());
+        let blocked = SourceLocation::with_revision(path, 0, Some(unavailable));
+        assert!(app
+            .review
+            .as_ref()
+            .unwrap()
+            .resolve(blocked.clone())
+            .is_err());
+        app.navigate(blocked, true);
+        assert!(!app.is_source_loading());
+        assert!(app.error.is_some());
         assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
         assert_eq!(app.history.current(), history.as_ref());
     }
@@ -542,10 +564,7 @@ fn review_fold_choices_survive_late_appearance_and_retired_reload_but_reset_for_
 fn fresh_review_entry_waits_for_file_choice_and_explicit_destinations_still_open() {
     let (_owner, root, snapshot) = crate::pull_request::review::tests::fixture();
     for scale in [1.0, 2.0] {
-        let (_settings, mut app) = reader();
-        open_reader(&mut app, &root, "a file.rs");
-        let ctx = Context::default();
-        ctx.set_pixels_per_point(scale);
+        let (_settings, mut app, ctx) = checkout_context(&root, "a file.rs", scale);
         app.session.source_filters.path_query = "checkout-only query".into();
         app.session.source_filters.source_files_only = true;
         app.filters_changed();
@@ -599,4 +618,223 @@ fn fresh_review_entry_waits_for_file_choice_and_explicit_destinations_still_open
         assert_eq!(app.active_revision, Some(ReviewRevision::Before));
         assert!(!app.history.can_go_back());
     }
+}
+
+#[test]
+fn pinned_browsing_keeps_snapshot_inventory_revision_history_rename_filters_search_and_exit_in_agreement(
+) {
+    use super::focus::{frame, settle_frame};
+    use crate::pull_request::review::tests::{fixture_with_tree_edits, git};
+    use crate::repository::filters::SourceFilters;
+    use crate::source::ReviewRevision::{After, Before};
+    use crate::ui::test_support::{click, text_center};
+    use std::collections::BTreeSet;
+    let tail = "// passive reading tail café\n".repeat(160);
+    let before =
+        format!("pub fn a() -> i32 {{\n    1\n}}\n\npub fn b() -> i32 {{\n    2\n}}\n{tail}");
+    let after = format!("pub fn a() -> i32 {{\n    1\n}}\n\npub fn b() -> i32 {{\n    let extra = 40;\n    extra + 2\n}}\n\npub fn c() -> i32 {{\n    3\n}}\n{tail}");
+    let markdown = "# Readme\n\nOne\nTwo\nThree\n";
+    let edited_markdown = format!("{markdown}Four\n");
+    let (_owner, root, review) = fixture_with_tree_edits(
+        &before,
+        &after,
+        |root| {
+            std::fs::write(
+                root.join("Cargo.toml"),
+                "[package]\nname='fixture'\nversion='0.1.0'\n[lib]\npath='a file.rs'\n",
+            )
+            .unwrap();
+            std::fs::create_dir(root.join("docs")).unwrap();
+            std::fs::write(root.join("docs/readme.md"), markdown).unwrap();
+        },
+        |root| {
+            git(root, &["mv", "docs/readme.md", "docs/README.md"]);
+            std::fs::write(root.join("docs/README.md"), &edited_markdown).unwrap();
+        },
+    );
+    let head = git(&root, &["rev-parse", "HEAD"]);
+    let status = git(&root, &["status", "--porcelain"]);
+    let source_only = SourceFilters {
+        source_files_only: true,
+        ..Default::default()
+    };
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) = checkout_context(&root, "a file.rs", scale);
+        app.execute_command(&ctx, ToolbarAction::ToggleSourceFilesOnly);
+        assert_eq!(
+            app.file_tree
+                .iter()
+                .map(|f| f.path.as_str())
+                .collect::<BTreeSet<_>>(),
+            ["a file.rs", "removed.rs", "renamed old.rs"]
+                .into_iter()
+                .collect()
+        );
+        crate::pull_request::recent::tests::publish(
+            &mut app.recent_pull_requests,
+            Ok(Some(vec![review.summary.clone()])),
+        );
+        app.accept_review(review.clone());
+        settle_frame(&mut app, &ctx);
+        assert!(app.open_buffer.is_none() && app.history.current().is_none());
+        assert_eq!(app.sidebar_tab, SidebarTab::Changes);
+        assert_eq!(app.repository_root.as_ref(), Some(&root));
+        assert_eq!(app.search_root().as_ref(), Some(&review.head_root));
+        assert_eq!(app.review.as_ref().unwrap().base, review.base);
+        assert_eq!(
+            app.file_tree
+                .iter()
+                .map(|f| f.path.as_str())
+                .collect::<BTreeSet<_>>(),
+            ["a file.rs", "added.rs", "renamed new.rs"]
+                .into_iter()
+                .collect()
+        );
+        for (path, has_before, has_after) in [
+            ("a file.rs", true, true),
+            ("removed.rs", true, false),
+            ("added.rs", false, true),
+            ("Cargo.toml", false, true),
+        ] {
+            for (revision, available) in [(Before, has_before), (After, has_after)] {
+                assert_eq!(
+                    app.resolve_location(SourceLocation::with_revision(path, 0, Some(revision)))
+                        .is_ok(),
+                    available,
+                    "{path} {revision:?}"
+                );
+            }
+        }
+        app.open_file("a file.rs");
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
+        assert_eq!(
+            app.line_changes.as_ref().unwrap().changed_lines(After),
+            std::iter::once(6..12).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            marked_outline_names(&mut app, &["a", "b", "c"], scale),
+            ["b", "c"]
+        );
+        for (command, departure_line, expected_revision) in [
+            (ToolbarAction::NextChangeBlock, 1, After),
+            (ToolbarAction::ToggleRevision(Before), 10, Before),
+        ] {
+            let previous = (app.caret_line, app.caret_col);
+            app.caret_line = departure_line;
+            app.caret_col = 2;
+            app.finish_source_interaction(previous);
+            let source = app.open_buffer.clone().unwrap();
+            app.scroll_to_line = None;
+            let top = source.byte_offset(80, 0);
+            app.source_viewport.restore_top(&source, top);
+            frame(&mut app, &ctx, vec![]);
+            assert_eq!(app.reading_positions.current_byte(), Some(top));
+            app.execute_command(&ctx, command);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.caret_line, 6);
+            assert_eq!(app.active_revision, Some(expected_revision));
+            if expected_revision == Before {
+                assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
+                assert_eq!(
+                    app.line_changes.as_ref().unwrap().changed_lines(Before),
+                    std::iter::once(6..7).collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    crate::semantic::availability::SemanticAvailability::from_services(
+                        app.open_buffer.as_deref(),
+                        app.semantic_index.as_deref(),
+                        &app.index_generator,
+                        &app.index_importer
+                    ),
+                    crate::semantic::availability::SemanticAvailability::RevisionNotIndexed
+                );
+                assert!(!app.command_enabled(&ToolbarAction::GoToDefinition));
+            }
+            app.execute_command(&ctx, ToolbarAction::NavigateBack);
+            settle_frame(&mut app, &ctx);
+            assert_eq!(app.active_revision, Some(After));
+            assert_eq!((app.caret_line, app.caret_col), (departure_line, 2));
+            assert_eq!(app.history.current().unwrap().revision, Some(After));
+        }
+        app.open_file("removed.rs");
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.active_revision, Some(Before));
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, "old\n");
+        assert_eq!(
+            app.review
+                .as_ref()
+                .unwrap()
+                .change("removed.rs")
+                .unwrap()
+                .status
+                .title(),
+            "Deleted"
+        );
+        app.open_file("docs/README.md");
+        settle_frame(&mut app, &ctx);
+        app.execute_command(&ctx, ToolbarAction::ToggleRevision(Before));
+        settle_frame(&mut app, &ctx);
+        let accepted = app.open_buffer.clone().unwrap();
+        assert_eq!(
+            (accepted.path.as_str(), accepted.text.as_str()),
+            ("docs/readme.md", markdown)
+        );
+        let history = format!("{:?}", app.history);
+        let changes = app.pr_changes.clone();
+        app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+        let projection = crate::pull_request::ReviewChangesPresentation::new(
+            &app.pr_changes,
+            &app.session.source_filters,
+        );
+        assert_eq!(projection.selection_id(&accepted.path, Before), None);
+        app.execute_command(&ctx, ToolbarAction::ShowAllFiles);
+        assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(app.pr_changes, changes);
+        app.sidebar_tab = SidebarTab::Search;
+        let result = one_search_result(&mut app, "Four", "docs/README.md");
+        assert_eq!(result.byte_offset, edited_markdown.find("Four").unwrap());
+        let output = frame(&mut app, &ctx, vec![]);
+        let row = text_center(&output, "docs/README.md:6");
+        frame(&mut app, &ctx, click(row));
+        settle_frame(&mut app, &ctx);
+        let found = app.open_buffer.as_ref().unwrap();
+        assert_eq!(
+            (found.path.as_str(), found.revision, found.text.as_str()),
+            ("docs/README.md", Some(After), edited_markdown.as_str())
+        );
+        assert_eq!(
+            found.byte_offset(app.caret_line, app.caret_col),
+            edited_markdown.find("Four").unwrap()
+        );
+        app.execute_command(&ctx, ToolbarAction::ExitPRReview);
+        settle_frame(&mut app, &ctx);
+        assert!(
+            app.review.is_none() && app.line_changes.is_none() && app.active_revision.is_none()
+        );
+        assert_eq!(app.sidebar_tab, SidebarTab::Files);
+        assert_eq!(app.repository_root.as_ref(), Some(&root));
+        assert_eq!(
+            source_only
+                .filter_files(&app.all_files)
+                .iter()
+                .map(|f| f.path.clone())
+                .collect::<BTreeSet<_>>(),
+            ["a file.rs", "removed.rs", "renamed old.rs"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        );
+        assert_eq!(
+            app.recent_pull_requests.items(),
+            std::slice::from_ref(&review.summary)
+        );
+    }
+    assert_eq!(git(&root, &["rev-parse", "HEAD"]), head);
+    assert_eq!(git(&root, &["status", "--porcelain"]), status);
+    assert_eq!(
+        std::fs::read(root.join("a file.rs")).unwrap(),
+        b"checkout only\n"
+    );
 }

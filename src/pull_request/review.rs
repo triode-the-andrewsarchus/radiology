@@ -263,7 +263,8 @@ impl ReviewSnapshot {
     /// Resolves the requested path to a revision, choosing Before for deleted files.
     ///
     /// # Errors
-    /// Returns an error when an explicitly requested revision has no such file.
+    /// Returns an error when an explicitly requested revision is unavailable.
+    /// Before navigation is available only for changed files; unchanged paths use After.
     pub fn resolve(&self, mut location: SourceLocation) -> Result<SourceLocation, String> {
         let change = self.change(&location.path);
         let revision = location.revision.unwrap_or_else(|| {
@@ -273,6 +274,12 @@ impl ReviewSnapshot {
                 ReviewRevision::After
             }
         });
+        if revision == ReviewRevision::Before && change.is_none() {
+            return Err(format!(
+                "{} is unchanged in this pull request; use its After bytes.",
+                location.path
+            ));
+        }
         if let Some(change) = change {
             location.path = change
                 .path_for_revision(revision)
