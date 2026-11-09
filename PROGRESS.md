@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-09 — Syntax-worker assertion reconciliation (Codex)
+
+All nine Swift worker groups now have explicit mappings: exact Rust root/impl
+ordering, Swift declaration/astral sources, full fixture structure, every canonical
+capture through UTF-16 and back, cfg-gated shadowed spelling groups, unsupported
+plain text, malformed recovery and empty/whitespace sources. The twelve-fixture
+range matrix also includes every symbol/selection and each exact Unicode marker,
+with LF/CRLF and existing source-preserving recolor checks. No runtime/API change.
+
+All 80 syntax tests and the real app warning/recovery case pass, plus formatting
+and strict all-target Clippy. Malformed fixtures are shared with that app matrix;
+its Rust override still proves an earlier valid declaration survives. A common
+UTF-16 assertion removes duplicate conversion checks. Architecture +203 NLOC/five
+test functions, no new files/helpers/hotspots/cycles; avg/max CCN 3.43/132 and all
+125 clones unchanged with zero normalized additions/removals.
+
+The last complete gate remains c20eba6 (901 app checks/all 66 doctests); these later
+test-only additions have focused evidence, with no new full/build/doc claim.
+Source/syntax is 46/66 mapped. Test presentation 7 and regions 13 remain, then
+compiler/inspector and final integrated/native/standalone/reuse acceptance.
+[Worker mapping](plans/rust-syntax-worker-contracts.md); archive:
+~/.local/state/radiology-qa/syntax-worker-20261109-c20eba6/.
+
 ## 2026-11-09 — Language/query contracts and exact Kotlin import ranges (Codex)
 
 The exact Kotlin fixture failed its Imports assertion; Rust omitted the single

@@ -208,18 +208,13 @@ fn semantic_explanations_follow_index_coverage_source_identity_and_revision() {
 fn recoverable_structure_warnings_follow_the_displayed_source_and_clear_on_repair() {
     let (_dir, mut app) = opened_repository();
     let ctx = Context::default();
-    for (path, text) in [
-        ("Broken.swift", "struct Broken { func run( { return 1 }"),
-        ("broken.rs", "fn preserved() {}\nfn broken( { let x = ; }"),
-        ("broken.go", "package main\nfunc main( { x := }"),
-        ("broken.py", "def broken(:\n    return ["),
-        ("broken.js", "function broken( { const x = ; }"),
-        ("broken.jsx", "const A = () => <div className=;"),
-        ("broken.ts", "interface Broken { name: ; }\nfunction f( {"),
-        ("broken.tsx", "const A: FC = () => <div className=;"),
-        ("broken.kt", "fun broken( { val x = }"),
-        ("broken.kts", "val x = ; class {"),
-    ] {
+    for &(path, original) in crate::syntax::test_fixtures::MALFORMED_SOURCE_FIXTURES {
+        // Retain the app-specific proof that recovery keeps an earlier good item.
+        let text = if path == "broken.rs" {
+            "fn preserved() {}\nfn broken( { let x = ; }"
+        } else {
+            original
+        };
         std::fs::write(app.repository_root.as_ref().unwrap().join(path), text).unwrap();
         app.open_file(path);
         settle(&mut app);

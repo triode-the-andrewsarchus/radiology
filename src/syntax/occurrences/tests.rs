@@ -139,3 +139,33 @@ fn occurrence_limits_fail_without_partial_groups_or_disabling_independent_calls(
         super::super::DocumentSyntax::analyze(&SourceBuffer::from_str("a.txt", "value value"));
     assert!(unsupported.occurrences.selection(&buffer, 0).is_none());
 }
+
+#[test]
+fn cfg_gated_shadowed_spellings_stay_in_the_function_and_exclude_text() {
+    let text = r#"#[cfg(target_os = "android")]
+fn android_log(message: &str) {
+    let message = CString::new(message).unwrap_or("message");
+    unsafe { write(message); } // message
+}
+fn unrelated(message: &str) { use_it(message); }"#;
+    let buffer = SourceBuffer::from_str("app_image.rs", text);
+    let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+    let selected = syntax
+        .occurrences
+        .selection(&buffer, text.find("let message").unwrap() + 5)
+        .unwrap();
+    assert_eq!(selected.ranges.len(), 4);
+    assert!(selected
+        .ranges
+        .iter()
+        .all(|range| &text[range.clone()] == "message"
+            && selected.scope.start <= range.start
+            && range.end <= selected.scope.end));
+    assert!(selected.scope.end <= text.find("fn unrelated").unwrap());
+    for excluded in ["\"message\"", "// message"] {
+        assert!(syntax
+            .occurrences
+            .selection(&buffer, text.find(excluded).unwrap() + 3)
+            .is_none());
+    }
+}

@@ -1,11 +1,11 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
-Current source reconciliation: [language/query contracts](rust-syntax-language-query-contracts.md)
-bring the section to 37/66 mapped groups. Kotlin import boundaries now match the
-pinned reference parser; syntax, resource and gutter checks pass. The fresh full
-gate passes 901 app tests and all 66 doctests. Worker/presentation/regions account for the remaining 29 source
-groups, followed by compiler/inspector and final acceptance. Earlier counts below
-are historical; the language/query checkpoint records current full evidence.
+Current source reconciliation: [worker contracts](rust-syntax-worker-contracts.md)
+bring the section to 46/66 mapped groups. Eighty syntax tests, actual app recovery
+and strict Clippy pass; this checkpoint is test-only. The latest complete gate is
+c20eba6 (901 app checks/all 66 doctests). Presentation/regions account for the
+remaining 20 source groups, followed by compiler/inspector and final acceptance.
+Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

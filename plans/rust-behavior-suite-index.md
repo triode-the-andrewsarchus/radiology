@@ -409,6 +409,12 @@ missing-resource checks pass. The full gate passes 901 app tests/all 66 doctests
 Source total: 37/66;
 29 remain across worker, test presentation and test regions.
 
+[Syntax-worker contracts](rust-syntax-worker-contracts.md) map all nine worker
+groups, with every range/marker round-tripped through shared UTF-16 conversion,
+exact declaration/astral/cfg fixtures and shared malformed-source app evidence.
+Eighty syntax checks, app recovery and strict Clippy pass. Source total: 46/66;
+the remaining 20 are presentation (7) and region detection (13).
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

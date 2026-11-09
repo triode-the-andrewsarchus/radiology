@@ -673,3 +673,52 @@ fn swift_language_fixture_structures_keep_kinds_containment_and_fold_roles() {
             .any(|row| row.name == "parts" && row.kind == Property));
     }
 }
+
+#[test]
+fn worker_rust_roots_preserve_exact_containment_and_declaration_order() {
+    let text = r#"struct PreparedApp(Restored);
+impl PreparedApp {
+    pub fn image(self) -> Restored { self.0 }
+}
+struct SnapshotBootstrapGlobals(Vec<u8>);
+impl SnapshotBootstrapGlobals {
+    fn hide() { println!("hide"); }
+    fn restore() { println!("restore"); }
+}
+pub fn create() { println!("create"); }
+pub fn restore_base() { println!("base"); }
+pub fn restore_app() { println!("app"); }"#;
+    let (_, symbols) = declarations("app_image.rs", text);
+    assert_eq!(
+        symbols
+            .iter()
+            .map(|symbol| symbol.name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "PreparedApp",
+            "PreparedApp",
+            "SnapshotBootstrapGlobals",
+            "SnapshotBootstrapGlobals",
+            "create",
+            "restore_base",
+            "restore_app"
+        ]
+    );
+    for (name, expected) in [
+        ("PreparedApp", &["image"][..]),
+        ("SnapshotBootstrapGlobals", &["hide", "restore"][..]),
+    ] {
+        let implementation = symbols
+            .iter()
+            .find(|symbol| symbol.name == name && symbol.kind == SymbolKind::Extension)
+            .unwrap();
+        assert_eq!(
+            implementation
+                .children
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+}

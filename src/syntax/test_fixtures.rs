@@ -62,3 +62,17 @@ pub(crate) const SWIFT_SOURCE_FIXTURES: &[(&str, &str, &str)] = &[
         "load",
     ),
 ];
+
+// Exact SyntaxWorkerTests recovery corpus, shared with actual app warning checks.
+pub(crate) const MALFORMED_SOURCE_FIXTURES: &[(&str, &str)] = &[
+    ("Broken.swift", "struct Broken { func run( { return 1 }"),
+    ("broken.rs", "fn main( { let x = ; }"),
+    ("broken.go", "package main\nfunc main( { x := }"),
+    ("broken.py", "def broken(:\n    return ["),
+    ("broken.js", "function broken( { const x = ; }"),
+    ("broken.jsx", "const A = () => <div className=;"),
+    ("broken.ts", "interface Broken { name: ; }\nfunction f( {"),
+    ("broken.tsx", "const A: FC = () => <div className=;"),
+    ("broken.kt", "fun broken( { val x = }"),
+    ("broken.kts", "val x = ; class {"),
+];

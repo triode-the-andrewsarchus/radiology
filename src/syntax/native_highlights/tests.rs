@@ -56,6 +56,42 @@ fn assert_original_bytes(lines: &[Vec<HighlightedSpan>], buffer: &SourceBuffer) 
     }
 }
 
+fn assert_utf16_round_trip(
+    buffer: &SourceBuffer,
+    coordinates: &reader_text::CoordinateIndex,
+    utf16: &[u16],
+    range: &Range<usize>,
+) {
+    let original = buffer
+        .text
+        .get(range.clone())
+        .expect("capture must use canonical scalar boundaries");
+    let start = coordinates
+        .units_at_byte(
+            &buffer.text,
+            range.start,
+            reader_text::ColumnEncoding::Utf16,
+        )
+        .unwrap();
+    let end = coordinates
+        .units_at_byte(&buffer.text, range.end, reader_text::ColumnEncoding::Utf16)
+        .unwrap();
+    assert_eq!(
+        String::from_utf16(&utf16[start..end]).unwrap(),
+        original,
+        "{}: {range:?}",
+        buffer.path
+    );
+    assert_eq!(
+        coordinates.byte_at_units(&buffer.text, start, reader_text::ColumnEncoding::Utf16),
+        Some(range.start)
+    );
+    assert_eq!(
+        coordinates.byte_at_units(&buffer.text, end, reader_text::ColumnEncoding::Utf16),
+        Some(range.end)
+    );
+}
+
 fn recolored_source(
     facts: &NativeHighlights,
     buffer: &SourceBuffer,
@@ -360,7 +396,19 @@ fn swift_corpus_fixtures_preserve_native_facts_and_colors_in_both_line_endings()
                 "{} must retain native colors",
                 buffer.path
             );
-            for row in crate::syntax::outline::outline_rows(&facts.symbols, &buffer) {
+            let coordinates = reader_text::CoordinateIndex::new(&buffer.text);
+            let utf16 = buffer.text.encode_utf16().collect::<Vec<_>>();
+            let marker = ["胸部", "放射線"]
+                .into_iter()
+                .find_map(|marker| {
+                    buffer
+                        .text
+                        .find(marker)
+                        .map(|start| start..start + marker.len())
+                })
+                .expect("every Swift fixture contains its canonical Unicode marker");
+            let rows = crate::syntax::outline::outline_rows(&facts.symbols, &buffer);
+            for row in &rows {
                 let symbol = row.symbol;
                 assert!(buffer.text.get(symbol.range.clone()).is_some());
                 assert_eq!(
@@ -392,12 +440,13 @@ fn swift_corpus_fixtures_preserve_native_facts_and_colors_in_both_line_endings()
                         .iter()
                         .map(|capture| &capture.bytes),
                 )
+                .chain(
+                    rows.iter()
+                        .flat_map(|row| [&row.symbol.range, &row.symbol.selection_range]),
+                )
+                .chain(std::iter::once(&marker))
             {
-                assert!(
-                    buffer.text.get(range.clone()).is_some(),
-                    "{}: {range:?}",
-                    buffer.path
-                );
+                assert_utf16_round_trip(&buffer, &coordinates, &utf16, range);
             }
             for dark in [false, true] {
                 assert_original_bytes(
@@ -523,4 +572,78 @@ fn swift_language_fixture_capture_roles_keep_exact_token_boundaries() {
             .any(|capture| capture.name == "function.builtin"
                 && &text[capture.bytes.clone()] == "New"));
     }
+}
+
+#[test]
+fn swift_worker_unicode_sources_keep_declaration_roles_and_astral_name_offsets() {
+    for (path, text, name, type_name) in [
+        ("Scan.swift", "// 🩻 Unicode before declarations exercises UTF-8 byte coordinates.\nstruct Scan {\n    let title = \"胸部\"\n\n    func render(value: Int) -> String {\n        if value > 0 {\n            return title\n        }\n        return \"none\"\n    }\n}", "render", Some("Scan")),
+        ("Astral.swift", "// 🩻🩻 emoji\nlet title = \"胸部\"\nfunc scan() -> String { title }\n", "scan", None),
+    ] {
+        let buffer = SourceBuffer::from_str(path, text);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+        let language = crate::syntax::LanguageRegistry::for_path(path);
+        assert_eq!((language.id, language.display_name), ("swift", "Swift"));
+        assert!(syntax.native_highlights.matches(&buffer) && syntax.calls.matches(&buffer));
+        let function = syntax.native_highlights.captures.iter().find(|capture| capture.name == "function").unwrap();
+        assert_eq!(&text[function.bytes.clone()], name);
+        let coordinates = reader_text::CoordinateIndex::new(text);
+        let units = text.encode_utf16().collect::<Vec<_>>();
+        assert_utf16_round_trip(&buffer, &coordinates, &units, &function.bytes);
+        let comment = syntax.native_highlights.captures.iter().find(|capture| capture.name == "comment").unwrap();
+        assert!(text[comment.bytes.clone()].starts_with("// 🩻"));
+        assert!(syntax.calls.scopes.iter().any(|scope| !scope.closure && scope.range.contains(&function.bytes.start)));
+        if let Some(type_name) = type_name {
+            let rows = crate::syntax::outline::outline_rows(&syntax.symbols, &buffer);
+            assert!(rows.iter().any(|row| row.symbol.kind == crate::syntax::SymbolKind::Struct && row.symbol.name == type_name));
+            assert!(rows.iter().any(|row| row.symbol.is_callable() && row.symbol.name == name));
+            let captures = syntax.native_highlights.captures.iter().map(|capture| (capture.name.as_str(), &text[capture.bytes.clone()])).collect::<Vec<_>>();
+            assert!(captures.contains(&("keyword.type", "struct")));
+            for kind in [crate::syntax::FoldKind::Callable, crate::syntax::FoldKind::Type] {
+                assert!(syntax.folds.iter().any(|fold| fold.kind == kind));
+            }
+        }
+    }
+}
+
+#[test]
+fn worker_recovery_keeps_malformed_empty_and_unsupported_sources_readable() {
+    for &(path, text) in crate::syntax::test_fixtures::MALFORMED_SOURCE_FIXTURES {
+        let buffer = SourceBuffer::from_str(path, text);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+        assert!(syntax.calls.parse_errors, "{path}");
+        assert!(
+            !syntax.native_highlights.captures.is_empty(),
+            "{path}: recovery lost all highlights"
+        );
+        for capture in &syntax.native_highlights.captures {
+            assert!(text.get(capture.bytes.clone()).is_some());
+        }
+        assert_eq!(buffer.text, text);
+    }
+    for path in [
+        "Empty.swift",
+        "empty.rs",
+        "empty.py",
+        "empty.tsx",
+        "empty.kt",
+    ] {
+        for text in ["", "\n", " \t\r\n \n"] {
+            let buffer = SourceBuffer::from_str(path, text);
+            let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+            assert!(
+                syntax.symbols.is_empty() && syntax.folds.is_empty(),
+                "{path}: {text:?}"
+            );
+            assert!(!syntax.calls.parse_errors);
+        }
+    }
+    let plain = SourceBuffer::from_str("README.md", "# Read me");
+    let syntax = crate::syntax::DocumentSyntax::analyze(&plain);
+    assert!(crate::syntax::LanguageRegistry::for_path(&plain.path)
+        .grammar
+        .is_none());
+    assert!(syntax.symbols.is_empty() && syntax.folds.is_empty() && !syntax.calls.supported);
+    assert!(!syntax.native_highlights.matches(&plain) && syntax.parse_error.is_none());
+    assert_eq!(plain.text, "# Read me");
 }
