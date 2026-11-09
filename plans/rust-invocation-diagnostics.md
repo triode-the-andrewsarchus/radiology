@@ -70,3 +70,10 @@ still remains, alongside Kotlin/PR, inspector/traits and final integrated/native
 standalone/shared-host acceptance. Compiler/personality remains 17/35 mapped until
 that remaining proof is complete; accessibility and actual sibling adoption remain
 deferred.
+
+## Native follow-up
+
+[Fresh standalone native flows](rust-final-native-indexing.md) now click Copy
+Command for generated and failed attempts at both scales and compare every literal
+argument to actual invocation logs. The full flows also pass with application
+sources unavailable. Earlier frame-only limits above retain their checkpoint scope.

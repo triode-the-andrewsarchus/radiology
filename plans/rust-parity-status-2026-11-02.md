@@ -497,6 +497,14 @@ at both scales, asset-only dependency boundary, all path-package checks and all
 three executables with exported sources unavailable. Final native/integrated/ledger
 review and SDK-backed Android remain separate.
 
+## Fresh native indexing acceptance — 2026-11-09
+
+[Actual standalone success/failure/restart/copy flows](rust-final-native-indexing.md)
+pass in dark 1×/light 2×, including both source-available and source-unavailable
+exports. Actual argv clipboard equality, unchanged source/cache/executable hashes
+and all owned process exits pass. This closes affected indexing UI acceptance,
+while complete requirement/suite review and any uncovered integration remain.
+
 ## Remaining acceptance gates
 
 1. **Remaining behavior and compiler acceptance:** finish mapping the other

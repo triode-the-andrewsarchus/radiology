@@ -9,7 +9,7 @@ product; actual little-screen-clip integration and full accessibility are deferr
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
 and all 66 source/syntax groups have explicit mappings. All 35 compiler/personality
 groups and all fifteen inspector/trait functions are now mapped too. Final
-integrated/native acceptance and the complete requirement-ledger review remain.
+complete requirement-ledger review and any uncovered integrated acceptance remain.
 Fresh standalone/exported-library acceptance passes for e49c5ec. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
 implemented, unknown adapters fail before planning, and attempted invocations are
@@ -20,10 +20,17 @@ ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocat
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Fresh exported-workspace
 build, independent full/asset hosts and source-unavailable resource/runtime checks
-pass; final native/integrated acceptance and complete ledger review remain open.
+pass. Fresh native generation/restart/failure/Copy Command checks also pass at both
+scales with exported sources available/unavailable. Complete ledger review and any
+uncovered integrated acceptance remain open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Fresh native indexing acceptance](plans/rust-final-native-indexing.md) passes
+generated/failed Copy Command, automatic generation, tool-free warm restart, cache
+retention and exact source Copy in dark 1×/light 2×, repeated with exported sources
+unavailable. All app/compositor exits are zero; no product changes were needed.
 
 [Fresh standalone/reuse acceptance](plans/rust-final-standalone-acceptance.md) builds
 a committed archive in a new target with sixteen jobs, runs both locked external

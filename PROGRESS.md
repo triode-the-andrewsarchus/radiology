@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Fresh native indexing and source-independent windows (Codex)
+
+The exported e49c5ec executable passes dark 1×/light 2× actual Wayland workflows,
+then the same complete workflows pass again with exported application sources
+renamed away. Automatic recorded-SCIP generation, real keyboard source Copy,
+Index Projects/Generation Details, exact Copy Command, executable-free warm restart
+and failed stale-refresh retention all pass. Copied commands tokenize to every
+actual attempted argv, for success and exit-nine failure; private compiler cwd is
+already removed and copying never triggers another run. Source hashes stay exact
+except the authored dependency comment; cache bytes survive failed refresh.
+
+Inspected generated/failed detail screenshots at both scales, including source-
+unavailable variants. All twelve app launches/eight compositor children exit zero;
+source export is restored and private runtimes removed. No product binary is rebuilt
+while native sessions run. The sibling helper code is imported read-only for QA;
+product independence was established by the separate export/metadata/host checks.
+The native compiler boundary remains controlled recorded SCIP, with fresh real
+compiler tests documented separately. No production source or dependency changes.
+
+The recorded Swift inventory remains byte-identical across all 81 root files:
+66 ordinary suites/317 functions, eleven optional probes/seventeen functions, four
+support files. Seventeen ordinary names lack literal mentions in earlier Rust
+plans but have descriptive mappings; their exact-name tracing is part of the final
+ledger audit, not a claim that all assertions follow from a name search. Latest
+full gate remains 942 app checks/all 68 doctests with strict Clippy. Complete ledger
+review/any uncovered integrated checks and SDK-backed Android remain open.
+[Native evidence](plans/rust-final-native-indexing.md); archives:
+~/.local/state/radiology-qa/native-final-index{,-source-unavailable}-20261109-c005f0f/.
+
 ## 2026-11-09 — Fresh independent export and host acceptance (Codex)
 
 Exported committed e49c5ec into a new QA source/target directory and built the whole
