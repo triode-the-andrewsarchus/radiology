@@ -167,8 +167,8 @@ impl FileNode {
                 }
             }
 
-            dirs.sort_by_key(|a| a.name.to_lowercase());
-            leaf_files.sort_by_key(|a| a.name.to_lowercase());
+            dirs.sort_by(|a, b| super::name_order::compare(&a.name, &b.name));
+            leaf_files.sort_by(|a, b| super::name_order::compare(&a.name, &b.name));
             dirs.extend(leaf_files);
             dirs
         }
@@ -207,5 +207,33 @@ mod tests {
         assert_eq!(tree[0].children.len(), 2);
         assert_eq!(tree[1].name, "Cargo.toml");
         assert_eq!(tree[2].name, "README.md");
+    }
+
+    #[test]
+    fn files_and_folders_use_numeric_name_order_without_changing_paths() {
+        let files = [
+            "folder10/leaf.rs",
+            "folder2/leaf.rs",
+            "file10.rs",
+            "file2.rs",
+            "café.rs",
+            "Zulu.rs",
+        ]
+        .map(RepositoryFile::new);
+        let tree = FileNode::build_tree(&files);
+        assert_eq!(
+            tree.iter()
+                .map(|node| node.path.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "folder2",
+                "folder10",
+                "café.rs",
+                "file2.rs",
+                "file10.rs",
+                "Zulu.rs"
+            ]
+        );
+        assert_eq!(tree[0].children[0].path, "folder2/leaf.rs");
     }
 }

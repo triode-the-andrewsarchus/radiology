@@ -577,4 +577,38 @@ mod tests {
             Some(ModalAction::OpenFile("src/file0001.rs".into()))
         );
     }
+    #[test]
+    fn selection_clamps_at_result_edges_and_clears_when_inventory_becomes_empty() {
+        for scale in [1.0, 2.0] {
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            let files = files(3);
+            let mut picker = QuickFilePickerModal::default();
+            settled(&ctx, &mut picker, &files);
+            assert_eq!(picker.selected_file().as_deref(), Some("src/file0000.rs"));
+            frame(
+                &ctx,
+                &mut picker,
+                &files,
+                (0..10).map(|_| test_key(Key::ArrowDown)).collect(),
+            );
+            settled(&ctx, &mut picker, &files);
+            assert_eq!(picker.selected_file().as_deref(), Some("src/file0002.rs"));
+            frame(
+                &ctx,
+                &mut picker,
+                &files,
+                (0..10).map(|_| test_key(Key::ArrowUp)).collect(),
+            );
+            settled(&ctx, &mut picker, &files);
+            assert_eq!(picker.selected_file().as_deref(), Some("src/file0000.rs"));
+            let empty = Arc::from([]);
+            settled(&ctx, &mut picker, &empty);
+            assert!(picker.selected_file().is_none());
+            assert_eq!(picker.selected_idx, 0);
+            assert!(frame(&ctx, &mut picker, &empty, vec![test_key(Key::Enter)])
+                .1
+                .is_none());
+        }
+    }
 }

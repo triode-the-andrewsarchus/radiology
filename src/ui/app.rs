@@ -428,7 +428,7 @@ impl RadiologyApp {
         self.file_tree = if self.session.source_filters.path_query.is_empty() {
             FileNode::build_tree(&filtered)
         } else {
-            filtered.sort_by_key(|file| file.path.to_lowercase());
+            filtered.sort_by(|a, b| crate::repository::name_order::compare(&a.path, &b.path));
             filtered
                 .into_iter()
                 .map(|file| {

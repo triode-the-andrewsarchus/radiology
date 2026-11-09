@@ -5,6 +5,9 @@ The combined app workflow exposed and repaired a disclosure-state loss: acceptin
 a refreshed listing reset manually expanded folders, even when the attached root
 had not changed.
 
+The subsequent [filename/picker checkpoint](rust-file-order-and-picker-contracts.md)
+now repairs the numeric-name ordering follow-up recorded at the end of this review.
+
 ## Swift assertion mapping
 
 | Swift function | Rust evidence |

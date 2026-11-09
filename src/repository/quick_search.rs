@@ -45,7 +45,7 @@ impl Ord for Candidate {
             .then_with(|| self.boundary_misses.cmp(&other.boundary_misses))
             .then_with(|| self.gaps.cmp(&other.gaps))
             .then_with(|| self.path_length.cmp(&other.path_length))
-            .then_with(|| self.file.path.cmp(&other.file.path))
+            .then_with(|| super::name_order::compare(&self.file.path, &other.file.path))
     }
 }
 
@@ -311,6 +311,16 @@ mod tests {
         let results = QuickFileSearch::search(&files, "buf", 10);
         assert_eq!(results.files.len(), 1);
         assert_eq!(results.files[0].path, "src/buffer.rs");
+        let example = ["engine/rust/engine-foo.rs", "notes/green.rs"].map(RepositoryFile::new);
+        for query in ["engrs", "ENGRS"] {
+            assert_eq!(
+                QuickFileSearch::search(&example, query, 100).files,
+                [example[0].clone()]
+            );
+        }
+        assert!(QuickFileSearch::search(&example, "srgne", 100)
+            .files
+            .is_empty());
     }
 
     #[test]
@@ -329,8 +339,8 @@ mod tests {
         assert_eq!(
             paths,
             vec![
-                "z/scan.swift",           // Tier 0: exact filename match
-                "a/scanner.swift",        // Tier 1: filename prefix match
+                "z/scan.swift",           // Tier 1: shortest filename prefix
+                "a/scanner.swift",        // Tier 1: longer filename prefix
                 "b/rescan.swift",         // Tier 2: contiguous substring in filename
                 "c/source-canary.swift",  // Tier 3: subsequence in filename
                 "scan-tools/other.swift", // Tier 4: subsequence in path only
@@ -347,7 +357,13 @@ mod tests {
         ];
 
         let resp = QuickFileSearch::search(&files, "cafe", 10);
-        assert_eq!(resp.files.len(), 2);
+        assert_eq!(
+            resp.files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["a/CAFÉ.swift", "b/Café.swift"]
+        );
     }
 
     #[test]
@@ -397,5 +413,18 @@ mod tests {
         assert_eq!(response.files.len(), 100);
         assert!(response.is_limited());
         assert_eq!(response.files[0].path, "src/file0000.rs");
+    }
+    #[test]
+    fn equal_rank_candidates_use_numeric_path_order_as_the_final_tie_break() {
+        let files = ["src/file10.rs", "src/file2x.rs"].map(RepositoryFile::new);
+        let result = QuickFileSearch::search(&files, "file", 100);
+        assert_eq!(
+            result
+                .files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["src/file2x.rs", "src/file10.rs"]
+        );
     }
 }

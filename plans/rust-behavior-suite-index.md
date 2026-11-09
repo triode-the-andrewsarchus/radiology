@@ -101,8 +101,13 @@ All three RepositoryTests functions are reconciled in the
 [repository checkpoint](rust-repository-contracts.md), including the ordinary-read
 symlink fix. All four SourceFilterTests groups are reconciled in the
 [source-filter checkpoint](rust-source-filter-contracts.md), with loaded-document
-presentation and remaining name-ordering limits explicit. Other rows retain their
+presentation boundaries explicit. The filename-ordering follow-up is linked below.
+Other rows retain their
 current audit scope.
+
+All five QuickFileSearchTests functions are reconciled in the
+[filename/picker checkpoint](rust-file-order-and-picker-contracts.md), including
+exact Unicode ranking, bounded totals and selection/reset assertions.
 
 ## Repository search
 

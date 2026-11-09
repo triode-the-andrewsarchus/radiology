@@ -182,3 +182,84 @@ fn filters_preserve_reader_preferences_and_manual_directory_expansion_through_re
         );
     }
 }
+
+#[test]
+fn natural_file_order_reaches_discovery_filtered_rows_and_exact_picker_navigation() {
+    use super::focus::{finish_file_picker, key, settle_frame};
+    use egui::{Event, Key, Modifiers};
+    for scale in [1.0, 2.0] {
+        let (owner, mut app) = reader();
+        let root = owner.path().join("numbered");
+        std::fs::create_dir(&root).unwrap();
+        for (path, text) in [
+            ("file10.rs", "// ten\r\n"),
+            ("file2.rs", "// two café\r\n"),
+            ("file2x.rs", "// two x\r\n"),
+        ] {
+            std::fs::write(root.join(path), text).unwrap();
+        }
+        app.open_repository(&root);
+        settle(&mut app);
+        assert_eq!(
+            app.all_files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["file2.rs", "file2x.rs", "file10.rs"]
+        );
+        app.session.source_filters.path_query = "file".into();
+        app.filters_changed();
+        assert_eq!(
+            app.file_tree
+                .iter()
+                .map(|node| node.path.as_str())
+                .collect::<Vec<_>>(),
+            ["file2.rs", "file2x.rs", "file10.rs"]
+        );
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        frame(&mut app, &ctx, vec![]);
+        app.execute_command(&ctx, ToolbarAction::OpenQuickFilePicker);
+        frame(&mut app, &ctx, vec![]);
+        frame(&mut app, &ctx, vec![key(Key::Enter, Modifiers::NONE)]);
+        finish_file_picker(&mut app, &ctx);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.selected_path.as_deref(), Some("file2.rs"));
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, "// two café\r\n");
+        app.source_viewport.request_focus(&ctx);
+        let output = frame(
+            &mut app,
+            &ctx,
+            vec![key(Key::A, Modifiers::CTRL), Event::Copy],
+        );
+        assert_eq!(output.platform_output.copied_text, "// two café\r\n");
+    }
+    let (owner, root, first) = crate::pull_request::review::tests::fixture();
+    let review = super::review_refresh::advance(&root, owner.path(), &first, |root| {
+        std::fs::write(root.join("file10.rs"), "// ten PR\n").unwrap();
+        std::fs::write(root.join("file2.rs"), "// two PR\n").unwrap();
+    });
+    let (_settings, mut app) =
+        super::review_refresh::open_review(&root, review, ReviewRevision::After);
+    assert_eq!(
+        app.all_files
+            .iter()
+            .filter(|file| file.path.starts_with("file"))
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>(),
+        ["file2.rs", "file10.rs"]
+    );
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::OpenQuickFilePicker);
+    frame(&mut app, &ctx, vec![]);
+    frame(
+        &mut app,
+        &ctx,
+        vec![Event::Text("file".into()), key(Key::Enter, Modifiers::NONE)],
+    );
+    finish_file_picker(&mut app, &ctx);
+    settle_frame(&mut app, &ctx);
+    assert_eq!(app.selected_path.as_deref(), Some("file2.rs"));
+    assert_eq!(app.active_revision, Some(ReviewRevision::After));
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, "// two PR\n");
+}

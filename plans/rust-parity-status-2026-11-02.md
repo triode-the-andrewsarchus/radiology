@@ -6,9 +6,13 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Filename/picker contracts](rust-file-order-and-picker-contracts.md) close all five
+quick-file functions and replace lexical filename presentation with shared numeric
+locale-aware ordering. Other suites and integrated acceptance remain open.
+
 [Source filter contracts](rust-source-filter-contracts.md) close the four Swift
-groups and repair loss of manual disclosures during same-root acceptance. Numeric
-name ordering, concurrent timing limits and other suites remain open.
+groups and repair loss of manual disclosures during same-root acceptance. Name
+ordering is reconciled above; concurrent timing limits and other suites remain open.
 
 [Repository contracts](rust-repository-contracts.md) close the three Swift
 discovery/source-store functions and fix external symlink reads through the shared

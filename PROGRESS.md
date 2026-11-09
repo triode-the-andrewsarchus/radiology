@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-11-08 — Natural filename ordering and five picker contracts (Codex)
+
+Fixed red tree and equal-score picker ordering regressions. A shared private ICU
+collator now handles locale-aware numeric names for discovery, trees, filtered Files
+rows, pinned-review inventories and picker ties. Original path bytes and fuzzy
+scoring priorities are unchanged. It reuses the existing ICU family with compiled
+data; seven supporting lockfile packages are added, with no existing version update.
+
+The five Swift QuickFileSearchTests functions now have exact ranking/subsequence/
+Unicode-order evidence, truthful bounded totals and both-scale selection/reset
+checks. App checkout and real Git PR workflows preserve exact bytes/revisions. A
+copied collation test executable runs outside the checkout and is removed afterward.
+Strict Clippy, focused checks and offline build pass. Architecture +256 measured
+NLOC, two runtime helpers/six tests; full clone multisets/hotspots/cycles unchanged.
+The locked offline serial workspace run passes 816 app tests/11 ignored and
+supporting crate tests plus all 61 doctests.
+[Evidence, locale policy and remaining scope](plans/rust-file-order-and-picker-contracts.md)
+retain the other suites, final acceptance, parallel timing limits and Android work.
+
 ## 2026-11-08 — Preserved same-root disclosures and reconciled source filters (Codex)
 
 A red app regression found refresh discarded manually expanded directories. Root

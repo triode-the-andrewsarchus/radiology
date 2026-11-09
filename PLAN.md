@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Filename ordering and picker contracts](plans/rust-file-order-and-picker-contracts.md)
+now share locale-aware numeric collation across repository file presentations,
+including PR inventories and picker ties. All five Swift quick-file functions have
+explicit evidence, with Unicode/byte identity retained. Other suite and final
+acceptance work remains open.
+
 [Source filter contracts](plans/rust-source-filter-contracts.md) now reconcile all
 four Swift groups. Same-root discovery preserves manual directory disclosures;
 new-root opens clear them. Complete source/test classification and tree fixtures,
-reader/history/preferences and rendered recovery are checked. Numeric filename
-ordering, concurrent timing limits and other suites remain open.
+reader/history/preferences and rendered recovery are checked. Filename ordering
+is reconciled above; concurrent timing limits and other suites remain open.
 
 [Repository contracts](plans/rust-repository-contracts.md) now reconcile the three
 Swift discovery/source-store functions. Ordinary file/bookmark reads now reject

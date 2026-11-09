@@ -210,7 +210,7 @@ impl RepositoryDiscovery {
             None => Self::walk_paths(git)?,
         };
         let mut paths = paths;
-        paths.sort_by_cached_key(|path| path.to_lowercase());
+        paths.sort_by(|a, b| super::name_order::compare(a, b));
         let files = paths.into_iter().map(RepositoryFile::new).collect();
         git.check().map_err(io::Error::other)?;
         Ok(files)

@@ -13,6 +13,7 @@ pub mod filters;
 pub(crate) mod git;
 pub(crate) mod git_refresh;
 pub(crate) mod identity;
+pub(crate) mod name_order;
 pub mod quick_search;
 
 pub use classifier::{SourceFileClassifier, TestPathClassifier};

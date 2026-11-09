@@ -1090,7 +1090,7 @@ fn frame_sized(
 }
 
 // Async file search publishes through real app frames before file loading begins.
-fn finish_file_picker(app: &mut RadiologyApp, ctx: &Context) {
+pub(in crate::ui::app) fn finish_file_picker(app: &mut RadiologyApp, ctx: &Context) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while matches!(app.modal, ActiveModal::QuickFilePicker(_)) {
         frame(app, ctx, vec![]);

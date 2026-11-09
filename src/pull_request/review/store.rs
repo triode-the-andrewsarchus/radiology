@@ -47,7 +47,7 @@ impl GitStore<'_> {
     }
     pub(super) fn files(&self, commit: &str) -> Result<Vec<RepositoryFile>, String> {
         let paths = self.bytes(&["ls-tree", "-rz", "--name-only", commit])?;
-        paths
+        let mut files = paths
             .split(|byte| *byte == 0)
             .filter(|path| !path.is_empty())
             .map(|path| {
@@ -58,7 +58,9 @@ impl GitStore<'_> {
                 }
                 Ok(RepositoryFile::new(path))
             })
-            .collect()
+            .collect::<Result<Vec<_>, String>>()?;
+        files.sort_by(|a, b| crate::repository::name_order::compare(&a.path, &b.path));
+        Ok(files)
     }
 
     pub(super) fn materialize(&self, head: &str, tree: &Path) -> Result<(), String> {
