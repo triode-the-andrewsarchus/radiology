@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Generated semantic navigation](plans/rust-semantic-navigation-contracts.md) maps
+all four Swift groups. Go to Definition now explains external and current
+local definitions consistently before/after metadata publication. Both-scale
+real-fixture generation drives exact Back/Forward, references, search and repository
+retirement through existing owners. Other Context/reference suites and final
+acceptance remain open.
+
 [Semantic-index contracts](plans/rust-semantic-index-contracts.md) now map all eleven
 Swift groups, including cross-file/local identity, exact caret destinations,
 external/Unicode occurrence selection, search ranking, malformed/stale data and

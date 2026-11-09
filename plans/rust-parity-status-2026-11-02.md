@@ -6,6 +6,13 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Generated semantic navigation](rust-semantic-navigation-contracts.md) now maps
+all four Swift groups. Explicit definition activation reports here/external
+failures without changing reader/history and uses Context's canonical resolver
+before/after metadata publication. Both-scale generated-data workflows verify
+exact Back/Forward, reference groups/activation, search and root retirement.
+Other Context/reference/call-tree suites and final acceptance stay open.
+
 [Semantic-index contracts](rust-semantic-index-contracts.md) now map all eleven
 Swift index groups. Exact fixture destinations/local names, external operators,
 UTF-8/UTF-16 occurrence selection/pins, the search matrix, typed enclosing ranges

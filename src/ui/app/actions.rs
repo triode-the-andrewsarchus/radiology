@@ -75,11 +75,7 @@ impl RadiologyApp {
             }
             OpenGoToLine | FindInFile | NextFindMatch | PreviousFindMatch | ToggleBookmark
             | ToggleMode(_) => self.source_location_ready(),
-            GoToDefinition | FindReferences => {
-                self.current_caret_symbol().is_some_and(|(id, index)| {
-                    matches!(command, FindReferences) || index.find_definition_for_id(id).is_some()
-                })
-            }
+            GoToDefinition | FindReferences => self.current_caret_symbol().is_some(),
             OpenBookmark(index) => {
                 *index < 10
                     && self.repository_interaction_ready()
@@ -401,14 +397,38 @@ impl RadiologyApp {
     }
 
     fn go_to_definition(&mut self) {
-        if let Some(context) = &self.under_caret {
-            if let Some(destination) = context.destination.clone() {
-                self.navigate_to_indexed_range(&destination.path, &destination.range);
-            }
+        let Some((id, index)) = self.current_caret_symbol() else {
             return;
-        }
-        if let Some(id) = self.current_caret_symbol().map(|(id, _)| id.clone()) {
-            self.navigate_to_indexed_symbol(&id);
+        };
+        let (Some(buffer), Some((_, bytes))) = (&self.open_buffer, &self.definition_identity)
+        else {
+            return;
+        };
+        let definitions = index.definition_locations_for_id(id);
+        if let Some(destination) = crate::semantic::context::DefinitionDestination::for_occurrence(
+            buffer,
+            index,
+            &definitions,
+            bytes,
+        ) {
+            self.navigate_to_indexed_range(&destination.path, &destination.range);
+        } else {
+            let name = if id.is_local() {
+                buffer.text[bytes.clone()].to_owned()
+            } else {
+                index.display_name(id)
+            };
+            let here = definitions.iter().any(|(path, range)| {
+                *path == buffer.path && index.byte_range(buffer, range).as_ref() == Some(bytes)
+            });
+            self.error = Some(format!(
+                "{name} is defined {}.",
+                if here {
+                    "here"
+                } else {
+                    "outside this repository"
+                }
+            ));
         }
     }
 

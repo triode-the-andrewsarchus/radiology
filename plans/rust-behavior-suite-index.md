@@ -276,6 +276,13 @@ external/Unicode selection, search ranking, strict coordinate validation,
 stale/malformed inputs and typed/unknown wire fields. Other suites in this section
 still need their own reconciliation.
 
+[Generated semantic navigation](rust-semantic-navigation-contracts.md) maps all
+four SemanticNavigationTests groups through the actual fake-tool generation
+pipeline, exact-caret Back/Forward, complete Circle references, workspace symbol
+activation and root replacement. Explicit external/definition-here errors now use
+the same destination choice as Context, independently of metadata publication.
+Other Context/navigation/reference/call-tree suites in this section remain open.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

@@ -3015,3 +3015,4 @@ mod change_blocks;
 mod critical_model;
 
 mod semantic_identity;
+mod semantic_navigation;

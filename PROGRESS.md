@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-11-09 — Generated semantic navigation and failure feedback (Codex)
+
+All four Swift SemanticNavigationTests groups now have explicit mapping. A new
+both-scale flow removes the prebuilt index, runs the shared fake rust-analyzer
+through actual generation, requires captured source digests and private artifacts,
+then verifies exact Circle definitions/Back/Forward, five grouped references with
+four uses/one definition, source-line text, search activation, reference activation
+and complete semantic retirement when switching to a plain Swift repository.
+Earlier actual pointer/keyboard and occurrence-selection regressions complete the
+input and clearing contracts; Context's separate suites are not claimed complete.
+
+The new diagnostic test failed because Go to Definition was disabled on external
+symbols. The command now accepts exact known identities and reuses Context's
+canonical destination resolver. It excludes the current definition, navigates to
+another when available, and explains defined-here/external failures without
+changing source Arc, full history or caret. Both scales pass before/after async
+metadata publication. No new production function, dependency, job or cache.
+
+Focused regressions, strict all-target Clippy, normal build and warning-free docs
+pass. The locked offline workspace run passes 870 app tests (11 existing opt-in
+ignored), two binary/13 font/22 text tests and all 66 doctests. Workspace compilation
+uses -j 1 with serial tests; normal half-core Cargo configuration remains 16 jobs.
+This does not resolve the separately recorded parallel timing/linking limits.
+Architecture +185 measured NLOC/two tests/one focused file; average/max CCN remain
+3.42/132 with unchanged 36 hotspots/cycles. Complete normalized clone multisets
+remain identical: 124 instances, no additions/removals. Raw comparison flags an
+old unchanged tests.rs clone because its module list changed, plus equal-score
+untouched Python chokepoints. Existing fixture, tool, generation, exact caret,
+Context destination and source navigation owners are reused.
+[Contract mapping](plans/rust-semantic-navigation-contracts.md), PLAN and the
+behavior/parity indexes record archive
+`~/.local/state/radiology-qa/semantic-navigation-20261109-0f9329e/`.
+
+Next: remaining Context/model/navigation/reference/call-tree assertion groups,
+source/syntax, compiler/indexing and inspector audits; final native/standalone
+acceptance and known parallel timing limits remain. Android SDK-backed success is
+still pending; full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Complete semantic-index assertion mapping (Codex)
 
 All eleven Swift SemanticIndexTests groups now have explicit evidence. New real
