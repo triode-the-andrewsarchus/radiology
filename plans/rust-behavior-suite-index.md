@@ -167,8 +167,10 @@ map `decodesGhSummariesAndTimesOutSlowCommands` (one of four integrated groups);
 availability/exact-caret returns. The
 [changed-block navigation](rust-change-block-flow-contracts.md) now maps
 `changedBlockJumpsRevealTestsAndBackUsesCaretNotPassiveScroll` through keyboard and
-atomic source ownership checks. Three of four groups are mapped; retired loads
-remain open.
+atomic source ownership checks. [Retired review loads](rust-review-retirement-contracts.md) now map
+`errorsAndSupersededLoadsNeverPublishStaleReviews` through the real isolated CLI
+workflow and existing forced-publication ownership tests. All four groups are mapped;
+other suites and final native acceptance remain open.
 
 ## Critical Lens and hover
 

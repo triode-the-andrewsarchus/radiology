@@ -6,19 +6,25 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+The integrated review suite now has all four assertion groups mapped. Its final
+[failure/supersession audit](rust-review-retirement-contracts.md) combines actual
+CLI retries, three live-child cancellations, repository/PR replacement and pinned
+refresh. The newly repaired diagnostic always identifies its failed PR number.
+The remaining whole-app and native acceptance scope is unchanged.
+
 [Changed-block navigation](rust-change-block-flow-contracts.md) maps the third
 integrated PR group through actual keyboard/test-region/EOF workflows and deferred
-source-publication ownership. The retired-review-request group remains open.
+source-publication ownership. The retired-review-request group is mapped above.
 
 [Integrated PR browsing](rust-pr-browsing-contracts.md) fixes unchanged-file Before
 availability and exact-caret Back behavior after passive scrolling. The combined
 head inventory/revision/filter/search/checkout workflow maps the second integrated
-group; changed-block is reconciled above and retired loads remain open.
+group; changed-block and retired loads are reconciled above.
 
 [GitHub metadata contracts](rust-github-metadata-contracts.md) retain the author,
 cross-repository flag and merge-commit object through list/view and refresh,
 closing the first integrated PR group. Browsing and changed blocks are reconciled
-above; retired review loads and final acceptance remain open.
+above; retired review loads are mapped above and final acceptance remains open.
 
 [Fresh PR entry](rust-pr-review-entry.md) repairs automatic source/history
 selection and retained checkout Files queries. Explicit destinations and same-PR

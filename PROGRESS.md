@@ -1,5 +1,37 @@
 # Progress
 
+## 2026-11-09 — Combined review supersession and numbered failures (Codex)
+
+The final integrated PullRequestReview group now has an assertion-level mapping.
+The existing isolated real CLI recovery test runs an additional both-scale flow:
+failed 999, failed painted retry, held retry plus checkout exit, held PR 1 plus
+root replacement, another held PR 1 superseded by PR 2, then pinned refresh. Exact
+request order and actual reaping of all three held child PIDs are asserted.
+Reader/history Arcs remain stable where required. Rendered frames wait for the
+independent recent-list worker before asserting the other root is Unavailable.
+The earlier forced completed-snapshot publication matrix covers the later worker
+boundary; the new flow tests live metadata cancellation.
+
+A red generic offline failure showed the notice omitted the requested number.
+The shared failure recorder now prefixes its owned `PR #number:` while preserving
+operation and full diagnostic. Existing exact operation-message assertions were
+updated. No new production API, helper or dependency. The test driver reuses
+private CLI/config isolation, Git fixtures, source/frame/click and child-start
+helpers. [Retirement contracts](plans/rust-review-retirement-contracts.md) map the
+fourth group and link the preceding three.
+
+The combined CLI test, strict all-target Clippy, normal build and warning-free API
+docs pass. The full serial workspace run passes 844 app tests (11 existing
+ignored), two binary/13 font/22 text tests and all 65 doctests.
+Architecture adds 113 measured NLOC/one test driver, with unchanged complete clone
+multisets (122 instances; zero additions/removals), complexity hotspots and cycles. QA archive:
+`~/.local/state/radiology-qa/review-supersession-20261109-85cf94c/`.
+All four ordinary integrated review groups are mapped; other unreconciled suites,
+final native acceptance, known parallel timing limits and Android remain open.
+Next audit: Critical Lens policy/frontier/persistence assertions against their
+existing service and rendered-app evidence. Full accessibility and sibling-app
+adoption remain deferred; the app stays standalone.
+
 ## 2026-11-09 — Preserve checkout on pending review exit (Codex)
 
 A red regression caught Local Checkout retaining a saved PR restoration target.

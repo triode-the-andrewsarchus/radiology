@@ -34,7 +34,7 @@ impl RadiologyApp {
             self.review_refresh.failure = Some(ReviewFailure {
                 root,
                 number,
-                message,
+                message: format!("PR #{number}: {message}"),
             });
             self.review_refresh.failure_notice = Default::default();
         } else {

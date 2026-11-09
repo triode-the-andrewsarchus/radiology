@@ -507,7 +507,7 @@ fn refresh_failures_name_the_operation_and_preserve_accepted_retry_context() {
             app.pending_pr = Some(number);
             app.review_job.spawn(|_| Err("offline".into()));
             settle(&mut app);
-            let expected = format!("Unable to {operation} review: offline");
+            let expected = format!("PR #{number}: Unable to {operation} review: offline");
             assert_eq!(
                 (
                     app.review_error(),

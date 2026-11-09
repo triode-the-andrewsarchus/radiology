@@ -4,34 +4,39 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Review retirement contracts](plans/rust-review-retirement-contracts.md)
+now map the fourth integrated PR group through real request failure/retry,
+checkout exit, root/PR replacement, refresh and cancelled-child reaping at both
+scales. Shared review diagnostics now name the failed number. All four integrated
+review groups have explicit mappings; broader parity remains unproven.
+
 [Checkout review exit](plans/rust-review-recovery.md#checkout-exit-during-preparation--2026-11-09)
 now cancels pending preparation and clears saved PR restoration without reopening
-the local reader. The final integrated retired-load group still needs its complete
-assertion mapping; this checkpoint closes its confirmed checkout-exit defect.
+the local reader. The final integrated retired-load group needed its complete
+assertion mapping, now completed above; this checkpoint closed its checkout-exit defect.
 
 [Changed-block navigation](plans/rust-change-block-flow-contracts.md) now maps the
 third integrated PR group: actual keyboard jumps reveal hidden tests, preserve
 exact Back carets and reach EOF once. Real deferred source results prove revision/
 content ownership through the atomic publication channel. Runtime already satisfies
-these checks; the final retired-review-request group remains open.
+these checks; the final retired-review-request group is mapped above.
 
 [Integrated PR browsing](plans/rust-pr-browsing-contracts.md) now rejects unchanged
 Before navigation, disables that button and returns to the exact caret after
 revision/changed-block jumps despite passive scrolling. A both-scale real Git/app/
 ripgrep workflow reconciles browsing through checkout exit. Two of four integrated
-PR groups were mapped here; changed-block is reconciled above and retired-load
-combined checks remain open.
+PR groups were mapped here; changed-block and retired-load checks are reconciled above.
 
 [GitHub metadata contracts](plans/rust-github-metadata-contracts.md) now retain
 author, cross-repository and merge-commit details through shared complete list/
 view requests and existing refresh/recent-list owners. Legacy records remain
 readable. This mapped the first integrated PR group; browsing is reconciled above,
-while changed-block and retired-load groups remain open.
+and changed-block/retired-load groups are now reconciled above.
 
 [Fresh PR entry](plans/rust-pr-review-entry.md) now opens Changes with no selected
 source/history and clears the old Files query, matching Swift. Explicit file
 intent and same-PR refresh preserve their existing paths; source/test preferences
-remain. The integrated suite is still partial; the metadata gap is now repaired
+remain. The integrated suite is mapped above; the metadata gap is repaired
 in the checkpoint above.
 
 [Review fold-default contracts](plans/rust-review-fold-contracts.md) now map all

@@ -69,6 +69,7 @@ fn choose_dismiss_exit_and_root_switch_retire_only_the_failed_review_intent() {
 fn real_cli_recovery_retries_exact_failed_targets_and_source_preparation_failures() {
     const MARKER: &str = "RADIOLOGY_REVIEW_RECOVERY_CHILD";
     if let Some(directory) = std::env::var_os(MARKER) {
+        run_cli_supersession(Path::new(&directory));
         run_cli_recovery(Path::new(&directory));
         return;
     }
@@ -82,6 +83,11 @@ case "$*" in
   'pr list '*) printf '[]'; exit 0 ;;
 esac
 printf '%s\n' "$*" >> "$RADIOLOGY_REVIEW_RECOVERY_CHILD/requests"
+if [ -f "$RADIOLOGY_REVIEW_RECOVERY_CHILD/hold" ] &&
+   [ "$(cat "$RADIOLOGY_REVIEW_RECOVERY_CHILD/hold")" = "$3" ]; then
+  printf '%s' "$$" > "$RADIOLOGY_REVIEW_RECOVERY_CHILD/held.pid"
+  exec /bin/sleep 30
+fi
 if [ -f "$RADIOLOGY_REVIEW_RECOVERY_CHILD/fail" ]; then
   cat "$RADIOLOGY_REVIEW_RECOVERY_CHILD/fail" >&2; exit 1
 fi
@@ -267,4 +273,119 @@ fn run_cli_recovery(directory: &Path) {
         respond(&summary, None);
     }
     println!("Review recovery: isolated CLI target counts, source recovery, narrow geometry and keyboard choice pass at 1×/2×");
+}
+
+#[cfg(target_os = "linux")]
+fn run_cli_supersession(directory: &Path) {
+    use crate::pull_request::{recent::PullRequestListPhase, test_support::wait_for_child};
+    use crate::ui::app::reviews::recovery::RecoveryAction;
+    use std::time::{Duration, Instant};
+
+    let (_owner, root, review) = crate::pull_request::review::tests::fixture();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) = checkout_context(&root, "a file.rs", scale);
+        let buffer = app.open_buffer.clone().unwrap();
+        let departure = app.history.current().cloned();
+        std::fs::write(directory.join("requests"), "").unwrap();
+        std::fs::write(directory.join("fail"), "offline fixture").unwrap();
+        app.open_pull_request(999);
+        settle(&mut app);
+        assert!(app.review_error().unwrap().contains("999"));
+        press(&mut app, &ctx, "Try Again");
+        assert!(app.review_error().unwrap().contains("999"));
+        assert_eq!(
+            std::fs::read_to_string(directory.join("requests"))
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
+
+        std::fs::remove_file(directory.join("fail")).unwrap();
+        std::fs::write(directory.join("hold"), "999").unwrap();
+        app.recover_review(RecoveryAction::Retry);
+        assert!(app.review_error().is_none());
+        assert_eq!(app.pending_pr, Some(999));
+        let mut retired = vec![wait_for_child(&directory.join("held.pid"))];
+        app.execute_command(&ctx, ToolbarAction::ExitPRReview);
+        settle(&mut app);
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert_eq!(app.history.current(), departure.as_ref());
+        assert!(app.review_error().is_none() && app.review.is_none());
+        assert!(app.pending_pr.is_none());
+        std::fs::remove_file(directory.join("held.pid")).unwrap();
+
+        // A metadata request from checkout cannot land after opening another root.
+        std::fs::write(directory.join("hold"), "1").unwrap();
+        app.open_pull_request(1);
+        retired.push(wait_for_child(&directory.join("held.pid")));
+        let other = tempfile::tempdir().unwrap();
+        std::fs::write(other.path().join("a.txt"), "other checkout").unwrap();
+        app.open_repository(other.path());
+        settle(&mut app);
+        assert_eq!(app.repository_root.as_deref(), Some(other.path()));
+        assert!(app.review.is_none() && app.review_error().is_none());
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.recent_pull_requests.is_loading() {
+            frame(&mut app, &ctx, vec![]);
+            assert!(Instant::now() < deadline, "recent list did not settle");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(matches!(
+            app.recent_pull_requests.phase(),
+            PullRequestListPhase::Unavailable(_)
+        ));
+        std::fs::remove_file(directory.join("held.pid")).unwrap();
+
+        // A newer number wins while the previous gh process is still alive.
+        app.open_repository(&root);
+        settle(&mut app);
+        app.open_pull_request(1);
+        retired.push(wait_for_child(&directory.join("held.pid")));
+        let mut latest = review.summary.clone();
+        latest.number = 2;
+        std::fs::write(
+            directory.join("summary.json"),
+            serde_json::to_vec(&latest).unwrap(),
+        )
+        .unwrap();
+        app.open_pull_request(2);
+        settle(&mut app);
+        assert_eq!(app.active_pr.as_ref().unwrap().number, 2);
+        assert_eq!(app.review.as_ref().unwrap().summary, latest);
+        assert!(app.review_error().is_none());
+        std::fs::remove_file(directory.join("hold")).unwrap();
+        std::fs::remove_file(directory.join("held.pid")).unwrap();
+        app.open_file("a file.rs");
+        settle(&mut app);
+        let accepted = app.open_buffer.clone().unwrap();
+        let history = app.history.current().cloned();
+        app.execute_command(&ctx, ToolbarAction::Refresh);
+        settle(&mut app);
+        assert_eq!(app.active_pr.as_ref().unwrap().number, 2);
+        assert_eq!(
+            app.search_root().as_deref(),
+            Some(app.review.as_ref().unwrap().head_root.as_path())
+        );
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &accepted));
+        assert_eq!(app.history.current(), history.as_ref());
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        for pid in retired {
+            while unsafe { libc::kill(pid, 0) } == 0 {
+                assert!(
+                    Instant::now() < deadline,
+                    "retired gh child {pid} was not reaped"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        let requests = std::fs::read_to_string(directory.join("requests")).unwrap();
+        let numbers: Vec<_> = requests
+            .lines()
+            .map(|line| line.split_whitespace().nth(2).unwrap())
+            .collect();
+        assert_eq!(numbers, ["999", "999", "999", "1", "1", "2", "2"]);
+        assert!(app.review_error().is_none() && app.pending_pr.is_none());
+    }
 }
