@@ -1,5 +1,10 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Context lifecycle ownership](rust-context-lifecycle-contracts.md) now reconciles
+four further model groups using actual late-result endpoints, source reloads and
+index/root replacement. Fourteen ContextModel groups are mapped and four await
+reconciliation. Existing runtime owners satisfy these contracts without changes.
+
 [Nested signature presentation](rust-context-signature-contracts.md) closes the
 outer-indentation/oversized-header display gap using existing signature bounds.
 The exact Swift fixture passes at both scales/themes with LF/CRLF. ContextModel

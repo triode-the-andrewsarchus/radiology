@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-11-09 — Context lifecycle assertion reconciliation (Codex)
+
+Four Swift groups now have real-app evidence for stale results, reset/repository
+retirement, index replacement and same-index source changes. Actual pending
+preview/reference jobs retire across transitions, while a real metadata result
+endpoint held outside its worker rejects late publication. Loaded Context is
+also checked through reset. Identical source plus the same index Arc in another
+checkout produces fresh rows. Index-only replacement refetches the same target;
+an edited header reloads into both previews and definition snippets, with stable
+reuse once the source/caret identity stops changing. Fourteen ContextModel groups
+are mapped; four remain unaudited.
+
+This is test-only work: the existing LatestRead receiver retirement, query-cache
+ownership, app reset and source/index publication already satisfy the contracts.
+The scenarios reuse the current both-scale real-fixture matrix. The first draft
+used an old absolute byte after inserting an earlier-line comment; it now supplies
+the freshly resolved caret exactly as Swift's input does. The legacy fixture's
+lack of captured provenance is asserted, preserving known-stale rejection policy.
+A shared area-load operation removes the one genuine new setup clone.
+
+Serial workspace outcome: 887 app checks passed with eleven existing opt-in
+ignores; the binary/font/text crates pass 2/13/22 checks, and all 66 doctests pass.
+The later loaded-reset strengthening passes the final both-scale focused check
+and strict all-target Clippy. Full compilation used -j 1, tests ran serially and
+the normal 16-job half-core setting stays intact. Production build/docs/resource
+interfaces are unchanged from the passing `8cabeec` checkpoint.
+Architecture +224 measured NLOC/five test functions/one scenario file, unchanged
+3.42/132 average/max CCN, 36 high-complexity sites and cycles. Raw old touched-file
+clone flags are unchanged: complete normalized 125-instance multisets have
+zero additions and zero removals.
+[Lifecycle mapping](plans/rust-context-lifecycle-contracts.md); archive
+`~/.local/state/radiology-qa/context-lifecycle-20261109-8cabeec/`.
+
+Next Context reconciliation targets explicit reference focus/Follow Caret,
+scalar-window excerpts, coverage and expansion identity. Check disclosure state
+on index replacement: Swift keys declarations with indexRevision, while Rust's
+summary currently keys source/range. Broader suite/platform gates remain in PLAN.
+
 ## 2026-11-09 — Signature and descriptor display contracts (Codex)
 
 The exact Swift nested-open fixture failed on retained impl indentation, and the

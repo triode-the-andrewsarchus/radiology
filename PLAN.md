@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Context lifecycle contracts](plans/rust-context-lifecycle-contracts.md) map stale
+publication, reset/root ownership, index replacement and same-index source edits
+through existing app/worker/cache owners. This test-only audit adds no production
+mechanism. Fourteen ContextModel groups are mapped; four remain to reconcile.
+
 [Nested declaration signatures](plans/rust-context-signature-contracts.md) now
 remove the containing declaration's indentation and reuse the scalar-safe
 600-byte/eight-line limit. Raw source/copy and exact selection ranges remain.

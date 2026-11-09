@@ -332,6 +332,13 @@ The exact escaped impl/core-URL, numeric serde_json version and local-package
 cases additionally map escapedImplDescriptorsAndURLVersionsReadCleanly through
 existing Context preparation. Ten groups are mapped; eight remain unaudited.
 
+[Context lifecycle ownership](rust-context-lifecycle-contracts.md) maps the four
+stale-publication/reset/index-replacement/changed-source ContextModel groups. Real
+result endpoints reject late metadata across caret, reset, root and index changes;
+identical-source roots cannot share row ownership, and source edits refresh both
+excerpts and definition snippets under one index. Fourteen groups have mappings;
+explicit focus, scalar-window snippets, availability and expansion remain open.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).
