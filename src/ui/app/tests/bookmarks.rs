@@ -316,3 +316,38 @@ fn assert_empty_bookmark_reader(app: &RadiologyApp, root: &Path) {
     assert_eq!(app.repository_root.as_deref(), Some(root));
     assert!(app.error.is_none());
 }
+
+#[test]
+fn deleting_the_selected_bookmark_clears_selection_without_opening_its_neighbor() {
+    use super::focus::key;
+    use crate::ui::bookmark_list::BookmarkList;
+    use egui::{Key, Modifiers};
+    for scale in [1.0, 2.0] {
+        let (_owner, mut app) = opened_repository();
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        for line in [1, 2] {
+            app.jump_to_location("a.rs", line, 0);
+            settle(&mut app);
+            app.execute_command(&ctx, ToolbarAction::ToggleBookmark);
+        }
+        frame(&mut app, &ctx, vec![]);
+        ctx.memory_mut(|memory| memory.request_focus(BookmarkList::focus_id()));
+        let source = app.open_buffer.clone().unwrap();
+        let history = format!("{:?}", app.history);
+        frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(Key::Home, Modifiers::NONE),
+                key(Key::Delete, Modifiers::NONE),
+                key(Key::Enter, Modifiers::NONE),
+            ],
+        );
+        assert!(app.bookmark_list.selected.is_none());
+        assert!(!app.is_source_loading());
+        assert_eq!(app.bookmarks.bookmarks.len(), 1);
+        assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+        assert_eq!(format!("{:?}", app.history), history);
+    }
+}

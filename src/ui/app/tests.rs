@@ -2141,8 +2141,12 @@ fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
         .collect();
     let ctx = Context::default();
     ctx.memory_mut(|memory| memory.request_focus(BookmarkList::focus_id()));
-    let mut input =
-        crate::ui::commands::test_input(&[egui::Key::Home, egui::Key::Delete, egui::Key::Enter]);
+    let mut input = crate::ui::commands::test_input(&[
+        egui::Key::Home,
+        egui::Key::Delete,
+        egui::Key::ArrowDown,
+        egui::Key::Enter,
+    ]);
     app.raw_input_hook(&ctx, &mut input);
     assert!(input.events.is_empty());
     let _ = ctx.run(input, |ctx| app.render(ctx));

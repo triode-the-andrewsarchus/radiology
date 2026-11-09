@@ -63,11 +63,7 @@ impl RadiologyApp {
         let existing = self
             .bookmarks
             .at_location(buffer, byte)
-            .and_then(|bookmark| {
-                self.bookmarks
-                    .index_of(bookmark.id)
-                    .map(|index| (bookmark.id, index))
-            });
+            .map(|bookmark| bookmark.id);
         if self.bookmarks.toggle(buffer, byte) {
             let label = self
                 .enclosing_source_context()
@@ -83,8 +79,8 @@ impl RadiologyApp {
                 bookmark.label = label;
                 self.bookmark_list.selected = Some(bookmark.id);
             }
-        } else if let Some((id, index)) = existing {
-            self.bookmark_list.removed(id, index, &self.bookmarks);
+        } else if let Some(id) = existing {
+            self.bookmark_list.removed(id);
         }
         self.save_bookmarks();
     }
@@ -135,9 +131,9 @@ impl RadiologyApp {
                 }
             }
             BookmarkAction::Remove(id) => {
-                if let Some(index) = self.bookmarks.index_of(id) {
+                if self.bookmarks.index_of(id).is_some() {
                     self.bookmarks.remove(id);
-                    self.bookmark_list.removed(id, index, &self.bookmarks);
+                    self.bookmark_list.removed(id);
                     self.save_bookmarks();
                 }
             }

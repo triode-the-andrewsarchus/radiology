@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-08 — Completed bookmark model/storage reconciliation (Codex)
+
+Fixed red invalid-index overflow and selected-deletion regressions. Delete now
+clears selection, so a following Return cannot open an unselected neighbor; the
+explicit Down/Return path remains usable. Removed old-index/store parameters and
+a redundant identity lookup from the existing deletion path. Grouped original-index
+reordering now shares its implementation with ordinary UUID final-slot moves.
+
+Expanded checks cover the twelve-entry Swift group move, four persisted scopes,
+full-order relaunch/deletion/toggle, invalid requests, complete corrupt archives,
+Unicode edited-anchor rejection and revision mismatch. The six Swift bookmark
+functions now have explicit model/app evidence. Architecture +115 measured NLOC,
+two functions, unchanged clone multisets/hotspots/cycles.
+Workspace passes 805 app tests/11 ignored, two binary, 13 font, 22 text and
+61 doctests; strict Clippy, warning-denied rustdoc, format and build pass.
+[Mapping and limits](plans/rust-bookmark-model-contracts.md) retain the remaining
+repository/filter and other Swift audits and SDK-backed Android acceptance.
+
 ## 2026-11-08 — Reconciled the three bookmark navigation workflows (Codex)
 
 Added both-scale actual-app workflows for reordered keyboard shortcuts, exact Back

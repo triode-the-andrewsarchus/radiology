@@ -10,7 +10,8 @@ work explicit. Overall parity is still unproven.
 declaration labels and ten numbered slots, retaining UUID activation beyond those
 slots. The combined scope/restore and supersession flows now pass in the
 [three-function navigation checkpoint](rust-bookmark-navigation-contracts.md).
-The separate model/storage audit remains open.
+The [model/storage audit](rust-bookmark-model-contracts.md) now closes the separate
+three functions, including grouped reordering and deletion-selection repairs.
 
 [App-model contracts](rust-app-model-contracts.md) reconcile all six ordinary
 AppModelTests functions through explicit app assertions and the prior root/history

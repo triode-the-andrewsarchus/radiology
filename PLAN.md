@@ -4,17 +4,23 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Bookmark model contracts](plans/rust-bookmark-model-contracts.md) now reconcile the
+three model/storage groups alongside the three navigation workflows. Grouped moves
+share ordering with single moves, selected deletion clears the row, and extreme
+invalid adjacent moves no longer overflow. Corrupt storage and Unicode anchor
+rejection checks pass. Other suites and Android acceptance remain open.
+
 [Bookmark navigation contracts](plans/rust-bookmark-navigation-contracts.md) now
 map all three Swift navigation functions to both-scale app workflows: reordered
 Unicode shortcuts/Back/relocation/relaunch; independent checkout and two PR sides;
-and failed/superseded source publication. Existing runtime passes. Bookmark model
-assertions and other suites remain open.
+and failed/superseded source publication. Existing runtime passes. The model
+assertions are reconciled above; other suites remain open.
 
 [Bookmark command parity](plans/rust-bookmark-command-parity.md) now uses enclosing
 declaration labels with filename fallback and restricts numbered commands to ten
 slots while retaining all-entry UUID activation. Red/green app regressions cover
-labels, persisted ordering and command boundaries. The full bookmark audit remains
-open.
+labels, persisted ordering and command boundaries. The subsequent model/navigation
+checkpoints above complete the six-function bookmark audit.
 
 [App-model contracts](plans/rust-app-model-contracts.md) now reconcile all six
 ordinary Swift AppModelTests groups. New both-scale app tests cover latest

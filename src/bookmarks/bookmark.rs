@@ -247,6 +247,11 @@ mod tests {
         );
         let ambiguous = SourceBuffer::from_str("a.rs", &original.text.repeat(2));
         assert!(bookmark.resolve(&ambiguous).is_err());
+        let edited = SourceBuffer::from_str("a.rs", &original.text.replace("target", "changed"));
+        assert!(bookmark.resolve(&edited).is_err());
+        let mut before = original.clone();
+        before.revision = Some(ReviewRevision::Before);
+        assert!(bookmark.resolve(&before).is_err());
         let mut invalid = bookmark.clone();
         invalid.column = usize::MAX;
         assert!(invalid.resolve(&unique).unwrap_err().contains("column"));

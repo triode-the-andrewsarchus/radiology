@@ -88,7 +88,7 @@ impl BookmarkList {
         None
     }
 
-    pub(super) fn removed(&mut self, id: Uuid, old_index: usize, store: &BookmarkStore) {
+    pub(super) fn removed(&mut self, id: Uuid) {
         if self
             .navigation_error
             .as_ref()
@@ -97,11 +97,7 @@ impl BookmarkList {
             self.clear_navigation_error();
         }
         if self.selected == Some(id) {
-            self.selected = store
-                .bookmarks
-                .get(old_index.min(store.bookmarks.len().saturating_sub(1)))
-                .map(|bookmark| bookmark.id);
-            self.reveal = true;
+            self.selected = None;
         }
     }
 
@@ -786,9 +782,7 @@ mod tests {
             assert_eq!(output.platform_output.copied_text, message);
             assert!(list.navigation_error.is_some());
             list.navigation_failed(store.bookmarks[0].id, "removed entry".into());
-            let mut removed = store.clone();
-            removed.remove(store.bookmarks[0].id);
-            list.removed(store.bookmarks[0].id, 0, &removed);
+            list.removed(store.bookmarks[0].id);
             assert!(list.navigation_error.is_none());
         }
     }

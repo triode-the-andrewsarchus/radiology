@@ -45,7 +45,7 @@ impl BookmarkScope {
 
 /// Manages ordered bookmarks for a repository checkout or pull request.
 ///
-/// Supports keyboard shortcuts ⌘0..⌘9 to jump to the first ten bookmarks.
+/// The app assigns Ctrl+0 through Ctrl+9 to the first ten bookmarks.
 ///
 /// # Examples
 ///
@@ -120,8 +120,42 @@ impl BookmarkStore {
         if slot >= self.bookmarks.len() || slot == index {
             return false;
         }
-        let bookmark = self.bookmarks.remove(index);
-        self.bookmarks.insert(slot, bookmark);
+        self.move_indices(&[index], if slot > index { slot + 1 } else { slot })
+    }
+
+    /// Moves original-list indices together to an original-list insertion boundary.
+    ///
+    /// Indices are treated as a set. Entries retain their original relative order.
+    /// `destination` may equal the list length to append the group. Returns `false`
+    /// without changing entries for an empty set or any out-of-bounds argument.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::{bookmarks::BookmarkStore, source::SourceBuffer};
+    /// let source = SourceBuffer::from_str("a.rs", "first\nsecond\nthird\nfourth\n");
+    /// let mut store = BookmarkStore::new();
+    /// for line in 1..=4 { store.toggle(&source, source.byte_offset(line, 0)); }
+    /// assert!(store.move_indices(&[0, 2], 4));
+    /// assert_eq!(store.bookmarks.iter().map(|b| b.line).collect::<Vec<_>>(), [2, 4, 1, 3]);
+    /// ```
+    pub fn move_indices(&mut self, indices: &[usize], destination: usize) -> bool {
+        if indices.is_empty()
+            || destination > self.bookmarks.len()
+            || indices.iter().any(|index| *index >= self.bookmarks.len())
+        {
+            return false;
+        }
+        let mut indices = indices.to_vec();
+        indices.sort_unstable();
+        indices.dedup();
+        let insertion = destination - indices.partition_point(|index| *index < destination);
+        let mut moved = Vec::with_capacity(indices.len());
+        for index in indices.into_iter().rev() {
+            moved.push(self.bookmarks.remove(index));
+        }
+        self.bookmarks
+            .splice(insertion..insertion, moved.into_iter().rev());
         true
     }
 
@@ -139,7 +173,7 @@ impl BookmarkStore {
 
     /// Swaps the bookmark at `idx` with the following bookmark.
     pub fn move_down(&mut self, idx: usize) {
-        if idx + 1 < self.bookmarks.len() {
+        if idx < self.bookmarks.len().saturating_sub(1) {
             self.bookmarks.swap(idx, idx + 1);
         }
     }
@@ -285,6 +319,8 @@ mod tests {
         assert!(!store.move_to(id, 3));
         assert!(!store.move_to(Uuid::new_v4(), 0));
         assert!(!store.move_to(id, 2));
+        store.move_down(usize::MAX);
+        store.move_up(usize::MAX);
         assert_eq!(store.bookmarks, original);
         let mut before = buffer.clone();
         before.revision = Some(crate::source::location::ReviewRevision::Before);
@@ -292,13 +328,68 @@ mod tests {
     }
 
     #[test]
-    fn test_scope_separation() {
-        let scope1 = BookmarkScope::new("/tmp/repo", None);
-        let scope2 = BookmarkScope::new("/tmp/repo", Some(42));
-        let scope3 = BookmarkScope::new("/tmp/other", None);
-
-        assert_ne!(scope1.key(), scope2.key());
-        assert_ne!(scope1.key(), scope3.key());
+    fn scoped_group_order_survives_relaunch_and_deletion() {
+        let owner = tempfile::tempdir().unwrap();
+        let root = owner.path().join("repo-a");
+        let primary = BookmarkScope::new(&root, Some(1));
+        let other_scopes = [
+            BookmarkScope::new(&root, None),
+            BookmarkScope::new(&root, Some(2)),
+            BookmarkScope::new(owner.path().join("repo-b"), Some(1)),
+        ];
+        let text: String = (0..12).map(|n| format!("fn point{n}() {{}}\n")).collect();
+        let source = SourceBuffer::from_str("src/locations.rs", &text);
+        let mut store = BookmarkStore::new();
+        for line in 1..=12 {
+            store.toggle(&source, source.byte_offset(line, 0));
+        }
+        let original = store.bookmarks.clone();
+        assert!(store.move_to(original[11].id, 0));
+        assert_eq!(store.get_by_index(0).unwrap().id, original[11].id);
+        assert_eq!(store.get_by_index(9).unwrap().id, original[8].id);
+        assert!(store.move_indices(&[0, 2], 5));
+        assert_eq!(store.bookmarks[3].id, original[11].id);
+        assert_eq!(store.bookmarks[4].id, original[1].id);
+        let reordered = store.bookmarks.clone();
+        store.save_in(owner.path(), &primary).unwrap();
+        for scope in &other_scopes {
+            assert_ne!(primary.key(), scope.key());
+            let mut independent = BookmarkStore::load_in(owner.path(), scope);
+            assert!(independent.bookmarks.is_empty());
+            independent.toggle(&source, 0);
+            independent.bookmarks[0].label = "independent".into();
+            independent.save_in(owner.path(), scope).unwrap();
+        }
+        let mut relaunched = BookmarkStore::load_in(owner.path(), &primary);
+        assert_eq!(relaunched.bookmarks, reordered);
+        relaunched.remove(reordered[0].id);
+        assert_eq!(relaunched.get_by_index(0).unwrap().id, reordered[1].id);
+        assert!(!relaunched.toggle(&source, reordered[1].byte_offset));
+        assert!(relaunched.index_of(reordered[1].id).is_none());
+        let local = BookmarkStore::load_in(owner.path(), &other_scopes[0]);
+        assert_eq!(local.bookmarks.len(), 1);
+        assert_eq!(local.bookmarks[0].label, "independent");
+        let unchanged = relaunched.bookmarks.clone();
+        for (indices, destination) in [
+            (&[][..], 0),
+            (&[0][..], usize::MAX),
+            (&[0, usize::MAX][..], 0),
+        ] {
+            assert!(!relaunched.move_indices(indices, destination));
+        }
+        assert!(!relaunched.move_to(unchanged[0].id, usize::MAX));
+        assert!(!relaunched.move_to(Uuid::new_v4(), 0));
+        assert_eq!(relaunched.bookmarks, unchanged);
+        assert!(relaunched.move_indices(&[2, 0, 2], 0));
+        assert_eq!(
+            &relaunched.bookmarks[..2],
+            &[unchanged[0].clone(), unchanged[2].clone()]
+        );
+        assert!(relaunched.move_indices(&[0, 1], relaunched.bookmarks.len()));
+        assert_eq!(
+            &relaunched.bookmarks[relaunched.bookmarks.len() - 2..],
+            &[unchanged[0].clone(), unchanged[2].clone()]
+        );
     }
 
     #[test]
@@ -377,6 +468,13 @@ mod tests {
             raw,
             "loading must not rewrite the archive"
         );
+        for damaged in ["not json", "{\"bookmarks\":42}", "{\"bookmarks\":["] {
+            std::fs::write(&path, damaged).unwrap();
+            assert!(BookmarkStore::load_in(dir.path(), &scope)
+                .bookmarks
+                .is_empty());
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), damaged);
+        }
         loaded.save_in(dir.path(), &scope).unwrap();
         assert_eq!(
             BookmarkStore::load_in(dir.path(), &scope).bookmarks,

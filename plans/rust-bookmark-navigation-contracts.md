@@ -5,6 +5,8 @@ Rust app workflow at both display scales. This follows the declaration-label and
 numbered-command fixes in [the prior checkpoint](rust-bookmark-command-parity.md).
 The runtime already satisfies these navigation contracts; this checkpoint changes
 only tests and documentation.
+The subsequent [model/storage review](rust-bookmark-model-contracts.md) now closes
+the three separate BookmarkTests functions and fixes deletion selection.
 
 ## Assertion mapping
 

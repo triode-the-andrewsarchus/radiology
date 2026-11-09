@@ -2,7 +2,9 @@
 
 This checkpoint fixes two concrete differences found while reviewing the Swift
 bookmark implementation. The subsequent [navigation audit](rust-bookmark-navigation-contracts.md)
-closes its three combined navigation workflows; the model/storage review remains.
+closes its three combined navigation workflows. The subsequent
+[model/storage review](rust-bookmark-model-contracts.md) closes its other three
+functions, including deletion-selection and invalid-index repairs.
 
 ## Behavior
 
