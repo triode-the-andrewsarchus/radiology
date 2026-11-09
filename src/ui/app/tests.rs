@@ -2928,3 +2928,5 @@ mod kotlin;
 mod positions;
 
 mod model;
+
+mod bookmarks;

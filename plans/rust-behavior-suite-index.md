@@ -69,6 +69,11 @@ Rust entry points: [store.rs](../src/bookmarks/store.rs), [tests.rs](../src/ui/a
 
 Evidence: [rust-bookmark-pane](rust-bookmark-pane.md).
 
+The [bookmark command checkpoint](rust-bookmark-command-parity.md) fixes declaration
+labels and bounds numbered commands without restricting UUID list activation. It
+adds focused app evidence; the full six-function bookmark reconciliation remains
+open.
+
 | Swift suite | Annotated functions |
 | --- | ---: |
 | [BookmarkTests](../Tests/RadiologyTests/BookmarkTests.swift) | 3 |

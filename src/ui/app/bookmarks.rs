@@ -69,8 +69,20 @@ impl RadiologyApp {
                     .map(|index| (bookmark.id, index))
             });
         if self.bookmarks.toggle(buffer, byte) {
-            self.bookmark_list.selected =
-                self.bookmarks.bookmarks.last().map(|bookmark| bookmark.id);
+            let label = self
+                .enclosing_source_context()
+                .and_then(|trail| trail.last().map(|symbol| symbol.name.clone()))
+                .unwrap_or_else(|| {
+                    Path::new(&buffer.path)
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            if let Some(bookmark) = self.bookmarks.bookmarks.last_mut() {
+                bookmark.label = label;
+                self.bookmark_list.selected = Some(bookmark.id);
+            }
         } else if let Some((id, index)) = existing {
             self.bookmark_list.removed(id, index, &self.bookmarks);
         }

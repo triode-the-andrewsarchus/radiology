@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Bookmark command parity](plans/rust-bookmark-command-parity.md) now uses enclosing
+declaration labels with filename fallback and restricts numbered commands to ten
+slots while retaining all-entry UUID activation. Red/green app regressions cover
+labels, persisted ordering and command boundaries. The full bookmark audit remains
+open.
+
 [App-model contracts](plans/rust-app-model-contracts.md) now reconcile all six
 ordinary Swift AppModelTests groups. New both-scale app tests cover latest
 navigation, held retired parsing, Swift/Rust/plain-text fact replacement and

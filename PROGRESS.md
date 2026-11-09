@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-08 — Bookmark labels and numbered command boundaries (Codex)
+
+Found and fixed two concrete Swift differences: new bookmarks now use the
+innermost declaration name or filename instead of path:line; numbered commands
+accept only slots 0–9. UUID list activation still opens every entry, including
+entries beyond those slots. Existing store/context/command mechanisms are reused;
+no new runtime function, dependency, public API or storage migration.
+
+Workspace checks pass: 801 app tests/11 ignored, two binary, 13 font, 22 text
+and 60 doctests; strict Clippy and formatting pass.
+
+Two app regressions fail before the fixes and pass afterward, covering nested/plain
+labels at both scales, actual row rendering, persistence, twelve reordered entries
+and out-of-range commands preserving history/loading. Architecture +100 measured
+NLOC including tests, full clone multiset unchanged, no new hotspot or cycle.
+[Evidence and remaining scope](plans/rust-bookmark-command-parity.md) keep the
+combined bookmark scope/restore and supersession audit open.
+
 ## 2026-11-05 — Completed the six-group app-model evidence pass (Codex)
 
 Added three app regressions at both scales for the four remaining AppModelTests

@@ -81,7 +81,9 @@ impl RadiologyApp {
                 })
             }
             OpenBookmark(index) => {
-                self.repository_interaction_ready() && self.bookmarks.get_by_index(*index).is_some()
+                *index < 10
+                    && self.repository_interaction_ready()
+                    && self.bookmarks.get_by_index(*index).is_some()
             }
             ToggleCurrentFunction => {
                 self.source_location_ready() && self.current_function_fold().is_some()

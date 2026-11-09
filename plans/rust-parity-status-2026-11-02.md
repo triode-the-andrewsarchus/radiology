@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Bookmark command parity](rust-bookmark-command-parity.md) now matches new-entry
+declaration labels and ten numbered slots, retaining UUID activation beyond those
+slots. The combined bookmark scope/restore and supersession audit remains open.
+
 [App-model contracts](rust-app-model-contracts.md) reconcile all six ordinary
 AppModelTests functions through explicit app assertions and the prior root/history
 fixes. Other Swift suites, opt-in probe limits and Android acceptance remain open.
