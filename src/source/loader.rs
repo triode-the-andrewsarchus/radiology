@@ -398,6 +398,92 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn retired_pinned_source_results_cannot_publish_wrong_revision_or_changed_content_hunks() {
+        use crate::pull_request::review::tests::{fixture_with_sources, fixture_with_tree_edits};
+        use crate::source::ReviewRevision::{After, Before};
+        use std::{
+            os::unix::fs::PermissionsExt,
+            sync::{atomic::Ordering, mpsc},
+        };
+        let original = "fn stable() {\n    old();\n}\n";
+        let updated = original.replace("old()", "new()");
+        // A mode-only change offers both revisions with identical bytes, isolating
+        // revision ownership from content identity without inventing an invalid UI side.
+        let (_same_owner, _same_root, same) = fixture_with_tree_edits(
+            original,
+            original,
+            |_| {},
+            |root| {
+                std::fs::set_permissions(
+                    root.join("a file.rs"),
+                    std::fs::Permissions::from_mode(0o755),
+                )
+                .unwrap();
+            },
+        );
+        let mode_change = same.change("a file.rs").unwrap();
+        assert_eq!(
+            (mode_change.before_mode, mode_change.after_mode),
+            (0o100644, 0o100755)
+        );
+        assert_eq!(mode_change.before_blob, mode_change.after_blob);
+        let (_new_owner, _new_root, changed) = fixture_with_sources(original, &updated);
+        let request =
+            |snapshot: &crate::pull_request::review::ReviewSnapshot, revision| SourceLoadRequest {
+                source: SourceRead::Review(Arc::new(snapshot.clone())),
+                location: SourceLocation::with_revision("a file.rs", 0, Some(revision)),
+                target: SourceTarget::Byte(0),
+                native_highlights: None,
+            };
+        let highlighter = Arc::new(SyntaxHighlighter::new());
+        for (old, old_revision, current, same_bytes) in [
+            (&same, Before, &same, true),
+            (&same, After, &changed, false),
+        ] {
+            let mut loader = SourceLoader::default();
+            loader.start(request(old, old_revision), highlighter.clone(), true);
+            let retired = finish(&mut loader).unwrap();
+            let old_digest = retired.buffer.content_digest().to_owned();
+            assert_eq!(retired.buffer.revision, Some(old_revision));
+            let (started, ready) = mpsc::channel();
+            let (release, resume) = mpsc::channel();
+            let (finished, result) = mpsc::channel();
+            loader.job.spawn_with_sender(move |cancel, sender| {
+                started.send(()).unwrap();
+                resume.recv_timeout(Duration::from_secs(5)).unwrap();
+                finished
+                    .send((
+                        cancel.load(Ordering::Relaxed),
+                        sender.send(Ok(retired)).is_err(),
+                    ))
+                    .unwrap();
+            });
+            ready.recv_timeout(Duration::from_secs(5)).unwrap();
+            loader.start(request(current, After), highlighter.clone(), true);
+            release.send(()).unwrap();
+            assert_eq!(
+                result.recv_timeout(Duration::from_secs(5)).unwrap(),
+                (true, true)
+            );
+            let accepted = finish(&mut loader).unwrap();
+            assert_eq!(accepted.buffer.path, "a file.rs");
+            assert_eq!(accepted.buffer.revision, Some(After));
+            assert_eq!(
+                accepted.buffer.text,
+                if same_bytes { original } else { &updated }
+            );
+            assert_eq!(old_digest == accepted.buffer.content_digest(), same_bytes);
+            assert_eq!(accepted.changes.as_ref(), Some(&current.diffs["a file.rs"]));
+            assert_eq!(
+                accepted.initial_folds.as_ref().unwrap().len(),
+                usize::from(same_bytes)
+            );
+            assert!(!loader.is_running() && loader.poll().is_none());
+        }
+    }
+
     #[test]
     fn native_theme_recolor_reuses_exact_captures_and_rejects_foreign_snapshots() {
         for (path, text) in [

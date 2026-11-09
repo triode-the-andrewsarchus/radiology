@@ -164,8 +164,11 @@ browsing flow. [GitHub metadata contracts](rust-github-metadata-contracts.md) no
 map `decodesGhSummariesAndTimesOutSlowCommands` (one of four integrated groups);
 [integrated browsing](rust-pr-browsing-contracts.md) maps
 `opensAPullRequestBrowsesAfterTogglesBeforeAndExits` and repairs unchanged Before
-availability/exact-caret returns. Two of four groups are now mapped; the combined
-changed-block and retired-load mappings remain open.
+availability/exact-caret returns. The
+[changed-block navigation](rust-change-block-flow-contracts.md) now maps
+`changedBlockJumpsRevealTestsAndBackUsesCaretNotPassiveScroll` through keyboard and
+atomic source ownership checks. Three of four groups are mapped; retired loads
+remain open.
 
 ## Critical Lens and hover
 

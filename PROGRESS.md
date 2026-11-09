@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Hidden-test/EOF keys and source-publication ownership (Codex)
+
+The third integrated PR group now has explicit mapping. A new both-scale real Git
+keyboard flow checks caret-versus-passive-scroll availability, actual same-line
+Right movement, Alt+Down revealing hidden test code without clearing Hide Tests,
+exact caret Back, skipping the current block and reaching the EOF deletion once
+without washing an added line. Binary/nil hunks stay idle; Before uses base bytes,
+and a subsequent unchanged file publishes no stale targets.
+
+A source-loader test holds real completed bundles behind a live worker gate,
+replaces the request and forces old publication. The old sender is cancelled and
+closed; only the new source/revision/hunks/fold defaults can arrive. A mode-only
+Git fixture isolates identical-byte revision changes; a newer same-path/After
+source isolates changed content. This checks the atomic publication equivalent
+of Swift's independently qualified highlight inputs. Runtime needed no changes.
+
+Nine change-related and eight loader tests pass, plus final ownership fixture
+assertions, formatting, diff checks and strict all-target Clippy. This checkpoint
+is test-only: the prior full 842 app/65 doctest run remains historical, not a new
+whole-suite claim. Architecture +251 measured NLOC/two test functions/one focused
+test file, unchanged complete clone multisets, hotspots and cycles. Existing
+Git/tree-edit, input/frame, worker and completion helpers are reused.
+[Changed-block audit](plans/rust-change-block-flow-contracts.md) documents the
+ordering/identity boundary and direct-state-mutation limits. Three of four
+PullRequestReview groups are mapped; the retired-review-request group, other
+unreconciled suites, final native acceptance, known parallel timing limits and
+Android remain open. Next: reconcile errors, superseded review loads and pending
+retry exit through the actual review lifecycle.
+
 ## 2026-11-09 — Integrated PR browsing and exact-caret departures (Codex)
 
 Red command and painted-button regressions showed unchanged files offered Before.

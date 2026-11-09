@@ -4,11 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Changed-block navigation](plans/rust-change-block-flow-contracts.md) now maps the
+third integrated PR group: actual keyboard jumps reveal hidden tests, preserve
+exact Back carets and reach EOF once. Real deferred source results prove revision/
+content ownership through the atomic publication channel. Runtime already satisfies
+these checks; the final retired-review-request group remains open.
+
 [Integrated PR browsing](plans/rust-pr-browsing-contracts.md) now rejects unchanged
 Before navigation, disables that button and returns to the exact caret after
 revision/changed-block jumps despite passive scrolling. A both-scale real Git/app/
 ripgrep workflow reconciles browsing through checkout exit. Two of four integrated
-PR groups are mapped; changed-block and retired-load combined checks remain open.
+PR groups were mapped here; changed-block is reconciled above and retired-load
+combined checks remain open.
 
 [GitHub metadata contracts](plans/rust-github-metadata-contracts.md) now retain
 author, cross-repository and merge-commit details through shared complete list/

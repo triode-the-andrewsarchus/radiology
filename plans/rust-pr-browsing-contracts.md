@@ -90,3 +90,7 @@ its combined test-region/EOF/stale-input mapping. The retired-load group also
 remains open, alongside other unreconciled suites, final native acceptance, known
 parallel timing limits and Android. Do not infer overall parity completion from
 this browsing workflow.
+
+Follow-up: [changed-block contracts](rust-change-block-flow-contracts.md) map that
+third group with hidden-test/EOF keys and actual source-result ownership checks.
+The retired-review-load group remains open.

@@ -6,15 +6,19 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Changed-block navigation](rust-change-block-flow-contracts.md) maps the third
+integrated PR group through actual keyboard/test-region/EOF workflows and deferred
+source-publication ownership. The retired-review-request group remains open.
+
 [Integrated PR browsing](rust-pr-browsing-contracts.md) fixes unchanged-file Before
 availability and exact-caret Back behavior after passive scrolling. The combined
 head inventory/revision/filter/search/checkout workflow maps the second integrated
-group; changed-block and retired-load groups remain open.
+group; changed-block is reconciled above and retired loads remain open.
 
 [GitHub metadata contracts](rust-github-metadata-contracts.md) retain the author,
 cross-repository flag and merge-commit object through list/view and refresh,
-closing the first integrated PR group. Browsing is reconciled above; the two
-remaining combined groups and final acceptance remain open.
+closing the first integrated PR group. Browsing and changed blocks are reconciled
+above; retired review loads and final acceptance remain open.
 
 [Fresh PR entry](rust-pr-review-entry.md) repairs automatic source/history
 selection and retained checkout Files queries. Explicit destinations and same-PR

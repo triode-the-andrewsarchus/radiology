@@ -2996,3 +2996,5 @@ mod bookmarks;
 mod repository;
 
 mod review_recovery;
+
+mod change_blocks;
