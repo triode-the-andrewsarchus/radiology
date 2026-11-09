@@ -47,11 +47,12 @@ not just the new predicate.
 
 All twelve app lifecycle, six personality, ten repository and two review-recovery
 cases pass, including actual isolated CLI recovery. Strict all-target Clippy,
-formatting and normal workspace build pass. Latest complete serial workspace gate
-remains the preceding snapshot's 942 app checks/twelve ignores, binary/font/text
-2/13/23 and all 68 doctests. A new full gate and fresh native integrated PR run must
-verify this runtime change before final acceptance. Prior standalone/native proofs
-retain their audited e49c5ec source scope; affected export/window checks need refresh.
+formatting and normal workspace build pass. The fresh serial workspace gate now passes 943 app checks/twelve ignores,
+binary/font/text 2/13/23 and all 68 doctests. Fresh export, both independent
+consumers and copied source-unavailable executables also pass for a5fd157.
+The affected native PR and source/stress flows pass at both scales; see
+[final runtime acceptance](rust-final-runtime-acceptance.md). Prior proofs retain
+their explicitly audited source scopes.
 
 Architecture compares NEUTRAL: +73 measured NLOC/net one analyzed function, no new
 file; avg/max CCN 3.43/132, all 36 high-complexity functions, one cycle and all 125
@@ -63,5 +64,4 @@ mechanisms are reused.
 Regression archive: ~/.local/state/radiology-qa/launch-index-coordination-20261109-8f48ec5/.
 The first fresh native observation is retained, explicitly unaccepted, under
 ~/.local/state/radiology-qa/final-native-pr-20261109-8f48ec5/.
-Complete ledger review, integrated native rerun and SDK-backed Android success
-remain open. Full accessibility and actual sibling integration remain deferred.
+Complete ledger review and SDK-backed Android success remain open. Full accessibility and actual sibling integration remain deferred.

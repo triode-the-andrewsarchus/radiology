@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-09 — Accept corrected native PR, source stress and independent export (Codex)
+
+Current a5fd157 passes the fresh serial workspace gate: 943 app tests/twelve
+opt-in ignores, binary/font/text 2/13/23 and all 68 doctests. A fresh committed
+archive/new target builds locked/offline with sixteen jobs. Both external hosts
+and all three copied executables pass with exported sources unavailable.
+
+Actual native PR workflows pass at 1×/2× using real Git/scip-clang and controlled
+gh metadata. Cold launch now compiles pinned After exactly once. Moving head/base,
+rename/delete/binary handling, same-byte reuse, retention pressure, tool-free source
+rematerialization and explicit semantic restoration pass; viewed source and Git
+state remain unchanged. Native representative source and 5.85 MB/60,002-line stress
+flows also pass at both scales, with exported sources unavailable throughout.
+Exact Copy, wrapping/zoom/find/history, modal import during loading and superseded
+source publication are checked. All owned app/compositor exits are zero; export
+sources are restored and private runtimes removed. Inspected fresh PR, recovered
+C++ and large-file destination captures. No production changes for these checks.
+
+[Runtime evidence and precise limits](plans/rust-final-runtime-acceptance.md).
+A subsequent full locked/offline run with sixteen build jobs and sixteen test
+threads also passes (same counts); its log is in
+~/.local/state/radiology-qa/final-parallel-20261109-a5fd157/workspace.log.
+Complete requirement audit and SDK-backed Android remain open; full accessibility and actual sibling adoption remain deferred. The latest
+runtime fix was committed and pushed before this follow-up verification.
+
 ## 2026-11-09 — Coordinate review preparation before automatic generation (Codex)
 
 Fresh real-Clang PR startup found two compiler runs: dirty attached checkout then

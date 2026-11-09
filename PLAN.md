@@ -10,12 +10,11 @@ All eighteen ContextModel groups, the seven caller-tree plus one palette group
 and all 66 source/syntax groups have explicit mappings. All 35 compiler/personality
 groups and all fifteen inspector/trait functions are now mapped too. Final
 complete requirement-ledger review and any uncovered integrated acceptance remain.
-Fresh standalone/exported-library acceptance passes for e49c5ec. Android SDK-backed success and documented
-parallel-run limits remain open. Automatic open/stale-cache generation is now
+Fresh standalone/exported-library and affected native acceptance pass for a5fd157. Android SDK-backed success remains open; the fresh half-core parallel suite also passes. Automatic open/stale-cache generation is now
 implemented, unknown adapters fail before planning, and attempted invocations are
 recorded/copied from Generation Details. Final acceptance still needs proof.
 
-The latest complete serial workspace gate passes 942 app tests (twelve opt-in
+The latest complete serial workspace gate passes 943 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Fresh exported-workspace
@@ -31,7 +30,9 @@ See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 native finding: automatic checkout compilation could run while an explicit PR was
 being prepared. A real-Git gated regression now proves no premature compile and
 correct accepted/cancelled/failed scope continuation. Focused checks/strict build
-pass; the new full and affected native/export gates remain required.
+pass, followed by the fresh full serial and affected native/export gates.
+[Final runtime acceptance](plans/rust-final-runtime-acceptance.md) records their
+source, compiler and source-unavailable boundaries.
 
 [Fresh native indexing acceptance](plans/rust-final-native-indexing.md) passes
 generated/failed Copy Command, automatic generation, tool-free warm restart, cache
