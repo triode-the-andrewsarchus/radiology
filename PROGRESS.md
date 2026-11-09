@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Source buffer/outline contracts and combined full gate (Codex)
+
+The combined full gate at 2e089e9 passes: 891 app checks, eleven existing opt-in
+ignores, binary/font/text checks 2/13/22 and all 66 doctests. This verifies the
+caller keyboard retirement repair and source-filter/display-label changes together.
+The previous caller-cache failure is closed by fresh whole-workspace evidence.
+
+All four SourceBuffer and three DocumentOutline groups now have explicit mappings.
+The exact Unicode/CRLF/combining-mark source, EOF/scalar round trips, byte selection
+to UTF-16 length, empty/binary/invalid bytes and existing signed-line UI clamping
+are checked through shared coordinates. Strict imported-coordinate rejection and
+Rust's documented raw oversized-line behavior remain explicit API differences.
+The exact nested Shape fixture preserves largest-first order, LOCAL, unique ranges
+and original symbol references. Half-open Unicode spans count correctly, and
+replacement outline targets resolve while stale path/revision/byte targets fail.
+Rust's atomic source/syntax publication maps the Swift loading-path ownership case.
+
+This is test-only: seven buffer, eighteen outline, six viewport and the line-command
+check pass, with final uniqueness consolidation rechecked and strict all-target
+Clippy green. No new production/build/doc/full-run result is claimed for the later
+test-only changes. The source/syntax section is 16/66 mapped; 50 groups, compiler/
+inspector and final native/standalone/reuse acceptance remain. Architecture +137
+NLOC/two test functions, no new files/helpers/hotspots/cycles; avg/max CCN 3.42/132,
+all 125 clone instances unchanged with zero additions/removals. PLAN now separates
+current evidence from historical checkpoint counts so old pending notes are clear.
+[Buffer/outline contracts](plans/rust-buffer-outline-contracts.md); logs:
+~/.local/state/radiology-qa/buffer-outline-20261109-2e089e9/ and
+~/.local/state/radiology-qa/source-contracts-20261109-51aaa44/.
+
 ## 2026-11-09 — Source registry and C/C++ assertion reconciliation (Codex)
 
 Source Files Only now includes tpp/tcc implementation files already supported by

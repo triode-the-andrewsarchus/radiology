@@ -388,6 +388,14 @@ pass without new parsing mechanisms. Nine of 66 source groups have explicit
 mappings in this pass; the remaining 57 require assertion reconciliation. The
 fresh combined full gate is pending; focused and app checks pass.
 
+[Source-buffer/outline contracts](rust-buffer-outline-contracts.md) add all four
+SourceBufferTests and three DocumentOutlineTests mappings through existing shared
+coordinates and source ownership. Exact Unicode/half-open/order/identity checks
+pass, with typed API differences and atomic publication documented explicitly.
+The combined production gate at 2e089e9 passes 891 app tests and all 66 doctests;
+these later test-only checks and strict Clippy also pass. Sixteen of 66 source
+groups are now mapped; 50 remain to reconcile before the later acceptance gates.
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

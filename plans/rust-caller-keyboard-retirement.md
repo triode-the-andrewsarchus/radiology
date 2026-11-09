@@ -36,3 +36,5 @@ overlapping test function through the expanded matrix: net function count stays
 125; complete normalized clone multisets have zero additions/removals, so the
 raw touched-file flag concerns an existing test fragment. The UI
 uses the same controls and typography. Native final acceptance remains open.
+
+Fresh complete-workspace evidence at 2e089e9 closes this repair: see the [combined gate record](rust-buffer-outline-contracts.md#verification-and-structure).

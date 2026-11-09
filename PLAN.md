@@ -1,22 +1,45 @@
 # Radiology documentation index and current state
 
+Radiology is a native, read-only repository browser for understanding unfamiliar codebases. While the original implementation was written in Swift for macOS, the active focus is the standalone Linux-native rewrite in Rust using EGUI (`eframe` 0.27 / `egui` 0.27).
+
+## Current accepted state
+
+Overall Swift/Rust parity remains unproven. The standalone app remains the current
+product; actual little-screen-clip integration and full accessibility are deferred.
+All eighteen ContextModel groups and the seven caller-tree plus one palette group
+have explicit mappings. Sixteen of 66 source/syntax groups are reconciled; 50,
+the compiler/inspector suites and final integrated/native/standalone/reuse gates
+remain. Android SDK-backed success and documented parallel-run limits remain open.
+
+The full serial workspace gate at 2e089e9 passes 891 app tests (eleven existing
+opt-in ignores), binary/font/text checks 2/13/22 and all 66 doctests. It validates
+the caller keyboard repair and language-filter/label changes together. Subsequent
+buffer/outline additions are test-only and pass their focused checks plus strict
+Clippy. See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
+
+## Recent checkpoint index
+
+[Source-buffer and outline contracts](plans/rust-buffer-outline-contracts.md)
+map all four buffer and three outline groups, including exact Unicode, canonical
+range conversion, largest-first nested functions, half-open line counts and fresh
+replacement targets. Existing runtime mechanisms satisfy these cases.
+
 [Source language and C/C++ contracts](plans/rust-source-language-contracts.md)
 restore tpp/tcc source filtering and Swift's TSX/plain-text labels, and map all
 five registry plus four C syntax groups. Focused/app checks, Clippy, build and docs
-pass. The combined full gate follows; 57 source/syntax groups and later acceptance
-still need reconciliation.
+pass, including the combined full workspace gate. The current remaining source
+count is recorded above.
 
 [Caller keyboard retirement](plans/rust-caller-keyboard-retirement.md) fixes the
 full-run regression caused by immediate cached-tree reopening. Both input paths
 retain parent focus until controls republish, then navigate normally. Focused
-checks pass; the next combined full gate is still required.
+checks and the subsequent combined full workspace gate pass.
 
 [Reference caller-tree contracts](plans/rust-call-tree-contracts.md) repair loaded
 trace reuse after collapse/reopen through the existing bounded query cache and
 map the seven Swift caller groups plus exact identity palette assignments.
-Focused checks, strict Clippy, build and docs pass. A fresh full workspace run
-follows this checkpoint; source/syntax, compiler, inspector and final integrated
-acceptance remain.
+Focused checks, strict Clippy, build, docs and the subsequent combined workspace
+gate pass. Later suite and final acceptance work remains.
 
 [Context excerpt windows and coverage](plans/rust-context-window-contracts.md)
 now add scalar-safe visible omission markers through the shared snippet path and
@@ -24,9 +47,10 @@ map the last two ContextModel groups. All eighteen have explicit mappings;
 the combined full workspace validation passes. Other suite audits and final
 whole-app/native/standalone acceptance remain open.
 
-Radiology is a native, read-only repository browser for understanding unfamiliar codebases. While the original implementation was written in Swift for macOS, the active focus is the standalone Linux-native rewrite in Rust using EGUI (`eframe` 0.27 / `egui` 0.27).
+## Earlier implementation checkpoints
 
-## Current accepted state
+The entries below retain their checkpoint-time counts and follow-up notes. The
+current accepted state above supersedes those historical remaining-work counts.
 
 [Context disclosure contracts](plans/rust-context-disclosure-contracts.md) now reset
 signature expansion with semantic-input ownership and map independent disclosure

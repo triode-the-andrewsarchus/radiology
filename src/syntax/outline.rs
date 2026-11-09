@@ -479,6 +479,66 @@ fn calculate() {
             assert!(!crate::syntax::folds::FoldDetector::detect_folds(&buffer).is_empty());
         }
     }
+    #[test]
+    fn swift_outline_fixture_keeps_nested_callables_flat_stable_and_source_bound() {
+        let text = "struct Shape { side: u32 }\nimpl Shape {\n    fn short() {}\n    fn larger(\n        x: u32,\n    ) -> u32 {\n        const LOCAL: u32 = 1;\n        fn nested() { }\n        x + LOCAL\n    }\n    fn tied() {}\n}\n";
+        let buffer = SourceBuffer::from_str("shape.rs", text);
+        let symbols = SymbolExtractor::extract(&buffer);
+        let rows = outline_rows(&symbols, &buffer);
+        let functions = rows
+            .iter()
+            .filter(|row| row.symbol.is_callable())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            functions
+                .iter()
+                .map(|row| row.symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["larger", "short", "nested", "tied"]
+        );
+        assert_eq!(
+            functions
+                .iter()
+                .map(|row| row.line_count)
+                .collect::<Vec<_>>(),
+            [7, 1, 1, 1]
+        );
+        assert!(functions.iter().all(|row| row.depth == 0));
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.symbol.selection_range.clone())
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            rows.len()
+        );
+        let remaining = rows
+            .iter()
+            .filter(|row| !row.symbol.is_callable())
+            .collect::<Vec<_>>();
+        assert!(remaining.iter().any(|row| row.symbol.name == "LOCAL"));
+        let originals = symbols
+            .iter()
+            .flat_map(|symbol| &symbol.children)
+            .flat_map(|child| std::iter::once(child).chain(&child.children))
+            .collect::<Vec<_>>();
+        assert!(functions.iter().all(|row| originals
+            .iter()
+            .any(|symbol| std::ptr::eq(*symbol, row.symbol))));
+        let unicode = SourceBuffer::from_str(
+            "a.rs",
+            "fn café(\n    emoji: &str,\n) { let x = \"👩🏽‍💻\"; }\nnext\n",
+        );
+        let symbol = DocumentSymbol {
+            name: "café".into(),
+            kind: SymbolKind::Function,
+            range: 0..unicode.line_starts[3],
+            selection_range: 3..8,
+            line: 1,
+            children: vec![],
+            detail: None,
+        };
+        assert_eq!(symbol.line_count(&unicode), 3);
+    }
 }
 
 #[cfg(test)]

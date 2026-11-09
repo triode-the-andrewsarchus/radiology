@@ -76,3 +76,5 @@ The subsequent full workspace run exposed a keyboard-owner regression (888 app
 passes, one failure, eleven ignores). [Caller keyboard retirement](rust-caller-keyboard-retirement.md)
 repairs it while retaining immediate cached data. Its focused checks pass; the
 following combined gate must establish fresh full success.
+
+The cached-trace and keyboard changes subsequently pass their whole-workspace gate together. [Results and next source contracts](rust-buffer-outline-contracts.md#verification-and-structure) supersede the pending verification note.

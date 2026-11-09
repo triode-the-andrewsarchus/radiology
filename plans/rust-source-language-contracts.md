@@ -71,3 +71,5 @@ Next: SourceBuffer, outline, call-site extraction and the other syntax/test-regi
 contracts, followed by compiler/inspector reconciliation and final acceptance.
 Full accessibility and actual sibling integration remain deferred. Android SDK
 success and documented parallel-run limitations remain open.
+
+The combined production gate now passes at 2e089e9; the [buffer/outline checkpoint](rust-buffer-outline-contracts.md#verification-and-structure) records the complete results and subsequent test-only additions.

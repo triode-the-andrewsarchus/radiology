@@ -495,4 +495,75 @@ mod tests {
         assert_eq!(buffer.column_at_byte(3), 0);
         assert_eq!(buffer.byte_offset(3, 0), buffer.byte_len());
     }
+    #[test]
+    fn swift_unicode_buffer_contracts_use_shared_exact_coordinates_and_validation() {
+        let text = "a🙂é\r\n漢字 e\u{301}\n";
+        let source = SourceBuffer::from_str("unicode.swift", text);
+        assert_eq!(source.line_starts, [0, 9, 20]);
+        assert_eq!(source.line_count(), 3);
+        let utf16 = ColumnEncoding::Utf16;
+        assert_eq!(
+            source
+                .line_starts
+                .iter()
+                .map(|&byte| source.coordinates.units_at_byte(text, byte, utf16).unwrap())
+                .collect::<Vec<_>>(),
+            [0, 6, 12]
+        );
+        assert_eq!(source.coordinates.units_at_byte(text, 5, utf16), Some(3));
+        assert_eq!(source.coordinates.byte_at_units(text, 3, utf16), Some(5));
+        let clamped = source.clamp_to_char_boundary(3);
+        assert_eq!(clamped, 1);
+        assert_eq!(
+            source.coordinates.units_at_byte(text, clamped, utf16),
+            Some(1)
+        );
+        // Typed imported coordinates reject split units instead of guessing.
+        assert_eq!(source.coordinates.byte_at_units(text, 2, utf16), None);
+        assert_eq!(
+            source.byte_offset_encoded(2, 3, ColumnEncoding::Utf8),
+            Some(12)
+        );
+        assert_eq!(source.line_at_byte(12), 2);
+        for (byte, _) in text.char_indices().chain([(text.len(), '\0')]) {
+            let units = text[..byte].encode_utf16().count();
+            assert_eq!(
+                source.coordinates.units_at_byte(text, byte, utf16),
+                Some(units)
+            );
+            assert_eq!(
+                source.coordinates.byte_at_units(text, units, utf16),
+                Some(byte)
+            );
+        }
+        let range_source = SourceBuffer::from_str("range.swift", "a🩻胸z");
+        let start = range_source
+            .coordinates
+            .units_at_byte(&range_source.text, 1, utf16)
+            .unwrap();
+        let end = range_source
+            .coordinates
+            .units_at_byte(&range_source.text, "a🩻胸".len(), utf16)
+            .unwrap();
+        assert_eq!((start, end - start), (1, 3));
+        let empty = SourceBuffer::from_bytes("empty", vec![], None).unwrap();
+        assert_eq!(empty.line_count(), 1);
+        assert_eq!(empty.byte_offset(100, 0), 0);
+        let small = SourceBuffer::from_str("f", "abc\nxyz");
+        assert_eq!(small.byte_offset(1, 200), 3);
+        // UI line commands clamp before converting; the low-level Rust helper
+        // deliberately returns EOF for an out-of-document line.
+        assert_eq!(small.byte_offset(100.min(small.line_count()), 0), 4);
+        assert_eq!(small.byte_offset(100, 0), 7);
+        assert_eq!(
+            small.coordinates.byte_at_units(&small.text, 100, utf16),
+            None
+        );
+        for bytes in [vec![0, 1, 2], vec![0xff]] {
+            assert!(matches!(
+                SourceBuffer::from_bytes("invalid", bytes, None),
+                Err(SourceBufferError::BinaryOrInvalidUtf8)
+            ));
+        }
+    }
 }

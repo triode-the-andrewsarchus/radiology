@@ -736,6 +736,15 @@ mod tests {
                 None,
             );
             assert!(list.destination(&replacement, &target).is_none());
+            let Some(OutlineAction::Preview(current)) = list.key(Key::Home) else {
+                panic!("replacement outline is missing");
+            };
+            assert_eq!(current.document.0, replacement.position_key());
+            assert_eq!(current.document.1, replacement.content_digest());
+            assert_eq!(
+                list.destination(&replacement, &current),
+                Some(current.selection.start)
+            );
         }
     }
 
