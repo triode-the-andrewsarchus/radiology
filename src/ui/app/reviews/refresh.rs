@@ -167,7 +167,24 @@ impl RadiologyApp {
         }
     }
 
-    pub(in crate::ui::app) fn show_review_notice(&mut self, ctx: &Context) {
+    pub(in crate::ui::app) fn show_review_status(&mut self, ctx: &Context) {
+        if let Some(number) = self.pending_pr {
+            let operation = if self.is_review_refreshing() {
+                "Refreshing"
+            } else {
+                "Preparing"
+            };
+            TopBottomPanel::top("review_preparation").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(format!("{operation} pull request #{number}…"));
+                    if ui.button("Cancel").clicked() {
+                        self.cancel_review_preparation();
+                    }
+                });
+            });
+        }
+
         if let Some(notice) = self.review_refresh.notice.clone() {
             TopBottomPanel::top("review_refresh_notice").show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {

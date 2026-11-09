@@ -43,11 +43,42 @@ pub(in crate::ui::app) fn open_review(
     (settings, app)
 }
 
+fn review_context(
+    root: &Path,
+    review: ReviewSnapshot,
+    scale: f32,
+) -> (tempfile::TempDir, RadiologyApp, Context) {
+    let (settings, mut app) = open_review(root, review, ReviewRevision::After);
+    let ctx = Context::default();
+    ctx.set_pixels_per_point(scale);
+    super::focus::settle_frame(&mut app, &ctx);
+    (settings, app, ctx)
+}
+
+pub(super) fn hold_review_completion(
+    app: &mut RadiologyApp,
+    snapshot: ReviewSnapshot,
+) -> std::sync::mpsc::Sender<()> {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let (started, ready) = mpsc::channel();
+    let (resume, resumed) = mpsc::channel();
+    app.pending_pr = Some(snapshot.summary.number);
+    app.review_job.spawn(move |_| {
+        started.send(()).unwrap();
+        resumed.recv_timeout(Duration::from_secs(5)).unwrap();
+        Ok(snapshot)
+    });
+    ready.recv_timeout(Duration::from_secs(5)).unwrap();
+    resume
+}
+
 #[test]
 fn refresh_tracks_rename_preserves_latest_caret_and_exact_pins_and_resets_old_fold_memory() {
     let text = "fn demo() {\n    let value = 1;\n    value;\n}\n\nfn other() {\n    helper();\n}\n";
     let (owner, root, first) = crate::pull_request::review::tests::fixture_with_sources(text, text);
     let (_settings, mut app) = open_review(&root, first.clone(), ReviewRevision::After);
+    app.set_source_mode(SourceMode::Critical);
     app.fold_store.folded_ranges.clear();
     app.jump_to_location("a file.rs", 2, 0);
     settle(&mut app);
@@ -72,6 +103,7 @@ fn refresh_tracks_rename_preserves_latest_caret_and_exact_pins_and_resets_old_fo
     assert_eq!((app.caret_line, app.caret_col), (3, 7));
     assert_eq!(app.pin_store.groups, groups);
     assert_eq!(app.sidebar_tab, SidebarTab::Files);
+    assert_eq!(app.mode, SourceMode::Critical);
     assert!(app.pin_store.ephemeral.is_none());
     assert!(
         app.fold_store.is_header_folded(6, &app.fold_ranges),
@@ -133,6 +165,25 @@ fn refresh_waits_for_current_navigation_and_reconciles_a_moving_reader() {
     assert_eq!(app.selected_path.as_deref(), Some("added.rs"));
     assert_eq!(app.open_buffer.as_ref().unwrap().text, "new\n");
     assert!(app.error.is_none(), "{:?}", app.error);
+    app.open_file("a file.rs");
+    settle(&mut app);
+    let current = app.review.as_ref().unwrap().clone();
+    let fresh = advance(&root, owner.path(), &current, |root| {
+        std::fs::write(root.join("a file.rs"), "one\nlatest head\nthree\n").unwrap();
+    });
+    let expected_head = fresh.head.clone();
+    app.accept_review(fresh);
+    app.poll_review(&Context::default());
+    app.execute_command(
+        &Context::default(),
+        ToolbarAction::ToggleRevision(ReviewRevision::Before),
+    );
+    assert!(app.is_source_loading());
+    settle(&mut app);
+    assert_eq!(app.review.as_ref().unwrap().head, expected_head);
+    assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, "one\ntwo\nthree\n");
+    assert!(!app.history.can_go_back());
 }
 
 #[test]
@@ -201,30 +252,32 @@ fn cancelling_a_staged_refresh_preserves_the_accepted_reader_and_same_commit_is_
 #[test]
 fn refresh_of_a_moving_merge_base_maps_the_before_reader() {
     let text = "fn demo() {\n    helper();\n}\n";
-    let (owner, root, first) = crate::pull_request::review::tests::fixture_with_sources(text, text);
+    let newer_base = format!("// new base\n{text}");
+    let (owner, root, base_review) =
+        crate::pull_request::review::tests::fixture_with_sources(text, &newer_base);
+    let first = advance(&root, owner.path(), &base_review, |root| {
+        std::fs::write(root.join("a file.rs"), format!("// head\n{newer_base}")).unwrap();
+    });
     let (_settings, mut app) = open_review(&root, first.clone(), ReviewRevision::Before);
     app.jump_to_location("a file.rs", 2, 0);
     settle(&mut app);
     app.caret_col = 5;
-    git(&root, &["restore", "."]);
-    std::fs::write(root.join("a file.rs"), format!("// new base\n{text}")).unwrap();
-    git(&root, &["add", "a file.rs"]);
-    git(&root, &["commit", "-m", "advance base"]);
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(&root)
-        .output()
-        .unwrap();
-    let mut template = first.clone();
-    template.summary.base_ref_oid = Some(String::from_utf8(output.stdout).unwrap().trim().into());
-    let fresh = advance(&root, owner.path(), &template, |root| {
-        git(root, &["merge", "--no-edit", "main"]);
-    });
-    assert_ne!(fresh.base, first.base);
+    let mut summary = first.summary.clone();
+    summary.base_ref_oid = Some(base_review.head.clone());
+    let fresh = ReviewSnapshot::prepare(&root, summary, &owner.path().join("cache")).unwrap();
+    assert_eq!(fresh.head, first.head, "only the merge base changes");
+    assert_eq!(fresh.base, base_review.head);
+    assert_eq!(fresh.changes.len(), 1);
     app.accept_review(fresh);
     settle(&mut app);
     assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+    assert_eq!(app.open_buffer.as_ref().unwrap().text, newer_base);
     assert_eq!((app.caret_line, app.caret_col), (3, 5));
+    assert_eq!(
+        app.review_revision_choices.get("a file.rs"),
+        Some(&ReviewRevision::Before)
+    );
+    assert!(!app.history.can_go_back());
 }
 
 #[test]
@@ -439,4 +492,176 @@ fn review_revision_choices_follow_aliases_bookmarks_refresh_and_scope_without_fa
     app.execute_command(&ctx, ToolbarAction::ExitPRReview);
     settle(&mut app);
     assert!(app.review_revision_choices.is_empty());
+}
+
+#[test]
+fn refresh_failures_name_the_operation_and_preserve_accepted_retry_context() {
+    let (_owner, root, review) = crate::pull_request::review::tests::fixture();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) = review_context(&root, review.clone(), scale);
+        let buffer = app.open_buffer.clone().unwrap();
+        let history = app.history.current().cloned();
+        for (number, operation) in [
+            (review.summary.number, "refresh"),
+            (review.summary.number + 1, "open"),
+        ] {
+            app.pending_pr = Some(number);
+            app.review_job.spawn(|_| Err("offline".into()));
+            settle(&mut app);
+            let expected = format!("Unable to {operation} review: offline");
+            assert_eq!(
+                (
+                    app.error.as_deref(),
+                    app.history.current(),
+                    app.active_pr.as_ref().unwrap().number
+                ),
+                (
+                    Some(expected.as_str()),
+                    history.as_ref(),
+                    review.summary.number
+                )
+            );
+            assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+            assert_eq!(app.review.as_ref().unwrap().head, review.head);
+            assert!(app.command_enabled(&ToolbarAction::Refresh));
+            assert!(app.pending_pr.is_none());
+            super::focus::settle_frame(&mut app, &ctx);
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn metadata_refresh_coalesces_commands_and_preserves_reader_fact_owners() {
+    use crate::ui::app::tests::focus::{frame, key};
+    let (_owner, root, review) = crate::pull_request::review::tests::fixture_with_sources(
+        "fn demo() {\n    café();\n}\n",
+        "fn demo() {\n    café();\n}\n",
+    );
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) = review_context(&root, review.clone(), scale);
+        app.caret_line = 2;
+        app.caret_col = 4;
+        app.pin_store
+            .toggle_pin("café", std::iter::once(16..21).collect());
+        app.semantic_index = Some(Arc::new(SemanticIndex::default()));
+        app.source_viewport.request_focus(&ctx);
+        frame(&mut app, &ctx, vec![]);
+        let buffer = app.open_buffer.clone().unwrap();
+        let outline = app.outline_symbols.clone();
+        let highlights = app.native_highlights.clone();
+        let calls = app.call_sites.clone();
+        let index = app.semantic_index.clone().unwrap();
+        let history = app.history.current().cloned();
+        let pins = app.pin_store.groups.clone();
+        let caret = (app.caret_line, app.caret_col);
+        let mut metadata = review.clone();
+        metadata.summary.title = "Fresh title".into();
+        crate::pull_request::recent::tests::publish(
+            &mut app.recent_pull_requests,
+            Ok(Some(vec![review.summary.clone()])),
+        );
+        let resume = hold_review_completion(&mut app, metadata);
+        let output = frame(
+            &mut app,
+            &ctx,
+            vec![
+                key(egui::Key::R, egui::Modifiers::CTRL),
+                key(egui::Key::R, egui::Modifiers::CTRL),
+            ],
+        );
+        crate::ui::test_support::assert_visible_text(
+            &output,
+            &format!("Refreshing pull request #{}…", review.summary.number),
+        );
+        assert!(app.is_review_refreshing());
+        assert!(!app.command_enabled(&ToolbarAction::Refresh));
+        assert!(app.source_location_ready());
+        resume.send(()).unwrap();
+        settle(&mut app);
+        assert_eq!(app.active_pr.as_ref().unwrap().title, "Fresh title");
+        assert_eq!(app.recent_pull_requests.items()[0].title, "Fresh title");
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert!(Arc::ptr_eq(&app.outline_symbols, &outline));
+        assert!(Arc::ptr_eq(&app.native_highlights, &highlights));
+        assert!(Arc::ptr_eq(&app.call_sites, &calls));
+        assert!(Arc::ptr_eq(app.semantic_index.as_ref().unwrap(), &index));
+        assert_eq!(app.history.current(), history.as_ref());
+        assert_eq!((app.caret_line, app.caret_col), caret);
+        assert_eq!(app.pin_store.groups, pins);
+        assert!(app.command_enabled(&ToolbarAction::Refresh));
+        assert!(app.error.is_none(), "{:?}", app.error);
+    }
+}
+
+#[test]
+fn retired_refresh_results_cannot_reopen_cancelled_exited_or_replaced_review_scopes() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let (owner, root, review) = crate::pull_request::review::tests::fixture();
+    let late = advance(&root, owner.path(), &review, |root| {
+        std::fs::write(root.join("a file.rs"), "late refresh\n").unwrap();
+    });
+    for scale in [1.0, 2.0] {
+        for transition in ["cancel", "exit", "other-pr", "other-root"] {
+            let (_settings, mut app, ctx) = review_context(&root, review.clone(), scale);
+            let buffer = app.open_buffer.clone().unwrap();
+            let (started, ready) = mpsc::channel();
+            let (resume, resumed) = mpsc::channel();
+            let (finished, result) = mpsc::channel();
+            let candidate = late.clone();
+            app.pending_pr = Some(review.summary.number);
+            app.review_job.spawn_with_sender(move |cancel, sender| {
+                started.send(()).unwrap();
+                resumed.recv_timeout(Duration::from_secs(5)).unwrap();
+                // Deliberately attempt publication even after cancellation.
+                finished
+                    .send((
+                        cancel.load(std::sync::atomic::Ordering::Relaxed),
+                        sender.send(Ok(candidate)).is_err(),
+                    ))
+                    .unwrap();
+            });
+            ready.recv_timeout(Duration::from_secs(5)).unwrap();
+            let other_root = tempfile::tempdir().unwrap();
+            match transition {
+                "cancel" => app.cancel_review_preparation(),
+                "exit" => app.execute_command(&ctx, ToolbarAction::ExitPRReview),
+                "other-pr" => {
+                    app.cancel_review_preparation();
+                    let mut other = review.clone();
+                    other.summary.number += 1;
+                    app.accept_review(other);
+                }
+                _ => app.open_repository(other_root.path()),
+            }
+            resume.send(()).unwrap();
+            assert_eq!(
+                result.recv_timeout(Duration::from_secs(5)).unwrap(),
+                (true, true)
+            );
+            settle(&mut app);
+            super::focus::settle_frame(&mut app, &ctx);
+            assert!(app.pending_pr.is_none());
+            assert!(app.error.is_none(), "{:?}", app.error);
+            match transition {
+                "cancel" => {
+                    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+                    assert_eq!(app.review.as_ref().unwrap().head, review.head);
+                }
+                "exit" => assert!(app.review.is_none()),
+                "other-pr" => {
+                    assert_eq!(
+                        app.active_pr.as_ref().unwrap().number,
+                        review.summary.number + 1
+                    );
+                    assert_eq!(app.review.as_ref().unwrap().head, review.head);
+                }
+                _ => {
+                    assert!(app.review.is_none());
+                    assert_eq!(app.repository_root.as_deref(), Some(other_root.path()));
+                }
+            }
+        }
+    }
 }

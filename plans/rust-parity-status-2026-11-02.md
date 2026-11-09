@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[PR refresh lifecycle](rust-pr-refresh-contracts.md) fixes misleading operation
+wording and strengthens metadata/viewport/revision/retirement workflows. Six groups
+have mapped evidence; explicit failure recovery remains partial and is next work.
+
 [Change metadata and identity](rust-change-metadata-contracts.md) close the two
 remaining unified-diff groups. Pinned changes now carry actual SHA-1/SHA-256 IDs,
 copy scores and shared numstat application. Together with the diff fixes below,

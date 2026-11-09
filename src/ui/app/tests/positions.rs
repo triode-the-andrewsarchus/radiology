@@ -125,8 +125,18 @@ fn pr_refresh_seeds_the_mapped_viewport_anchor_and_retires_other_snapshot_positi
     let after = format!("// head\n{text}");
     let (owner, root, first) =
         crate::pull_request::review::tests::fixture_with_sources(&text, &after);
+    let first = advance(&root, owner.path(), &first, |root| {
+        std::fs::create_dir(root.join("src")).unwrap();
+        std::fs::write(root.join("src/other.rs"), "fn other() {}\n").unwrap();
+    });
     let (_settings, mut app) = open_review(&root, first.clone(), ReviewRevision::After);
     let ctx = Context::default();
+    app.session.source_font_size = 17.0;
+    app.session.wrap_lines = true;
+    app.session.source_filters.source_files_only = true;
+    app.session.source_filters.hides_tests = true;
+    app.expanded_dirs.insert("src".into());
+    app.sidebar_tab = SidebarTab::Files;
     app.open_file("added.rs");
     settle(&mut app);
     app.jump_to_location("added.rs", 1, 1);
@@ -144,23 +154,41 @@ fn pr_refresh_seeds_the_mapped_viewport_anchor_and_retires_other_snapshot_positi
     let fresh = advance(&root, owner.path(), &first, |root| {
         std::fs::write(root.join("a file.rs"), format!("// refreshed\n{after}")).unwrap();
     });
-    app.accept_review(fresh);
+    let resume = super::review_refresh::hold_review_completion(&mut app, fresh);
+    // Continue reading while metadata is still pending; commit must use these anchors.
+    app.caret_line = 110;
+    app.caret_col = 1;
+    app.source_viewport
+        .restore_top(&source, source.byte_offset(20, 0));
+    frame(&mut app, &ctx, vec![]);
+    assert_eq!(
+        app.source_viewport.top_byte(&source),
+        Some(source.byte_offset(20, 0))
+    );
+    resume.send(()).unwrap();
     settle_frame(&mut app, &ctx);
-    assert_eq!(app.caret_line, 101);
+    assert_eq!(app.caret_line, 111);
+    assert_eq!(app.caret_col, 1);
+    assert_eq!(app.session.source_font_size, 17.0);
+    assert!(app.session.wrap_lines);
+    assert!(app.session.source_filters.source_files_only && app.session.source_filters.hides_tests);
+    assert!(app.expanded_dirs.contains("src"));
+    assert_eq!(app.sidebar_tab, SidebarTab::Files);
+    assert!(!app.history.can_go_back());
     let fresh_source = app.open_buffer.clone().unwrap();
     assert_eq!(
         app.source_viewport.top_byte(&fresh_source),
-        Some(fresh_source.byte_offset(31, 0))
+        Some(fresh_source.byte_offset(21, 0))
     );
     app.open_file("added.rs");
     settle_frame(&mut app, &ctx);
     assert_eq!((app.caret_line, app.caret_col), (1, 0));
     app.open_file("a file.rs");
     settle_frame(&mut app, &ctx);
-    assert_eq!((app.caret_line, app.caret_col), (31, 0));
+    assert_eq!((app.caret_line, app.caret_col), (21, 0));
     assert_eq!(
         app.source_viewport.top_byte(&fresh_source),
-        Some(fresh_source.byte_offset(31, 0))
+        Some(fresh_source.byte_offset(21, 0))
     );
 }
 

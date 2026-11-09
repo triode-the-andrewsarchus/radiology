@@ -48,6 +48,12 @@ impl RadiologyApp {
         }
     }
 
+    pub(super) fn is_review_refreshing(&self) -> bool {
+        self.pending_pr
+            .zip(self.active_pr.as_ref())
+            .is_some_and(|(number, active)| number == active.number)
+    }
+
     pub(super) fn can_choose_review(&self) -> bool {
         self.repository_root.is_some() && !self.is_repository_opening()
     }
@@ -116,6 +122,11 @@ impl RadiologyApp {
     }
 
     pub(super) fn poll_review(&mut self, ctx: &Context) {
+        let operation = if self.is_review_refreshing() {
+            "refresh"
+        } else {
+            "open"
+        };
         match self.review_job.poll() {
             Ok(Some(result)) => {
                 self.pending_pr = None;
@@ -123,7 +134,7 @@ impl RadiologyApp {
                     Ok(snapshot) => self.accept_review(snapshot),
                     Err(error) => {
                         self.pending_open_file = None;
-                        self.error = Some(format!("Unable to open review: {error}"));
+                        self.error = Some(format!("Unable to {operation} review: {error}"));
                     }
                 }
             }

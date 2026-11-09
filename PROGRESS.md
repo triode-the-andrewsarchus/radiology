@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-08 — PR refresh operation context and lifecycle contracts (Codex)
+
+A red regression confirmed refresh metadata errors incorrectly said open. Shared
+pending/active PR context now supplies reader readiness, progress and error wording.
+Review progress/notice rendering is grouped in the existing domain renderer, reducing
+main-renderer CCN 38→36. No extra worker, request flag or dependency was introduced.
+
+Three new both-scale app tests cover metadata coalescing/retained source and syntax/
+index owners, operation-specific failures and forcibly attempted stale publication
+across Cancel/Exit/other-PR/root transitions. Existing tests now check latest painted
+viewport/caret during a held completion with retained options, unchanged head with
+an actual newer merge base, Critical mode and a pending Before source switch.
+Shared scaled-review and completion fixtures, plus the existing recent-list
+publication helper, avoid copied setup/waiting logic.
+
+All 12 refresh checks, the strengthened positions workflow, strict Clippy and build
+pass. The locked offline serial workspace run passes 828 app tests/11 existing
+ignored, two binary/13 font/22 text tests and all 64 doctests. Architecture +261 measured
+NLOC/six functions, unchanged clone multisets/hotspots/cycles.
+[Seven-group audit](plans/rust-pr-refresh-contracts.md) maps six and leaves the
+failure/retry group partial: Swift's Try Again/Choose Number controls and failed
+request identity are missing. Implement those next; do not declare PR refresh
+parity complete. Other review suites, final integration, parallel timing limits and
+Android acceptance remain open.
+
 ## 2026-11-08 — Full pinned change metadata and shared count application (Codex)
 
 A real Git regression found the existing Before/After blob-ID fields were empty.

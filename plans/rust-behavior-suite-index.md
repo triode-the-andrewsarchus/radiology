@@ -132,8 +132,8 @@ Rust entry points: [diff.rs](../src/pull_request/diff.rs), [tests.rs](../src/pul
 
 Evidence: [diff contracts](rust-diff-contracts.md) plus
 [change metadata/identity](rust-change-metadata-contracts.md) map all five
-UnifiedDiffTests and all three ChangeBlockNavigationTests groups; other suites
-below still need their own reconciliation,
+UnifiedDiffTests and all three ChangeBlockNavigationTests groups. Other suites
+below still need their own reconciliation. Additional evidence:
 [rust-byte-change-navigation](rust-byte-change-navigation.md), [rust-pr-refresh-restoration](rust-pr-refresh-restoration.md), [rust-integrated-pr-flow](rust-integrated-pr-flow.md).
 
 | Swift suite | Annotated functions |
@@ -145,6 +145,11 @@ below still need their own reconciliation,
 | [ReviewChangesPresentationTests](../Tests/RadiologyTests/ReviewChangesPresentationTests.swift) | 3 |
 | [ReviewFoldDefaultsTests](../Tests/RadiologyTests/ReviewFoldDefaultsTests.swift) | 7 |
 | [ReviewRepositoryTests](../Tests/RadiologyTests/ReviewRepositoryTests.swift) | 4 |
+
+The [PR refresh lifecycle audit](rust-pr-refresh-contracts.md) maps six groups;
+failure/retry remains partial because explicit recovery actions and failed-number
+ownership still need implementation. The separate review, presentation, fold and
+repository suites listed above remain open.
 
 ## Critical Lens and hover
 

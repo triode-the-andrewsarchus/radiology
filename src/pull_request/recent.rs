@@ -143,4 +143,4 @@ impl RecentPullRequests {
 }
 
 #[cfg(all(test, unix))]
-mod tests;
+pub(crate) mod tests;

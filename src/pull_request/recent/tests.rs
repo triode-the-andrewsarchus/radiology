@@ -13,7 +13,10 @@ fn settle(list: &mut RecentPullRequests) {
     }
 }
 
-fn publish(list: &mut RecentPullRequests, result: Result<Option<Vec<PullRequestSummary>>, String>) {
+pub(crate) fn publish(
+    list: &mut RecentPullRequests,
+    result: Result<Option<Vec<PullRequestSummary>>, String>,
+) {
     list.phase = PullRequestListPhase::Loading;
     list.job.spawn(move |_| result);
     settle(list);

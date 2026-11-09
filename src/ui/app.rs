@@ -627,12 +627,9 @@ impl RadiologyApp {
     }
 
     pub(super) fn repository_interaction_ready(&self) -> bool {
-        let refreshing = self
-            .pending_pr
-            .zip(self.active_pr.as_ref())
-            .is_some_and(|(number, active)| number == active.number);
         self.repository_root.is_some()
-            && (refreshing || (self.pending_pr.is_none() && !self.review_job.is_running()))
+            && (self.is_review_refreshing()
+                || (self.pending_pr.is_none() && !self.review_job.is_running()))
     }
 
     pub(super) fn source_location_ready(&self) -> bool {
@@ -758,19 +755,7 @@ impl RadiologyApp {
             }
         });
 
-        if let Some(number) = self.pending_pr {
-            TopBottomPanel::top("review_preparation").show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(format!("Preparing pull request #{number}…"));
-                    if ui.button("Cancel").clicked() {
-                        self.cancel_review_preparation();
-                    }
-                });
-            });
-        }
-
-        self.show_review_notice(ctx);
+        self.show_review_status(ctx);
         self.show_repository_status(ctx);
         self.show_git_status(ctx);
         self.show_source_loading(ctx);
