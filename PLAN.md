@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[SCIP metadata retention](plans/rust-scip-metadata-contracts.md) now preserves tool
+name/version/arguments/project root through decoding, project merging, normalized
+indexes, reuse and cache reloads. Older caches remain readable and an independent
+consumer uses the new API. Two SemanticIndexTests groups are mapped; remaining
+semantic/Context/navigation reconciliation and final acceptance remain open.
+
 [Semantic caret identity corrections](plans/rust-semantic-identity-contracts.md)
 fix local/field overlap selection, whole-file module caret hits and invalid document
 publication. Existing cfg-aware syntactic selection/pin fallback is preserved. The
 shorthand-field Swift group is mapped; remaining semantic/Context/navigation
-assertions and raw SCIP tool/root metadata retention remain open.
+assertions remain open; raw SCIP tool/root metadata is now retained above.
 
 [Code Paths contracts](plans/rust-code-path-contracts.md) now map all four Swift
 suites (16 groups). Corrected error fixtures distinguish real failures; combined

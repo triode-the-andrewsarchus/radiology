@@ -123,3 +123,49 @@ fn invalid_document_paths_cannot_publish_symbols_definitions_or_search_entries()
         assert!(index.search_entries.is_empty() && index.repository_packages.is_empty());
     }
 }
+
+#[test]
+fn real_swift_fixture_retains_tool_metadata_before_and_after_normalization() {
+    let owner = scip_rust_fixture();
+    let raw = ScipIndex::decode(&std::fs::read(owner.path().join("index.scip")).unwrap()).unwrap();
+    let mut paths = raw
+        .documents
+        .iter()
+        .map(|document| document.relative_path.as_str())
+        .collect::<Vec<_>>();
+    paths.sort();
+    assert_eq!(paths, ["src/lib.rs", "src/shapes.rs"]);
+    assert!(raw
+        .documents
+        .iter()
+        .all(|document| document.position_encoding == 1));
+    let encoded = serde_json::to_value(&raw).unwrap();
+    assert_eq!(encoded["sources"][0]["tool_name"], "rust-analyzer");
+    assert!(encoded["sources"][0]["project_root"]
+        .as_str()
+        .unwrap()
+        .starts_with("file://"));
+    assert_eq!(encoded["sources"][0]["document_count"], 2);
+    let expected = raw.sources.clone();
+    let index = SemanticIndex::from_scip(raw);
+    assert_eq!(index.sources, expected);
+    let total = index
+        .symbols
+        .values()
+        .find(|symbol| symbol.display_name == "total_area")
+        .unwrap();
+    assert_eq!(total.kind, 17);
+    assert_eq!(
+        total.signature,
+        "pub fn total_area(items: &[Circle]) -> f64"
+    );
+    assert!(total
+        .documentation
+        .iter()
+        .any(|paragraph| paragraph.contains("café 🚀")));
+
+    assert_eq!(
+        index.column_encoding("src/shapes.rs"),
+        Some(crate::source::ColumnEncoding::Utf8)
+    );
+}

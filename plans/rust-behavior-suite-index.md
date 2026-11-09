@@ -266,6 +266,12 @@ shorthand-field SemanticIndexTests group using the same wire fixture, plus targe
 caret tie/whole-file and invalid-path regressions. Remaining groups in this section
 still need reconciliation; raw tool/root metadata retention is an identified gap.
 
+[SCIP metadata reconciliation](rust-scip-metadata-contracts.md) maps the complete
+real-index decode SemanticIndexTests group, including document encodings, function
+signature/kind and Unicode docs. Tool records survive decoding/merging/reuse/cache
+and an independent host. Together with shorthand identity, two of eleven index
+groups are mapped; the remaining groups and other suites in this section stay open.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

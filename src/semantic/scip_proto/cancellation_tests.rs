@@ -44,8 +44,23 @@ fn nested_index() -> Vec<u8> {
         vec![48, 2],
     ]
     .concat();
+    let tool = [
+        field(1, b"fixture-indexer"),
+        field(2, b"1.2.3"),
+        field(3, "--café".as_bytes()),
+        field(3, "🦀".as_bytes()),
+        vec![0x98, 0x06, 7],
+    ]
+    .concat();
+    let metadata = [
+        field(2, &tool),
+        field(3, b"file:///compiler-stage"),
+        vec![32, 2],
+        field(42, b"unknown metadata"),
+    ]
+    .concat();
     [
-        field(1, &[32, 2]),
+        field(1, &metadata),
         field(2, &document),
         field(3, &symbol),
         field(20, b"ignored unknown field"),
@@ -66,6 +81,16 @@ fn nested_messages_stop_at_every_retirement_checkpoint_and_recover_exact_fields(
     }
     let fresh = ScipIndex::decode(&bytes).unwrap();
     assert_eq!(fresh.text_document_encoding, 2);
+    assert_eq!(
+        fresh.sources,
+        vec![ScipIndexSource {
+            tool_name: "fixture-indexer".into(),
+            tool_version: "1.2.3".into(),
+            tool_arguments: vec!["--café".into(), "🦀".into()],
+            project_root: "file:///compiler-stage".into(),
+            document_count: 1,
+        }]
+    );
     let doc = &fresh.documents[0];
     assert_eq!(doc.relative_path, "a.rs");
     assert_eq!(doc.position_encoding, 2);
@@ -132,4 +157,28 @@ fn malformed_lengths_and_overflowing_varints_return_errors_without_panicking() {
     );
     fn send_sync<T: Send + Sync>() {}
     send_sync::<ProtobufReader<'static>>();
+}
+
+#[test]
+fn metadata_uses_the_last_message_and_counts_documents_independent_of_wire_order() {
+    let document = field(2, &field(1, b"kept.rs"));
+    assert!(ScipIndex::decode(&document).unwrap().sources.is_empty());
+    let first = field(1, &field(2, &field(1, b"first-indexer")));
+    let last = field(1, &field(3, "file:///café/🦀".as_bytes()));
+    let decoded = ScipIndex::decode(&[document, first, last].concat()).unwrap();
+    assert_eq!(
+        decoded.sources,
+        vec![ScipIndexSource {
+            project_root: "file:///café/🦀".into(),
+            document_count: 1,
+            ..Default::default()
+        }]
+    );
+    assert_eq!(decoded.documents[0].relative_path, "kept.rs");
+    assert_eq!(decoded.text_document_encoding, 0);
+    let invalid_tool = field(1, &field(2, &field(1, &[0xff])));
+    assert_eq!(
+        ScipIndex::decode(&invalid_tool).unwrap_err(),
+        ProtobufError::InvalidUtf8
+    );
 }

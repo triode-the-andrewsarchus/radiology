@@ -33,11 +33,14 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
             &format!("printf '{}\\n' >> {}", indexer.id(), quote(&runs)),
         );
     }
-    run(fixture.request());
+    let first = run(fixture.request());
+    let sources = first.index.unwrap().sources;
+    assert_eq!(sources.len(), 2);
     let accepted = project_cache(&fixture);
     let mut request = fixture.request();
     request.reuse = true;
     let reused = run(request.clone());
+    assert_eq!(reused.index.as_ref().unwrap().sources, sources);
     assert!(reused
         .report
         .outcomes
@@ -66,6 +69,7 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
         .unwrap()
         .unwrap();
     assert_eq!(cached.report.reuse_warning(), mixed.report.reuse_warning());
+    assert_eq!(cached.index.unwrap().sources, mixed.index.unwrap().sources);
 
     // A sibling's bytes can influence either project, so both must regenerate.
     for (expected_runs, edit_bytes) in [(5, true), (7, false)] {

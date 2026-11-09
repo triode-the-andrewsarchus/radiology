@@ -177,7 +177,15 @@ impl Fixture {
     }
     fn tool(&self, indexer: Indexer, documents: &[&str], before_output: &str) {
         let payload = self.bin.join(format!("{}.scip", indexer.id()));
-        let mut index = Vec::new();
+        let tool = [
+            field(1, indexer.id().as_bytes()),
+            field(2, b"fixture-1"),
+            field(3, b"--fixture"),
+            field(3, "café 🦀".as_bytes()),
+        ]
+        .concat();
+        let metadata = [field(2, &tool), field(3, b"file:///private/compiler-stage")].concat();
+        let mut index = field(1, &metadata);
         for path in documents {
             let occurrence = [field(1, &[0, 0, 1]), field(2, b"local 0"), vec![0x18, 1]].concat();
             let document = [field(1, path.as_bytes()), field(2, &occurrence)].concat();
@@ -259,6 +267,19 @@ fn generates_isolated_projects_with_encoded_scoped_documents_and_partial_failure
     let generated = run(fixture.request());
     let index = generated.index.unwrap();
     assert_eq!(index.documents.len(), 2);
+    assert_eq!(
+        index
+            .sources
+            .iter()
+            .map(|source| (source.tool_name.as_str(), source.document_count))
+            .collect::<Vec<_>>(),
+        [("rust-analyzer", 2), ("scip-typescript", 1)]
+    );
+    assert!(index
+        .sources
+        .iter()
+        .all(|source| source.tool_version == "fixture-1"
+            && source.project_root == "file:///private/compiler-stage"));
     assert_eq!(
         index.column_encoding("rust/lib.rs"),
         Some(crate::source::ColumnEncoding::Utf8)
@@ -442,6 +463,9 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
         generated.report.plan.uncovered_languages,
         ["Objective-C", "Swift"]
     );
+    let sources = generated.index.as_ref().unwrap().sources.clone();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].tool_arguments, ["--fixture", "café 🦀"]);
     let original_bytes = fs::read(cache_file(&fixture)).unwrap();
     let stored: serde_json::Value = serde_json::from_slice(&original_bytes).unwrap();
     assert!(stored["report"]["plan"]
@@ -466,6 +490,7 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     assert!(outcome.diagnostics.contains("compiler-note"));
     let index = cached.index.unwrap();
     assert_eq!(index.definitions.len(), 1);
+    assert_eq!(index.sources, sources);
     assert_eq!(
         index.source_digests,
         generated.index.unwrap().source_digests
@@ -492,6 +517,21 @@ fn cache_round_trip_preserves_partial_coverage_and_original_source_provenance_wi
     assert!(super::super::cache::load(&request, &AtomicBool::new(false))
         .unwrap()
         .is_none());
+    // Old normalized caches contain no source records; they remain readable
+    // without manufacturing tool metadata or rewriting their bytes.
+    let mut legacy: serde_json::Value = serde_json::from_slice(&original_bytes).unwrap();
+    legacy["scip"].as_object_mut().unwrap().remove("sources");
+    let legacy = serde_json::to_vec(&legacy).unwrap();
+    fs::write(cache_file(&fixture), &legacy).unwrap();
+    let old = super::super::cache::load(&fixture.request(), &AtomicBool::new(false))
+        .unwrap()
+        .unwrap()
+        .index
+        .unwrap();
+    assert!(old.sources.is_empty());
+    assert_eq!(old.documents.len(), 1);
+    assert_eq!(old.source_digests, index.source_digests);
+    assert_eq!(fs::read(cache_file(&fixture)).unwrap(), legacy);
 }
 
 #[test]

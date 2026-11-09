@@ -6,11 +6,17 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[SCIP metadata retention](rust-scip-metadata-contracts.md) now keeps complete tool
+records across wire decode, project merging, normalized indexes, cache-only loads
+and incremental reuse. Older caches remain readable; an independent consumer uses
+the public API. This maps the real-index decode group; remaining semantic/Context/
+navigation assertions and final acceptance stay open.
+
 [Semantic identity corrections](rust-semantic-identity-contracts.md) now prefer
 navigable/global equal-range targets, preserve cfg-aware spelling decorations, exclude
 multiline module caret hits and drop invalid source documents before indexing.
 The shorthand-field group is mapped; remaining semantic/Context/navigation groups
-and newly identified raw SCIP tool/root metadata retention remain open.
+remain open; the identified raw SCIP tool/root metadata gap is closed above.
 
 [Code Paths contracts](rust-code-path-contracts.md) map all four suites (16 Swift
 groups). Real ambiguous/binary/symlink failures retain the reader; saved traces

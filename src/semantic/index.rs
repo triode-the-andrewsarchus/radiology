@@ -551,6 +551,9 @@ impl SymbolSearch {
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct SemanticIndex {
+    /// Ordered tool metadata for the contributing SCIP outputs.
+    /// Reported roots do not change repository or source-read ownership.
+    pub sources: Vec<super::scip_proto::ScipIndexSource>,
     /// Explicit Rust impl lookup enriched before publication by source-aware hosts.
     pub trait_implementations: std::sync::Arc<super::trait_impls::TraitImplementationIndex>,
     /// Package ownership derived once during background index construction.
@@ -590,6 +593,7 @@ impl SemanticIndex {
         super::scip_proto::check_cancelled(&cancelled)?;
         let mut idx = Self {
             default_encoding: scip.text_document_encoding,
+            sources: scip.sources,
             ..Default::default()
         };
 

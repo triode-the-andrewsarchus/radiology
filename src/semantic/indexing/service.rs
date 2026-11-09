@@ -551,6 +551,7 @@ fn merge_project(
         }
     }
     merged.external_symbols.extend(scip.external_symbols);
+    merged.sources.extend(scip.sources);
     overlaps
 }
 

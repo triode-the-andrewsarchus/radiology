@@ -23,6 +23,7 @@ fn fixture() -> ScipIndex {
     };
     occurrences.push(local.clone());
     ScipIndex {
+        sources: Vec::new(),
         text_document_encoding: 2,
         documents: vec![
             ScipDocument {

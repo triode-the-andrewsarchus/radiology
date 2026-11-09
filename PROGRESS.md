@@ -1,5 +1,48 @@
 # Progress
 
+## 2026-11-09 — SCIP tool metadata retained across indexing (Codex)
+
+The real Swift-fixture regression failed because raw SCIP decoding dropped tool
+name/version/arguments/project root. One public ScipIndexSource representation now
+carries those fields and original document count through wire decoding, normalized
+SemanticIndex, project merging, private project caches and merged-cache reloads.
+Records remain ordered; source-root metadata is informational and never rebinds
+host source reads or coordinates. Existing text-encoding ownership/adapter defaults
+remain. Older serialized indexes omit the serde-defaulted collection and still
+load without rewriting or inventing metadata. No new cache/worker/dependency/UI.
+
+The real fixture now verifies metadata, two paths/encodings, Function kind, exact
+signature and Unicode documentation, mapping the complete Swift real-index decode
+group. Nested decoder cancellation checks now traverse complete metadata, ordered
+Unicode arguments and unknown fields. Last-message/wire-order/invalid UTF-8 tests
+pass. Shared fake tools now emit metadata; multi-project filtering retains original
+per-output counts, cache-only loads preserve records without tools, old payloads
+load with unknown records, and incremental mixed/fresh reuse preserves metadata.
+An exhaustive internal test initializer now explicitly supplies empty sources.
+
+Nine protobuf checks, real fixture, 42 service tests (ten existing opt-in ignored),
+project-reuse checks and strict Clippy pass. A separate locked/offline consumer
+builds with 16 jobs and runs from an empty directory, using the re-exported API
+and exact Circle coordinates; no sibling checkout is involved. Final build,
+warning-free docs and full workspace results follow.
+The locked offline workspace run passes 864 app tests (11 existing ignored),
+two binary/13 font/22 text tests and all 66 doctests. Strict all-target Clippy,
+normal build and warning-free API docs pass; the generated source-record page
+contains every field, the example and captured-repository ownership contract.
+Workspace compilation uses -j 1 with serial tests after the prior unconfirmed
+parallel-link failure; normal half-core Cargo configuration remains 16 jobs.
+Architecture +175 measured NLOC/three functions (one ToolInfo decoder/two tests),
+no new measured file, average/max CCN 3.42/132, 36 hotspots/cycles unchanged and
+identical complete clone multisets (123, zero additions/removals). Shared reader,
+normalization, merge, cache, fixtures and host mechanisms are reused. Details in
+[SCIP metadata contract](plans/rust-scip-metadata-contracts.md), PLAN and parity/
+behavior indexes; archive `~/.local/state/radiology-qa/scip-metadata-20261109-c798eb8/`
+includes the independent consumer manifest/source/lockfile and logs.
+Two of eleven SemanticIndexTests groups are now explicitly mapped. Remaining
+semantic/Context/navigation assertions, other suites and final native/standalone
+acceptance remain open, along with known parallel timing limits and Android.
+Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Exact semantic caret and field identity (Codex)
 
 Real Swift-fixture regressions confirmed Circle shorthand selected local 0,

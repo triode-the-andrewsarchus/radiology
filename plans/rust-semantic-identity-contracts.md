@@ -88,3 +88,10 @@ chokepoint rankings; the complete clone comparison confirms no new duplicate.
 Overall app parity, remaining behavior suites, final native/standalone acceptance,
 known parallel timing limits and Android remain open. Full accessibility and actual
 sibling integration remain deferred; ordinary keyboard support remains required.
+
+## Metadata follow-up (2026-11-09)
+
+[SCIP metadata retention](rust-scip-metadata-contracts.md) closes the tool/version/
+arguments/project-root gap identified above, with merged source records, cache
+compatibility and an external consumer. The other semantic/Context/navigation
+assertion groups retain their remaining audit.

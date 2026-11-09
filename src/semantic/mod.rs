@@ -25,7 +25,9 @@ pub use caller_tree::{
     caller_pill_color, caller_pill_slot, CallerTreeBuilder, ReferenceCallerNode, CALLER_PALETTE,
 };
 pub use index::SemanticIndex;
-pub use scip_proto::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation};
+pub use scip_proto::{
+    ScipDocument, ScipIndex, ScipIndexSource, ScipOccurrence, ScipRange, ScipSymbolInformation,
+};
 
 #[cfg(test)]
 pub(crate) mod test_support;

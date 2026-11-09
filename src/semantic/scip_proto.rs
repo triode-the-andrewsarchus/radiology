@@ -253,9 +253,42 @@ impl<'a> ProtobufReader<'a> {
     }
 }
 
+/// Tool metadata for one contributing SCIP output.
+///
+/// Records remain ordered when project indexes are merged. The reported root is
+/// informational; source reads continue to use the host's captured repository.
+///
+/// # Examples
+/// ```no_run
+/// use radiology::semantic::{ScipIndex, SemanticIndex};
+/// let bytes = std::fs::read("index.scip")?;
+/// let index = SemanticIndex::from_scip(ScipIndex::decode(&bytes)?);
+/// for source in &index.sources {
+///     println!("{} {}: {} documents", source.tool_name, source.tool_version, source.document_count);
+/// }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ScipIndexSource {
+    /// Name reported by the producing indexer.
+    pub tool_name: String,
+    /// Version reported by the producing indexer.
+    pub tool_version: String,
+    /// Original indexer arguments in their authored order.
+    pub tool_arguments: Vec<String>,
+    /// Project-root URI reported by the producing indexer.
+    pub project_root: String,
+    /// Number of documents in this output before host filtering or overlap removal.
+    pub document_count: usize,
+}
+
 /// Decoded top-level SCIP index representation.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScipIndex {
+    /// Tool-supplied source records, retained across project merging and cache reloads.
+    /// Missing metadata and older serialized indexes leave this collection empty.
+    #[serde(default)]
+    pub sources: Vec<ScipIndexSource>,
     /// Source-file byte encoding from metadata, independent of occurrence columns.
     pub text_document_encoding: i32,
     /// Documents contained in the index.
@@ -407,7 +440,9 @@ impl ScipIndex {
         while let Some((field, wire)) = reader.read_tag()? {
             match (field, wire) {
                 (1, WireType::LengthDelimited) => {
-                    index.text_document_encoding = Self::decode_encoding(reader.message()?)?;
+                    let (source, encoding) = Self::decode_source(reader.message()?)?;
+                    index.sources = vec![source];
+                    index.text_document_encoding = encoding;
                 }
                 (2, WireType::LengthDelimited) => {
                     let doc_bytes = reader.message()?;
@@ -423,19 +458,43 @@ impl ScipIndex {
             }
         }
 
+        for source in &mut index.sources {
+            source.document_count = index.documents.len();
+        }
         Ok(index)
     }
 
-    fn decode_encoding(mut reader: ProtobufReader<'_>) -> Result<i32, ProtobufError> {
+    fn decode_source(
+        mut reader: ProtobufReader<'_>,
+    ) -> Result<(ScipIndexSource, i32), ProtobufError> {
+        let mut source = ScipIndexSource::default();
         let mut encoding = 0;
         while let Some((field, wire)) = reader.read_tag()? {
-            if field == 4 && wire == WireType::Varint {
-                encoding = reader.read_int32()?;
-            } else {
-                reader.skip_field(wire)?;
+            match (field, wire) {
+                (2, WireType::LengthDelimited) => {
+                    Self::decode_tool(reader.message()?, &mut source)?
+                }
+                (3, WireType::LengthDelimited) => source.project_root = reader.read_string()?,
+                (4, WireType::Varint) => encoding = reader.read_int32()?,
+                (_, wire) => reader.skip_field(wire)?,
             }
         }
-        Ok(encoding)
+        Ok((source, encoding))
+    }
+
+    fn decode_tool(
+        mut reader: ProtobufReader<'_>,
+        source: &mut ScipIndexSource,
+    ) -> Result<(), ProtobufError> {
+        while let Some((field, wire)) = reader.read_tag()? {
+            match (field, wire) {
+                (1, WireType::LengthDelimited) => source.tool_name = reader.read_string()?,
+                (2, WireType::LengthDelimited) => source.tool_version = reader.read_string()?,
+                (3, WireType::LengthDelimited) => source.tool_arguments.push(reader.read_string()?),
+                (_, wire) => reader.skip_field(wire)?,
+            }
+        }
+        Ok(())
     }
 
     fn decode_document(mut reader: ProtobufReader<'_>) -> Result<ScipDocument, ProtobufError> {
