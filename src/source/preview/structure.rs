@@ -54,7 +54,7 @@ pub(super) fn end_line(
     Ok(declaration_end(&symbols, byte).map(|end| buffer.line_at_byte(end.saturating_sub(1))))
 }
 
-fn declaration_end(symbols: &[DocumentSymbol], byte: usize) -> Option<usize> {
+pub(super) fn declaration_end(symbols: &[DocumentSymbol], byte: usize) -> Option<usize> {
     symbols
         .iter()
         .filter_map(|symbol| symbol.find_innermost(byte))

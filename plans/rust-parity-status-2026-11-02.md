@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Same-file memory previews](rust-memory-definition-previews.md) now publish from
+accepted source/outline data immediately after metadata, sharing bounds and cache
+publication with the worker path. The Swift UTF-16 caret group is mapped through
+real app publication/reload, alongside source-owner, no-I/O, mutex and stale/Before
+checks. Two ContextModel groups are mapped; remaining audits/acceptance stay open.
+
 [Parsed preview structures](rust-preview-structure-reuse.md) now retain four exact
 source/index-owned structures, sharing one extraction across adjacent definition
 targets. Checked worker locking preserves cancellation/deadline behavior; file

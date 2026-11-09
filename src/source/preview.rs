@@ -4,7 +4,7 @@ use super::{
     loader::{check_source, SOURCE_READ_TIMEOUT},
     ReviewRevision, SourceBuffer,
 };
-use crate::{background::LatestRead, semantic::ScipRange};
+use crate::{background::LatestRead, semantic::ScipRange, syntax::DocumentSymbol};
 use std::{
     ops::Range,
     sync::{
@@ -97,6 +97,28 @@ impl SourcePreviewLoader {
         inputs: Option<Arc<SourceQueryInputs>>,
         target: Option<PreviewTarget>,
     ) -> bool {
+        self.request_prepared(inputs, target, None)
+    }
+
+    /// Uses exact accepted source/outline ownership for same-file definitions.
+    pub(crate) fn request_prepared(
+        &mut self,
+        inputs: Option<Arc<SourceQueryInputs>>,
+        target: Option<PreviewTarget>,
+        prepared: Option<(&SourceBuffer, &[DocumentSymbol])>,
+    ) -> bool {
+        let symbols = inputs
+            .as_ref()
+            .zip(target.as_ref())
+            .and_then(|(inputs, target)| {
+                prepared
+                    .filter(|(owner, _)| {
+                        target.kind == PreviewKind::Definition
+                            && target.path == inputs.buffer.path
+                            && super::buffer::SourceIdentity::new(owner).matches(&inputs.buffer)
+                    })
+                    .map(|(_, symbols)| symbols)
+            });
         if self.cache.prepare(inputs.as_ref()) {
             self.structure = Arc::default();
         }
@@ -105,7 +127,10 @@ impl SourcePreviewLoader {
             (None, None) => true,
             _ => false,
         };
-        if same_inputs && self.target == target {
+        if same_inputs
+            && self.target == target
+            && (symbols.is_none() || matches!(self.phase, PreviewPhase::Loaded(_)))
+        {
             return false;
         }
         self.job.stop();
@@ -117,12 +142,24 @@ impl SourcePreviewLoader {
                 self.phase = PreviewPhase::Loaded(preview.clone());
                 return true;
             }
-            let inputs = inputs.clone();
-            let target = target.clone();
-            self.phase = PreviewPhase::Loading;
-            let structure = self.structure.clone();
-            self.job
-                .spawn(move |cancel| prepare_with_structure(&inputs, &target, cancel, &structure));
+            if let Some(symbols) = symbols {
+                let result = prepare_with_structure(
+                    inputs,
+                    target,
+                    &AtomicBool::new(false),
+                    &self.structure,
+                    Some(symbols),
+                );
+                self.publish(result);
+            } else {
+                let inputs = inputs.clone();
+                let target = target.clone();
+                self.phase = PreviewPhase::Loading;
+                let structure = self.structure.clone();
+                self.job.spawn(move |cancel| {
+                    prepare_with_structure(&inputs, &target, cancel, &structure, None)
+                });
+            }
         }
         true
     }
@@ -137,6 +174,11 @@ impl SourcePreviewLoader {
             Ok(Some(result)) => result,
             Err(_) => Err("Source preview worker stopped unexpectedly.".into()),
         };
+        self.publish(result);
+        true
+    }
+
+    fn publish(&mut self, result: Result<SourcePreview, String>) {
         self.phase = match result {
             Ok(preview) => {
                 self.cache
@@ -158,7 +200,6 @@ impl SourcePreviewLoader {
             }
             Err(error) => PreviewPhase::Unavailable(error),
         };
-        true
     }
 }
 
@@ -173,7 +214,7 @@ fn prepare(
         buffer: inputs.buffer.clone(),
         index: inputs.index.clone(),
     });
-    prepare_with_structure(&inputs, target, cancel, &Mutex::default())
+    prepare_with_structure(&inputs, target, cancel, &Mutex::default(), None)
 }
 
 fn prepare_with_structure(
@@ -181,6 +222,7 @@ fn prepare_with_structure(
     target: &PreviewTarget,
     cancel: &AtomicBool,
     structure: &Mutex<structure::Cache>,
+    prepared: Option<&[DocumentSymbol]>,
 ) -> Result<SourcePreview, String> {
     check_cancel(cancel)?;
     if inputs.buffer.revision == Some(ReviewRevision::Before) {
@@ -195,7 +237,12 @@ fn prepare_with_structure(
         .filter(|range| !range.is_empty())
         .ok_or("The index no longer matches this source. Reindex to refresh its preview.")?;
     let end = if target.kind == PreviewKind::Definition {
-        structure::end_line(structure, inputs, &buffer, range.start, cancel, deadline)?
+        if let Some(symbols) = prepared {
+            structure::declaration_end(symbols, range.start)
+                .map(|end| buffer.line_at_byte(end.saturating_sub(1)))
+        } else {
+            structure::end_line(structure, inputs, &buffer, range.start, cancel, deadline)?
+        }
     } else {
         None
     };
@@ -288,7 +335,7 @@ mod tests {
     use crate::semantic::{ScipDocument, ScipIndex};
     use crate::source::{loader::SourceRead, SourceLocation};
 
-    fn inputs(buffer: SourceBuffer) -> Arc<SourceQueryInputs> {
+    pub(super) fn inputs(buffer: SourceBuffer) -> Arc<SourceQueryInputs> {
         let mut index = SemanticIndex::from_scip(ScipIndex {
             documents: vec![ScipDocument {
                 relative_path: buffer.path.clone(),
@@ -308,7 +355,7 @@ mod tests {
         })
     }
 
-    fn target(buffer: &SourceBuffer, name: &str, kind: PreviewKind) -> PreviewTarget {
+    pub(super) fn target(buffer: &SourceBuffer, name: &str, kind: PreviewKind) -> PreviewTarget {
         let byte = buffer.text.find(name).unwrap();
         let line = buffer.line_at_byte(byte);
         let column = buffer.text[buffer.line_starts[line - 1]..byte]
@@ -326,13 +373,31 @@ mod tests {
         }
     }
 
-    fn settle(loader: &mut SourcePreviewLoader) {
+    pub(super) fn settle(loader: &mut SourcePreviewLoader) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while loader.is_running() {
             loader.poll();
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
+    }
+
+    pub(super) fn assert_preview_lines<'a>(
+        loader: &'a SourcePreviewLoader,
+        expected: &[usize],
+    ) -> &'a SourcePreview {
+        let PreviewPhase::Loaded(preview) = loader.phase() else {
+            panic!("{:?}", loader.phase());
+        };
+        assert_eq!(
+            preview
+                .lines
+                .iter()
+                .map(|line| line.number)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        preview
     }
 
     #[test]
@@ -394,17 +459,7 @@ mod tests {
                 }),
             );
             settle(&mut loader);
-            let PreviewPhase::Loaded(preview) = loader.phase() else {
-                panic!("{:?}", loader.phase());
-            };
-            assert_eq!(
-                preview
-                    .lines
-                    .iter()
-                    .map(|line| line.number)
-                    .collect::<Vec<_>>(),
-                expected
-            );
+            let preview = assert_preview_lines(&loader, &expected);
             assert!(!preview.truncated);
             assert_eq!(preview.lines.last().unwrap().text, last);
             assert_eq!(
@@ -707,3 +762,103 @@ mod tests {
 
 #[cfg(all(test, target_os = "linux"))]
 mod cancellation_tests;
+
+#[cfg(test)]
+mod memory_tests {
+    use super::tests::{assert_preview_lines, inputs, settle, target};
+    use super::*;
+    use crate::{source::loader::SourceRead, syntax::DocumentSyntax};
+
+    #[test]
+    fn prepared_definition_promotes_pending_work_without_io_or_mutex_and_rejects_bad_coordinates() {
+        let mut config = inputs(SourceBuffer::from_str(
+            "a.rs",
+            "fn target() {\n    work();\n}\nfn next() {}\n",
+        ));
+        let owner = tempfile::tempdir().unwrap();
+        let unavailable = owner.path().join("not-created");
+        assert!(!unavailable.exists());
+        Arc::get_mut(&mut config).unwrap().source = SourceRead::Checkout(unavailable);
+        let symbols = DocumentSyntax::analyze(&config.buffer).symbols;
+        let position = target(&config.buffer, "target", PreviewKind::Definition);
+        let mut loader = SourcePreviewLoader::default();
+        loader.request(Some(config.clone()), None);
+        let structure = loader.structure.clone();
+        let held = structure.lock().unwrap();
+        loader.request(Some(config.clone()), Some(position.clone()));
+        assert!(loader.is_running());
+        loader.request_prepared(
+            Some(config.clone()),
+            Some(position.clone()),
+            Some((&config.buffer, &symbols)),
+        );
+        assert_preview_lines(&loader, &[1, 2, 3]);
+        assert!(!loader.is_running());
+        assert_eq!(held.parses, 0);
+        drop(held);
+        assert!(!loader.poll());
+        let mut invalid = position.clone();
+        invalid.range.start_col = 999;
+        invalid.range.end_col = 1000;
+        loader.request_prepared(
+            Some(config.clone()),
+            Some(invalid),
+            Some((&config.buffer, &symbols)),
+        );
+        assert!(matches!(loader.phase(), PreviewPhase::Unavailable(_)));
+        assert!(!loader.is_running());
+        let mut cross_file = position;
+        cross_file.path = "other.rs".into();
+        loader.request_prepared(
+            Some(config.clone()),
+            Some(cross_file),
+            Some((&config.buffer, &symbols)),
+        );
+        assert!(
+            loader.is_running(),
+            "cross-file targets must stay on workers even with current-file symbols"
+        );
+        settle(&mut loader);
+        assert!(matches!(loader.phase(), PreviewPhase::Unavailable(_)));
+    }
+
+    #[test]
+    fn stale_prepared_owner_uses_current_source_and_before_never_publishes_semantic_previews() {
+        let old = inputs(SourceBuffer::from_str(
+            "a.rs",
+            "fn target() {\n    work();\n}\nfn next() {}\n",
+        ));
+        let old_symbols = DocumentSyntax::analyze(&old.buffer).symbols;
+        let current = inputs(SourceBuffer::from_str(
+            "a.rs",
+            "fn target() {\n    first();\n    second();\n    third();\n}\nfn next() {}\n",
+        ));
+        let position = target(&current.buffer, "target", PreviewKind::Definition);
+        let mut loader = SourcePreviewLoader::default();
+        loader.request_prepared(
+            Some(current.clone()),
+            Some(position.clone()),
+            Some((&old.buffer, &old_symbols)),
+        );
+        assert!(
+            loader.is_running(),
+            "stale prepared facts must not take the immediate path"
+        );
+        settle(&mut loader);
+        assert_preview_lines(&loader, &[1, 2, 3, 4, 5]);
+        assert_eq!(loader.structure.lock().unwrap().parses, 1);
+        let mut before = inputs(SourceBuffer::from_str("a.rs", &current.buffer.text));
+        Arc::make_mut(&mut Arc::get_mut(&mut before).unwrap().buffer).revision =
+            Some(ReviewRevision::Before);
+        let symbols = DocumentSyntax::analyze(&before.buffer).symbols;
+        loader.request_prepared(
+            Some(before.clone()),
+            Some(position),
+            Some((&before.buffer, &symbols)),
+        );
+        assert!(
+            matches!(loader.phase(), PreviewPhase::Unavailable(message) if message.contains("Before"))
+        );
+        assert!(!loader.is_running());
+    }
+}

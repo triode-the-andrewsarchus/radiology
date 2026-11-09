@@ -4,11 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Prepared same-file previews](plans/rust-memory-definition-previews.md) now use
+accepted source/outline facts as soon as symbol metadata publishes, with no second
+worker, parse, disk read or mutex wait. Source ownership/range checks and bounded
+publication remain shared. The complete UTF-16 Unicode-caret group is mapped;
+two ContextModel groups are mapped and sixteen remain, alongside other audits and
+final acceptance.
+
 [Parsed preview structure reuse](plans/rust-preview-structure-reuse.md) now shares
 four bounded exact-source structures across distinct definition targets, with
 worker-only checked locking and source/deadline validation. The Swift cross-file
-preview group is mapped; the remaining seventeen ContextModel groups and other
-suites/final acceptance remain open.
+preview group is mapped; remaining ContextModel groups are reconciled separately
+above. Other suites/final acceptance remain open.
 
 [Bounded Context query reuse](plans/rust-context-query-reuse.md) now restores
 previously validated previews and immutable reference rows without restarting

@@ -301,7 +301,14 @@ reuse across distinct uncached previews is now closed in the checkpoint below.
 ContextModelTests.crossFilePreviewsEndAtTheirTreeSitterDeclaration through real
 checkout reads, exact adjacent bounds, plain-text fallback and one extraction for
 two targets. Four-entry reuse, changed bytes and contended deadline/UI cancellation
-checks pass. The remaining seventeen ContextModel groups need reconciliation.
+checks pass. The remaining ContextModel groups are reconciled separately below.
+
+[Same-file memory previews](rust-memory-definition-previews.md) maps the complete
+ContextModelTests.utf16CaretOffsetsResolveOneIdentityAcrossUnicode group. Metadata-
+only app publication proves immediate bounded previews, stable identity through
+all valid café offsets, quiet locals, no invented surrogate/string target, source
+reload and unchanged history. Prepared ownership and shared worker validation are
+checked independently. Two ContextModel groups are mapped; sixteen remain open.
 
 ## Source, syntax, projection and test regions
 

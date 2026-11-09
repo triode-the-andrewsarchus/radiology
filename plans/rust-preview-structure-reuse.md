@@ -91,9 +91,10 @@ new duplicated fixture block. Raw touched-file clone flags remain existing debt.
 Existing query scope/bounds, extraction, source reads, workers and publication are
 reused. The shared helper also removes the Critical-only lock implementation.
 
-Cold same-file previews still use a worker, whereas Swift can immediately build
-those excerpts from its already prepared syntax. That memory-preview path remains
-a follow-up in the pending ContextModel Unicode/identity assertions.
+The subsequent [memory-preview checkpoint](rust-memory-definition-previews.md)
+closes the identified cold same-file worker gap using accepted source/outline
+facts and maps the complete Unicode-caret group. Other ContextModel groups remain
+open.
 
 The remaining ContextModel/reference/call-tree/palette assertions, source/syntax,
 compiler/indexing and inspector reconciliation, final native/standalone acceptance,

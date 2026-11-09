@@ -191,8 +191,13 @@ impl RadiologyApp {
                         range: destination.range.clone(),
                         kind: PreviewKind::Definition,
                     });
-                self.definition_preview
-                    .request(self.semantic_inputs.clone(), target);
+                self.definition_preview.request_prepared(
+                    self.semantic_inputs.clone(),
+                    target,
+                    self.open_buffer
+                        .as_deref()
+                        .map(|buffer| (buffer, self.outline_symbols.as_ref())),
+                );
                 self.under_caret = context;
             }
             Err(error) => self.under_caret_error = Some(error),

@@ -1,5 +1,37 @@
 # Progress
 
+## 2026-11-09 — Immediate same-file definition previews (Codex)
+
+Cold same-file previews now reuse the accepted buffer and prepared outline when
+symbol metadata publishes. The initial both-scale regression showed Loading
+because a second excerpt worker started. Exact prepared ownership now takes the
+memory route through shared source/range validation, declaration bounds, excerpt
+construction and cache/publication. Cross-file misses retain the worker path;
+no parser, disk read or structure lock runs on the accepted same-file path.
+
+Three regressions cover Swift's complete Unicode-caret group, immediate preview
+publication, unchanged history/source, real reload bytes, pending-work promotion
+under a held mutex, missing checkout storage, bad coordinates, Before rejection
+and stale prepared ownership. Two of eighteen ContextModel groups are now mapped;
+sixteen remain. Thirteen preview and both app checks pass, as do strict all-target
+Clippy, normal build and warning-free docs. The full serial workspace attempt has
+884 passing app tests, eleven existing ignores and one existing Clang provisioning
+interruption failure (descendant PID present at an immediate reaping assertion).
+The isolated Clang check passes. No full workspace pass is claimed here; process
+cleanup/assertion reconciliation and a fresh full run follow next.
+
+Architecture adds 289 measured NLOC/seven functions/no files, unchanged average/
+maximum CCN 3.42/132, 36 hotspots and cycles. Complete normalized clone multisets
+retain 124 instances with zero additions/removals after consolidating draft test
+assertions. Existing request API and public query-input fields/path stay intact.
+[Contract and evidence](plans/rust-memory-definition-previews.md); archive
+`~/.local/state/radiology-qa/memory-preview-20261109-1511674/`.
+
+Next: reconcile the process test failure, then remaining ContextModel/reference/
+call-tree/palette, source/syntax, compiler and inspector assertions and final
+native/standalone acceptance. Parallel timing/linking limits and Android remain
+open. Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Parsed destination reuse for previews (Codex)
 
 A real cross-file loader regression counted two extractions for adjacent targets
