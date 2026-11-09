@@ -1,5 +1,28 @@
 # Progress
 
+## 2026-11-09 — Cached caller keyboard retirement (Codex)
+
+The fresh full run for 8fa696f finished with 888 application passes, one failure
+and eleven existing opt-in ignores. The failure was the collapse/reopen keyboard
+case: cached data restored immediately while the viewport still exposed retired
+control IDs from the earlier expansion. No full workspace success is claimed.
+
+Collapse now immediately retires that reference's controls, pending caller focus
+and reveal request through the existing viewport owner. Both collapse action forms
+apply it. The normal paint path republishes controls; a later command can enter
+the cached tree with no query restart. A consolidated four-case matrix preserves
+all prior assertions, covers both prepared and normal routing, then validates
+cached navigation and exact Back history. Five app and eight component checks,
+strict all-target Clippy and normal build pass. The following registry checkpoint
+will run the new combined full workspace gate.
+
+Architecture +23 NLOC, net zero functions (one retirement method, one overlapping
+test folded into the expanded matrix), no new files/hotspots/cycles; avg/max CCN
+3.42/132 and clone count 125 remain. [Keyboard repair](plans/rust-caller-keyboard-retirement.md);
+logs: ~/.local/state/radiology-qa/caller-keyboard-20261109-8fa696f/.
+The source-registry/C syntax assertion draft is temporarily in the named Git stash
+Source registry and C contract audit draft and resumes after this repair is pushed.
+
 ## 2026-11-09 — Loaded caller-trace reuse and Swift tree contracts (Codex)
 
 The collapse/reopen regression first failed because a loaded tree restarted.

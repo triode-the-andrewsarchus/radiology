@@ -113,6 +113,21 @@ impl ReferenceViewport {
         }
     }
 
+    // Cached data may reopen immediately; its controls must be painted again
+    // before a later key can enter them from the parent list.
+    pub(crate) fn retire_callers(&mut self, reference: usize) {
+        if self.pending_focus.is_some_and(|id| {
+            self.caller_controls
+                .iter()
+                .any(|(control, action)| *control == id && caller_target(action).0 == reference)
+        }) {
+            self.pending_focus = Some(Self::focus_id());
+        }
+        self.caller_controls
+            .retain(|(_, action)| caller_target(action).0 != reference);
+        self.reveal_caller = self.reveal_caller.filter(|(row, _)| *row != reference);
+    }
+
     pub(crate) fn publish_focus_request(&self, ctx: &Context) {
         if let Some(id) = self.pending_focus {
             ctx.memory_mut(|memory| memory.request_focus(id));

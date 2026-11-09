@@ -1,5 +1,9 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Caller keyboard retirement](rust-caller-keyboard-retirement.md) repairs the one
+failure found by the caller-cache full run. Focused checks pass; a fresh combined
+workspace gate is required before treating that checkpoint as fully verified.
+
 The [reference/caller reconciliation](rust-call-tree-contracts.md) maps seven
 caller groups and the fixed palette table. Loaded-trace reuse is repaired and
 passes focused ownership, worker and both-scale app checks. Source/syntax,

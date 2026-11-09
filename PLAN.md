@@ -1,5 +1,10 @@
 # Radiology documentation index and current state
 
+[Caller keyboard retirement](plans/rust-caller-keyboard-retirement.md) fixes the
+full-run regression caused by immediate cached-tree reopening. Both input paths
+retain parent focus until controls republish, then navigate normally. Focused
+checks pass; the next combined full gate is still required.
+
 [Reference caller-tree contracts](plans/rust-call-tree-contracts.md) repair loaded
 trace reuse after collapse/reopen through the existing bounded query cache and
 map the seven Swift caller groups plus exact identity palette assignments.

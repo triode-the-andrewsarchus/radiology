@@ -221,7 +221,10 @@ impl RadiologyApp {
             }
             ReferenceAction::Select(row) => self.reference_context.select(row),
             ReferenceAction::SetExpanded(row, expanded) => {
-                self.reference_context.expand(row, expanded)
+                self.reference_context.expand(row, expanded);
+                if !expanded {
+                    self.reference_viewport.retire_callers(row);
+                }
             }
             ReferenceAction::MoveSelection(forward) => {
                 self.reference_context.move_selection(forward);
@@ -237,6 +240,9 @@ impl RadiologyApp {
                         .is_some();
                     if !expanded || !callers_ready || !self.reference_viewport.focus_callers(row) {
                         self.reference_context.expand(row, expanded);
+                        if !expanded {
+                            self.reference_viewport.retire_callers(row);
+                        }
                     }
                 }
             }

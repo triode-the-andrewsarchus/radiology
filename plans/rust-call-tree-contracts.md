@@ -71,3 +71,8 @@ No new dependency, public input or parallel query controller is introduced.
 Repository/index/source retirement stays in the existing owner. Full accessibility
 and actual sibling adoption remain deferred; Android SDK-backed success and the
 previously documented parallel-run limits remain open.
+
+The subsequent full workspace run exposed a keyboard-owner regression (888 app
+passes, one failure, eleven ignores). [Caller keyboard retirement](rust-caller-keyboard-retirement.md)
+repairs it while retaining immediate cached data. Its focused checks pass; the
+following combined gate must establish fresh full success.

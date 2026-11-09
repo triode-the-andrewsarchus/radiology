@@ -66,8 +66,28 @@ fn reference_keys(app: &mut RadiologyApp, ctx: &Context, keys: &[Key], prepared:
 
 #[test]
 fn coalesced_reference_to_caller_keys_commit_the_caller_and_preserve_departure_history() {
-    for prepared in [false, true] {
+    for (prepared, reopened) in [(false, false), (true, false), (false, true), (true, true)] {
         let (_dir, mut app, ctx) = caller_reader();
+        if reopened {
+            let source = app.open_buffer.clone().unwrap();
+            reference_keys(&mut app, &ctx, &[Key::ArrowRight], prepared);
+            reference_keys(
+                &mut app,
+                &ctx,
+                &[Key::ArrowLeft, Key::ArrowRight, Key::ArrowRight],
+                prepared,
+            );
+            assert!(app.reference_context.disclosures.contains_key(&1));
+            assert!(!app.reference_context.disclosures[&1].callers_loading());
+            settle(&mut app);
+            assert!(
+                ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())),
+                "prepared={prepared}"
+            );
+            assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &source));
+            // Only freshly published controls can receive the next caller entry.
+            frame(&mut app, &ctx, vec![]);
+        }
         reference_keys(
             &mut app,
             &ctx,
@@ -109,21 +129,6 @@ fn caller_exit_routes_the_remaining_batch_to_reference_selection() {
             );
         }
     }
-}
-
-#[test]
-fn collapse_then_right_reopens_without_focusing_a_retired_caller() {
-    let (_dir, mut app, ctx) = caller_reader();
-    reference_keys(&mut app, &ctx, &[Key::ArrowRight], false);
-    reference_keys(
-        &mut app,
-        &ctx,
-        &[Key::ArrowLeft, Key::ArrowRight, Key::ArrowRight],
-        false,
-    );
-    assert!(app.reference_context.disclosures.contains_key(&1));
-    settle(&mut app);
-    assert!(ctx.memory(|memory| memory.has_focus(ReferenceViewport::focus_id())));
 }
 
 #[test]
