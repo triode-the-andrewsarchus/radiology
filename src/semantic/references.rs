@@ -474,7 +474,10 @@ mod tests {
     #[test]
     fn explicit_scoped_focus_survives_files_and_follow_caret_restores_latest_declaration() {
         let (_root, inputs) = fixture();
-        let (one, two) = (target(&inputs, 4), target(&inputs, 16));
+        // The declaration token also carries a global identity. This test is
+        // explicitly about the document-local symbol, selected at its call site.
+        let (one, two) = (target(&inputs, 24), target(&inputs, 16));
+        assert_eq!(one.id, SemanticSymbolID::new("local 1", "a.rs"));
         let mut context = ReferenceContext::default();
         context.update(Some(inputs.clone()), Some(two.clone()));
         context.show(one.clone());
@@ -515,7 +518,7 @@ mod tests {
     #[test]
     fn replacement_indexes_and_unavailable_revisions_retire_old_publications() {
         let (_root, inputs) = fixture();
-        let one = target(&inputs, 4);
+        let one = target(&inputs, 24);
         let mut context = ReferenceContext::default();
         context.update(Some(inputs.clone()), None);
         context.show(one.clone());
@@ -571,7 +574,7 @@ mod tests {
     fn independent_disclosures_cancel_together_and_retire_on_index_replacement() {
         let (_root, inputs) = fixture();
         let mut context = ReferenceContext::default();
-        context.update(Some(inputs.clone()), Some(target(&inputs, 4)));
+        context.update(Some(inputs.clone()), Some(target(&inputs, 24)));
         settle(&mut context);
         context.expand(0, true);
         context.expand(1, true);
@@ -587,7 +590,7 @@ mod tests {
             buffer: inputs.buffer.clone(),
             index: Arc::new((*inputs.index).clone()),
         });
-        context.update(Some(replacement), Some(target(&inputs, 4)));
+        context.update(Some(replacement), Some(target(&inputs, 24)));
         assert!(context.disclosures.is_empty());
         settle(&mut context);
         assert!(
@@ -634,12 +637,18 @@ mod tests {
             })),
         });
         let mut context = ReferenceContext::default();
-        context.update(Some(inputs.clone()), Some(target(&inputs, 4)));
+        context.update(Some(inputs.clone()), Some(target(&inputs, 24)));
         settle(&mut context);
-        context.expand(0, true);
+        let row = context
+            .results
+            .hits
+            .iter()
+            .position(|hit| !hit.is_definition)
+            .unwrap();
+        context.expand(row, true);
         settle(&mut context);
         assert!(!context.results.source_identities.contains_key("c.rs"));
-        assert!(context.disclosures[&0]
+        assert!(context.disclosures[&row]
             .callers()
             .unwrap()
             .source_identities

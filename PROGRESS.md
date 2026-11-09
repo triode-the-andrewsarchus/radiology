@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-11-09 — Exact semantic caret and field identity (Codex)
+
+Real Swift-fixture regressions confirmed Circle shorthand selected local 0,
+equal-range selection depended on input order, and escaping documents entered
+the public index. The canonical-byte lookup now rejects empty-symbol/multiline
+caret hits and orders narrowest range, navigable destination, then global identity.
+Invalid documents are ignored before derived maps through existing source-path
+validation plus strict empty/dot-component checks. No new product function, type
+or dependency was needed.
+
+Three index tests cover the real fixture, all local/global/navigation tie cases
+in both orders, narrower priority, punctuation and invalid paths. The both-scale
+app test requires the field's actual Context identity/counts/destination and
+preserves Swift's explicitly syntactic local spelling decoration/pins. A draft
+unconditional semantic decoration change broke the existing cfg-omission test;
+it was reverted. Two old reference fixtures implicitly relied on local-first ties;
+they now query unambiguous local sites, and caller-only invalidation expands the
+actual reference row rather than the overlapping declaration row. Ownership and
+invalidation assertions remain. The initial whole-app failure is archived.
+
+Index, ten reference-context checks, app and unchanged cfg-pin regressions pass;
+strict all-target Clippy, normal build and warning-free docs pass.
+The final locked offline workspace retry passes 862 app tests (11 existing ignored),
+two binary/13 font/22 text tests and all 65 doctests. Compilation uses -j 1 and tests
+run serially after the earlier unconfirmed parallel-link crash; normal half-core
+Cargo configuration remains 16 jobs.
+Architecture +208 measured NLOC/four tests/two focused files, no new production
+function; average/max CCN 3.42/132, 36 hotspots/cycles unchanged. Normalized clone multisets
+have zero additions and one removed old reference-fixture clone (123 to 122). LSP update succeeded, but
+server/outline returned HTTP 500; source and executable regressions supply evidence.
+[Identity correction](plans/rust-semantic-identity-contracts.md), PLAN, behavior
+index/parity ledger and pin contract record archive
+`~/.local/state/radiology-qa/semantic-identity-20261109-ae030f0/`.
+The shorthand-field group is mapped; other semantic/Context/navigation groups
+remain open. Raw SCIP tool/version/arguments/project-root retention is missing
+and belongs in the next decoder checkpoint. Remaining suites, native/standalone
+gates, known parallel timing limits and Android remain open. Full accessibility
+and actual sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Code Paths behavioral parity (Codex)
 
 All four Swift Code Paths suites (16 annotated groups) now have explicit mapping.

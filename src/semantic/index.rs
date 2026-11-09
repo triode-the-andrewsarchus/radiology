@@ -575,6 +575,8 @@ pub struct SemanticIndex {
 
 impl SemanticIndex {
     /// Builds an indexed [`SemanticIndex`] from a decoded [`ScipIndex`].
+    ///
+    /// Documents with noncanonical or escaping repository-relative paths are ignored.
     #[must_use]
     pub fn from_scip(scip: ScipIndex) -> Self {
         Self::from_scip_cancellable(scip, || false)
@@ -627,6 +629,13 @@ impl SemanticIndex {
         cancelled: &(dyn Fn() -> bool + Sync),
     ) -> Result<(), ProtobufError> {
         let doc_path = doc.relative_path.clone();
+        if !crate::source::SourceLocation::is_repository_path(&doc_path)
+            || doc_path
+                .split('/')
+                .any(|part| part.is_empty() || part == ".")
+        {
+            return Ok(());
+        }
 
         for sym in &doc.symbols {
             super::scip_proto::check_cancelled(cancelled)?;
@@ -963,7 +972,10 @@ impl SemanticIndex {
         (start <= end).then_some(start..end)
     }
 
-    /// Finds the narrowest indexed occurrence at a canonical source byte.
+    /// Finds the narrowest single-line indexed occurrence at a canonical source byte.
+    ///
+    /// Equal ranges prefer a navigable destination, then repository-wide identity.
+    /// Whole-file module occurrences cannot become caret or occurrence-selection targets.
     #[must_use]
     pub fn occurrence_at_byte(
         &self,
@@ -974,11 +986,27 @@ impl SemanticIndex {
             .get(&buffer.path)?
             .occurrences
             .iter()
+            .filter(|occurrence| !occurrence.symbol.is_empty())
             .filter_map(|occurrence| {
-                let range = self.byte_range(buffer, occurrence.range.as_ref()?)?;
+                let coordinates = occurrence.range.as_ref()?;
+                if coordinates.start_line != coordinates.end_line {
+                    return None;
+                }
+                let range = self.byte_range(buffer, coordinates)?;
                 range.contains(&byte).then_some((range.len(), occurrence))
             })
-            .min_by_key(|(size, _)| *size)
+            .min_by_key(|(size, occurrence)| {
+                let id = SemanticSymbolID::new(&occurrence.symbol, &buffer.path);
+                let navigable =
+                    self.definition_locations_for_id(&id)
+                        .iter()
+                        .any(|(path, range)| {
+                            !occurrence.is_definition()
+                                || *path != buffer.path
+                                || occurrence.range.as_ref() != Some(*range)
+                        });
+                (*size, !navigable, id.is_local())
+            })
             .map(|(_, occurrence)| occurrence)
     }
 }
@@ -1511,3 +1539,6 @@ mod tests {
 
 #[cfg(test)]
 mod cancellation_tests;
+
+#[cfg(test)]
+mod parity_tests;

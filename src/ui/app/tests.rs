@@ -3013,3 +3013,5 @@ mod review_recovery;
 mod change_blocks;
 
 mod critical_model;
+
+mod semantic_identity;

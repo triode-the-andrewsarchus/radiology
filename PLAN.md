@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Semantic caret identity corrections](plans/rust-semantic-identity-contracts.md)
+fix local/field overlap selection, whole-file module caret hits and invalid document
+publication. Existing cfg-aware syntactic selection/pin fallback is preserved. The
+shorthand-field Swift group is mapped; remaining semantic/Context/navigation
+assertions and raw SCIP tool/root metadata retention remain open.
+
 [Code Paths contracts](plans/rust-code-path-contracts.md) now map all four Swift
 suites (16 groups). Corrected error fixtures distinguish real failures; combined
 saved checkout/PR/relaunch/shifted-source, multi-trace atomic persistence and

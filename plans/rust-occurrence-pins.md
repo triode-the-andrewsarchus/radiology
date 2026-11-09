@@ -55,3 +55,13 @@ Pins now share exact-document activation memory with fold choices. Identity,
 revision/digest invalidation, unlimited groups, stable colors and ephemeral reset
 behavior are preserved by the existing tests.
 [Shared contract and verification](rust-fold-restoration.md).
+
+## Semantic caret identity and spelling fallback (2026-11-09)
+
+The [semantic identity correction](rust-semantic-identity-contracts.md) resolves
+field shorthand to its navigable/global field identity in caret/Context lookups.
+Whole-file module ranges cannot select punctuation. The existing Swift-aligned
+pin policy remains: a function-local spelling group is used when semantic data
+does not cover all local tokens, including cfg omissions and shadowed bindings.
+Complete semantic groups retain semantic identity. No pin storage, palette,
+source activation or fallback policy change is included.

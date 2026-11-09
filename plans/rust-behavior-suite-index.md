@@ -261,6 +261,11 @@ Evidence: [rust-semantic-navigation](rust-semantic-navigation.md), [rust-referen
 | [ReferenceCallTreeTests](../Tests/RadiologyTests/ReferenceCallTreeTests.swift) | 7 |
 | [CallTreePaletteTests](../Tests/RadiologyTests/CallTreePaletteTests.swift) | 1 |
 
+[Semantic caret/selection corrections](rust-semantic-identity-contracts.md) map the
+shorthand-field SemanticIndexTests group using the same wire fixture, plus targeted
+caret tie/whole-file and invalid-path regressions. Remaining groups in this section
+still need reconciliation; raw tool/root metadata retention is an identified gap.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).
