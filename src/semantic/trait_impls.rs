@@ -349,7 +349,7 @@ fn read(
     path: &str,
     cancel: &AtomicBool,
 ) -> Result<std::sync::Arc<SourceBuffer>, String> {
-    source.read_contained_cancellable(
+    source.read_cancellable(
         &location(source, path),
         cancel,
         Instant::now() + SOURCE_READ_TIMEOUT,

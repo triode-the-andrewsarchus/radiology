@@ -132,7 +132,7 @@ pub fn resolve_step(
     let buffer = match open.filter(|buffer| buffer.path == path && buffer.revision == revision) {
         Some(buffer) => buffer.clone(),
         None => {
-            let loaded = source.read_contained_cancellable(
+            let loaded = source.read_cancellable(
                 &SourceLocation::with_revision(path, 0, revision),
                 cancel,
                 Instant::now() + SOURCE_READ_TIMEOUT,

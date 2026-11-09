@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-08 — Unified checkout containment and reconciled repository tests (Codex)
+
+Found a real Swift mismatch: ordinary file/bookmark loading followed external
+checkout symlinks, while structural target reads already rejected them. Moved
+canonical component containment into the shared checkout read; removed the separate
+wrapper/target branch and reused the same policy for Code Path/trait callers.
+Internal aliases and aliased roots retain original relative source coordinates.
+
+Public direct-read and app regressions fail before the fix and pass afterward.
+Both-scale file/bookmark failures retain accepted source/caret/history and route
+to existing diagnostic owners. A plain-folder fixture plus existing real Git root,
+ignore, untracked/literal-path and worktree tests complete all three RepositoryTests
+groups. Architecture +98 measured NLOC including three tests, one removed runtime
+function, unchanged clone multisets and no new hotspot/cycle.
+Serial workspace run passes 808 app tests/11 ignored, supporting crate tests and
+61 doctests.
+Default and 16-thread runs hit two existing timing limits; isolated rechecks pass.
+Strict Clippy, warning-denied docs, format and locked offline binary build pass.
+[Mapping and remaining scope](plans/rust-repository-contracts.md) leave filtering
+and other suite reconciliation and SDK-backed Android acceptance open.
+
 ## 2026-11-08 — Completed bookmark model/storage reconciliation (Codex)
 
 Fixed red invalid-index overflow and selected-deletion regressions. Delete now

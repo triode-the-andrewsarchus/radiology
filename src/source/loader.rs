@@ -37,33 +37,14 @@ impl SourceRead {
     ///
     /// # Errors
     /// Returns path, Git, file-size, UTF-8 or I/O validation failures, including
-    /// a read exceeding its 30-second deadline.
+    /// a read exceeding its 30-second deadline or a checkout path resolving outside
+    /// the repository. Internal symlink aliases retain their repository-relative path.
     pub fn read(&self, location: &SourceLocation) -> Result<Arc<SourceBuffer>, String> {
         self.read_cancellable(
             location,
             &AtomicBool::new(false),
             Instant::now() + SOURCE_READ_TIMEOUT,
         )
-    }
-
-    pub(crate) fn read_contained_cancellable(
-        &self,
-        location: &SourceLocation,
-        cancel: &AtomicBool,
-        deadline: Instant,
-    ) -> Result<Arc<SourceBuffer>, String> {
-        check_source(cancel, deadline)?;
-        if let Self::Checkout(root) = self {
-            let root = root.canonicalize().map_err(|error| error.to_string())?;
-            let resolved = root
-                .join(&location.path)
-                .canonicalize()
-                .map_err(|error| error.to_string())?;
-            if !resolved.starts_with(root) {
-                return Err("Source path leaves the repository".into());
-            }
-        }
-        self.read_cancellable(location, cancel, deadline)
     }
 
     pub(crate) fn read_cancellable(
@@ -78,7 +59,15 @@ impl SourceRead {
         }
         let buffer = match self {
             Self::Checkout(root) => {
-                SourceBuffer::read(&root.join(&location.path), &location.path, None)
+                let root = root.canonicalize().map_err(|error| error.to_string())?;
+                let resolved = root
+                    .join(&location.path)
+                    .canonicalize()
+                    .map_err(|error| error.to_string())?;
+                if !resolved.starts_with(&root) {
+                    return Err("Source path leaves the repository".into());
+                }
+                SourceBuffer::read(&resolved, &location.path, None)
                     .map(Arc::new)
                     .map_err(|error| error.to_string())
             }
@@ -297,15 +286,9 @@ fn prepare(
     let deadline = Instant::now() + SOURCE_READ_TIMEOUT;
     let check = || check_source(cancel, deadline);
     check()?;
-    let buffer = if matches!(request.target, SourceTarget::ByteRange { .. }) {
-        request
-            .source
-            .read_contained_cancellable(&request.location, cancel, deadline)
-    } else {
-        request
-            .source
-            .read_cancellable(&request.location, cancel, deadline)
-    }?;
+    let buffer = request
+        .source
+        .read_cancellable(&request.location, cancel, deadline)?;
     prepare_loaded(
         request,
         buffer,
@@ -579,6 +562,51 @@ mod tests {
                 "{source_path}: removed from index={remove_from_index}"
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checkout_reads_reject_external_links_and_keep_internal_alias_coordinates() {
+        use std::os::unix::fs::symlink;
+        let owner = tempfile::tempdir().unwrap();
+        let root = owner.path().join("repo");
+        let outside = owner.path().join("repo-other");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(root.join("inside.rs"), "fn café() {}\r\n").unwrap();
+        std::fs::write(outside.join("outside.rs"), "fn outside() {}\n").unwrap();
+        symlink(root.join("inside.rs"), root.join("alias.rs")).unwrap();
+        symlink(outside.join("outside.rs"), root.join("escape.rs")).unwrap();
+        symlink(&outside, root.join("external-dir")).unwrap();
+        let source = SourceRead::Checkout(root.clone());
+        let alias = source.read(&SourceLocation::new("alias.rs", 3)).unwrap();
+        assert_eq!(alias.path, "alias.rs");
+        assert_eq!(alias.text, "fn café() {}\r\n");
+        assert!(alias.revision.is_none());
+        for path in ["escape.rs", "external-dir/outside.rs"] {
+            assert!(source
+                .read(&SourceLocation::new(path, 0))
+                .unwrap_err()
+                .contains("leaves the repository"));
+            let mut loader = SourceLoader::default();
+            loader.start(
+                request(&root, path, SourceTarget::Byte(0)),
+                Arc::new(SyntaxHighlighter::new()),
+                true,
+            );
+            assert!(finish(&mut loader)
+                .err()
+                .unwrap()
+                .contains("leaves the repository"));
+        }
+        symlink(&root, owner.path().join("root-alias")).unwrap();
+        assert_eq!(
+            SourceRead::Checkout(owner.path().join("root-alias"))
+                .read(&SourceLocation::new("alias.rs", 0))
+                .unwrap()
+                .text,
+            alias.text
+        );
     }
 
     #[test]

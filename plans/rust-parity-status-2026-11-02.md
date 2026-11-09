@@ -6,6 +6,10 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Repository contracts](rust-repository-contracts.md) close the three Swift
+discovery/source-store functions and fix external symlink reads through the shared
+checkout policy. Filtering assertions and other suites remain open.
+
 [Bookmark command parity](rust-bookmark-command-parity.md) now matches new-entry
 declaration labels and ten numbered slots, retaining UUID activation beyond those
 slots. The combined scope/restore and supersession flows now pass in the

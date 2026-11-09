@@ -97,6 +97,10 @@ Evidence: [rust-repository-opening](rust-repository-opening.md), [rust-unicode-f
 | [FilesSidebarRevealTests](../Tests/RadiologyTests/FilesSidebarRevealTests.swift) | 4 |
 | [QuickFileSearchTests](../Tests/RadiologyTests/QuickFileSearchTests.swift) | 5 |
 
+All three RepositoryTests functions are reconciled in the
+[repository checkpoint](rust-repository-contracts.md), including the ordinary-read
+symlink fix. SourceFilterTests and the other rows retain their current audit scope.
+
 ## Repository search
 
 Rust entry points: [ripgrep.rs](../src/search/ripgrep.rs), [session.rs](../src/search/session.rs), [results.rs](../src/ui/sidebar/tests/results.rs).

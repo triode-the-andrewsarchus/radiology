@@ -153,3 +153,30 @@ fn cancelled_deadline_oversized_and_partial_git_reads_never_fall_back_to_success
         );
     }
 }
+
+#[test]
+fn plain_folder_discovery_prunes_generated_directories_and_builds_directory_first_tree() {
+    let owner = tempfile::tempdir().unwrap();
+    let root = owner.path();
+    for (path, text) in [
+        ("Sources/A.swift", "let value = 1"),
+        (".build/ignored.swift", ""),
+        ("README.md", ""),
+    ] {
+        let path = root.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+    let found =
+        RepositoryDiscovery::discover(root, &SourceFilters::default(), &AtomicBool::new(false))
+            .unwrap();
+    assert_eq!(found.root, root);
+    assert_eq!(
+        found.files,
+        ["README.md", "Sources/A.swift"].map(RepositoryFile::new)
+    );
+    assert_eq!(found.tree[0].name, "Sources");
+    assert_eq!(found.tree[0].children[0].path, "Sources/A.swift");
+    assert_eq!(found.tree[1].path, "README.md");
+    assert!(!root.join(".git").exists());
+}
