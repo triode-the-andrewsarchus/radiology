@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+The [frontier audit](rust-critical-frontier-contracts.md) closes all three Swift
+reachability groups and repairs false proven-zero results from independently
+supplied conditional summaries. Compact hover status now includes conditional
+site counts; other Critical Lens workflows and final acceptance remain open.
+
 [Critical policy and storage](rust-critical-policy-contracts.md) reconcile the
 five Swift policy/override groups without runtime changes. The expanded matrix
 checks classification reasons and reset precedence; actual session and filesystem

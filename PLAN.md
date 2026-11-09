@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Critical frontier contracts](plans/rust-critical-frontier-contracts.md) now map
+all three Swift reachability groups. Supplied conditional summaries cannot prove
+zero, prepared/deeper gaps retain their counts without duplication, and hover
+status shows conditional sites. Expanded graph/cap and painted popup checks pass;
+model/summary/worker reconciliation and final whole-app acceptance remain open.
+
 [Critical policy/storage contracts](plans/rust-critical-policy-contracts.md)
 now map three Swift policy and two override-store groups. Expanded tests confirm
 classification/reset rules, indexed Built-In metadata, empty session fallback
 for invalid saved marks and read-only-parent deletion errors. Runtime already
-satisfies these contracts; remaining Critical Lens model/frontier/summary audits
+satisfies these contracts; remaining Critical Lens model/summary audits
 and whole-app acceptance remain open.
 
 [Review retirement contracts](plans/rust-review-retirement-contracts.md)

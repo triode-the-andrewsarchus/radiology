@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Conditional frontier lower bounds and hover status (Codex)
+
+A red Swift-shaped summary with a parsed closure and Complete coverage produced
+Proven zero. Existing source analysis already supplied conditional gaps, but the
+frontier's independent input contract did not enforce them. The existing merge
+now uses the larger of prepared coverage and immediate conditional site total;
+it retains deeper gaps and avoids counting prepared sites twice. Status includes
+root conditional counts through the existing hover renderer.
+
+All three Swift frontier groups now have explicit mapping. Expanded synthetic
+and real parsed graph tests cover recursion/diamonds, repeated unknown and critical
+identities, external plumbing, macro gaps, depth/body caps, root and transitive
+conditional lower bounds, empty proven zero and no-body results. The source hover
+frame paints one direct/two conditional/partial and retains its dwell, Escape,
+definition-click and reader-preservation assertions.
+
+All 50 Critical Lens service tests and the final painted popup test pass, along
+with strict all-target Clippy, build and warning-free API docs. Full serial
+workspace run passes 847 app tests (11 existing ignored), two binary/13 font/22
+text tests and all 65 doctests. Architecture +193 measured NLOC/two test
+functions, no new production functions/files, identical complete clone multisets
+(122 instances) and unchanged hotspots/cycles. Raw touched old clones and
+untouched Python tie rankings account for comparator warnings.
+[Frontier audit](plans/rust-critical-frontier-contracts.md) records the contract
+boundary and QA archive `~/.local/state/radiology-qa/critical-frontier-20261109-5059aa2/`.
+Next: reconcile Critical Lens model/projection and summary/worker assertions.
+Other suites, final native acceptance, known parallel timing limits and Android
+remain open; full accessibility and sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Critical policy and override-store assertion mapping (Codex)
 
 All three policy and both override-store Swift groups now have explicit evidence.

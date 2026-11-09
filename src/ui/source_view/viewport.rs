@@ -5091,7 +5091,7 @@ mod tests {
         use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
         const HELPER: &str = "rust-analyzer cargo app 0 helper().";
         let ctx = egui::Context::default();
-        let text = "fn f() {\n helper();\n}\nfn helper() {\n open();\n}\n";
+        let text = "fn f() {\n helper();\n}\nfn helper() {\n open(); let c = || { hidden(); hidden(); };\n}\n";
         let mut reader = Reader::new(text);
         reader.mode = SourceMode::Critical;
         reader.now = Some(0.0);
@@ -5144,6 +5144,7 @@ mod tests {
         reader.now = Some(1.2);
         reader.frame(&ctx, Vec::new());
         let ready = reader.hover_ready_frame(&ctx, 1.3);
+        crate::ui::test_support::assert_visible_text(&ready, "1 direct · 2 conditional · partial");
         let (title, _) = text_shape(&ready, "helper · Definition");
         assert_eq!((reader.line, reader.column), (1, 0));
         assert!(reader.viewport.selection.is_none());

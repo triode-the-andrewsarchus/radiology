@@ -75,6 +75,15 @@ fn direct_calls_deduplicate_exact_utf16_identities_and_exclude_nested_execution(
             ..
         })
     ));
+    let frontier = crate::critical::frontier::build(
+        result.clone(),
+        Default::default(),
+        &AtomicBool::new(false),
+        |_| panic!("all direct callees are critical"),
+    )
+    .unwrap();
+    assert_eq!(frontier.coverage, result.coverage);
+    assert!(frontier.status_line().contains("2 conditional"));
     let body = result.body.unwrap();
     assert_eq!(body.content_digest, buffer.content_digest());
     assert!(!body.range.contains(&buffer.text.find("fn next").unwrap()));

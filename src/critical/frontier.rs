@@ -64,11 +64,21 @@ impl CriticalFrontier {
             CallCoverage::Complete => "complete",
             _ => "partial",
         };
-        if direct == reachable {
-            format!("{direct} direct · {status}")
-        } else {
-            format!("{direct} direct · {reachable} reachable · {status}")
+        let mut parts = vec![format!("{direct} direct")];
+        if direct != reachable {
+            parts.push(format!("{reachable} reachable"));
         }
+        if !self.summary.conditional.is_empty() {
+            let sites: usize = self
+                .summary
+                .conditional
+                .iter()
+                .map(|scope| scope.site_count)
+                .sum();
+            parts.push(format!("{sites} conditional"));
+        }
+        parts.push(status.into());
+        parts.join(" · ")
     }
 
     /// Returns a coverage explanation for hover and source-gutter presentations.
@@ -135,20 +145,31 @@ struct Traversal {
 }
 
 impl Traversal {
-    fn merge(&mut self, coverage: &CallCoverage) {
-        match coverage {
-            CallCoverage::Complete => {}
-            CallCoverage::Partial(gaps) => {
-                // Count unknown identities once across diamonds and cycles.
-                let mut gaps = gaps.clone();
-                gaps.unknown_callees = 0;
-                self.gaps.merge(&gaps);
-            }
-            CallCoverage::NoBody(super::graph::NoBodyReason::ResourceLimit) => {
-                self.gaps.truncated = true
-            }
-            CallCoverage::NoBody(_) => self.gaps.missing_bodies += 1,
-        }
+    fn merge(&mut self, summary: &CallableSummary) {
+        let mut gaps = match &summary.coverage {
+            CallCoverage::Complete => CoverageGaps::default(),
+            CallCoverage::Partial(gaps) => gaps.clone(),
+            CallCoverage::NoBody(super::graph::NoBodyReason::ResourceLimit) => CoverageGaps {
+                truncated: true,
+                ..Default::default()
+            },
+            CallCoverage::NoBody(_) => CoverageGaps {
+                missing_bodies: 1,
+                ..Default::default()
+            },
+        };
+        // Count unknown identities once across diamonds and cycles.
+        gaps.unknown_callees = 0;
+        // Prepared coverage can include deeper sites beyond immediate nested scopes.
+        // Their metadata is a lower bound, not an additional set of execution edges.
+        gaps.conditional_sites = gaps.conditional_sites.max(
+            summary
+                .conditional
+                .iter()
+                .map(|scope| scope.site_count)
+                .sum(),
+        );
+        self.gaps.merge(&gaps);
     }
 
     fn emit(&mut self, call: &DirectCall, via: &[ViaStep]) {
@@ -185,7 +206,9 @@ impl Traversal {
 /// Cycles and diamonds load each ordinary body once. First discovery wins, making
 /// paths shortest and stable in breadth-first source order. External ordinary
 /// plumbing is a leaf; missing repository bodies and bounds make coverage partial.
-/// Conditional nested callables are never traversed as execution edges.
+/// Conditional nested callables are never traversed as execution edges. Their site
+/// counts make coverage partial even if a supplied summary reports complete
+/// coverage; existing conditional gaps are retained without counting them twice.
 ///
 /// # Errors
 /// Returns cancellation or a provider error without publishing a partial result.
@@ -211,7 +234,7 @@ pub fn build(
         traversed: 0,
         limits,
     };
-    state.merge(&root.coverage);
+    state.merge(&root);
     let mut queue = VecDeque::from([(root.clone(), Vec::new(), 0)]);
     while let Some((summary, via, depth)) = queue.pop_front() {
         check_cancel(cancel)?;
@@ -230,7 +253,7 @@ pub fn build(
                 state.gaps.missing_bodies += 1;
                 continue;
             }
-            state.merge(&summary.coverage);
+            state.merge(&summary);
             let mut chain = via.clone();
             chain.push(ViaStep {
                 callee: call.callee.clone(),

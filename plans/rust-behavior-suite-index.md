@@ -187,7 +187,6 @@ Evidence: [rust-critical-projection-reuse](rust-critical-projection-reuse.md), [
 | [CriticalSummaryModelTests](../Tests/RadiologyTests/CriticalSummaryModelTests.swift) | 4 |
 | [CriticalityOverrideStoreTests](../Tests/RadiologyTests/CriticalityOverrideStoreTests.swift) | 2 |
 | [CriticalityPolicyTests](../Tests/RadiologyTests/CriticalityPolicyTests.swift) | 3 |
-
 | [SourceProjectionDrawingTests](../Tests/RadiologyTests/SourceProjectionDrawingTests.swift) | 3 |
 | [HoverPopoverInteractionTests](../Tests/RadiologyTests/HoverPopoverInteractionTests.swift) | 2 |
 
@@ -196,6 +195,11 @@ three CriticalityPolicyTests and both CriticalityOverrideStoreTests groups,
 including indexed menu evidence, invalid-load session fallback and real deletion
 permission errors. The other Critical Lens rows retain their existing evidence
 and still need remaining assertion-level reconciliation.
+
+[Frontier reconciliation](rust-critical-frontier-contracts.md) maps all three
+CriticalFrontierTests functions, including conditional lower-bound normalization,
+root/nested unknown deduplication, macro/cap chains and a painted conditional hover
+status. Other model, worker and hover rows still need their remaining audit.
 
 ## Code Paths
 
