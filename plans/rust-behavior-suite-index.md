@@ -310,6 +310,13 @@ all valid café offsets, quiet locals, no invented surrogate/string target, sour
 reload and unchanged history. Prepared ownership and shared worker validation are
 checked independently. Two ContextModel groups are mapped; sixteen remain open.
 
+[Context declaration/identity contracts](rust-context-declaration-contracts.md)
+map the complete first two ContextModel groups: stable occurrence/declaration
+identity, cached exact previews and declaration reference rows/selection through
+caret changes. The enclosing summary now prefers the index's Method kind.
+Both-scale real-fixture and both-scale/theme summary checks preserve parser
+fallback and pin metadata. Four ContextModel groups are mapped; fourteen remain.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

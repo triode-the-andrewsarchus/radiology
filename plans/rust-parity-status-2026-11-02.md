@@ -1,5 +1,11 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Context declaration/identity contracts](rust-context-declaration-contracts.md)
+now correct enclosing Method labels and complete the first two ContextModel
+groups through both-scale identity/preview/row/selection/disclosure checks.
+Four of eighteen ContextModel groups are mapped; fourteen remain. Other audits
+and final acceptance remain open.
+
 Rechecked against Rust `3add1c3` and the imported Swift main reference `7edfc79`.
 The [initial review](rust-swift-parity-review-2026-10-27.md) describes `fd421e1`;
 its Missing/Broken entries are historical findings. This ledger maps those findings

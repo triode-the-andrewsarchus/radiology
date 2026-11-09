@@ -327,6 +327,9 @@ impl ContextInspector {
                         content.reference_target.unwrap_or("Pinned symbol"),
                         content.reference_kind,
                     )),
+                    content
+                        .summary_identity
+                        .map_or(0, |_| content.reference_kind),
                 )
             })
             .inner;

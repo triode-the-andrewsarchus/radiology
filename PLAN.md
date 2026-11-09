@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Context declaration/identity contracts](plans/rust-context-declaration-contracts.md)
+now prefer indexed Method kinds in the enclosing summary and map the first two
+ContextModel groups through both-scale real-fixture identity/preview/reference
+selection/disclosure checks. Four of eighteen groups are mapped; fourteen remain.
+Other audits and final acceptance remain open.
+
 [Installer interruption checks](plans/rust-installer-process-contract.md) now
 distinguish strictly reaped direct shells from terminated curl descendants,
 reusing the existing process-group check. Focused tests, strict Clippy and the
@@ -13,8 +19,8 @@ fresh complete workspace run pass (885 app tests and all 66 doctests).
 accepted source/outline facts as soon as symbol metadata publishes, with no second
 worker, parse, disk read or mutex wait. Source ownership/range checks and bounded
 publication remain shared. The complete UTF-16 Unicode-caret group is mapped;
-two ContextModel groups are mapped and sixteen remain, alongside other audits and
-final acceptance.
+two ContextModel groups were mapped there; the current remaining count is recorded
+above, alongside other audits and final acceptance.
 
 [Parsed preview structure reuse](plans/rust-preview-structure-reuse.md) now shares
 four bounded exact-source structures across distinct definition targets, with

@@ -12,6 +12,22 @@ fn settle_metadata(app: &mut RadiologyApp, ctx: &Context) {
     }
 }
 
+// A caret-only move must retain the declaration and its already accepted rows.
+fn assert_declaration_rows(
+    app: &RadiologyApp,
+    declaration: &DocumentSymbol,
+    target: &ReferenceTarget,
+    rows: &Arc<crate::semantic::reference_results::ReferenceResults>,
+) {
+    assert_eq!(app.reference_context.target(), Some(target));
+    assert_eq!(
+        app.enclosing_source_context().unwrap().last(),
+        Some(declaration)
+    );
+    assert!(!app.reference_context.is_query_running());
+    assert!(Arc::ptr_eq(&app.reference_context.results, rows));
+}
+
 #[test]
 fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
     let owner = crate::semantic::test_support::scip_rust_fixture();
@@ -23,10 +39,16 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
         focus::settle_frame(&mut app, &ctx);
         let circle = app.under_caret.clone().unwrap();
         let first_preview = app.definition_preview.phase().clone();
+        let identity = app.definition_identity.clone();
+        let declaration = app.enclosing_source_context().unwrap().pop().unwrap();
+        assert_eq!(circle.name, "Circle");
+        assert_eq!(declaration.name, "total_area");
+        let target = app.reference_context.target().cloned().unwrap();
         let PreviewPhase::Loaded(preview) = &first_preview else {
             panic!("missing Circle preview");
         };
         assert_eq!(preview.lines[0].text, "pub struct Circle {");
+        assert_eq!(preview.path, "src/shapes.rs");
         let declarations = app.outline_symbols.clone();
         let rows = app.reference_context.results.clone();
         app.definition_expanded = true;
@@ -35,9 +57,10 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
             app.refresh_symbol_context();
             assert_eq!(app.under_caret.as_ref(), Some(&circle));
             assert!(app.definition_expanded);
+            assert_eq!(app.definition_identity, identity);
+            assert_declaration_rows(&app, &declaration, &target, &rows);
             assert!(!app.under_caret_job.is_running() && !app.definition_preview.is_running());
             assert!(Arc::ptr_eq(&app.outline_symbols, &declarations));
-            assert!(Arc::ptr_eq(&app.reference_context.results, &rows));
         }
         app.caret_line = 8;
         app.caret_col = 21;
@@ -55,12 +78,16 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
             [7, 8, 9, 10]
         );
         assert!(!preview.truncated);
-        assert!(Arc::ptr_eq(&app.reference_context.results, &rows));
+        assert_eq!(app.under_caret.as_ref().unwrap().name, "area");
+        assert_ne!(app.definition_identity, identity);
+        assert_declaration_rows(&app, &declaration, &target, &rows);
         app.caret_line = 5;
         app.caret_col = 30;
         app.refresh_symbol_context();
         settle_metadata(&mut app, &ctx);
         assert_eq!(app.definition_preview.phase(), &first_preview);
+        assert_eq!(app.definition_identity, identity);
+        assert_eq!(app.under_caret.as_ref(), Some(&circle));
         assert!(
             !app.definition_preview.is_running(),
             "cached Circle must publish without starting an excerpt worker"
@@ -71,20 +98,64 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
         app.caret_col = 12;
         app.refresh_symbol_context();
         focus::settle_frame(&mut app, &ctx);
+        let painted = focus::frame(&mut app, &ctx, vec![]);
+        assert!(
+            crate::ui::test_support::text_shapes(&painted)
+                .any(|text| text.galley.job.text == "Method"),
+            "the declaration summary must prefer the index's Method kind"
+        );
         let area_rows = app.reference_context.results.clone();
+        let area_target = app.reference_context.target().cloned().unwrap();
+        assert_eq!(area_target.name, "area");
         assert_eq!(
             (area_rows.reference_count, area_rows.definition_count),
             (1, 1)
         );
+        let declaration = app.enclosing_source_context().unwrap().pop().unwrap();
+        assert_eq!(declaration.name, "area");
+        assert_eq!(
+            declaration.detail.as_deref(),
+            Some("pub fn area(&self) -> f64")
+        );
+        let call = &area_rows.hits[0];
+        assert_eq!(
+            (call.path.as_str(), call.range.start_line),
+            ("src/lib.rs", 7)
+        );
+        assert!(!call.is_definition);
+        assert_eq!(
+            &call.source_line.text[call.source_line.emphasis.clone().unwrap()],
+            "area"
+        );
         app.reference_context.select(0);
+        app.reference_context.expand(0, true);
+        focus::settle_frame(&mut app, &ctx);
+        let excerpt = app.reference_context.disclosures[&0].phase().clone();
+        let PreviewPhase::Loaded(preview) = &excerpt else {
+            panic!("reference excerpt did not load");
+        };
+        assert_eq!(
+            preview
+                .lines
+                .iter()
+                .map(|line| line.number)
+                .collect::<Vec<_>>(),
+            [6, 7, 8, 9, 10]
+        );
+        let mut caret_identities = HashSet::new();
         for (line, column) in [(8, 16), (8, 22), (9, 26), (9, 2), (8, 13)] {
             app.caret_line = line;
             app.caret_col = column;
             app.refresh_symbol_context();
+            assert_declaration_rows(&app, &declaration, &area_target, &area_rows);
             focus::settle_frame(&mut app, &ctx);
+            if let Some(context) = &app.under_caret {
+                caret_identities.insert(context.id.clone());
+            }
+            assert_eq!(app.reference_context.disclosures[&0].phase(), &excerpt);
             assert_eq!(app.reference_context.selected, Some(0));
-            assert!(Arc::ptr_eq(&app.reference_context.results, &area_rows));
         }
+        assert!(caret_identities.len() > 1);
         app.caret_line = 6;
         app.caret_col = 40;
         app.refresh_symbol_context();

@@ -12,6 +12,7 @@ struct Summary {
     buffer: SourceBuffer,
     symbols: Vec<DocumentSymbol>,
     action: Option<InspectorAction>,
+    semantic_kind: i32,
 }
 
 impl Summary {
@@ -33,6 +34,7 @@ impl Summary {
             buffer,
             symbols,
             action: None,
+            semantic_kind: 0,
         }
     }
 
@@ -55,6 +57,7 @@ impl Summary {
                 index.map(|i| &self.symbols[i]),
                 Some(&self.buffer),
                 pinned,
+                self.semantic_kind,
             );
         })
     }
@@ -189,6 +192,7 @@ fn pinned_kind_and_category_keep_long_names_bounded_and_signatures_closed() {
     for dark in [true, false] {
         for scale in [1.0, 2.0] {
             let mut fixture = Summary::new();
+            fixture.semantic_kind = 26;
             let name = fixture.symbols[0].name.clone();
             fixture.ctx = crate::ui::test_support::themed_context(dark, scale).0;
             fixture.frame(400.0, None, None, vec![]);
@@ -213,6 +217,25 @@ fn pinned_kind_and_category_keep_long_names_bounded_and_signatures_closed() {
                         .all(|text| text.pos.x + text.galley.size().x <= width - 8.0 + 0.1));
                     assert!(!fixture.state.expanded && fixture.state.owner.is_none());
                 }
+            }
+        }
+    }
+}
+
+#[test]
+fn declaration_kind_prefers_index_metadata_and_falls_back_without_it() {
+    for dark in [true, false] {
+        for scale in [1.0, 2.0] {
+            let mut fixture = Summary::new();
+            fixture.ctx = crate::ui::test_support::themed_context(dark, scale).0;
+            for (kind, expected) in [(26, "Method"), (0, "Function"), (9001, "Kind 9001")] {
+                fixture.semantic_kind = kind;
+                let output = fixture.frame(230.0, Some(0), None, vec![]);
+                assert!(
+                    crate::ui::test_support::text_shapes(&output)
+                        .any(|text| text.galley.job.text == expected)
+                );
+                assert!(!fixture.state.expanded);
             }
         }
     }

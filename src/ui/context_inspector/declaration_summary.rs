@@ -26,6 +26,7 @@ impl DeclarationSummary {
         declaration: Option<&DocumentSymbol>,
         buffer: Option<&SourceBuffer>,
         pinned: Option<(&str, i32)>,
+        semantic_kind: i32,
     ) -> Option<InspectorAction> {
         let current = declaration.zip(buffer).filter(|_| pinned.is_none());
         let owner = current
@@ -100,9 +101,13 @@ impl DeclarationSummary {
         );
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new(symbol.kind.title())
-                    .small()
-                    .color(theme.text_secondary),
+                egui::RichText::new(if semantic_kind == 0 {
+                    symbol.kind.title().to_owned()
+                } else {
+                    crate::semantic::context::kind_name(semantic_kind)
+                })
+                .small()
+                .color(theme.text_secondary),
             );
             let location = crate::ui::text_fit::middle(
                 ui,

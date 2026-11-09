@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-09 — Indexed declaration labels and Context identity contracts (Codex)
+
+The expanded real-fixture app check failed because the enclosing area declaration
+was painted as Function rather than Swift's indexed Method. The existing summary
+identity/kind now reaches the declaration renderer and shared kind formatter.
+Zero metadata retains the parser title; unknown kinds remain numbered. Explicit
+pins keep their own names/kinds. No new query, state, public API or dependency.
+
+The first two ContextModel groups now have complete mapping at 1×/2×: Circle
+identity/details/expansion and declaration/row ownership across token columns,
+exact cross-file area bounds and cached Circle return; area source signature and
+painted Method label, one use/one definition, exact area emphasis and five-line
+reference excerpt, multiple caret identities retaining selection/disclosure, new
+clearing selection and cached area restoration without a query. Four of eighteen
+ContextModel groups are mapped; fourteen remain. Both app and four summary tests
+pass, including both-scale/theme indexed/zero/unknown kinds and independent pins.
+Strict all-target Clippy, normal build and warning-free docs pass. The complete
+locked/offline workspace run passes 886 app tests (eleven existing opt-in ignores),
+two binary/13 font/22 text tests and all 66 doctests. The later change only shares
+and strengthens test assertions; production code matches the full-run snapshot.
+Final focused app assertions and strict Clippy are checked separately. Compilation
+uses -j 1 with serial tests; normal half-core Cargo jobs=16 remains unchanged.
+
+Architecture adds 99 measured NLOC/two functions/no files. A shared declaration/
+target/row assertion removes the real new test clone; complete normalized clone
+multisets retain 124 instances, zero additions/removals. Average/max CCN remain
+3.42/132, with 36 hotspots and cycles unchanged. Raw flags are an unchanged old
+inspector clone and equal-ranked untouched Python chokepoints.
+[Contract/evidence](plans/rust-context-declaration-contracts.md); archive
+`~/.local/state/radiology-qa/context-declaration-20261109-a7dfad6/`.
+
+Next: remaining fourteen ContextModel groups, reference/call-tree/palette, source/
+syntax, compiler/indexing and inspector reconciliation, then final native and
+standalone acceptance. Known parallel timing/linking limits and Android remain
+open. Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Installer child-versus-descendant interruption checks (Codex)
 
 The Clang fixture had required curl's PID to disappear immediately after joining
