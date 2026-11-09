@@ -53,6 +53,86 @@ fn assert_repaired_index(app: &mut RadiologyApp, source: &Arc<SourceBuffer>) {
 }
 
 #[test]
+fn launch_review_waits_before_indexing_and_resumes_the_resolved_scope() {
+    use crate::pull_request::review::tests::fixture_with_tree_edits;
+    for resolution in ["accept", "cancel", "failure"] {
+        let (_tools, _, mut app, tool) = project();
+        let reference =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("Tests/RadiologyTests/Fixtures/scip-rust");
+        let (_git, root, review) = fixture_with_tree_edits(
+            "before\n",
+            "after\n",
+            |root| {
+                fs::create_dir_all(root.join("src")).unwrap();
+                for path in ["Cargo.toml", "src/lib.rs", "src/shapes.rs"] {
+                    fs::copy(reference.join(path), root.join(path)).unwrap();
+                }
+            },
+            |_| {},
+        );
+        let dirty = "// attached checkout only\n";
+        fs::write(root.join("src/lib.rs"), dirty).unwrap();
+        let script = fs::read_to_string(&tool).unwrap().replace(
+            "printf artifact",
+            "/bin/cat src/lib.rs > \"$0.input\"; printf artifact",
+        );
+        fs::write(&tool, script).unwrap();
+        let head = review.head.clone();
+        app.launch(Some(&root), Some(7), Some("src/lib.rs"));
+        settle_repository(&mut app);
+        let (release, gate) = std::sync::mpsc::channel();
+        app.review_job.spawn(move |_| {
+            gate.recv_timeout(Duration::from_secs(10))
+                .map_err(|error| format!("Review gate stopped: {error}"))?;
+            if resolution == "accept" {
+                Ok(review)
+            } else {
+                Err("controlled review failure".into())
+            }
+        });
+        let ctx = Context::default();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.is_index_loading() {
+            app.poll_index(&ctx);
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(app.pending_pr, Some(7));
+        assert!(
+            !tool.with_extension("runs").exists(),
+            "checkout compiled while review pending"
+        );
+        if resolution == "cancel" {
+            app.cancel_review_preparation();
+        }
+        release.send(()).unwrap();
+        settle(&mut app);
+        let report = app.generation_report().unwrap();
+        assert_eq!(report.documents, 2);
+        assert_eq!(
+            report.revision.as_deref(),
+            (resolution == "accept").then_some(head.as_str())
+        );
+        assert_eq!(
+            fs::read_to_string(tool.with_extension("runs")).unwrap(),
+            "run\n"
+        );
+        let expected = if resolution == "accept" {
+            fs::read_to_string(reference.join("src/lib.rs")).unwrap()
+        } else {
+            dirty.into()
+        };
+        assert_eq!(
+            fs::read_to_string(tool.with_extension("input")).unwrap(),
+            expected
+        );
+        assert_eq!(fs::read_to_string(root.join("src/lib.rs")).unwrap(), dirty);
+        assert_eq!(app.review.is_some(), resolution == "accept");
+        assert_eq!(app.review_error().is_some(), resolution == "failure");
+    }
+}
+
+#[test]
 fn automatic_open_generates_once_and_current_cache_needs_no_executable() {
     let (_owner, root, mut app, tool) = project();
     open_reader(&mut app, &root, "src/lib.rs");

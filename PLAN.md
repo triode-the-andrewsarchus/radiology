@@ -27,6 +27,12 @@ See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
 
+[Review/index coordination](plans/rust-review-index-coordination.md) fixes a fresh
+native finding: automatic checkout compilation could run while an explicit PR was
+being prepared. A real-Git gated regression now proves no premature compile and
+correct accepted/cancelled/failed scope continuation. Focused checks/strict build
+pass; the new full and affected native/export gates remain required.
+
 [Fresh native indexing acceptance](plans/rust-final-native-indexing.md) passes
 generated/failed Copy Command, automatic generation, tool-free warm restart, cache
 retention and exact source Copy in dark 1×/light 2×, repeated with exported sources

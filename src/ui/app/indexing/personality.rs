@@ -156,10 +156,9 @@ impl RadiologyApp {
 
     /// Advances the accepted open through cache, legacy import and generation.
     pub(in crate::ui::app) fn advance_index_open(&mut self) {
-        if self.index_personality.job.is_running()
-            || self.index_generator.is_running()
-            || self.index_plan_job.is_running()
-        {
+        // A prepared review replaces this open with its pinned After request.
+        // Failure/cancellation instead resumes the accepted checkout's open.
+        if self.pending_pr.is_some() || self.is_index_loading() {
             return;
         }
         let refresh = match self.index_personality.intent {
@@ -188,9 +187,6 @@ impl RadiologyApp {
                 }
             },
             Some(Intent::Import) => {
-                if self.index_importer.is_running() {
-                    return;
-                }
                 !matches!(self.index_importer.status(), IndexImportStatus::Cancelled)
             }
             _ => return,

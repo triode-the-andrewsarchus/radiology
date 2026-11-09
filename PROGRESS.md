@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-09 — Coordinate review preparation before automatic generation (Codex)
+
+Fresh real-Clang PR startup found two compiler runs: dirty attached checkout then
+pinned After. The actual normalized records/invocations expose the unnecessary
+checkout compile. Added a real-Git gated launch regression; it fails against the
+old code at checkout compiled while review pending. The automatic-open coordinator
+now waits for pending review preparation, retaining its existing intent. Acceptance
+loads pinned After; failure/cancellation resume the accepted checkout. A shared
+is_index_loading gate replaces duplicated job/import checks, reducing coordinator
+CCN 15→13 while also respecting active tool probes/provisioners.
+
+The regression checks all three outcomes, exactly one final compiler run, expected
+revision, actual private input bytes and unchanged dirty attached source. Twelve
+lifecycle, six personality, ten repository and two review-recovery cases pass,
+including isolated CLI recovery. Strict Clippy, formatting and normal build pass.
+Architecture NEUTRAL: +73 measured NLOC/net one function; avg/max CCN 3.43/132,
+36 high-complexity functions/one cycle and all 125 normalized clones unchanged.
+No new state owner, helper abstraction, worker, API, setting or dependency.
+
+Latest complete full gate remains the preceding 942 app/68 doctest snapshot; a new
+serial gate and fresh integrated native/export acceptance are required after this
+runtime fix. The first native PR attempt remains unaccepted and archived, rather
+than relaxing its intended one-run contract. Full ledger audit and SDK-backed Android
+success remain open. [Contract/evidence](plans/rust-review-index-coordination.md);
+archive: ~/.local/state/radiology-qa/launch-index-coordination-20261109-8f48ec5/.
+
 ## 2026-11-09 — Fresh native indexing and source-independent windows (Codex)
 
 The exported e49c5ec executable passes dark 1×/light 2× actual Wayland workflows,
