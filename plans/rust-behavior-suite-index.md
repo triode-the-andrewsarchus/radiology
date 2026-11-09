@@ -487,6 +487,12 @@ combined full serial gate passes 932 app tests (twelve opt-in ignores),
 binary/font/text 2/13/23 and all 68 doctests. The remaining suite assertions still need
 their own mapping, so compiler/personality stays 17/35.
 
+[Indexing lifecycle contracts](rust-indexing-contracts.md) map nine of the ten
+IndexingTests functions through exact fixtures, private configs, automatic app
+lifecycle and owned process-group checks. The exact real-Rust generation fixture
+remains open, alongside Kotlin six and PR Kotlin two. Compiler/personality is
+26/35 mapped, nine remain; focused indexing/app/process and strict gates pass.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

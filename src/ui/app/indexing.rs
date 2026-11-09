@@ -695,8 +695,11 @@ impl RadiologyApp {
                 }) => {
                     ui.label(reason).on_hover_text(diagnostics);
                 }
-                None if outcome.is_none_or(|outcome| outcome.version.is_none()) => {
+                None if outcome.is_none() => {
                     ui.label("Tool availability unchecked");
+                }
+                None if outcome.is_some_and(|outcome| outcome.version.is_none()) => {
+                    ui.label("No tool version recorded");
                 }
                 None => {}
             }

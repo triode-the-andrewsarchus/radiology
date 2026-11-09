@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-09 — Nine indexing lifecycle contracts (Codex)
+
+Mapped nine of ten IndexingTests functions against the exact Swift assertions and
+Rust API representations. New literal fixtures verify five project IDs in order,
+tsconfig evidence, unsupported Kotlin/Swift, all twelve Rust projects including
+project11, and engine/rust document/Circle definition prefixes from recorded SCIP.
+A noisy 2,000-line automatic compiler case polls/renders after completion for at
+least 200 ms, retaining terminal summary and index identity. Existing cancellation
+coverage now starts a TERM-ignoring background descendant and verifies its owned
+PID is dead after actual cancellation, preserving exact stdout/stderr.
+
+Fixed misleading Tool availability unchecked on outcomes with no version. Only
+unattempted/unprobed projects show that label; outcomes say No tool version recorded
+without inventing a precise failure stage. Actual missing-tool frames verify the
+label at both scales and retain repair, hints and explicit installation semantics.
+No new worker, state, public API or settings mechanism.
+
+All 115 indexing cases (twelve real-tool opt-in ignores), ten lifecycle and thirteen
+process cases pass. Strict all-target Clippy, formatting and normal workspace build
+pass. Latest complete serial workspace gate remains 9f1c9c7: 932 app checks and all
+68 doctests; no new full/native acceptance is claimed. Architecture +138 measured
+NLOC/net three functions, avg/max CCN 3.43/132; 36 high-complexity functions/one cycle
+unchanged. All 125 normalized clone instances identical, zero additions/removals.
+Raw alerts are pre-existing touched-test clone and untouched equal-ranked Python.
+
+Compiler/personality is now 26/35 mapped. The exact real Rust generation case,
+Kotlin six and PR Kotlin two remain, alongside inspector/traits fifteen and final
+integrated/native/standalone/reuse acceptance. The system Rust analyzer shim lacks
+its component; no global toolchain was modified. The requested design skills remain
+unavailable locally; no Swift or type-style changes were made.
+[Contract mapping](plans/rust-indexing-contracts.md); evidence:
+~/.local/state/radiology-qa/indexing-contracts-20261109-9f1c9c7/.
+
 ## 2026-11-09 — Actual invocation diagnostics (Codex)
 
 Project outcomes now capture the actual attempted executable/argv and private cwd

@@ -7,7 +7,7 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 Overall Swift/Rust parity remains unproven. The standalone app remains the current
 product; actual little-screen-clip integration and full accessibility are deferred.
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
-and all 66 source/syntax groups have explicit mappings. Compiler/personality (18 remaining of 35)
+and all 66 source/syntax groups have explicit mappings. Compiler/personality (9 remaining of 35)
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
@@ -23,6 +23,12 @@ checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Indexing lifecycle contracts](plans/rust-indexing-contracts.md) now map nine of
+ten IndexingTests groups, including exact project ordering/nested paths, twelve-
+project retention, noisy terminal status and process-group cancellation. Missing-
+version outcomes now have accurate status text at both scales. Compiler/personality
+is 26/35 mapped; real Rust, Kotlin and PR Kotlin proof remains.
 
 [Invocation diagnostics](plans/rust-invocation-diagnostics.md) now retain actual
 command/cwd on failures, reuse and cache reloads, with a working Copy Command

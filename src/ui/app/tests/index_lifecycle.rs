@@ -157,11 +157,53 @@ fn automatic_missing_tool_reports_failure_and_reload_recovers_without_installati
         .is_some());
     assert!(!app.tool_provisioner.is_running());
     assert!(!Path::new(&tool.with_extension("runs")).exists());
+    app.index_projects_open = true;
+    let ctx = Context::default();
+    for scale in [1.0, 2.0] {
+        ctx.set_pixels_per_point(scale);
+        for _ in 0..3 {
+            rendered_frame(&mut app, &ctx);
+        }
+        let output = rendered_frame(&mut app, &ctx);
+        assert!(crate::ui::test_support::text_shapes(&output)
+            .any(|shape| shape.galley.job.text == "No tool version recorded"));
+        assert!(!crate::ui::test_support::text_shapes(&output)
+            .any(|shape| shape.galley.job.text == "Tool availability unchecked"));
+    }
     let source = app.open_buffer.clone().unwrap();
     fs::write(&tool, script).unwrap();
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
     assert_repaired_index(&mut app, &source);
+}
+
+#[test]
+fn noisy_compiler_completion_stays_terminal_after_more_polls_and_frames() {
+    let (_owner, root, mut app, tool) = project();
+    let script = fs::read_to_string(&tool).unwrap().replace(
+        "printf artifact",
+        "i=0; while [ $i -lt 2000 ]; do echo progress-$i >&2; i=$((i + 1)); done; printf artifact",
+    );
+    fs::write(&tool, script).unwrap();
+    open_reader(&mut app, &root, "src/lib.rs");
+    let summary = app.generation_report().unwrap().summary();
+    assert_eq!(app.generation_report().unwrap().documents, 2);
+    assert!(app.generation_report().unwrap().outcomes[0]
+        .diagnostics
+        .contains("progress-1999"));
+    let index = app.semantic_index.clone().unwrap();
+    let ctx = Context::default();
+    let deadline = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < deadline {
+        app.poll_index(&ctx);
+        let output = rendered_frame(&mut app, &ctx);
+        assert!(!app.index_generator.is_running());
+        assert_eq!(app.generation_report().unwrap().summary(), summary);
+        assert!(Arc::ptr_eq(&index, app.semantic_index.as_ref().unwrap()));
+        assert!(crate::ui::test_support::text_shapes(&output)
+            .any(|shape| shape.galley.job.text == summary));
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[test]

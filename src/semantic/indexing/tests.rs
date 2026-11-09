@@ -49,6 +49,62 @@ fn multilingual_plan_preserves_evidence_counts_and_registry_order() {
 }
 
 #[test]
+fn swift_mixed_checkout_plan_keeps_root_priority_and_exact_project_evidence() {
+    let plan = IndexPlan::inspect([
+        "Cargo.toml",
+        "src/main.rs",
+        "crates/a/Cargo.toml",
+        "crates/a/src/lib.rs",
+        "web/package.json",
+        "web/tsconfig.json",
+        "web/src/index.ts",
+        "tools/go.mod",
+        "tools/main.go",
+        "scripts/setup.py",
+        "scripts/run.py",
+        "docs/readme.md",
+        "native/compile_commands.json",
+    ]);
+    assert_eq!(
+        plan.selected
+            .iter()
+            .map(IndexingStrategy::id)
+            .collect::<Vec<_>>(),
+        [
+            "rust-analyzer",
+            "scip-clang",
+            "scip-go@tools",
+            "scip-typescript@web",
+            "scip-python@scripts",
+        ]
+    );
+    assert_eq!(plan.selected[3].evidence, ["web/tsconfig.json"]);
+    assert!(plan.skipped.is_empty() && plan.uncovered_languages.is_empty());
+    let unsupported = IndexPlan::inspect(["Package.swift", "Sources/A.swift", "Sources/B.kt"]);
+    assert!(unsupported.selected.is_empty());
+    assert_eq!(unsupported.uncovered_languages, ["Kotlin", "Swift"]);
+}
+
+#[test]
+fn swift_twelve_project_monorepo_keeps_the_last_rust_project() {
+    let paths: Vec<_> = (0..12)
+        .flat_map(|n| {
+            [
+                format!("modules/project{n}/Cargo.toml"),
+                format!("modules/project{n}/src/lib.rs"),
+            ]
+        })
+        .collect();
+    let plan = IndexPlan::inspect(paths.iter().map(String::as_str));
+    assert_eq!(plan.selected.len(), 12);
+    assert!(plan.skipped.is_empty());
+    assert!(plan
+        .selected
+        .iter()
+        .any(|strategy| strategy.directory == "modules/project11"));
+}
+
+#[test]
 fn nested_projects_and_sibling_prefixes_have_deterministic_boundaries() {
     let paths = [
         "py/child/pyproject.toml",

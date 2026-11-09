@@ -104,6 +104,44 @@ fn kotlin_generation_receives_sdk_context_without_changing_viewed_inputs() {
 }
 
 #[test]
+fn swift_recorded_rust_documents_and_definitions_receive_the_nested_project_prefix() {
+    let owner = crate::semantic::test_support::scip_rust_fixture();
+    let files: Vec<_> = ["Cargo.toml", "src/lib.rs", "src/shapes.rs"]
+        .into_iter()
+        .map(|path| {
+            (
+                format!("engine/rust/{path}"),
+                fs::read_to_string(owner.path().join(path)).unwrap(),
+            )
+        })
+        .collect();
+    let inputs: Vec<_> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let fixture = Fixture::new(&inputs);
+    let request = fixture.request();
+    let (inventory, baseline, _lease) = request.prepare(&AtomicBool::new(false)).unwrap();
+    let strategy = &IndexPlan::inspect(inventory.paths.iter().map(String::as_str)).selected[0];
+    let raw = ScipIndex::decode(&fs::read(owner.path().join("index.scip")).unwrap()).unwrap();
+    let normalized = normalize(raw, strategy, &inventory, &baseline).unwrap();
+    let index = SemanticIndex::from_scip(normalized);
+    let mut paths: Vec<_> = index.documents.keys().map(String::as_str).collect();
+    paths.sort_unstable();
+    assert_eq!(
+        paths,
+        ["engine/rust/src/lib.rs", "engine/rust/src/shapes.rs"]
+    );
+    assert_eq!(
+        index
+            .find_definition("rust-analyzer cargo ra_fixture 0.1.0 shapes/Circle#")
+            .unwrap()
+            .0,
+        "engine/rust/src/shapes.rs"
+    );
+}
+
+#[test]
 fn adapter_columns_override_file_encoding_and_explicit_document_columns_win() {
     let fixture = Fixture::new(&[("a.ts", "/* 🦀 */ const value = 1;\r\n")]);
     let request = fixture.request();

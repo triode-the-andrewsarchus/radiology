@@ -5,7 +5,7 @@ complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
 The latest complete production gate passes 932 app checks (twelve opt-in
 ignores), binary/font/text 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation, C/C++
-preparation status, explicit cross-checkout reuse and automatic indexing. Compiler/personality 18 of 35 and inspector/trait 15 groups remain, followed
+preparation status, explicit cross-checkout reuse and automatic indexing. Compiler/personality 9 of 35 and inspector/trait 15 groups remain, followed
 by final integrated/native/standalone/reuse acceptance.
 [Explicit reuse](rust-index-reuse-contracts.md) closes all three IndexReuse groups
 and the final personality group (compiler/personality 9/35). All 108 indexing
@@ -18,7 +18,9 @@ until remaining lifecycle assertions are reconciled. [Adapter validation](rust-a
 IDs before planning and preserves settings for repair. Focused/strict gates pass;
 invocation diagnostics and combined verification follow. [Invocation diagnostics](rust-invocation-diagnostics.md) now retain/copy attempted
 commands and working directories without changing cache format. Focused checks
-and strict gates pass, as does combined serial verification. Earlier checkpoint-time counts below are historical.
+and strict gates pass, as does combined serial verification. [Indexing lifecycle contracts](rust-indexing-contracts.md) map nine more groups,
+bringing compiler/personality to 26/35. Exact real-Rust generation, Kotlin and PR
+Kotlin assertions remain. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

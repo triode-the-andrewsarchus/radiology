@@ -69,7 +69,7 @@ fn cancellation_reaches_a_running_child_and_preserves_diagnostics() {
     let root = tempfile::tempdir().unwrap();
     let command = shell(
         root.path(),
-        "printf ready; printf error >&2; touch \"$1/ready\"; while :; do sleep 1; done",
+        "trap '' TERM; (trap '' TERM; sleep 30) & echo $! > \"$1/child.pid\"; printf ready; printf error >&2; touch \"$1/ready\"; wait",
     );
     let cancelled = AtomicBool::new(false);
     std::thread::scope(|scope| {
@@ -85,6 +85,8 @@ fn cancellation_reaches_a_running_child_and_preserves_diagnostics() {
         assert_eq!(failure.stdout.text, "ready");
         assert_eq!(failure.stderr.text, "error");
     });
+    #[cfg(target_os = "linux")]
+    assert_child_stopped(root.path());
 }
 
 #[test]
