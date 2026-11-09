@@ -86,3 +86,7 @@ mapping. Final native acceptance, other unreconciled suites, known parallel timi
 limits and Android remain open. The earlier all-seven fold and all-three Changes
 presentation mappings remain valid with the updated explicit source choice in
 scope-reset tests.
+
+Follow-up: [GitHub metadata contracts](rust-github-metadata-contracts.md) retain
+those discarded fields and map the first integrated test group. The three combined
+flow mappings remain open.

@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[GitHub metadata contracts](plans/rust-github-metadata-contracts.md) now retain
+author, cross-repository and merge-commit details through shared complete list/
+view requests and existing refresh/recent-list owners. Legacy records remain
+readable. The first integrated PR test group is mapped; the other three remain
+open for their combined assertion reconciliation.
+
 [Fresh PR entry](plans/rust-pr-review-entry.md) now opens Changes with no selected
 source/history and clears the old Files query, matching Swift. Explicit file
 intent and same-PR refresh preserve their existing paths; source/test preferences
-remain. The integrated suite is still partial; richer GitHub metadata is the next
-concrete gap to reconcile.
+remain. The integrated suite is still partial; the metadata gap is now repaired
+in the checkpoint above.
 
 [Review fold-default contracts](plans/rust-review-fold-contracts.md) now map all
 seven Swift groups through Rust's atomic source publication. Nested signatures,

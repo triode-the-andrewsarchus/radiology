@@ -13,7 +13,7 @@ pub mod review;
 
 pub use change::{FileChange, FileChangeStatus, ReviewChangesPresentation};
 pub use diff::{DiffHunk, DiffParseError, FileLineChanges, UnifiedDiffParser};
-pub use github::{GitHubClient, PullRequestSummary};
+pub use github::{GitHubClient, PullRequestAuthor, PullRequestMergeCommit, PullRequestSummary};
 
 #[cfg(all(test, unix))]
 pub(crate) mod test_support;

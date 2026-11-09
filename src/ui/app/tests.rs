@@ -2183,16 +2183,7 @@ fn bookmark_keys_follow_identities_save_in_order_and_retire_on_scope_changes() {
     app.handle_bookmark_action(&ctx, BookmarkAction::Remove(ids[1]));
     assert_eq!(app.bookmarks.bookmarks.len(), 2);
     app.pending_pr = None;
-    app.active_pr = Some(PullRequestSummary {
-        number: 42,
-        title: "Other scope".into(),
-        state: "OPEN".into(),
-        base_ref_oid: None,
-        updated_at: String::new(),
-        head_ref_name: "feature".into(),
-        base_ref_name: "main".into(),
-        head_ref_oid: None,
-    });
+    app.active_pr = Some(crate::pull_request::test_support::summary(42));
     app.load_bookmarks();
     assert!(app.bookmarks.bookmarks.is_empty());
     assert!(app.bookmark_list.selected.is_none());

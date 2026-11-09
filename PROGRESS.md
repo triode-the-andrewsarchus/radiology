@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-09 — Complete GitHub summary metadata (Codex)
+
+A red Swift-fixture roundtrip confirmed that Rust discarded author/login,
+cross-repository status and merge-commit ID. Shared summaries now retain all three
+through two small exported metadata types and serde defaults for legacy records.
+List/view share one complete eleven-field JSON request set, including base/head
+IDs for list entries, through the existing bounded/cancellable child runner.
+No parallel metadata loader or refresh mechanism was introduced.
+
+Two new tests check Swift's open/merged/null examples, roundtrip/legacy records,
+malformed typed values, full-versus-abbreviated SHA validation and actual list/view
+child argv/prompt settings. Existing both-scale metadata refresh now compares the
+entire summary in active PR, snapshot and recent list while retaining all reader
+fact Arcs, caret/history and pins. The lone manual summary fixture reuses the
+existing factory. Host literals must supply the three new fields; old serialized
+records still read with None/false defaults. A runnable public serde example and
+warning-free generated field docs document reuse.
+
+All 44 focused pull-request checks and the extended metadata refresh pass, along
+with formatting, strict all-target Clippy, build and API docs. Full serial workspace
+run passes 841 app tests/11 existing ignored, two binary/13 font/22 text tests
+and all 65 doctests. [Metadata evidence](plans/rust-github-metadata-contracts.md)
+records the archive and host migration. Architecture +140 measured NLOC/two test functions, unchanged
+complete clone multisets/hotspots/cycles. No dependencies, worker or new persisted
+store added.
+
+The summary-decoding/timeout function is mapped (one of four integrated review
+groups), using the existing real-child cancellation/deadline/reaping evidence.
+The combined browsing, changed-block and retired-load mappings remain open, along
+with other unreconciled suites, final native acceptance, known parallel timing
+limits and Android. Next: complete the integrated browsing flow against the Swift
+assertions using the now-correct entry and complete summary model.
+
 ## 2026-11-09 — Fresh review source/history/query entry (Codex)
 
 Two red app regressions confirmed fresh reviews auto-opened a checkout/first file

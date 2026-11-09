@@ -556,6 +556,15 @@ fn metadata_refresh_coalesces_commands_and_preserves_reader_fact_owners() {
         let caret = (app.caret_line, app.caret_col);
         let mut metadata = review.clone();
         metadata.summary.title = "Fresh title".into();
+        metadata.summary.state = "MERGED".into();
+        metadata.summary.is_cross_repository = true;
+        metadata.summary.author = Some(crate::pull_request::PullRequestAuthor {
+            login: "reviewer-café".into(),
+        });
+        metadata.summary.merge_commit = Some(crate::pull_request::PullRequestMergeCommit {
+            oid: review.head.clone(),
+        });
+        let expected_summary = metadata.summary.clone();
         crate::pull_request::recent::tests::publish(
             &mut app.recent_pull_requests,
             Ok(Some(vec![review.summary.clone()])),
@@ -578,8 +587,9 @@ fn metadata_refresh_coalesces_commands_and_preserves_reader_fact_owners() {
         assert!(app.source_location_ready());
         resume.send(()).unwrap();
         settle(&mut app);
-        assert_eq!(app.active_pr.as_ref().unwrap().title, "Fresh title");
-        assert_eq!(app.recent_pull_requests.items()[0].title, "Fresh title");
+        assert_eq!(app.active_pr.as_ref(), Some(&expected_summary));
+        assert_eq!(app.recent_pull_requests.items()[0], expected_summary);
+        assert_eq!(app.review.as_ref().unwrap().summary, expected_summary);
         assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
         assert!(Arc::ptr_eq(&app.outline_symbols, &outline));
         assert!(Arc::ptr_eq(&app.native_highlights, &highlights));

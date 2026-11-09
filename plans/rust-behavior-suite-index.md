@@ -160,7 +160,9 @@ The [review fold-default audit](rust-review-fold-contracts.md) maps all seven fo
 groups with atomic-source ordering evidence and both-scale held-result workflows.
 The separate integrated-review suite remains open. The
 [fresh-entry checkpoint](rust-pr-review-entry.md) repairs two assertions in its
-browsing flow; richer GitHub metadata and the combined mapping remain pending.
+browsing flow. [GitHub metadata contracts](rust-github-metadata-contracts.md) now
+map `decodesGhSummariesAndTimesOutSlowCommands` (one of four integrated groups);
+the three combined browsing/change-navigation/retired-load mappings remain open.
 
 ## Critical Lens and hover
 
