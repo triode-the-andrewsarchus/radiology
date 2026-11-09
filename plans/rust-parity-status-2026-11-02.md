@@ -6,10 +6,16 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Change metadata and identity](rust-change-metadata-contracts.md) close the two
+remaining unified-diff groups. Pinned changes now carry actual SHA-1/SHA-256 IDs,
+copy scores and shared numstat application. Together with the diff fixes below,
+all five UnifiedDiffTests functions are mapped; other review suites remain open.
+
 [Diff contracts](rust-diff-contracts.md) repair malformed-header rejection and
 changed-line/gap mapping. Three of five unified-diff groups and all three change
 navigation groups have explicit evidence, including both-scale real Git app
-commands. Raw blob metadata/document identity and other suites remain open.
+commands. Raw blob metadata/document identity are reconciled above; other suites
+remain open.
 
 [Repository search contracts](rust-search-contracts.md) reconcile all six Swift
 functions and fix the shared runner's successful cancellation result. Exact Unicode

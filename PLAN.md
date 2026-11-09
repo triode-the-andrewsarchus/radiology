@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Change metadata and document identity](plans/rust-change-metadata-contracts.md)
+now retain real pinned SHA-1/SHA-256 IDs and copy similarity through shared raw/name
+record validation. Checkout refresh reuses model numstat application. The remaining
+two UnifiedDiffTests groups are mapped, completing that five-function suite alongside
+the prior diff fixes. Other review suites and final acceptance remain open.
+
 [Diff parsing and revision mapping](plans/rust-diff-contracts.md) now reject malformed
 hunks and map changed lines to Swift's first-line/gap destinations through shared
 service paths. Both-scale real Git app switches and error propagation pass. Three
-of five unified-diff groups and all three change-navigation groups are mapped;
-raw metadata/document identity and other suites remain open.
+of five unified-diff groups and all three change-navigation groups were mapped
+here; metadata/identity are reconciled above. Other suites remain open.
 
 [Repository search contracts](plans/rust-search-contracts.md) now map all six Swift
 functions. Shared-runner cancellation returns an explicit error, while UI Stop

@@ -78,10 +78,18 @@ fn nul_record_parsing_handles_renames_and_rejects_partial_records() {
     assert!(FileChange::parse_name_status(b"R100\0missing.rs\0").is_err());
     assert!(FileChange::parse_name_status(b"M\0partial.rs").is_err());
     assert!(paths(b"partial.rs").is_err());
-    assert!(numstat(b"1\t0\tpartial.rs").is_err());
-    let stats = numstat(b"2\t1\t\0old name.rs\0new\tname.rs\0-\t-\tbinary.bin\0").unwrap();
-    assert_eq!(stats["new\tname.rs"], (2, 1, false));
-    assert_eq!(stats["binary.bin"], (0, 0, true));
+    let mut changes = changes;
+    assert!(FileChange::apply_numstat(&mut changes, b"1\t0\tpartial.rs").is_err());
+    FileChange::apply_numstat(&mut changes, b"2\t1\t\0old name.rs\0new\tname.rs\0").unwrap();
+    assert_eq!(
+        (
+            changes[0].additions,
+            changes[0].deletions,
+            changes[0].is_binary
+        ),
+        (2, 1, false)
+    );
+    assert_eq!((changes[1].additions, changes[1].deletions), (0, 0));
 }
 
 #[test]

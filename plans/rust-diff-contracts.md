@@ -7,7 +7,8 @@ Reviewed from Rust `03ec79b`.
 
 This checkpoint reconciles the first three of five UnifiedDiffTests functions and
 all three ChangeBlockNavigationTests functions. Raw change metadata and document
-identity are still separate, explicitly open assertion groups.
+identity were separate open groups at this checkpoint; the subsequent
+[metadata checkpoint](rust-change-metadata-contracts.md) reconciles both.
 
 ## Confirmed differences and repair
 
@@ -100,11 +101,13 @@ ranking churn in untouched files. Full vectors are in `architecture.txt`.
 ## Remaining scope
 
 The two remaining UnifiedDiffTests functions, `rawRecordsCoverAddModifyDeleteRenameAndNumstat`
-and `locationsCarryRevisionsAndPositionKeys`, are not closed by parser/navigation
-evidence. In particular Rust review discovery currently uses name/status records
-and leaves the public FileChange blob-ID fields empty; Swift raw records carry
-those IDs. Pinned source reads already use commit/path identity, but that is not
-proof of the separate metadata assertion. Reconcile this explicitly next.
+and `locationsCarryRevisionsAndPositionKeys`, were not closed by this
+parser/navigation checkpoint. Review discovery then used name/status records and
+left the public FileChange blob-ID fields empty; Swift raw records carry those
+IDs. Pinned source reads used commit/path identity, which did not prove the
+separate metadata assertion. The subsequent
+[metadata checkpoint](rust-change-metadata-contracts.md) fixes the ID fields and
+maps both remaining groups, completing the five-function suite.
 
 Other review/refresh/presentation suites and the broader Swift corpus still need
 assertion-level review. Prior native source/revision/change-navigation checks are

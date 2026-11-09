@@ -2,6 +2,7 @@
 
 use crate::source::location::ReviewRevision;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Status of a file modified within a pull request or commit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,8 +18,11 @@ pub enum FileChangeStatus {
         /// Similarity index from 0 to 100.
         similarity: usize,
     },
-    /// Copied file.
-    Copied,
+    /// Copied file with similarity percentage.
+    Copied {
+        /// Similarity index from 0 to 100.
+        similarity: usize,
+    },
     /// Other change type or typechange.
     Other(String),
 }
@@ -28,16 +32,19 @@ impl FileChangeStatus {
         Ok(match status.as_bytes().first() {
             Some(b'A') => Self::Added,
             Some(b'D') => Self::Deleted,
-            Some(b'R') => {
+            Some(letter @ (b'R' | b'C')) => {
                 let similarity = status[1..]
                     .parse()
-                    .map_err(|_| "Invalid rename similarity")?;
+                    .map_err(|_| "Invalid rename/copy similarity")?;
                 if similarity > 100 {
-                    return Err("Invalid rename similarity".into());
+                    return Err("Invalid rename/copy similarity".into());
                 }
-                Self::Renamed { similarity }
+                if *letter == b'R' {
+                    Self::Renamed { similarity }
+                } else {
+                    Self::Copied { similarity }
+                }
             }
-            Some(b'C') => Self::Copied,
             Some(b'M') => Self::Modified,
             Some(_) => Self::Other(status.into()),
             None => return Err("Missing change status".into()),
@@ -55,10 +62,10 @@ impl FileChangeStatus {
                 if *similarity >= 100 {
                     "Renamed"
                 } else {
-                    "Renamed & Modified"
+                    "Renamed and modified"
                 }
             }
-            Self::Copied => "Copied",
+            Self::Copied { .. } => "Copied",
             Self::Other(_) => "Changed",
         }
     }
@@ -71,7 +78,7 @@ impl FileChangeStatus {
             Self::Modified => "M",
             Self::Deleted => "D",
             Self::Renamed { .. } => "R",
-            Self::Copied => "C",
+            Self::Copied { .. } => "C",
             Self::Other(_) => "?",
         }
     }
@@ -107,8 +114,12 @@ pub struct FileChange {
     /// Status classification of this change.
     pub status: FileChangeStatus,
     /// Git object blob ID in the merge base revision.
+    ///
+    /// Raw records retain an all-zero ID for an absent side. Name/status-only
+    /// records have an empty ID because their format does not include one.
     pub before_blob: String,
-    /// Git object blob ID in the head revision.
+    /// Git object blob ID in the head revision, with the same absence rules as
+    /// [`Self::before_blob`].
     pub after_blob: String,
     /// Number of lines added.
     pub additions: usize,
@@ -124,9 +135,45 @@ impl FileChange {
     /// # Errors
     /// Returns an error for invalid UTF-8, missing fields or invalid source paths.
     pub fn parse_name_status(bytes: &[u8]) -> Result<Vec<Self>, String> {
+        Self::parse_records(bytes, false)
+    }
+
+    /// Parses Git's NUL-delimited `--raw --no-abbrev -z` diff records.
+    ///
+    /// Retains full SHA-1 or SHA-256 object IDs, including all-zero absent sides,
+    /// and literal paths. Rename and copy records carry both paths and similarity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for incomplete records, invalid UTF-8, headers, object IDs,
+    /// source paths or similarity scores.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::pull_request::FileChange;
+    /// let before = "1".repeat(40);
+    /// let after = "2".repeat(40);
+    /// let raw = format!(":100644 100644 {before} {after} R099\0old café.rs\0new café.rs\0");
+    /// let changes = FileChange::parse_raw(raw.as_bytes())?;
+    /// assert_eq!(changes[0].old_path.as_deref(), Some("old café.rs"));
+    /// assert_eq!(changes[0].before_blob, before);
+    /// assert!(FileChange::parse_raw(b"incomplete").is_err());
+    /// # Ok::<(), String>(())
+    /// ```
+    pub fn parse_raw(bytes: &[u8]) -> Result<Vec<Self>, String> {
+        Self::parse_records(bytes, true)
+    }
+
+    fn parse_records(bytes: &[u8], raw: bool) -> Result<Vec<Self>, String> {
         let mut fields = nul_records(bytes)?;
         let mut changes = Vec::new();
-        while let Some(status) = fields.next() {
+        while let Some(header) = fields.next() {
+            let (status, before_blob, after_blob) = if raw {
+                raw_header(header)?
+            } else {
+                (header, "", "")
+            };
             let first = fields.next().ok_or("Missing changed path")?;
             let (old_path, path) = if status.starts_with('R') || status.starts_with('C') {
                 (Some(first), fields.next().ok_or("Missing renamed path")?)
@@ -144,14 +191,45 @@ impl FileChange {
                 path: path.into(),
                 old_path: old_path.map(str::to_owned),
                 status,
-                before_blob: String::new(),
-                after_blob: String::new(),
+                before_blob: before_blob.into(),
+                after_blob: after_blob.into(),
                 additions: 0,
                 deletions: 0,
                 is_binary: false,
             });
         }
         Ok(changes)
+    }
+
+    /// Applies Git's NUL-delimited `--numstat -z` counts to matching paths.
+    ///
+    /// Rename counts attach to the destination path. Binary counts set
+    /// `is_binary` and leave numeric counts at zero. Unlisted changes are retained.
+    /// All records are validated before any change is updated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for incomplete records, invalid UTF-8 or invalid counts.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::pull_request::FileChange;
+    /// let mut changes = FileChange::parse_name_status(b"M\0src/main.rs\0")?;
+    /// FileChange::apply_numstat(&mut changes, b"2\t1\tsrc/main.rs\0")?;
+    /// assert_eq!((changes[0].additions, changes[0].deletions), (2, 1));
+    /// # Ok::<(), String>(())
+    /// ```
+    pub fn apply_numstat(changes: &mut [Self], bytes: &[u8]) -> Result<(), String> {
+        let stats = numstat(bytes)?;
+        for change in changes {
+            if let Some(&(additions, deletions, binary)) = stats.get(&change.path) {
+                change.additions = additions;
+                change.deletions = deletions;
+                change.is_binary = binary;
+            }
+        }
+        Ok(())
     }
 
     /// Returns the appropriate repository-relative path to read for the given [`ReviewRevision`].
@@ -174,6 +252,59 @@ impl FileChange {
             }
         }
     }
+}
+
+fn numstat(bytes: &[u8]) -> Result<HashMap<String, (usize, usize, bool)>, String> {
+    let mut fields = nul_records(bytes)?;
+    let mut stats = HashMap::new();
+    while let Some(record) = fields.next() {
+        let mut columns = record.splitn(3, '\t');
+        let added = columns.next().ok_or("Missing addition count")?;
+        let removed = columns.next().ok_or("Missing deletion count")?;
+        let path = match columns.next().ok_or("Missing numstat path")? {
+            "" => {
+                fields.next().ok_or("Missing original numstat path")?;
+                fields.next().ok_or("Missing renamed numstat path")?
+            }
+            path => path,
+        };
+        let binary = added == "-" || removed == "-";
+        let counts = if binary {
+            (0, 0, true)
+        } else {
+            (
+                added.parse().map_err(|_| "Invalid addition count")?,
+                removed.parse().map_err(|_| "Invalid deletion count")?,
+                false,
+            )
+        };
+        stats.insert(path.to_owned(), counts);
+    }
+    Ok(stats)
+}
+
+fn raw_header(header: &str) -> Result<(&str, &str, &str), String> {
+    let fields: Vec<_> = header
+        .strip_prefix(':')
+        .ok_or("Missing raw diff header")?
+        .split_ascii_whitespace()
+        .collect();
+    let [before_mode, after_mode, before, after, status] = fields.as_slice() else {
+        return Err("Invalid raw diff header".into());
+    };
+    if ![before_mode, after_mode]
+        .iter()
+        .all(|mode| mode.len() == 6 && mode.bytes().all(|byte| matches!(byte, b'0'..=b'7')))
+        || ![before, after].iter().all(|id| is_object_id(id))
+        || before.len() != after.len()
+    {
+        return Err("Invalid raw diff mode or object ID".into());
+    }
+    Ok((status, before, after))
+}
+
+pub(crate) fn is_object_id(value: &str) -> bool {
+    matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 /// Validates complete Git `-z` output before exposing its literal UTF-8 records.
@@ -298,5 +429,157 @@ impl ReviewChangesPresentation {
             .iter()
             .find(|c| c.path_for_revision(revision) == Some(path))
             .map(|c| c.path.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_records_keep_full_metadata_and_numstat_updates_matching_paths_atomically() {
+        for width in [40, 64] {
+            let id = |digit: char| digit.to_string().repeat(width);
+            let raw = format!(
+                ":000000 100644 {} {} A\0a/new.kt\0\
+                 :100644 100644 {} {} M\0src/é mod.rs\0\
+                 :100644 000000 {} {} D\0gone.py\0\
+                 :100644 100644 {} {} R099\0old/name.kt\0new/name.kt\0\
+                 :100644 100644 {} {} M\0img.png\0",
+                id('0'),
+                id('1'),
+                id('2'),
+                id('3'),
+                id('4'),
+                id('0'),
+                id('5'),
+                id('6'),
+                id('7'),
+                id('8'),
+            );
+            let mut changes = FileChange::parse_raw(raw.as_bytes()).unwrap();
+            assert_eq!(
+                changes
+                    .iter()
+                    .map(|change| change.path.as_str())
+                    .collect::<Vec<_>>(),
+                [
+                    "a/new.kt",
+                    "src/é mod.rs",
+                    "gone.py",
+                    "new/name.kt",
+                    "img.png"
+                ]
+            );
+            assert_eq!(changes[0].status, FileChangeStatus::Added);
+            assert_eq!(changes[0].path_for_revision(ReviewRevision::Before), None);
+            assert_eq!(
+                changes[0].path_for_revision(ReviewRevision::After),
+                Some("a/new.kt")
+            );
+            assert_eq!(changes[2].status, FileChangeStatus::Deleted);
+            assert_eq!(changes[2].path_for_revision(ReviewRevision::After), None);
+            assert_eq!(
+                changes[2].path_for_revision(ReviewRevision::Before),
+                Some("gone.py")
+            );
+            assert_eq!(
+                changes[3].status,
+                FileChangeStatus::Renamed { similarity: 99 }
+            );
+            assert_eq!(changes[3].old_path.as_deref(), Some("old/name.kt"));
+            assert_eq!(
+                changes[3].path_for_revision(ReviewRevision::Before),
+                Some("old/name.kt")
+            );
+            assert_eq!(
+                changes[3].path_for_revision(ReviewRevision::After),
+                Some("new/name.kt")
+            );
+            for (change, before, after) in [
+                (&changes[0], '0', '1'),
+                (&changes[1], '2', '3'),
+                (&changes[2], '4', '0'),
+                (&changes[3], '5', '6'),
+                (&changes[4], '7', '8'),
+            ] {
+                assert_eq!(change.before_blob, id(before));
+                assert_eq!(change.after_blob, id(after));
+            }
+            FileChange::apply_numstat(
+                &mut changes,
+                concat!(
+                    "206\t0\ta/new.kt\0",
+                    "3\t2\tsrc/é mod.rs\0",
+                    "0\t55\tgone.py\0",
+                    "4\t1\t\0old/name.kt\0new/name.kt\0",
+                    "-\t-\timg.png\0",
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+            assert_eq!(
+                changes
+                    .iter()
+                    .map(|change| (change.additions, change.deletions, change.is_binary))
+                    .collect::<Vec<_>>(),
+                [
+                    (206, 0, false),
+                    (3, 2, false),
+                    (0, 55, false),
+                    (4, 1, false),
+                    (0, 0, true)
+                ]
+            );
+            assert_eq!(changes[4].status.title(), "Modified");
+            assert_eq!(changes[3].status.title(), "Renamed and modified");
+            let accepted = changes.clone();
+            for invalid in [
+                b"1\t0\tpartial.rs".as_slice(),
+                b"1\t0\ta/new.kt\0x\t0\tbroken.rs\0",
+                b"1\t0\t\0old.rs\0",
+            ] {
+                assert!(FileChange::apply_numstat(&mut changes, invalid).is_err());
+                assert_eq!(changes, accepted);
+            }
+            let copy = format!(
+                ":100644 100644 {} {} C076\0old\tname.rs\0new\nname.rs\0",
+                id('1'),
+                id('2')
+            );
+            let changes = FileChange::parse_raw(copy.as_bytes()).unwrap();
+            assert_eq!(
+                changes[0].status,
+                FileChangeStatus::Copied { similarity: 76 }
+            );
+            assert_eq!(changes[0].old_path.as_deref(), Some("old\tname.rs"));
+            assert_eq!(changes[0].path, "new\nname.rs");
+        }
+    }
+
+    #[test]
+    fn malformed_raw_records_never_return_a_partial_change_list() {
+        let before = "1".repeat(40);
+        let after = "2".repeat(40);
+        let valid = format!(":100644 100644 {before} {after} M\0ok.rs\0");
+        for tail in [
+            "garbage\0".into(),
+            format!(":100644 100644 {before} {after} M\0partial.rs"),
+            format!(":100644 100644 {before} {after} R100\0missing-destination.rs\0"),
+            format!(":100644 100644 {before} {after} M\0../outside.rs\0"),
+            format!(":100644 100644 {before} {after} C101\0a.rs\0b.rs\0"),
+            format!(":100644 100644 {before} {after} Rno\0a.rs\0b.rs\0"),
+            format!(":bad 100644 {before} {after} M\0a.rs\0"),
+            format!(":100644 100644 shortened {after} M\0a.rs\0"),
+            format!(":100644 100644 {} {after} M\0a.rs\0", "z".repeat(40)),
+            format!(":100644 100644 {before} {} M\0a.rs\0", "2".repeat(64)),
+        ] {
+            assert!(
+                FileChange::parse_raw(format!("{valid}{tail}").as_bytes()).is_err(),
+                "{tail:?}"
+            );
+        }
+        assert!(FileChange::parse_raw(b"\xff\0").is_err());
+        assert!(FileChange::parse_raw(b"").unwrap().is_empty());
     }
 }

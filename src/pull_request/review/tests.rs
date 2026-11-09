@@ -100,6 +100,18 @@ fn pinned_review_uses_merge_base_and_never_checkout_bytes() {
     assert_eq!(review.diffs["a file.rs"].total_additions(), 1);
     assert!(!review.diffs["a file.rs"].is_binary);
     assert!(review.diffs["binary.dat"].is_binary);
+    for change in &review.changes {
+        for (revision, commit, actual) in [
+            (ReviewRevision::Before, &review.base, &change.before_blob),
+            (ReviewRevision::After, &review.head, &change.after_blob),
+        ] {
+            let expected = change.path_for_revision(revision).map_or_else(
+                || "0".repeat(commit.len()),
+                |path| git(&root, &["rev-parse", &format!("{commit}:{path}")]),
+            );
+            assert_eq!(*actual, expected, "{} {revision:?}", change.path);
+        }
+    }
     let deleted = review
         .resolve(SourceLocation::new("removed.rs", 0))
         .unwrap();

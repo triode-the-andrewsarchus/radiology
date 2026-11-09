@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-08 — Full pinned change metadata and shared count application (Codex)
+
+A real Git regression found the existing Before/After blob-ID fields were empty.
+Pinned discovery now reads full raw records, using shared name/raw record assembly,
+path/status checks and object-ID validation. IDs match real SHA-1 and SHA-256
+repositories; copy similarity is retained and the modified-rename tooltip title
+matches Swift. Existing checkout numstat parsing/application now lives with the
+shared model, exposing a useful host API instead of introducing a second parser.
+
+Two new matrix tests and extended existing location tests reconcile the final two
+UnifiedDiffTests functions. Real Git identity and SHA-256 tests check every side;
+raw-metadata and per-file-patch cancellation are independently gated so neither
+phase loses coverage. All 38 pull-request, seven checkout, two model and one
+identity checks pass, along with strict Clippy, build and warning-free API docs.
+The locked offline serial workspace run passes 825 app tests/11 existing ignored,
+two binary/13 font/22 text tests and all 64 doctests.
+
+Architecture +253 measured NLOC/six measured functions, unchanged full clone
+multisets and aggregate hotspots/cycles. No dependency or worker added. Public
+`Copied` now carries similarity; runnable docs cover raw/count APIs and migration.
+[Evidence and limits](plans/rust-change-metadata-contracts.md) complete the five
+unified-diff groups while retaining other review/refresh suites, final integration,
+parallel timing limits and Android acceptance as open work.
+
 ## 2026-11-08 — Rejected malformed diffs and corrected revision mapping (Codex)
 
 Two red regressions confirmed malformed hunk headers became empty changes and

@@ -122,5 +122,29 @@ mod tests {
 
         let loc3 = SourceLocation::with_revision("src/main.rs", 100, Some(ReviewRevision::After));
         assert_eq!(loc3.position_key(), "after:src/main.rs");
+        let plain = SourceLocation::new("a.rs", 4);
+        let mut after = plain.clone();
+        after.revision = Some(ReviewRevision::After);
+        assert_ne!(plain, after);
+        assert_eq!(plain.position_key(), "a.rs");
+        assert_eq!(after.position_key(), "after:a.rs");
+        let mut moved = after.clone();
+        moved.byte_offset = 9;
+        assert_eq!(moved.revision, Some(ReviewRevision::After));
+        assert_ne!(after, moved);
+        assert_eq!(after.position_key(), moved.position_key());
+        assert_eq!(ReviewRevision::Before.other(), ReviewRevision::After);
+        assert_eq!(ReviewRevision::After.other(), ReviewRevision::Before);
+
+        // Runtime fact ownership compares the document, independently of its caret.
+        let checkout = crate::source::SourceBuffer::from_str("a.rs", "café\r\n");
+        let mut pinned = checkout.clone();
+        pinned.revision = after.revision;
+        let identity = crate::source::buffer::SourceIdentity::new(&pinned);
+        assert!(!identity.matches(&checkout));
+        assert!(identity.matches(&pinned.clone()));
+        let mut other_path = pinned.clone();
+        other_path.path = "after:a.rs".into();
+        assert!(!identity.matches(&other_path));
     }
 }

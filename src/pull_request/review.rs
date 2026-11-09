@@ -179,13 +179,16 @@ impl ReviewSnapshot {
         control.check()?;
         let bytes = GitStore(control.git(&self.object_dir)).bytes(&[
             "diff",
-            "--name-status",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--raw",
+            "--no-abbrev",
             "-z",
             "-M",
             &self.base,
             &self.head,
         ])?;
-        for change in FileChange::parse_name_status(&bytes)? {
+        for change in FileChange::parse_raw(&bytes)? {
             control.check()?;
             self.add_change(change, control)?;
         }
@@ -326,7 +329,7 @@ impl ReviewSnapshot {
 
 fn required_oid(oid: Option<&str>) -> Result<String, String> {
     let oid = oid.ok_or("Pull request has no pinned commit metadata")?;
-    if !(oid.len() == 40 || oid.len() == 64) || !oid.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if !super::change::is_object_id(oid) {
         return Err("Pull request returned an invalid commit ID".into());
     }
     Ok(oid.to_string())

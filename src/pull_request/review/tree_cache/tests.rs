@@ -305,6 +305,17 @@ fn sha256_snapshots_reuse_exact_trees_and_the_shared_workspace_blob_proof_accept
     let second = ReviewSnapshot::prepare(&root, summary, &cache).unwrap();
     assert_eq!(first.head_root, second.head_root);
     assert_eq!(first.head.len(), 64);
+    let change = first.change("a.rs").unwrap();
+    assert_eq!(
+        change.before_blob,
+        text(&root, &["rev-parse", &format!("{}:a.rs", first.base)])
+    );
+    assert_eq!(
+        change.after_blob,
+        text(&root, &["rev-parse", &format!("{head}:a.rs")])
+    );
+    assert_eq!(change.before_blob.len(), 64);
+    assert_eq!(change.after_blob.len(), 64);
     let cancel = AtomicBool::new(false);
     let inventory = InputInventory::from_paths(["a.rs".into()]).unwrap();
     let workspace = IndexingWorkspace::create(

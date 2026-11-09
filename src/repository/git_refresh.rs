@@ -9,7 +9,7 @@ use crate::{
     source::{buffer::SourceIdentity, SourceBuffer},
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, Arc},
     time::{Duration, Instant},
@@ -121,23 +121,19 @@ impl GitRead<'_> {
             "HEAD",
             "--",
         ])?)?;
-        let stats = numstat(&self.required(&[
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--numstat",
-            "-z",
-            "-M",
-            "HEAD",
-            "--",
-        ])?)?;
-        for change in &mut changes {
-            if let Some(&(additions, deletions, binary)) = stats.get(&change.path) {
-                change.additions = additions;
-                change.deletions = deletions;
-                change.is_binary = binary;
-            }
-        }
+        FileChange::apply_numstat(
+            &mut changes,
+            &self.required(&[
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--numstat",
+                "-z",
+                "-M",
+                "HEAD",
+                "--",
+            ])?,
+        )?;
         Ok(changes)
     }
 }
@@ -152,35 +148,6 @@ fn paths(bytes: &[u8]) -> Result<Vec<String>, String> {
             }
         })
         .collect()
-}
-
-fn numstat(bytes: &[u8]) -> Result<HashMap<String, (usize, usize, bool)>, String> {
-    let mut fields = nul_records(bytes)?;
-    let mut stats = HashMap::new();
-    while let Some(record) = fields.next() {
-        let mut columns = record.splitn(3, '\t');
-        let added = columns.next().ok_or("Missing addition count")?;
-        let removed = columns.next().ok_or("Missing deletion count")?;
-        let path = match columns.next().ok_or("Missing numstat path")? {
-            "" => {
-                fields.next().ok_or("Missing original numstat path")?;
-                fields.next().ok_or("Missing renamed numstat path")?
-            }
-            path => path,
-        };
-        let binary = added == "-" || removed == "-";
-        let counts = if binary {
-            (0, 0, true)
-        } else {
-            (
-                added.parse().map_err(|_| "Invalid addition count")?,
-                removed.parse().map_err(|_| "Invalid deletion count")?,
-                false,
-            )
-        };
-        stats.insert(path.to_owned(), counts);
-    }
-    Ok(stats)
 }
 
 fn added_file(root: &Path, path: &str) -> Result<Option<FileChange>, String> {
