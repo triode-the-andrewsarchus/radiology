@@ -27,6 +27,14 @@ pub(in crate::ui::app) fn frame(
     frame_with_overlay(app, ctx, events, |_| {})
 }
 
+/// Begins a held primary drag across real input frames; the caller owns release/cancel.
+fn begin_drag(app: &mut RadiologyApp, ctx: &Context, from: egui::Pos2, to: egui::Pos2) {
+    let mut press = crate::ui::test_support::click(from);
+    press.pop();
+    frame(app, ctx, press);
+    frame(app, ctx, vec![Event::PointerMoved(to)]);
+}
+
 /// Publishes worker results and paints them with the caller's actual scale/input context.
 pub(in crate::ui::app) fn settle_frame(app: &mut RadiologyApp, ctx: &Context) {
     settle(app);
@@ -1433,10 +1441,7 @@ fn escape_cancels_a_bookmark_drag_without_navigation_or_reordering() {
     let output = frame(&mut app, &ctx, vec![]);
     let from = text_center(&output, "drag-00");
     let to = text_center(&output, "drag-01");
-    let mut press = click(from);
-    press.pop();
-    frame(&mut app, &ctx, press);
-    frame(&mut app, &ctx, vec![Event::PointerMoved(to)]);
+    begin_drag(&mut app, &ctx, from, to);
     assert!(crate::ui::bookmark_list::BookmarkList::has_focus(&ctx));
     assert!(egui::DragAndDrop::has_any_payload(&ctx));
     frame(&mut app, &ctx, vec![key(Key::Escape, Modifiers::NONE)]);

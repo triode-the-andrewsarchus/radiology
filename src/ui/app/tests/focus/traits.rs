@@ -5,7 +5,7 @@ use crate::ui::{
     trait_implementations::{TraitAction, TraitImplementationList},
 };
 
-fn trait_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
+pub(super) fn trait_reader() -> (tempfile::TempDir, RadiologyApp, Context) {
     let (owner, root) = crate::semantic::trait_impls::tests::imported_fixture();
     let mut app = RadiologyApp::from_session(SessionStore::load_from(
         owner.path().join("settings/session.json"),

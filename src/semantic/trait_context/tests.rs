@@ -33,6 +33,7 @@ fn compiler_fixture_context_follows_traits_members_alias_and_qualified_impl_bodi
         (&lib, "fn render", "left/Render#"),
         (&lib, "{ 1 }", "left/Render#"),
         (&lib, "Empty {}", "left/Empty#"),
+        (&lib, "Render>()", "left/Render#"),
         (&implementations, "Alias for", "left/Render#"),
         (&implementations, "{ 2 }", "left/Render#"),
         (&implementations, "where T", "left/Render#"),

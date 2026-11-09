@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-11-09 — Inspector and trait assertion contracts (Codex)
+
+All fifteen inspector/layout/trait Swift functions now have explicit current Rust
+mappings. New actual-pointer app frames drag both dividers at 1×/2× for ordinary
+references and trait context, preserving source/caret/history, reference target/
+selection, trait target/selection and bookmark selection. Drags move away from
+size limits rather than asserting movement into a clamp. All sixteen pane masks
+now reload actual session.json choices, including none. Code Paths reveal repeats
+respect Bookmarks' independent preference and retain saved trace/bookmark/reader
+state. One shared held-drag protocol also drives existing bookmark Escape coverage.
+
+New automatic trait lifecycle coverage generates the exact recorded corpus, marks
+five prepared/verified rows, changes Alpha to equal-length Gamma, and forces real
+exit-9 refresh failure. The stale catalog excludes the changed implementation path
+and publishes no rows while retaining the live lib reader; restored bytes recover
+all five rows. Added the exact bound-reference caret to the existing compiler
+context matrix. Existing cache/identity/coverage/structure/Before/navigation cases
+supply the remaining assertion mappings. No production source, API, type style or
+UI-state change is needed.
+
+Six pane cases, twenty-two trait-filtered cases, bookmark drag/cancel and persisted
+preference checks pass, with strict Clippy and formatting. Combined full serial
+workspace verification passes 942 app tests, twelve opt-in ignores, 2/13/23
+binary/font/text and all 68 doctests (60+4+4). These are real-widget frame checks; no new native-desktop
+acceptance is claimed. Architecture NEUTRAL: +177 measured NLOC/net three analyzed
+functions, no new file, avg/max CCN 3.43/132, 36 high-complexity functions/one cycle
+and all 125 normalized clone instances identical (zero additions/removals).
+
+Inspector/traits is 15/15 mapped; compiler/personality remains 35/35. Final complete-
+ledger/integrated/native/standalone/shared-host acceptance and SDK-backed Android
+success remain open. Accessibility and actual sibling integration stay deferred.
+[Mappings](plans/rust-inspector-trait-contracts.md); evidence:
+~/.local/state/radiology-qa/inspector-contracts-20261109-0649a1b/.
+
 ## 2026-11-09 — Exact real-Rust generation contract (Codex)
 
 The existing opt-in real Rust lifecycle now also indexes the exact three Swift

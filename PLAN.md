@@ -8,13 +8,14 @@ Overall Swift/Rust parity remains unproven. The standalone app remains the curre
 product; actual little-screen-clip integration and full accessibility are deferred.
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
 and all 66 source/syntax groups have explicit mappings. All 35 compiler/personality
-groups are now mapped too. Inspector/trait (15) assertion reconciliation plus final integrated/native/
-standalone/reuse acceptance remain. Android SDK-backed success and documented
+groups and all fifteen inspector/trait functions are now mapped too. Final
+integrated/native/standalone/reuse acceptance and the complete requirement-ledger
+review remain. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
 implemented, unknown adapters fail before planning, and attempted invocations are
-recorded/copied from Generation Details. The inspector suite assertions and final acceptance still need proof.
+recorded/copied from Generation Details. Final acceptance still needs proof.
 
-The latest complete serial workspace gate passes 939 app tests (twelve opt-in
+The latest complete serial workspace gate passes 942 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
@@ -22,6 +23,12 @@ checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Inspector/trait contracts](plans/rust-inspector-trait-contracts.md) map all fifteen
+functions with real divider drags, all-mask persisted preferences, Code Paths/
+Bookmarks independence, exact trait identity/navigation and failed-refresh recovery.
+Focused cases/strict Clippy and combined serial workspace verification pass.
+No production source or UI state change was needed.
 
 [Exact real-Rust contract](plans/rust-real-rust-contract.md) freshly compiles the
 Swift two-document corpus with the actual 1.98.1 component, then checks Circle

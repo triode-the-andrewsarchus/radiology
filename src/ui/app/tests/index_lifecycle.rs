@@ -146,6 +146,57 @@ fn automatic_stale_refresh_publishes_cached_data_before_failure_and_keeps_disk_c
 }
 
 #[test]
+fn failed_automatic_trait_refresh_excludes_changed_coordinates_and_repairs_the_catalog() {
+    let (_owner, root, mut app, tool) = project();
+    let reference = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("Tests/RadiologyTests/Fixtures/scip-rust-traits");
+    fs::remove_file(root.join("src/shapes.rs")).unwrap();
+    for path in ["Cargo.toml", "src/lib.rs", "src/implementations.rs"] {
+        fs::copy(reference.join(path), root.join(path)).unwrap();
+    }
+    fs::copy(
+        reference.join("index.scip"),
+        tool.with_file_name("fixture.scip"),
+    )
+    .unwrap();
+    open_reader(&mut app, &root, "src/lib.rs");
+    let source = app.open_buffer.clone().unwrap();
+    let accepted = &app.semantic_index.as_ref().unwrap().trait_implementations;
+    assert!(accepted.is_prepared && !accepted.unverified_semantics);
+    assert_eq!(accepted.by_trait.values().map(Vec::len).sum::<usize>(), 5);
+    let implementations = root.join("src/implementations.rs");
+    let original = fs::read_to_string(&implementations).unwrap();
+    fs::write(&implementations, original.replace("Alpha", "Gamma")).unwrap();
+    fs::write(tool.with_extension("fail"), "").unwrap();
+    app.load_repository_index();
+    settle(&mut app);
+    assert!(app.generation_report().unwrap().outcomes[0]
+        .failure
+        .as_deref()
+        .unwrap()
+        .contains('9'));
+    let stale = &app.semantic_index.as_ref().unwrap().trait_implementations;
+    assert!(stale.by_trait.is_empty());
+    assert_eq!(stale.excluded_paths, ["src/implementations.rs"]);
+    assert!(stale.has_gaps());
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    fs::write(implementations, original).unwrap();
+    fs::remove_file(tool.with_extension("fail")).unwrap();
+    assert_repaired_index(&mut app, &source);
+    assert_eq!(
+        app.semantic_index
+            .as_ref()
+            .unwrap()
+            .trait_implementations
+            .by_trait
+            .values()
+            .map(Vec::len)
+            .sum::<usize>(),
+        5
+    );
+}
+
+#[test]
 fn automatic_missing_tool_reports_failure_and_reload_recovers_without_installation() {
     let (_owner, root, mut app, tool) = project();
     let script = fs::read(&tool).unwrap();

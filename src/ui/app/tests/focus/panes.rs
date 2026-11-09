@@ -32,6 +32,10 @@ fn inspector_pane_matrix_preserves_source_and_context_while_reclaiming_regions()
         let references = app.reference_context.results.hits.clone();
         for mask in 0..16 {
             set_mask(&mut app, &ctx, mask);
+            let restored = SessionStore::load_from(
+                app.session.config_directory().unwrap().join("session.json"),
+            );
+            assert_eq!(restored.inspector_panes, app.session.inspector_panes);
             frame(&mut app, &ctx, vec![]);
             let output = frame(&mut app, &ctx, vec![]);
             let panes = app.session.inspector_panes;
@@ -87,6 +91,127 @@ fn inspector_pane_matrix_preserves_source_and_context_while_reclaiming_regions()
             SessionStore::load_from(app.session.config_directory().unwrap().join("session.json"));
         assert!(persisted.inspector_panes.all_enabled());
     }
+}
+
+#[test]
+fn inspector_divider_drags_resize_real_regions_without_changing_reader_context() {
+    for scale in [1.0, 2.0] {
+        for traits in [false, true] {
+            let (_owner, mut app, _fixture_ctx) = if traits {
+                super::traits::trait_reader()
+            } else {
+                super::references::caller_reader()
+            };
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            app.toggle_current_bookmark();
+            let bookmark = app.bookmarks.bookmarks[0].id;
+            app.bookmark_list.selected = Some(bookmark);
+            if traits {
+                app.trait_context.select(Some(1));
+            } else {
+                app.handle_reference_action(crate::ui::reference_list::ReferenceAction::Select(1));
+            }
+            let source = app.open_buffer.clone().unwrap();
+            let history = format!("{:?}", app.history);
+            let caret = (app.caret_line, app.caret_col);
+            let target = app.reference_context.explicit().cloned();
+            let selected_reference = app.reference_context.selected;
+            let trait_target = app.trait_context.target().cloned();
+            let selected_trait = app.trait_context.selected;
+            for _ in 0..3 {
+                frame(&mut app, &ctx, vec![]);
+            }
+            for name in ["declaration_region", "bookmarks_region"] {
+                let id = egui::Id::new(name);
+                let before = egui::containers::panel::PanelState::load(&ctx, id)
+                    .unwrap()
+                    .rect;
+                let response = ctx.read_response(id.with("__resize")).unwrap();
+                let from = response.rect.center();
+                // Move away from the minimum, regardless of scale-restored panel size.
+                let top = name == "declaration_region";
+                let minimum = if top { 160.0 } else { 100.0 };
+                let direction = if before.height() > minimum + 60.0 {
+                    -1.0
+                } else {
+                    1.0
+                };
+                let to = from + egui::vec2(0.0, direction * if top { 60.0 } else { -60.0 });
+                begin_drag(&mut app, &ctx, from, to);
+                frame(&mut app, &ctx, vec![]);
+                frame(&mut app, &ctx, vec![click(to).pop().unwrap()]);
+                let after = egui::containers::panel::PanelState::load(&ctx, id)
+                    .unwrap()
+                    .rect;
+                let delta = after.height() - before.height();
+                assert!(
+                    delta * direction > 40.0,
+                    "{name} scale {scale} traits {traits}: {before:?} -> {after:?}"
+                );
+                assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+                assert_eq!((app.caret_line, app.caret_col), caret);
+                assert_eq!(format!("{:?}", app.history), history);
+                assert_eq!(app.reference_context.explicit(), target.as_ref());
+                assert_eq!(app.reference_context.selected, selected_reference);
+                assert_eq!(app.trait_context.target(), trait_target.as_ref());
+                assert_eq!(app.trait_context.selected, selected_trait);
+                assert_eq!(app.bookmark_list.selected, Some(bookmark));
+            }
+        }
+    }
+}
+
+#[test]
+fn code_paths_sidebar_keeps_bookmark_preference_and_saved_reader_state_independent() {
+    let (_owner, mut app, ctx) = super::references::caller_reader();
+    app.toggle_current_bookmark();
+    assert!(app.import_code_path_text("Boot\na.rs:alpha:Start".into()));
+    settle(&mut app);
+    let bookmarks = app.bookmarks.bookmarks.clone();
+    let traces: Vec<_> = app
+        .saved_code_paths()
+        .iter()
+        .map(|trace| trace.id)
+        .collect();
+    let source = app.open_buffer.clone().unwrap();
+    let history = format!("{:?}", app.history);
+    for enabled in [true, false] {
+        if app.session.inspector_panes.bookmarks != enabled {
+            app.execute_command(
+                &ctx,
+                ToolbarAction::ToggleInspectorPane(InspectorPane::Bookmarks),
+            );
+        }
+        for _ in 0..2 {
+            app.show_sidebar = false;
+            app.show_inspector = false;
+            app.execute_command(&ctx, ToolbarAction::ShowCodePaths);
+            assert!(app.show_sidebar && !app.show_inspector);
+            assert!(matches!(app.sidebar_tab, SidebarTab::CodePaths));
+            assert_eq!(app.session.inspector_panes.bookmarks, enabled);
+            let restored = SessionStore::load_from(
+                app.session.config_directory().unwrap().join("session.json"),
+            );
+            assert_eq!(restored.inspector_panes.bookmarks, enabled);
+        }
+    }
+    app.execute_command(
+        &ctx,
+        ToolbarAction::ToggleInspectorPane(InspectorPane::Bookmarks),
+    );
+    assert!(app.show_inspector && app.session.inspector_panes.bookmarks);
+    assert!(matches!(app.sidebar_tab, SidebarTab::CodePaths));
+    assert_eq!(app.bookmarks.bookmarks, bookmarks);
+    assert_eq!(
+        app.saved_code_paths()
+            .iter()
+            .map(|trace| trace.id)
+            .collect::<Vec<_>>(),
+        traces
+    );
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_eq!(format!("{:?}", app.history), history);
 }
 
 #[test]

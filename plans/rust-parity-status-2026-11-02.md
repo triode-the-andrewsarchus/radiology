@@ -3,10 +3,10 @@
 Current source reconciliation: [test-presentation contracts](rust-test-presentation-contracts.md)
 complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
-The latest complete production gate passes 939 app checks (twelve opt-in
+The latest complete production gate passes 942 app checks (twelve opt-in
 ignores), binary/font/text 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation, C/C++
-preparation status, explicit cross-checkout reuse and automatic indexing. Compiler/personality is fully mapped at 35/35; inspector/trait 15 groups remain, followed
-by final integrated/native/standalone/reuse acceptance.
+preparation status, explicit cross-checkout reuse and automatic indexing. Compiler/personality is fully mapped at 35/35 and inspector/trait at 15/15, followed
+by final integrated/native/standalone/reuse acceptance and the complete ledger audit.
 [Explicit reuse](rust-index-reuse-contracts.md) closes all three IndexReuse groups
 and the final personality group (compiler/personality 9/35). All 108 indexing
 checks, strict Clippy, build, docs and the full serial workspace gate pass. [C/C++ contracts](rust-clang-contracts.md) now map eight more groups (17/35 compiler/
@@ -22,7 +22,9 @@ and strict gates pass, as does combined serial verification. [Indexing lifecycle
 bringing compiler/personality to 26/35. Exact real-Rust generation, Kotlin and PR
 Kotlin assertions remain. [Kotlin/PR contracts](rust-kotlin-contracts.md) now map eight more functions
 (34/35 total), leaving the exact real-Rust generation case. [Exact real-Rust generation](rust-real-rust-contract.md) now closes that final
-function with a fresh real 1.98.1 run (35/35 mapped). Earlier checkpoint-time counts below are historical.
+function with a fresh real 1.98.1 run (35/35 mapped). [Inspector/trait contracts](rust-inspector-trait-contracts.md) map all fifteen
+functions through current frame/model/service evidence; final acceptance remains
+separate. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

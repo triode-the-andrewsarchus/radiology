@@ -522,6 +522,14 @@ Evidence: [rust-inspector-region-sizing](rust-inspector-region-sizing.md), [rust
 | [TraitImplementationContextTests](../Tests/RadiologyTests/TraitImplementationContextTests.swift) | 5 |
 | [TraitImplementationTests](../Tests/RadiologyTests/TraitImplementationTests.swift) | 5 |
 
+[Inspector/trait assertion contracts](rust-inspector-trait-contracts.md) map all
+fifteen functions above. Added actual divider drags for reference/trait readers at
+both scales, all-mask disk reloads, independent Code Paths/Bookmarks checks and an
+automatic trait stale-failure/repair case. Focused and strict checks pass; combined
+serial workspace verification passes 942 app tests (twelve opt-in ignores),
+binary/font/text 2/13/23 and all 68 doctests. Final integrated/native/standalone/reuse
+acceptance and the complete requirement ledger remain open.
+
 ## Opt-in external probes
 
 These11 reference files require particular repositories, caches, GitHub metadata or tool environments. Existing bounded Rust/native/real-tool evidence is linked above; it does not claim every external Swift corpus or platform run.
@@ -544,6 +552,6 @@ Support files: GitFixture, ObservationFlag, PreparedClangIndexer, SyntaxFixtures
 
 ## Concrete remaining gates
 
-1. Finish assertion-level reconciliation in the indexed groups; repair differences rather than marking a whole group complete from its links.
+1. Audit the complete ordinary-suite inventory against its assertion mappings and the original/upstream requirement ledgers; repair any uncovered differences. Compiler/personality (35/35) and inspector/trait (15/15) mappings are complete, while overall integrated/native acceptance remains unproven.
 2. Successful SDK-backed Android debug/unit-test generation remains unverified. No local SDK was found. A private Platform36/Build Tools36.0.0/command-line setup is prepared; downloading requires the user’s authorization to accept Google’s SDK license. Missing-SDK failure acceptance already passes.
 3. [Clean build/resource/external-host acceptance](rust-reader-host-audit.md) now passes for this audited state; rerun affected gates after further runtime/API/resource changes. Actual little-screen-clip adoption and full assistive accessibility remain deferred.
