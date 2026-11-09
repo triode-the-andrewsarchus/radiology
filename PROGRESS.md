@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-09 — Code Paths behavioral parity (Codex)
+
+All four Swift Code Paths suites (16 annotated groups) now have explicit mapping.
+Corrected the ambiguous-function test's file location: it previously wrote outside
+the attached root and could pass on a missing-file error. It now requires actual
+ambiguous, missing-symbol, binary and escaping-symlink diagnostics while preserving
+source Arc, exact caret and full history. Parser/store/session evidence covers
+Unicode/CRLF/escapes, physical-line errors, exact byte cap and canonical storage.
+Extended session/app flows reject malformed valid-prefix imports and corrupt-store
+imports, preserve archive bytes and both traces, and delete only the selected trace.
+
+New both-scale saved-trace flow composes import, exact Back, canonical alias relaunch,
+real pinned After navigation from Before, checkout exit, root isolation and line-
+shifted refresh. The old focused review test was merged into it, preserving the
+equal-head/different-Arc queued-error assertion and eliminating a new clone.
+New sidebar/import matrix paints normal, conditional and real error states at
+220/280/420 points, 1×/2× and dark/light; complete descriptions wrap where needed
+and all labels fit horizontally. No runtime, typography or API correction was needed.
+Existing Linux peer-tab/independent-inspector conventions remain documented.
+
+All 42 Code Paths tests, four inspector-pane checks, two help checks, strict
+all-target Clippy, formatting and diff checks pass. No fresh full-workspace/build/
+docs run for this test-only checkpoint; 091cd94 remains the latest full run.
+Architecture NEUTRAL: +209 measured NLOC/one net test function, average CCN
+3.41 to 3.42, unchanged max 132/36 hotspots/cycles and identical complete clone
+multisets (123 instances, zero additions/removals). Existing fixtures and shared
+source, collection, import and rendering mechanisms are reused.
+[Contract mapping](plans/rust-code-path-contracts.md), PLAN, behavior index and parity
+ledger record exact evidence and archive
+`~/.local/state/radiology-qa/code-path-contracts-20261109-33560ab/`.
+
+Next: semantic/context/navigation, source/syntax, compiler/indexing and inspector
+assertion reconciliation, followed by final whole-app/native and standalone gates.
+Actual IME-engine acceptance, known parallel timing limits and Android remain open.
+Full accessibility and actual sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Critical projection drawing parity (Codex)
 
 All three Swift drawing groups now have explicit mapping. Expanded real viewport

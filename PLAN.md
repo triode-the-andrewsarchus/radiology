@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Code Paths contracts](plans/rust-code-path-contracts.md) now map all four Swift
+suites (16 groups). Corrected error fixtures distinguish real failures; combined
+saved checkout/PR/relaunch/shifted-source, multi-trace atomic persistence and
+both-scale/theme narrow-layout checks pass. Remaining semantic/context/source/
+compiler/inspector reconciliation and final acceptance stay open.
+
 [Critical drawing contracts](plans/rust-critical-drawing-contracts.md) now map all
 three Swift groups through both-scale/theme paint, color bounds, independent
 selection/pins, canonical copy, fold redraw and source replacement checks. All nine

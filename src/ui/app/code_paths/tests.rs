@@ -174,18 +174,31 @@ fn opens_first_conditional_then_explicit_variant_and_reports_invalid_variant_ato
 #[test]
 fn missing_ambiguous_and_cancelled_steps_preserve_source_caret_and_history() {
     let (dir, mut app) = opened_repository();
-    std::fs::write(dir.path().join("bad.c"), "void f() {}\nvoid f(int n) {}\n").unwrap();
-    let selected = trace(&mut app, "Boot\na.rs:missing:Missing\nbad.c:f:Ambiguous");
+    let root = app.repository_root.clone().unwrap();
+    std::fs::write(root.join("bad.c"), "void f() {}\nvoid f(int n) {}\n").unwrap();
+    std::fs::write(root.join("binary.rs"), [0, 1, 2]).unwrap();
+    let mut text = "Unavailable\na.rs:missing:Missing symbol\nbad.c:f:Ambiguous\nbinary.rs:f:Binary\nmissing.rs:f:Missing file".to_owned();
+    let mut reasons = vec!["not found", "ambiguous", "binary", ""];
+    #[cfg(unix)]
+    {
+        let outside = dir.path().join("outside.rs");
+        std::fs::write(&outside, "fn f() {}\n").unwrap();
+        std::os::unix::fs::symlink(outside, root.join("escape.rs")).unwrap();
+        text.push_str("\nescape.rs:f:Escapes checkout");
+        reasons.push("leaves the repository");
+    }
+    let selected = trace(&mut app, &text);
     let original = app.open_buffer.clone().unwrap();
     let departure = caret(&app);
-    let history = app.history.current().cloned();
-    for step in &selected.steps {
+    let history = format!("{:?}", app.history);
+    for (step, reason) in selected.steps.iter().zip(reasons) {
         app.go_to_code_path_step(step.id, 0);
         settle(&mut app);
-        assert!(app.code_path_error().is_some());
+        let error = app.code_path_error().unwrap();
+        assert!(error.contains(reason), "{}: {error}", step.description);
         assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &original));
         assert_eq!(caret(&app), departure);
-        assert_eq!(app.history.current(), history.as_ref());
+        assert_eq!(format!("{:?}", app.history), history);
         assert_eq!(app.selected_code_path_step(), None);
     }
     app.go_to_code_path_step(selected.steps[0].id, 0);
@@ -265,40 +278,6 @@ fn queued_success_cannot_overwrite_a_changed_origin_or_new_navigation() {
         assert_eq!(app.selected_code_path_step(), None);
         assert!(app.code_path_destinations().is_empty());
     }
-}
-
-#[test]
-fn review_opens_pinned_after_and_back_restores_exact_before_departure() {
-    let before = "// before café 🦀\nfn entry() {}\n";
-    let after = "// after café 🦀\n\nfn entry() {}\n";
-    let (_owner, root, review) =
-        crate::pull_request::review::tests::fixture_with_sources(before, after);
-    let (_settings, mut app) =
-        crate::ui::app::tests::review_refresh::open_review(&root, review, ReviewRevision::Before);
-    app.jump_to_location("a file.rs", 1, 8);
-    settle(&mut app);
-    let departure = caret(&app);
-    assert_eq!(departure.revision, Some(ReviewRevision::Before));
-    let selected = trace(&mut app, "Entry\na file.rs:entry:Begin");
-    app.go_to_code_path_step(selected.steps[0].id, 0);
-    settle(&mut app);
-    assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
-    assert_eq!(caret(&app).revision, Some(ReviewRevision::After));
-    assert_eq!(caret(&app).byte_offset, after.find("entry").unwrap());
-    app.execute_command(&Context::default(), ToolbarAction::NavigateBack);
-    settle(&mut app);
-    assert_eq!(caret(&app), departure);
-    assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
-    // New snapshot identity retires a queued error, even if its Git heads are equal.
-    app.go_to_code_path_step(selected.steps[0].id, 0);
-    queue_error(&mut app);
-    app.review = app
-        .review
-        .as_ref()
-        .map(|review| Arc::new((**review).clone()));
-    app.poll_source(&Context::default());
-    assert!(app.code_path_error().is_none());
-    assert_eq!(caret(&app), departure);
 }
 
 #[test]
@@ -383,6 +362,96 @@ fn a_real_keyboard_batch_that_returns_to_its_origin_retires_the_step_job() {
             .recv_timeout(std::time::Duration::from_secs(5))
             .unwrap());
         app.poll_source(&ctx);
+        assert!(app.code_path_error().is_none());
+    }
+}
+
+#[test]
+fn saved_trace_keeps_attached_scope_through_review_back_relaunch_and_shifted_checkout() {
+    let before = "// before café 🦀\nfn entry() {}\n";
+    let after = "// after café 🦀\n\nfn entry() {}\n";
+    let (owner, root, review) =
+        crate::pull_request::review::tests::fixture_with_sources(before, after);
+    for scale in [1.0, 2.0] {
+        let (settings, mut app) = reader();
+        std::fs::write(root.join("a file.rs"), before).unwrap();
+        app.open_repository(&root);
+        settle(&mut app);
+        app.open_file("a file.rs");
+        settle(&mut app);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        assert!(app.import_code_path_text("Entry café 🦀\na file.rs:entry:Begin".into()));
+        settle(&mut app);
+        let saved = app.saved_code_paths()[0].clone();
+        app.jump_to_location("a file.rs", 1, 8);
+        settle(&mut app);
+        let departure = caret(&app);
+        app.go_to_code_path_step(saved.steps[0].id, 0);
+        settle(&mut app);
+        assert_eq!(caret(&app).byte_offset, before.find("entry").unwrap());
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle(&mut app);
+        assert_eq!(caret(&app), departure);
+        let mut relaunched = RadiologyApp::from_session(SessionStore::load_from(
+            settings.path().join("settings/session.json"),
+        ));
+        relaunched.open_repository(&root.join("."));
+        settle(&mut relaunched);
+        assert_eq!(relaunched.saved_code_paths(), std::slice::from_ref(&saved));
+        assert_eq!(relaunched.selected_code_path(), Some(saved.as_ref()));
+        app.pending_open_file = Some("a file.rs".into());
+        app.accept_review(review.clone());
+        settle(&mut app);
+        assert_eq!(app.repository_root.as_ref(), Some(&root));
+        assert_eq!(app.saved_code_paths(), std::slice::from_ref(&saved));
+        app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
+        settle(&mut app);
+        app.jump_to_location("a file.rs", 1, 8);
+        settle(&mut app);
+        let departure = caret(&app);
+        assert_eq!(departure.revision, Some(ReviewRevision::Before));
+        app.go_to_code_path_step(saved.steps[0].id, 0);
+        settle(&mut app);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
+        assert_eq!(caret(&app).revision, Some(ReviewRevision::After));
+        assert_eq!(caret(&app).byte_offset, after.find("entry").unwrap());
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle(&mut app);
+        assert_eq!(caret(&app), departure);
+        // Preserve the old focused review regression inside this saved-trace
+        // workflow: an equal-head replacement is still a different request owner.
+        app.go_to_code_path_step(saved.steps[0].id, 0);
+        queue_error(&mut app);
+        app.review = app
+            .review
+            .as_ref()
+            .map(|review| Arc::new((**review).clone()));
+        app.poll_source(&ctx);
+        assert!(app.code_path_error().is_none());
+        assert_eq!(caret(&app), departure);
+        app.execute_command(&ctx, ToolbarAction::ExitPRReview);
+        settle(&mut app);
+        assert_eq!(app.saved_code_paths(), std::slice::from_ref(&saved));
+        let other = owner.path().join("other");
+        std::fs::create_dir_all(&other).unwrap();
+        app.open_repository(&other);
+        settle(&mut app);
+        assert!(app.saved_code_paths().is_empty() && app.selected_code_path().is_none());
+        app.open_repository(&root);
+        settle(&mut app);
+        assert_eq!(app.saved_code_paths(), std::slice::from_ref(&saved));
+        app.open_file("a file.rs");
+        settle(&mut app);
+        let shifted = format!("// inserted\n// another line\n// shifted\n{before}");
+        std::fs::write(root.join("a file.rs"), &shifted).unwrap();
+        app.execute_command(&ctx, ToolbarAction::Refresh);
+        settle(&mut app);
+        app.go_to_code_path_step(saved.steps[0].id, 0);
+        settle(&mut app);
+        assert_eq!(app.caret_line, 5);
+        assert_eq!(caret(&app).byte_offset, shifted.find("entry").unwrap());
+        assert_eq!(app.saved_code_paths(), std::slice::from_ref(&saved));
         assert!(app.code_path_error().is_none());
     }
 }

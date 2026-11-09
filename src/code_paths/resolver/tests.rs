@@ -143,6 +143,13 @@ fn only_opposing_shared_preprocessor_branches_are_variants() {
                 .collect::<Vec<_>>(),
             [2, 4, 6]
         );
+        let buffer = SourceBuffer::from_str(path, &text);
+        assert!(
+            !source_text::alternatives(&[text.len() - 1, 0], &buffer, &|| Ok::<(), ResolveError>(
+                ()
+            ))
+            .unwrap()
+        );
         let duplicate =
             format!("#if HYP\n{declaration}\n{declaration}\n#else\n{declaration}\n#endif\n");
         assert!(matches!(

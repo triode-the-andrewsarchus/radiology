@@ -64,11 +64,11 @@ fn malformed_import_and_corrupt_save_preserve_collection_and_file() {
     assert!(session.import_text("Boot\na.rs:boot:Enter".into()));
     session.flush(Duration::from_secs(5)).unwrap();
     let accepted = session.paths()[0].clone();
-    assert!(session.import_text("Invalid\nmalformed".into()));
+    assert!(session.import_text("Invalid\na.c:f:Valid prefix\nmalformed".into()));
     assert!(session
         .flush(Duration::from_secs(5))
         .unwrap_err()
-        .contains("2"));
+        .contains("Line 3:"));
     assert_eq!(session.paths()[0], accepted);
     let archive = std::fs::read_dir(owner.path().join("settings/code-paths"))
         .unwrap()
@@ -80,6 +80,18 @@ fn malformed_import_and_corrupt_save_preserve_collection_and_file() {
     assert!(session.delete(accepted.id));
     assert!(session.flush(Duration::from_secs(5)).is_err());
     assert_eq!(session.paths()[0], accepted);
+    assert_eq!(std::fs::read_to_string(&archive).unwrap(), "broken archive");
+    assert!(session.import_text("Must not overwrite\nb.rs:boot:Another trace".into()));
+    assert!(session.flush(Duration::from_secs(5)).is_err());
+    assert_eq!(session.paths(), std::slice::from_ref(&accepted));
+    assert_eq!(std::fs::read_to_string(&archive).unwrap(), "broken archive");
+    let mut corrupt = CodePathSession::new(Some(store.clone()));
+    corrupt.open(root.clone());
+    assert!(corrupt.flush(Duration::from_secs(5)).is_err());
+    assert!(corrupt.paths().is_empty() && corrupt.error().is_some());
+    assert!(corrupt.import_text("Blocked import\nb.rs:boot:Keep corrupt data".into()));
+    assert!(corrupt.flush(Duration::from_secs(5)).is_err());
+    assert!(corrupt.paths().is_empty());
     assert_eq!(std::fs::read_to_string(&archive).unwrap(), "broken archive");
     // Repair is explicit; retry a load without replacing source data or records.
     std::fs::remove_file(&archive).unwrap();
@@ -118,6 +130,7 @@ fn closing_retains_the_receipt_until_flush_and_no_storage_is_a_visible_failure()
     let (_owner, root, store, mut session) = loaded_fixture();
     assert!(session.import_text("Boot\na.rs:boot:Enter".into()));
     session.close();
+    assert!(!session.import_text("No repository\na.rs:boot:Cannot import".into()));
     session.flush(Duration::from_secs(5)).unwrap();
     assert!(session.paths().is_empty());
     assert_eq!(store.load(&root).unwrap().len(), 1);

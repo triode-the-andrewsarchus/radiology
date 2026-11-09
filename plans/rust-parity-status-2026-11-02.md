@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Code Paths contracts](rust-code-path-contracts.md) map all four suites (16 Swift
+groups). Real ambiguous/binary/symlink failures retain the reader; saved traces
+survive checkout/PR/Before-After/Back/relaunch/scope and shifted-source refresh.
+Atomic multi-trace failures and both-scale/theme narrow sidebar/import rendering
+pass. Other suites and final whole-app/native acceptance remain open.
+
 [Critical drawing contracts](rust-critical-drawing-contracts.md) now map the three
 Swift groups through actual source paint/copy/fold/replacement frames at both
 scales/themes. With the preceding checkpoints, all nine Critical Lens/hover suites

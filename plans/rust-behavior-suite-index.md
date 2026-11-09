@@ -239,6 +239,13 @@ Evidence: [rust-code-path-resolution](rust-code-path-resolution.md), [rust-code-
 | [CodePathTests](../Tests/RadiologyTests/CodePathTests.swift) | 5 |
 | [CodePathUITests](../Tests/RadiologyTests/CodePathUITests.swift) | 1 |
 
+[Code Paths reconciliation](rust-code-path-contracts.md) now maps all sixteen
+groups in these four suites. Combined saved checkout/PR/relaunch/refresh,
+canonical storage and failure preservation, exact symbol variants and both-scale/
+theme narrow layouts have explicit evidence. The old ambiguous-file test wrote
+outside the repository; its corrected fixture now requires the real diagnostic.
+Final whole-app/native acceptance and the sections below remain open.
+
 ## Semantic/context/reference identities
 
 Rust entry points: [tests.rs](../src/semantic/context/tests.rs), [index.rs](../src/semantic/index.rs), [caller_tree.rs](../src/semantic/caller_tree.rs), [tests.rs](../src/semantic/incoming_calls/tests.rs), [references.rs](../src/ui/app/tests/focus/references.rs).
