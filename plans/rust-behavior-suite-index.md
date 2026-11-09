@@ -214,6 +214,12 @@ gap/padding hit regions and presented-anchor ownership during replacement dwell.
 The first CallGraphWorkerTests group uses the same wire fixture; its remaining
 four groups and all three drawing groups still require their separate audit.
 
+[Worker reconciliation](rust-critical-worker-contracts.md) now maps all five
+CallGraphWorkerTests groups. Immutable workers retire dependent summaries;
+same-length changes, stale digests, real in-flight viewer/structure replacement,
+cancellation/reaping and unresolved/dynamic partial coverage pass. The three
+SourceProjectionDrawingTests groups retain their separate audit.
+
 ## Code Paths
 
 Rust entry points: [tests.rs](../src/code_paths/resolver/tests.rs), [tests.rs](../src/code_paths/store/tests.rs), [tests.rs](../src/ui/app/code_paths/tests.rs), [ui_tests.rs](../src/ui/app/code_paths/ui_tests.rs).

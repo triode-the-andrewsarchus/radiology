@@ -100,6 +100,21 @@ fn run_consumers(control: &Path) {
         source_line: preview_line(&target, 1, &(3..9)),
         is_definition: true,
     };
+    // Prepare the viewer replacement before the controlled interleaving starts.
+    let replacement = Arc::new(
+        SourceBuffer::from_bytes(
+            &target.path,
+            target.text.replace("{}", "{ }").into_bytes(),
+            target.revision,
+        )
+        .unwrap(),
+    );
+    let replacement_calls = Arc::new(DocumentSyntax::analyze(&replacement).calls);
+    let mut replacement_index = (*inputs.index).clone();
+    replacement_index
+        .source_digests
+        .insert(target.path.clone(), replacement.content_digest().into());
+    let replacement_index = Arc::new(replacement_index);
     for consumer in ["preview", "references", "callers", "critical"] {
         let _ = std::fs::remove_file(control.join("pid"));
         std::fs::write(control.join("hold"), "").unwrap();
@@ -135,6 +150,46 @@ fn run_consumers(control: &Path) {
                 0,
                 "{consumer}: child must be live before cancellation"
             );
+            // A fresh viewer/policy configuration proceeds while the old disk
+            // operation is provably in flight. It must use viewer bytes without
+            // waiting for, or sharing caches with, the old worker.
+            let promoted = if consumer == "critical" {
+                let mut current_inputs = GraphInputs {
+                    source: inputs.source.clone(),
+                    buffer: replacement.clone(),
+                    calls: Arc::new(DocumentSyntax::analyze(&target).calls),
+                    index: replacement_index.clone(),
+                    overrides: Default::default(),
+                };
+                current_inputs
+                    .overrides
+                    .set_symbol(&id.symbol, Some(crate::critical::Criticality::Ordinary));
+                let missing = CallGraphWorker::new(current_inputs.clone())
+                    .frontier_of(&id, &AtomicBool::new(false))
+                    .unwrap();
+                assert_eq!(
+                    missing.coverage,
+                    crate::critical::graph::CallCoverage::NoBody(
+                        crate::critical::graph::NoBodyReason::NoSyntax
+                    )
+                );
+                current_inputs.calls = replacement_calls.clone();
+                let mut current = CallGraphWorker::new(current_inputs);
+                let accepted = current.frontier_of(&id, &AtomicBool::new(false)).unwrap();
+                assert_eq!(
+                    accepted.summary.body.as_ref().unwrap().content_digest,
+                    replacement.content_digest()
+                );
+                assert_eq!(accepted.annotation().label(), "0");
+                assert_eq!(
+                    unsafe { libc::kill(pid, 0) },
+                    0,
+                    "old disk read is still live after viewer promotion"
+                );
+                Some((current, accepted))
+            } else {
+                None
+            };
             let started = Instant::now();
             cancel.store(true, Ordering::Relaxed);
             let error = worker.join().unwrap().unwrap_err();
@@ -147,6 +202,13 @@ fn run_consumers(control: &Path) {
             let errno = std::io::Error::last_os_error().raw_os_error();
             assert_eq!(status, -1, "{consumer}: direct Git child must be reaped");
             assert_eq!(errno, Some(libc::ESRCH));
+            if let Some((mut current, accepted)) = promoted {
+                assert_eq!(
+                    current.frontier_of(&id, &AtomicBool::new(false)).unwrap(),
+                    accepted
+                );
+                println!("critical: viewer bytes and late structure remain current after retiring the old load");
+            }
             println!("{consumer}: live pinned-blob child {pid} cancelled and reaped");
         });
         std::fs::remove_file(control.join("hold")).unwrap();

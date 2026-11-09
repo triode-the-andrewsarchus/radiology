@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-09 — Critical graph-worker lifecycle parity (Codex)
+
+All five Swift worker groups now have explicit mapping. Two new tests verify
+same-length callee replacement updates transitive results in a fresh immutable
+worker, stale index provenance stays partial, repeated requests retain their own
+coherent caches, and empty semantic documents count two unresolved/dynamic sites
+without inventing edges or proven zero.
+
+The existing isolated Git-read cancellation fixture now accepts new viewer bytes
+and matching structure while the old pinned-blob child is confirmed live. Old
+call facts yield NoSyntax; matching facts immediately yield the new body digest.
+Cancelling/reaping old I/O leaves that result unchanged, and the old worker can
+recover afterward. Existing held annotation publication and policy/app ownership
+tests cover retirement. Rust's immutable request caches replace Swift's mutable
+actor epochs; no identical whole-frontier caching/performance claim is made.
+No production API, UI, typography or dependency changes were required.
+
+All eight worker/56 Critical service tests, nine app/popup checks, real live-read
+subprocess, strict all-target Clippy, formatting and diff checks pass. No fresh
+full-workspace run for this test-only checkpoint; preceding 091cd94 passed 854
+app tests and all 65 doctests. Architecture +155 measured NLOC/two test functions;
+complete clone multisets retain 123 instances with zero additions/removals, and
+average/max CCN, 36 hotspots and cycles are unchanged. The baseline includes
+previously committed docs, accounting for its one extra Markdown clone.
+[Worker mapping](plans/rust-critical-worker-contracts.md), PLAN, behavior index and
+parity ledger record the boundaries and archive
+`~/.local/state/radiology-qa/critical-worker-20261109-091cd94/`.
+Next: the three drawing groups, then remaining suites and final whole-app/native
+acceptance. Known parallel timing limits and Android remain open; accessibility
+and actual sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Critical summary scheduling and hover transit (Codex)
 
 Red regressions found unnecessary annotation jobs for sources with no folded

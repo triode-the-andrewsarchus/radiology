@@ -6,11 +6,17 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Critical worker contracts](rust-critical-worker-contracts.md) now map all five
+Swift groups through immutable worker replacement, exact callee digests, cached
+request coherence and real pinned-read viewer/structure promotion with cancellation
+and child reaping. No runtime correction was needed. Three drawing groups and
+other suites/final acceptance remain open.
+
 [Critical summary/hover contracts](rust-critical-summary-contracts.md) now map
 four summary-model and two popup-host groups, plus the first worker group. No-fold
 sources schedule no annotation work; glyph-anchored transit stays attached to the
-presented popup until replacement dwell finishes. Four worker and three drawing
-groups remain open, along with other suites and final acceptance.
+presented popup until replacement dwell finishes. Worker groups are reconciled
+above; three drawing groups, other suites and final acceptance remain open.
 
 Seven [Critical model/projection groups](rust-critical-model-projection-contracts.md)
 are now reconciled. Unsupported files stop app projection work, while decoded-index

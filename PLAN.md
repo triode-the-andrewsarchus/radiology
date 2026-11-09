@@ -4,11 +4,17 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Critical worker contracts](plans/rust-critical-worker-contracts.md) now map all
+five Swift groups through immutable request ownership. Same-length callee edits,
+stale provenance, viewer bytes/late structure during a real blocked read, child
+cancellation/reaping and unresolved dynamic sites pass. Drawing's three groups,
+other suite reconciliation and final acceptance remain open.
+
 [Critical summary/hover contracts](plans/rust-critical-summary-contracts.md) map
 four summary-model and two popup-host groups plus the first worker group. No-fold
 sources skip annotation work, and popup transit follows the displayed occurrence
-through loading and replacement dwell. Four worker and three drawing groups,
-other suite reconciliation and final acceptance remain open.
+through loading and replacement dwell. Worker groups are reconciled above; three
+drawing groups, other suite reconciliation and final acceptance remain open.
 
 [Critical model/projection contracts](plans/rust-critical-model-projection-contracts.md)
 now map seven Swift groups. Unsupported source clears the app projection; both-scale

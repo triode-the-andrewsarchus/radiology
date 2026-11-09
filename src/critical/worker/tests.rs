@@ -354,3 +354,105 @@ fn swift_fixture_resolves_cross_file_bodies_cache_and_ordinary_marks() {
         CallCoverage::NoBody(NoBodyReason::External)
     );
 }
+
+#[test]
+fn same_length_callee_replacement_retires_dependent_summaries_with_the_worker() {
+    let (owner, mut inputs) = fixture();
+    let cancel = AtomicBool::new(false);
+    let mut original = CallGraphWorker::new(inputs.clone());
+    let before = original.frontier_in_source(0, &cancel).unwrap();
+    assert_eq!(before.paths[0].call.callee.symbol, OPEN);
+    let path = owner.path().join("b.rs");
+    let old = std::fs::read_to_string(&path).unwrap();
+    let edited = SourceBuffer::from_str("b.rs", &old.replace("open()", "read()"));
+    assert_eq!(old.len(), edited.byte_len());
+    assert_ne!(edited.content_digest(), inputs.index.source_digests["b.rs"]);
+    std::fs::write(&path, &edited.text).unwrap();
+    // A request keeps its own coherent file snapshot, even after disk replacement.
+    let bytes = original.source_bytes;
+    assert_eq!(original.frontier_in_source(0, &cancel).unwrap(), before);
+    assert_eq!(original.source_bytes, bytes);
+    // Retiring the request cannot turn the stale old index into a proven zero.
+    let stale = CallGraphWorker::new(inputs.clone())
+        .frontier_in_source(0, &cancel)
+        .unwrap();
+    assert_eq!(stale.annotation().label(), "0+");
+    assert!(matches!(
+        stale.coverage,
+        CallCoverage::Partial(CoverageGaps {
+            missing_bodies: 1,
+            ..
+        })
+    ));
+    let read = "rust-analyzer cargo std 0 fs/read().";
+    let index = Arc::make_mut(&mut inputs.index);
+    index.documents.get_mut("b.rs").unwrap().occurrences[1].symbol = read.into();
+    index
+        .source_digests
+        .insert("b.rs".into(), edited.content_digest().into());
+    let mut current = CallGraphWorker::new(inputs);
+    let after = current.frontier_in_source(0, &cancel).unwrap();
+    assert_eq!(after.summary, before.summary);
+    assert_eq!(after.annotation().label(), "1");
+    assert_eq!(after.paths[0].via[0].callee.symbol, HELPER);
+    assert_eq!(after.paths[0].call.callee.symbol, read);
+    let body = current
+        .frontier_of(&SemanticSymbolID::new(HELPER, ""), &cancel)
+        .unwrap();
+    assert_eq!(
+        body.summary.body.unwrap().content_digest,
+        edited.content_digest()
+    );
+    std::fs::remove_file(path).unwrap();
+    let bytes = current.source_bytes;
+    assert_eq!(current.frontier_in_source(0, &cancel).unwrap(), after);
+    assert_eq!(current.source_bytes, bytes);
+}
+
+#[test]
+fn dynamic_and_unresolved_sites_remain_partial_with_an_explicit_empty_document() {
+    let (_owner, mut inputs) = fixture();
+    let buffer = Arc::new(SourceBuffer::from_str(
+        "other.rs",
+        "fn go(f: fn()) { (f)(); helper(); }\nfn helper() {}\n",
+    ));
+    inputs.calls = Arc::new(DocumentSyntax::analyze(&buffer).calls);
+    inputs.index = Arc::new(SemanticIndex::from_scip(ScipIndex {
+        documents: vec![crate::semantic::test_support::document(&buffer, vec![])],
+        ..Default::default()
+    }));
+    inputs.buffer = buffer;
+    let cancel = AtomicBool::new(false);
+    let result = CallGraphWorker::new(inputs.clone())
+        .frontier_in_source(0, &cancel)
+        .unwrap();
+    assert!(result.summary.calls.is_empty());
+    assert!(result.summary.body.is_some());
+    assert_eq!(
+        result.coverage,
+        CallCoverage::Partial(CoverageGaps {
+            unresolved_sites: 2,
+            ..Default::default()
+        })
+    );
+    assert_eq!(result.annotation().label(), "0+");
+    // Missing structure is different from absent indexed occurrences.
+    let parsed = inputs.calls.clone();
+    Arc::make_mut(&mut inputs.calls).error = Some("Structure not available".into());
+    let result = CallGraphWorker::new(inputs.clone())
+        .frontier_in_source(0, &cancel)
+        .unwrap();
+    assert_eq!(
+        result.coverage,
+        CallCoverage::NoBody(NoBodyReason::NoSyntax)
+    );
+    inputs.calls = parsed;
+    assert_eq!(
+        CallGraphWorker::new(inputs)
+            .frontier_in_source(0, &cancel)
+            .unwrap()
+            .annotation()
+            .label(),
+        "0+"
+    );
+}
