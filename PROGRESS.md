@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-09 — Fresh review source/history/query entry (Codex)
+
+Two red app regressions confirmed fresh reviews auto-opened a checkout/first file
+and retained the checkout Files query. New review acceptance now installs Changes
+with source, selection, active revision and history empty, clearing only the Files
+query. Explicit pending file intent still opens at its own start, including deleted Before files.
+Source/test preferences remain intact. Same-PR metadata refresh preserves the
+accepted reader/history/query; changed-snapshot refresh retains its existing
+prepared restoration transaction. New PR numbers enter fresh even for equal SHAs.
+
+The both-scale workflow checks the painted empty-reader guidance, chooses an
+actual Changes row, verifies exact pinned bytes and fresh history, then checks
+metadata refresh, another PR and explicit file intent. Prior reader-dependent
+fold/bookmark/navigation/index tests now make an explicit source choice. Recovery
+checks preserve the old reader on failure, then distinguish new-review success
+from same-PR retry. Existing shared review fixtures already supplied explicit
+intent, requiring no extra harness or public API.
+
+All 12 review app tests, 44 review-related and 39 bookmark checks pass before the
+final query adjustment. The final entry regression, formatting, strict all-target
+Clippy and build pass afterward. The full locked offline serial workspace run
+passes 839 app tests
+(11 existing ignored), two binary/13 font/22 text tests and all 64 doctests. A final
+one-line ownership adjustment makes active_revision None for empty source; the
+affected review checks, strict Clippy/build/docs are rerun afterward, as recorded
+in [entry evidence](plans/rust-pr-review-entry.md). Architecture +66 measured NLOC/one test function, unchanged complete clone multisets, hotspots
+and cycles. Production code removes three implicit fallback sources and the old
+caret-copy path. No dependency, worker or persisted schema added.
+
+This repairs two entry assertions in the integrated browsing group; it does not
+complete the four-function PullRequestReview suite. Next: retain GitHub author,
+cross-repository flag and merge-commit metadata that Rust currently discards,
+then finish the combined browsing/change-navigation/retired-request mapping.
+Other unreconciled suites, final native acceptance, known parallel timing limits
+and Android remain open.
+
 ## 2026-11-09 — Review fold-default assertion reconciliation (Codex)
 
 All seven Swift fold-default groups now have explicit mappings through Rust's

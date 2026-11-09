@@ -50,6 +50,8 @@ fn switching_pull_requests_with_identical_commits_changes_bookmark_and_session_s
     settle(&mut app);
     app.accept_review(snapshot.clone());
     settle(&mut app);
+    app.open_file("a file.rs");
+    settle(&mut app);
     app.execute_command(&Context::default(), ToolbarAction::ToggleBookmark);
     assert_eq!(app.bookmarks.bookmarks.len(), 1);
     let mut other = snapshot;
@@ -157,6 +159,8 @@ fn review_index_commands_generate_after_and_reload_its_cache_without_checkout_im
     settle(&mut app);
     assert!(app.semantic_index.is_some());
     app.accept_review((*review).clone());
+    settle(&mut app);
+    app.open_file("a file.rs");
     settle(&mut app);
     assert!(
         app.semantic_index.is_none(),
@@ -526,8 +530,73 @@ fn review_fold_choices_survive_late_appearance_and_retired_reload_but_reset_for_
         other.summary.number = 8;
         app.accept_review(other);
         settle_frame(&mut app, &ctx);
+        app.open_file("a file.rs");
+        settle_frame(&mut app, &ctx);
         assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
         assert_folded_headers(&app, &[4]);
         assert_eq!(app.active_pr.as_ref().unwrap().number, 8);
+    }
+}
+
+#[test]
+fn fresh_review_entry_waits_for_file_choice_and_explicit_destinations_still_open() {
+    let (_owner, root, snapshot) = crate::pull_request::review::tests::fixture();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app) = reader();
+        open_reader(&mut app, &root, "a file.rs");
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        app.session.source_filters.path_query = "checkout-only query".into();
+        app.session.source_filters.source_files_only = true;
+        app.filters_changed();
+        app.accept_review(snapshot.clone());
+        super::focus::settle_frame(&mut app, &ctx);
+        assert_eq!(app.sidebar_tab, SidebarTab::Changes);
+        assert!(app.session.source_filters.path_query.is_empty());
+        assert!(app.session.source_filters.source_files_only);
+        assert!(
+            app.open_buffer.is_none(),
+            "a fresh review waits for an explicit source choice"
+        );
+        assert!(app.selected_path.is_none() && app.history.current().is_none());
+        assert!(app.line_changes.is_none() && !app.is_source_loading());
+        assert!(app.active_revision.is_none());
+        assert_eq!(app.repository_root.as_ref(), Some(&root));
+        assert_eq!(app.review.as_ref().unwrap().head, snapshot.head);
+        let output = super::focus::frame(&mut app, &ctx, vec![]);
+        assert!(crate::ui::test_support::text_shapes(&output).any(|t| t
+            .galley
+            .job
+            .text
+            .starts_with("Select a file from the sidebar")));
+        let row = crate::ui::test_support::text_center(&output, "a file.rs");
+        super::focus::frame(&mut app, &ctx, crate::ui::test_support::click(row));
+        super::focus::settle_frame(&mut app, &ctx);
+        assert_eq!(
+            app.open_buffer.as_ref().unwrap().text,
+            "one\nchanged\nthree\n"
+        );
+        assert!(!app.history.can_go_back());
+        let accepted = app.open_buffer.clone().unwrap();
+        let history = format!("{:?}", app.history);
+        app.session.source_filters.path_query = "review query".into();
+        app.filters_changed();
+        app.accept_review(snapshot.clone());
+        super::focus::settle_frame(&mut app, &ctx);
+        assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(app.session.source_filters.path_query, "review query");
+        let mut other = snapshot.clone();
+        other.summary.number = 8;
+        app.accept_review(other);
+        super::focus::settle_frame(&mut app, &ctx);
+        assert!(app.open_buffer.is_none() && app.history.current().is_none());
+        assert!(app.session.source_filters.path_query.is_empty());
+        app.pending_open_file = Some("removed.rs".into());
+        app.accept_review(snapshot.clone());
+        super::focus::settle_frame(&mut app, &ctx);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, "old\n");
+        assert_eq!(app.active_revision, Some(ReviewRevision::Before));
+        assert!(!app.history.can_go_back());
     }
 }

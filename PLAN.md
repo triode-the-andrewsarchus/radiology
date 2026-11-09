@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Fresh PR entry](plans/rust-pr-review-entry.md) now opens Changes with no selected
+source/history and clears the old Files query, matching Swift. Explicit file
+intent and same-PR refresh preserve their existing paths; source/test preferences
+remain. The integrated suite is still partial; richer GitHub metadata is the next
+concrete gap to reconcile.
+
 [Review fold-default contracts](plans/rust-review-fold-contracts.md) now map all
 seven Swift groups through Rust's atomic source publication. Nested signatures,
 attributes/closures, real empty-side changes and both-scale held-result/manual/

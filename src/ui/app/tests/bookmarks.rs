@@ -199,6 +199,8 @@ fn checkout_two_pull_requests_and_another_root_restore_independent_bookmark_list
         let local = app.bookmarks.bookmarks[0].clone();
         app.accept_review(first.clone());
         settle(&mut app);
+        app.open_file("a file.rs");
+        settle(&mut app);
         assert_eq!(
             app.bookmark_scope(),
             Some(BookmarkScope::new(&root, Some(7)))

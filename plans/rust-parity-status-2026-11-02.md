@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Fresh PR entry](rust-pr-review-entry.md) repairs automatic source/history
+selection and retained checkout Files queries. Explicit destinations and same-PR
+refresh retain their intended behavior. The four-function integrated audit remains
+partial, including richer GitHub metadata that Rust currently discards.
+
 [Review fold-default contracts](rust-review-fold-contracts.md) map all seven Swift
 groups, including nested/attribute ownership and held publication/manual/revision/
 PR-scope outcomes. Runtime behavior is unchanged; the separate integrated-review

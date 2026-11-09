@@ -158,7 +158,9 @@ worktree/cache evidence. The [Changes presentation audit](rust-review-presentati
 now maps all three presentation groups and repairs the Before-rename highlight.
 The [review fold-default audit](rust-review-fold-contracts.md) maps all seven fold
 groups with atomic-source ordering evidence and both-scale held-result workflows.
-The separate integrated-review suite remains open.
+The separate integrated-review suite remains open. The
+[fresh-entry checkpoint](rust-pr-review-entry.md) repairs two assertions in its
+browsing flow; richer GitHub metadata and the combined mapping remain pending.
 
 ## Critical Lens and hover
 

@@ -334,6 +334,8 @@ fn review_navigation_reads_pinned_revisions_and_restores_checkout_scope_on_exit(
     assert_eq!(app.bookmarks.bookmarks.len(), 1);
     app.accept_review(snapshot);
     settle(&mut app);
+    app.open_file("a file.rs");
+    settle(&mut app);
     assert!(app.bookmarks.bookmarks.is_empty());
     assert_eq!(
         app.open_buffer.as_ref().unwrap().text,
@@ -1529,6 +1531,8 @@ fn pinned_review_initial_folds_expose_changed_bodies_without_replaying_over_manu
     ));
     open_reader(&mut app, &root, "a file.rs");
     app.accept_review(snapshot);
+    settle(&mut app);
+    app.open_file("a file.rs");
     settle(&mut app);
     assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
     assert_folded_headers(&app, &[4]);

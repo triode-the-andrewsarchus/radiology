@@ -192,23 +192,10 @@ impl RadiologyApp {
             self.review_refresh.queue(Arc::new(snapshot));
             return;
         }
-        let location = self.open_buffer.as_ref().map(|buffer| {
-            buffer.location_at_byte(buffer.byte_offset(self.caret_line, self.caret_col))
-        });
+        self.session.source_filters.path_query.clear();
         self.install_review(Arc::new(snapshot));
-        let path = self
-            .pending_open_file
-            .take()
-            .or_else(|| location.as_ref().map(|location| location.path.clone()))
-            .or_else(|| self.pr_changes.first().map(|change| change.path.clone()))
-            .or_else(|| self.all_files.first().map(|file| file.path.clone()));
-        if let Some(path) = path {
-            let target = SourceLocation::with_revision(
-                path,
-                location.map_or(0, |location| location.byte_offset),
-                None,
-            );
-            self.navigate(target, true);
+        if let Some(path) = self.pending_open_file.take() {
+            self.navigate(SourceLocation::new(path, 0), true);
         }
     }
 
@@ -237,7 +224,7 @@ impl RadiologyApp {
         self.pr_changes = snapshot.changes.clone();
         self.review = Some(snapshot);
         self.load_repository_index();
-        self.active_revision = Some(ReviewRevision::After);
+        self.active_revision = None;
         self.sidebar_tab = SidebarTab::Changes;
         self.history.clear();
         self.history_tracks_position = true;

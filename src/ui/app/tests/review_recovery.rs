@@ -172,6 +172,11 @@ fn run_cli_recovery(directory: &Path) {
             assert!(app.error.is_none(), "{:?}", app.error);
             assert_eq!(app.active_pr.as_ref().unwrap().number, number);
             assert_eq!(app.review.as_ref().unwrap().head, review.head);
+            if requested != Some(7) {
+                assert!(app.open_buffer.is_none() && app.history.current().is_none());
+                app.open_file("a file.rs");
+                settle(&mut app);
+            }
             assert_eq!(
                 app.open_buffer.as_ref().unwrap().text,
                 "one\nchanged\nthree\n"

@@ -198,7 +198,7 @@ pub struct RadiologyApp {
     pending_open_file: Option<String>,
     /// Changed files in the pull request under review.
     pub pr_changes: Vec<FileChange>,
-    /// Active revision (Before or After) during PR review.
+    /// Revision of the accepted PR source; `None` when no source is selected.
     pub active_revision: Option<ReviewRevision>,
     review_revision_choices: HashMap<String, ReviewRevision>,
     /// Parsed line-level diff hunks for the open document.
