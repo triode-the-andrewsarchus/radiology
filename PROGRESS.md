@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-11-08 — Files reveal workflows and shared search test completion (Codex)
+
+Extended three existing Files app tests to map all four Swift reveal groups at the
+accepted-source boundary. Both-scale bookmark and real ripgrep result navigation
+center exact destinations while preserving unrelated disclosures, manual browsing
+and source/history ownership. Nested deleted Before source survives nonmatching
+filters and query clearing with unchanged revision/byte and attached Git state.
+A top-level file adds no ancestor entries. Existing runtime passes unchanged.
+
+Reused the existing search-session wait under cfg(test) for session, prior app
+search-edit and Files callers. Parameterized the two Before presentations instead
+of duplicating assertions. Three Files regressions and all 26 search-filtered tests
+pass; strict Clippy/format pass. Architecture +97 measured NLOC, no net function,
+clone instances 123→122 and duplicate lines 1323→1317, no new hotspot/cycle.
+[Evidence and limits](plans/rust-files-reveal-contracts.md) distinguish rendered
+app acceptance from AppKit and pending-source construction. Other suites, final
+integration and SDK-backed Android acceptance remain open.
+
 ## 2026-11-08 — Natural filename ordering and five picker contracts (Codex)
 
 Fixed red tree and equal-score picker ordering regressions. A shared private ICU

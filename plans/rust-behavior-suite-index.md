@@ -109,6 +109,10 @@ All five QuickFileSearchTests functions are reconciled in the
 [filename/picker checkpoint](rust-file-order-and-picker-contracts.md), including
 exact Unicode ranking, bounded totals and selection/reset assertions.
 
+The four FilesSidebarRevealTests groups have an explicit
+[accepted-source outcome mapping](rust-files-reveal-contracts.md), with real
+bookmark/ripgrep and nested Before app workflows and platform boundaries recorded.
+
 ## Repository search
 
 Rust entry points: [ripgrep.rs](../src/search/ripgrep.rs), [session.rs](../src/search/session.rs), [results.rs](../src/ui/sidebar/tests/results.rs).

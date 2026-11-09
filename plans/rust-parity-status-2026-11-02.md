@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Files reveal contracts](rust-files-reveal-contracts.md) map the four Swift groups
+to accepted-source app outcomes. Extended bookmark/search/nested Before workflows
+pass without runtime changes; shared search-test completion removes a clone.
+Other suites and integrated acceptance remain open.
+
 [Filename/picker contracts](rust-file-order-and-picker-contracts.md) close all five
 quick-file functions and replace lexical filename presentation with shared numeric
 locale-aware ordering. Other suites and integrated acceptance remain open.

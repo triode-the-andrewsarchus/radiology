@@ -124,11 +124,7 @@ fn search_query_edits_retire_rows_and_explicit_submit_wins_over_debounce() {
         assert!(text_shapes(&output).any(|shape| shape.galley.job.text == "Search the Source"));
         app.search_options.query = "needle".into();
         app.start_repository_search();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while app.repository_search.poll() {
-            assert!(std::time::Instant::now() < deadline);
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
+        crate::search::session::finish_search(&mut app.repository_search);
         assert_eq!(app.repository_search.matches.len(), 1);
         let output = frame(&mut app, &ctx, vec![]);
         let old_row = text_center(&output, "a.rs:1");
@@ -179,11 +175,7 @@ fn search_query_edits_retire_rows_and_explicit_submit_wins_over_debounce() {
         assert_eq!(app.search_options.query, " ");
         assert!(app.repository_search.is_searching());
         assert!(!text_shapes(&output).any(|shape| shape.galley.job.text == "Search the Source"));
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while app.repository_search.poll() {
-            assert!(std::time::Instant::now() < deadline);
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
+        crate::search::session::finish_search(&mut app.repository_search);
         assert_eq!(
             app.repository_search
                 .matches

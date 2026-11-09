@@ -177,16 +177,17 @@ impl RepositorySearch {
 }
 
 #[cfg(test)]
+pub(crate) fn finish_search(search: &mut RepositorySearch) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while search.poll() {
+        assert!(Instant::now() < deadline, "search did not finish");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    fn finish(search: &mut RepositorySearch) {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while search.poll() {
-            assert!(Instant::now() < deadline, "search did not finish");
-            std::thread::sleep(Duration::from_millis(5));
-        }
-    }
 
     #[test]
     fn real_search_reports_glob_matches_and_regex_errors() {
@@ -202,7 +203,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        finish(&mut search);
+        finish_search(&mut search);
         assert!(search.error.is_none(), "{:?}", search.error);
         assert_eq!(search.matches.len(), 2);
         search.start(
@@ -213,7 +214,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        finish(&mut search);
+        finish_search(&mut search);
         assert!(search.error.is_some());
         assert!(search.matches.is_empty());
         search.schedule(
@@ -264,7 +265,7 @@ mod tests {
                 } else {
                     search.start(owner.path(), options);
                 }
-                finish(&mut search);
+                finish_search(&mut search);
                 assert!(search.error.is_none(), "{:?}", search.error);
                 let mut actual: Vec<_> = search
                     .matches
@@ -303,7 +304,7 @@ mod tests {
         assert!(weak.upgrade().is_some(), "debounced work owns its tree");
         assert!(search.is_searching());
         assert!(!search.running);
-        finish(&mut search);
+        finish_search(&mut search);
         assert!(search.error.is_none(), "{:?}", search.error);
         assert_eq!(search.matches.len(), 1);
         assert_eq!(search.matches[0].path, "a file.rs");

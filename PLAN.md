@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Files reveal contracts](plans/rust-files-reveal-contracts.md) now map the four
+Swift groups to accepted-source Rust outcomes. Extended app tests cover real
+bookmark/ripgrep routes, preserved unrelated folders and nested deleted Before
+rows through both query and tree views. Runtime already satisfies these flows.
+Search completion test reuse removes a clone; other suites remain open.
+
 [Filename ordering and picker contracts](plans/rust-file-order-and-picker-contracts.md)
 now share locale-aware numeric collation across repository file presentations,
 including PR inventories and picker ties. All five Swift quick-file functions have
