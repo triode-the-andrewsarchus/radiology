@@ -74,6 +74,33 @@ pub struct ReferenceResults {
 }
 
 impl ReferenceResults {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.hits.capacity() * std::mem::size_of::<ReferenceHit>()
+            + self
+                .hits
+                .iter()
+                .map(|hit| hit.path.capacity() + hit.source_line.text.capacity())
+                .sum::<usize>()
+            + self.groups.capacity() * std::mem::size_of::<ReferenceGroup>()
+            + self
+                .groups
+                .iter()
+                .map(|group| group.path.capacity() + group.content_digest.capacity())
+                .sum::<usize>()
+            + self
+                .source_identities
+                .iter()
+                .map(|(path, digest)| path.capacity() + digest.capacity() + 64)
+                .sum::<usize>()
+            + self.unreadable.capacity() * std::mem::size_of::<UnreadableReferenceFile>()
+            + self
+                .unreadable
+                .iter()
+                .map(|file| file.path.capacity() + file.message.capacity())
+                .sum::<usize>()
+    }
+
     /// Finds a listed site by its original encoded coordinates.
     #[must_use]
     pub fn find_hit(&self, path: &str, range: &ScipRange) -> Option<usize> {

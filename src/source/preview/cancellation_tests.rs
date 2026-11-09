@@ -7,8 +7,9 @@ use crate::{
         incoming_calls::{self, CallerLimits},
         index::SemanticSymbolID,
         reference_results::{self, ReferenceHit, ReferenceLimits},
-        ScipDocument, ScipIndex,
+        ScipDocument, ScipIndex, SemanticIndex,
     },
+    source::loader::SourceRead,
     syntax::DocumentSyntax,
 };
 use std::{path::Path, time::Duration};

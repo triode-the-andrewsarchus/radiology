@@ -1,5 +1,54 @@
 # Progress
 
+## 2026-11-09 — Bounded Context preview/reference reuse (Codex)
+
+Both new regressions failed on returning to previously loaded identities: Rust
+restarted an excerpt worker and a declaration reference scan. Shared internal
+query ownership/cache now retains 64 previews and 24 immutable reference results,
+with a 32 MiB payload cap per cache. Reference rows use Arc storage; cached results
+restore their Load More limits as well as rows. Target changes clear selections/
+disclosures; same-declaration/token movement keeps existing state.
+
+Scope changes (root, pinned owner, index, revision, missing inputs) and observed
+source-byte changes retire entries. Existing reference/caller source observation
+is reused through the shared ledger. Cached unreadable-file coverage is rejected
+when the file is later accepted, even after visiting another declaration. Failed
+or retired workers do not fill caches. SourceQueryInputs moves into the shared
+queries module with its original public preview path re-exported; no preview/cache
+module cycle, new worker, disk cache, dependency or public field is introduced.
+
+Backend, bounded-cache, pinned-source and both-scale real Swift-fixture app checks
+pass. The app proves immediate Circle-preview reuse at metadata publication,
+unchanged token metadata/disclosure/outline/row identity and selected area rows,
+then immediate restoration of the same immutable rows after visiting new. Existing
+Load More test now proves result/limit restoration. A duplicated draft preview test
+was merged into the existing retirement test, preserving cancellation assertions.
+The pinned observation test keeps After revision constant to isolate byte changes.
+Early full runs were interrupted for budget/layout corrections; a test-only
+cancellation import exposed by ownership extraction was corrected. Final focused
+36 source/12 reference/one app tests pass, as do strict all-target Clippy, build and
+warning-free docs. The generated public query-input page still points to the new
+implementation and exposes the same three fields. The final locked offline
+workspace run passes 879 app tests (11 existing opt-in ignored), two binary/13 font/
+22 text tests and all 66 doctests. Compilation uses -j 1 with serial tests; normal
+half-core Cargo configuration remains 16 jobs. Known parallel timing/linking limits
+remain open.
+
+Architecture +511 measured NLOC/13 net functions/two files, unchanged average/max
+CCN 3.42/132, 36 hotspots and cycles. Complete 124-instance clone multisets have no
+additions/removals; raw flags refer to old touched-file clones. Existing guarded
+read/worker/publication mechanisms remain; query captures and result reuse have
+one owner instead of duplicated cache/scope policies.
+[Reuse contract](plans/rust-context-query-reuse.md), PLAN and behavior/parity indexes
+record archive `~/.local/state/radiology-qa/context-query-reuse-20261109-9868830/`.
+
+The eighteen ContextModel groups still need complete assertion reconciliation.
+Swift's four-entry parsed-destination cache across distinct uncached previews is
+an identified missing follow-up. Other semantic/reference/call-tree/palette,
+source/syntax, compiler/indexing and inspector suites and final native/standalone
+acceptance remain open, with known parallel timing/linking limits and Android.
+Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Context navigation and exact declaration departure (Codex)
 
 All nine Swift ContextNavigationTests groups now have explicit evidence. An actual

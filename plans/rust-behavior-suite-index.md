@@ -290,6 +290,13 @@ caller activation, exact Back/Forward, accepted-source retirement and file cover
 The separate eighteen ContextModel groups and reference/call-tree/palette suites
 remain open.
 
+[Context query reuse](rust-context-query-reuse.md) closes missing cached result
+reuse identified in the first two ContextModel groups. Backend and both-scale
+real-fixture app checks verify stable token/declaration ownership and immediate
+preview/reference restoration, with bounds and source/scope invalidation. This is
+not yet a complete mapping of the eighteen ContextModel groups. Parsed-structure
+reuse across distinct uncached previews remains an explicit follow-up.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

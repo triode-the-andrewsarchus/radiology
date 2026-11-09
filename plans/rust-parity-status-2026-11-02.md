@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Context query reuse](rust-context-query-reuse.md) closes restarted preview/
+reference work when returning to known identities. Shared bounded scope/source
+ownership, immutable result rows and retained Load More budgets preserve existing
+worker publication. The ContextModel suite's complete assertion mapping and
+cross-target parsed-structure reuse remain open.
+
 [Context navigation contracts](rust-context-navigation-contracts.md) now map all
 nine Swift groups. A real sidebar click exposed and repaired viewport departure
 for declaration links. Both-scale passive preview, named/keyboard/caller actions,

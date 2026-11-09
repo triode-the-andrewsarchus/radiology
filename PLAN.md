@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Bounded Context query reuse](plans/rust-context-query-reuse.md) now restores
+previously validated previews and immutable reference rows without restarting
+work, with entry/payload bounds and repository/index/revision/source invalidation.
+Load More budgets survive reuse. The existing public query-input path remains.
+Complete ContextModel reconciliation and parsed-destination structure reuse remain
+open, alongside the other suites and final acceptance.
+
 [Context navigation contracts](plans/rust-context-navigation-contracts.md) now map
 all nine Swift groups. The actual declaration link now records the exact caret
 instead of the scrolled viewport; both-scale passive preview, reference/caller

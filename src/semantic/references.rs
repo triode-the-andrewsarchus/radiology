@@ -7,7 +7,7 @@ use crate::background::LatestRead;
 use crate::source::preview::{PreviewPhase, SourceQueryInputs};
 use crate::source::{ReviewRevision, SourceBuffer};
 use crate::syntax::outline::DocumentSymbol;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,11 +75,15 @@ pub(crate) struct ReferenceContext {
     explicit: Option<ReferenceTarget>,
     automatic: Option<ReferenceTarget>,
     inputs: Option<Arc<SourceQueryInputs>>,
-    source_digests: HashMap<String, String>,
+    cache: crate::source::queries::QueryCache<
+        SemanticSymbolID,
+        (Arc<ReferenceResults>, ReferenceLimits),
+        24,
+    >,
     target: Option<ReferenceTarget>,
     job: LatestRead<Result<ReferenceResults, String>>,
     limits: ReferenceLimits,
-    pub results: ReferenceResults,
+    pub results: Arc<ReferenceResults>,
     pub error: Option<String>,
     pub selected: Option<usize>,
     pub disclosures: BTreeMap<usize, ReferenceDisclosure>,
@@ -121,12 +125,13 @@ impl ReferenceContext {
         inputs: Option<Arc<SourceQueryInputs>>,
         automatic: Option<ReferenceTarget>,
     ) {
-        let changed_source = self.observe_source(inputs.as_deref());
-        let changed_index = match (&self.inputs, &inputs) {
-            (Some(old), Some(new)) => !Arc::ptr_eq(&old.index, &new.index),
-            (None, None) => false,
-            _ => true,
-        };
+        let invalidated = self.cache.prepare(inputs.as_ref())
+            || inputs.as_ref().is_some_and(|inputs| {
+                self.results
+                    .unreadable
+                    .iter()
+                    .any(|file| file.path == inputs.buffer.path)
+            });
         let changed_inputs = match (&self.inputs, &inputs) {
             (Some(old), Some(new)) => !Arc::ptr_eq(old, new),
             (None, None) => false,
@@ -134,29 +139,10 @@ impl ReferenceContext {
         };
         self.inputs = inputs;
         self.automatic = automatic;
-        let refreshed = self.refresh(changed_source || changed_index);
+        let refreshed = self.refresh(invalidated);
         if changed_inputs && !refreshed {
             self.rebind_pending();
         }
-    }
-
-    fn observe_source(&mut self, inputs: Option<&SourceQueryInputs>) -> bool {
-        let Some(inputs) = inputs else {
-            return false;
-        };
-        let changed = self
-            .source_digests
-            .insert(
-                inputs.buffer.position_key(),
-                inputs.buffer.content_digest().to_owned(),
-            )
-            .is_some_and(|old| old != inputs.buffer.content_digest());
-        changed
-            || self
-                .results
-                .unreadable
-                .iter()
-                .any(|file| file.path == inputs.buffer.path)
     }
 
     fn refresh(&mut self, invalidated: bool) -> bool {
@@ -169,13 +155,25 @@ impl ReferenceContext {
             return false;
         }
         self.job.stop();
+        if invalidated {
+            self.cache.invalidate();
+        }
         self.results = Default::default();
         self.selected = None;
         self.disclosures.clear();
         self.error = None;
         self.target = target;
         self.limits = Default::default();
-        self.start_query();
+        if let Some((results, limits)) = self
+            .target
+            .as_ref()
+            .and_then(|target| self.cache.get(&target.id))
+        {
+            self.results = results.clone();
+            self.limits = *limits;
+        } else {
+            self.start_query();
+        }
         true
     }
 
@@ -269,6 +267,11 @@ impl ReferenceContext {
                 if let PreviewPhase::Loaded(source) = preview.phase() {
                     source_changed |= self.results.source_digest(&source.path)
                         != Some(source.content_digest.as_str());
+                    self.cache.observe_source(
+                        &source.path,
+                        source.revision,
+                        &source.content_digest,
+                    );
                 }
             }
             if published {
@@ -277,7 +280,8 @@ impl ReferenceContext {
                         .inputs
                         .as_ref()
                         .and_then(|inputs| inputs.buffer.revision);
-                    remember_sources(&mut self.source_digests, revision, &tree.source_identities);
+                    self.cache
+                        .observe_sources(revision, &tree.source_identities);
                 }
             }
             changed |= published;
@@ -304,26 +308,21 @@ impl ReferenceContext {
             .inputs
             .as_ref()
             .and_then(|inputs| inputs.buffer.revision);
-        remember_sources(
-            &mut self.source_digests,
-            revision,
-            &results.source_identities,
-        );
+        self.cache
+            .observe_sources(revision, &results.source_identities);
+        for file in &results.unreadable {
+            self.cache.observe_source(&file.path, revision, "");
+        }
+        let results = Arc::new(results);
+        if let Some(target) = &self.target {
+            let bytes = results.retained_bytes()
+                + target.id.symbol.capacity()
+                + target.id.document.as_ref().map_or(0, String::capacity);
+            self.cache
+                .insert(target.id.clone(), (results.clone(), self.limits), bytes);
+        }
         self.results = results;
     }
-}
-
-fn remember_sources(
-    ledger: &mut HashMap<String, String>,
-    revision: Option<ReviewRevision>,
-    sources: &BTreeMap<String, String>,
-) {
-    ledger.extend(sources.iter().map(|(path, digest)| {
-        (
-            crate::source::SourceLocation::format_position_key(path, revision),
-            digest.clone(),
-        )
-    }));
 }
 
 #[cfg(test)]
@@ -516,6 +515,66 @@ mod tests {
     }
 
     #[test]
+    fn returning_to_a_declaration_reuses_rows_and_discards_old_selection() {
+        let (_root, inputs) = fixture();
+        let (one, two) = (target(&inputs, 24), target(&inputs, 16));
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs.clone()), Some(one.clone()));
+        settle(&mut context);
+        let expected = context.results.clone();
+        context.select(1);
+        context.update(Some(inputs.clone()), Some(two));
+        settle(&mut context);
+        context.update(Some(inputs), Some(one));
+        assert!(
+            !context.is_query_running(),
+            "returning to a cached declaration restarted a scan"
+        );
+        assert_eq!(context.results, expected);
+        assert_eq!(context.selected, None);
+        assert!(context.disclosures.is_empty());
+    }
+
+    #[test]
+    fn cached_partial_results_refresh_when_a_previously_unreadable_file_is_first_opened() {
+        let (root, inputs) = fixture();
+        std::fs::remove_file(root.path().join("b.rs")).unwrap();
+        let shared = ReferenceTarget {
+            id: SemanticSymbolID::new("shared", "a.rs"),
+            name: "shared".into(),
+        };
+        let mut context = ReferenceContext::default();
+        context.update(Some(inputs.clone()), Some(shared.clone()));
+        settle(&mut context);
+        assert_eq!(context.results.unreadable[0].path, "b.rs");
+        context.update(Some(inputs.clone()), Some(target(&inputs, 16)));
+        settle(&mut context);
+        let displayed = Arc::new(SourceBuffer::from_str("b.rs", "fn one(){one();}"));
+        std::fs::write(root.path().join("b.rs"), &displayed.text).unwrap();
+        context.update(
+            Some(Arc::new(SourceQueryInputs {
+                source: inputs.source.clone(),
+                buffer: displayed,
+                index: inputs.index.clone(),
+            })),
+            Some(shared),
+        );
+        assert!(
+            context.is_query_running(),
+            "a cached unreadable file masked accepted source"
+        );
+        settle(&mut context);
+        assert!(context.results.unreadable.is_empty());
+        assert_eq!(
+            (
+                context.results.definition_count,
+                context.results.reference_count
+            ),
+            (1, 1)
+        );
+    }
+
+    #[test]
     fn replacement_indexes_and_unavailable_revisions_retire_old_publications() {
         let (_root, inputs) = fixture();
         let one = target(&inputs, 24);
@@ -568,6 +627,27 @@ mod tests {
         assert_eq!(context.selected, Some(0));
         assert_eq!(context.disclosures[&0].phase(), &preview);
         assert_eq!(context.disclosures[&0].callers(), Some(&tree));
+        let cached = context.results.clone();
+        let limits = context.limits;
+        context.show(ReferenceTarget {
+            id: SemanticSymbolID::new("local 2", "a.rs"),
+            name: "two".into(),
+        });
+        settle(&mut context);
+        context.show(ReferenceTarget {
+            id: SemanticSymbolID::new("shared", ""),
+            name: "shared".into(),
+        });
+        assert!(!context.is_query_running());
+        assert!(Arc::ptr_eq(&context.results, &cached));
+        assert_eq!(
+            (
+                context.limits.files,
+                context.limits.result_bytes,
+                context.limits.source_bytes
+            ),
+            (limits.files, limits.result_bytes, limits.source_bytes)
+        );
     }
 
     #[test]

@@ -1,12 +1,12 @@
 //! Bounded real-source excerpts with exact index and snapshot validation.
 
 use super::{
-    loader::{check_source, SourceRead, SOURCE_READ_TIMEOUT},
-    ReviewRevision, SourceBuffer, SourceLocation,
+    loader::{check_source, SOURCE_READ_TIMEOUT},
+    ReviewRevision, SourceBuffer,
 };
 use crate::{
     background::LatestRead,
-    semantic::{ScipRange, SemanticIndex},
+    semantic::ScipRange,
     syntax::{DocumentSymbol, SymbolExtractor},
 };
 use std::{
@@ -60,38 +60,8 @@ pub enum PreviewPhase {
     Unavailable(String),
 }
 
-/// Captured storage, displayed bytes and index for exact-source semantic queries.
-pub struct SourceQueryInputs {
-    /// Checkout or pinned review storage selected before the query starts.
-    pub source: SourceRead,
-    /// Immutable displayed bytes, which take precedence over storage reads.
-    pub buffer: Arc<SourceBuffer>,
-    /// Immutable index whose coordinates and source provenance must be validated.
-    pub index: Arc<SemanticIndex>,
-}
-
-impl SourceQueryInputs {
-    pub(crate) fn read(
-        &self,
-        path: &str,
-        cancel: &AtomicBool,
-        deadline: Instant,
-    ) -> Result<Arc<SourceBuffer>, String> {
-        check_source(cancel, deadline)?;
-        if !SourceLocation::is_repository_path(path) {
-            return Err("Invalid repository-relative source path".into());
-        }
-        if path == self.buffer.path {
-            Ok(self.buffer.clone())
-        } else {
-            self.source.read_cancellable(
-                &SourceLocation::with_revision(path, 0, self.buffer.revision),
-                cancel,
-                deadline,
-            )
-        }
-    }
-}
+// Preserve the public input path while keeping query ownership independent of excerpts.
+pub use super::queries::SourceQueryInputs;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreviewKind {
@@ -113,6 +83,7 @@ pub struct SourcePreviewLoader {
     target: Option<PreviewTarget>,
     job: LatestRead<Result<SourcePreview, String>>,
     phase: PreviewPhase,
+    cache: super::queries::QueryCache<PreviewTarget, SourcePreview, 64>,
 }
 
 impl SourcePreviewLoader {
@@ -127,6 +98,7 @@ impl SourcePreviewLoader {
         inputs: Option<Arc<SourceQueryInputs>>,
         target: Option<PreviewTarget>,
     ) -> bool {
+        self.cache.prepare(inputs.as_ref());
         let same_inputs = match (&self.inputs, &inputs) {
             (Some(old), Some(new)) => Arc::ptr_eq(old, new),
             (None, None) => true,
@@ -140,6 +112,10 @@ impl SourcePreviewLoader {
         self.target = target;
         self.phase = PreviewPhase::None;
         if let (Some(inputs), Some(target)) = (&self.inputs, &self.target) {
+            if let Some(preview) = self.cache.get(target) {
+                self.phase = PreviewPhase::Loaded(preview.clone());
+                return true;
+            }
             let inputs = inputs.clone();
             let target = target.clone();
             self.phase = PreviewPhase::Loading;
@@ -160,7 +136,24 @@ impl SourcePreviewLoader {
             Err(_) => Err("Source preview worker stopped unexpectedly.".into()),
         };
         self.phase = match result {
-            Ok(preview) => PreviewPhase::Loaded(preview),
+            Ok(preview) => {
+                self.cache
+                    .observe_source(&preview.path, preview.revision, &preview.content_digest);
+                if let Some(target) = &self.target {
+                    let bytes = std::mem::size_of::<SourcePreview>()
+                        + target.path.capacity()
+                        + preview.path.capacity()
+                        + preview.content_digest.capacity()
+                        + preview.lines.capacity() * std::mem::size_of::<PreviewLine>()
+                        + preview
+                            .lines
+                            .iter()
+                            .map(|line| line.text.capacity())
+                            .sum::<usize>();
+                    self.cache.insert(target.clone(), preview.clone(), bytes);
+                }
+                PreviewPhase::Loaded(preview)
+            }
             Err(error) => PreviewPhase::Unavailable(error),
         };
         true
@@ -287,7 +280,9 @@ fn check_cancel(cancel: &AtomicBool) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::semantic::SemanticIndex;
     use crate::semantic::{ScipDocument, ScipIndex};
+    use crate::source::{loader::SourceRead, SourceLocation};
 
     fn inputs(buffer: SourceBuffer) -> Arc<SourceQueryInputs> {
         let mut index = SemanticIndex::from_scip(ScipIndex {
@@ -435,17 +430,41 @@ mod tests {
         let first = target(&inputs.buffer, "one", PreviewKind::Definition);
         let second = target(&inputs.buffer, "two", PreviewKind::Definition);
         let mut loader = SourcePreviewLoader::default();
-        assert!(loader.request(Some(inputs.clone()), Some(first)));
+        assert!(loader.request(Some(inputs.clone()), Some(first.clone())));
         assert!(loader.request(Some(inputs.clone()), Some(second.clone())));
         settle(&mut loader);
         let PreviewPhase::Loaded(preview) = loader.phase() else {
             panic!("{:?}", loader.phase());
         };
         assert!(preview.lines[0].text.contains("two"));
-        assert!(!loader.request(Some(inputs), Some(second)));
+        assert!(!loader.request(Some(inputs.clone()), Some(second.clone())));
         assert!(!loader.is_running());
+        let expected_second = loader.phase().clone();
+        loader.request(Some(inputs.clone()), Some(first.clone()));
+        assert!(
+            loader.is_running(),
+            "the retired first request must not have populated the cache"
+        );
+        settle(&mut loader);
+        let expected_first = loader.phase().clone();
+        loader.request(Some(inputs.clone()), None);
+        loader.request(Some(inputs.clone()), Some(second));
+        assert!(!loader.is_running());
+        assert_eq!(loader.phase(), &expected_second);
+        loader.request(Some(inputs.clone()), Some(first.clone()));
+        assert!(
+            !loader.is_running(),
+            "returning to a prepared definition restarted a worker"
+        );
+        assert_eq!(loader.phase(), &expected_first);
         loader.request(None, None);
         assert_eq!(loader.phase(), &PreviewPhase::None);
+        loader.request(Some(inputs), Some(first));
+        assert!(
+            loader.is_running(),
+            "reset must discard previously cached excerpts"
+        );
+        settle(&mut loader);
     }
 
     #[test]
