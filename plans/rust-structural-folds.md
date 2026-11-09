@@ -87,6 +87,12 @@ open.
 
 ## Kotlin import lists (2026-10-30)
 
+The grouping/range assumptions in this historical checkpoint are superseded by
+[the pinned-parser reconciliation](rust-syntax-language-query-contracts.md).
+Blank separators can make a single import foldable; semicolons and comment
+attachment determine group endpoints. The new eighteen-case corpus and actual
+gutter/copy/reveal checks provide current evidence.
+
 The Kotlin adapter now emits `fold.imports.member` for imports directly under the
 native `source_file`. kotlin-ng has no Swift-grammar `import_list` node. The first
 member reconstructs a parsed sibling run through whitespace and comment extras;

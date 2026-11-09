@@ -223,13 +223,20 @@ fn kotlin_import_lists_group_parsed_members_with_comments_and_exact_unicode_crlf
         .iter()
         .filter(|fold| fold.kind == FoldKind::Imports)
         .collect();
-    assert_eq!(imports.len(), 1);
+    assert_eq!(imports.len(), 2);
     let fold = imports[0];
     assert_eq!(
         fold.byte_range,
-        text.find("import").unwrap()..text.find("\r\n// trailing").unwrap()
+        text.find("import").unwrap()..buffer.line_starts[6]
     );
-    assert_eq!((fold.start_line, fold.end_line), (4, 9));
+    assert_eq!((fold.start_line, fold.end_line), (4, 6));
+    assert_eq!(fold.header_line(&buffer), 3);
+    // The pinned grammar retains the trailing comment's CR, excluding only LF.
+    assert_eq!(
+        imports[1].byte_range,
+        text.find("import demo.Third").unwrap()..buffer.line_starts[10] - 1
+    );
+    assert_eq!((imports[1].start_line, imports[1].end_line), (9, 10));
     assert!(!fold.contains_declarations);
     assert!(fold.owner_range.is_none());
     let mut store = FoldStore::new();
@@ -239,10 +246,10 @@ fn kotlin_import_lists_group_parsed_members_with_comments_and_exact_unicode_crlf
         "imports stay open by default"
     );
     store.toggle_header(4, &syntax.folds);
-    for line in 5..=9 {
+    for line in 5..=6 {
         assert!(store.is_line_hidden(line, &syntax.folds));
     }
-    for line in [1, 2, 3, 4, 10, 11] {
+    for line in [1, 2, 3, 4, 7, 8, 9, 10, 11] {
         assert!(!store.is_line_hidden(line, &syntax.folds));
     }
     store.fold_to_definitions(&syntax.folds);
@@ -368,4 +375,49 @@ fn same_row_nested_folds_keep_independent_byte_identities_across_defaults_and_re
     store.fold_to_definitions(&syntax.folds);
     assert!(!store.is_folded(&outer.byte_range));
     assert!(store.is_folded(&first.byte_range));
+}
+
+#[test]
+fn kotlin_import_ranges_match_the_pinned_swift_parser() {
+    #[derive(serde::Deserialize)]
+    struct Case {
+        name: String,
+        text: String,
+        folds: Vec<[usize; 2]>,
+    }
+    let cases: Vec<Case> =
+        serde_json::from_str(include_str!("../test_fixtures/kotlin-import-ranges.json")).unwrap();
+    for case in cases {
+        let buffer = SourceBuffer::from_str(&case.name, &case.text);
+        let syntax = DocumentSyntax::analyze(&buffer);
+        let actual = syntax
+            .folds
+            .iter()
+            .filter(|fold| fold.kind == FoldKind::Imports)
+            .map(|fold| [fold.byte_range.start, fold.byte_range.end])
+            .collect::<Vec<_>>();
+        assert_eq!(actual, case.folds, "{}", case.name);
+    }
+}
+
+#[test]
+fn kotlin_import_separator_cancellation_never_publishes_a_partial_group() {
+    let buffer = SourceBuffer::from_str(
+        "a.kt",
+        &format!("import demo.One\n{}\nfun run() {{}}\n", " ".repeat(20_000)),
+    );
+    let tree = SupportedGrammar::Kotlin.parse(&buffer.data).unwrap();
+    let import = tree.root_node().named_child(0).unwrap();
+    assert_eq!(import.kind(), "import");
+    let checks = std::cell::Cell::new(0);
+    let cancelled = || {
+        checks.set(checks.get() + 1);
+        checks.get() == 8
+    };
+    let control = crate::syntax::AnalysisControl::new(&cancelled);
+    assert!(import_groups(&buffer, &[import], &control)
+        .unwrap_err()
+        .contains("cancelled"));
+    assert_eq!(checks.get(), 8);
+    assert!(control.check().is_err());
 }

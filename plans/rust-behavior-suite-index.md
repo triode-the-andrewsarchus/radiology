@@ -402,6 +402,13 @@ source, shared call facts and existing graph summaries. Five call-query and five
 graph checks plus strict Clippy pass. The source total is 20/66 mapped, leaving
 46 groups across language/query/worker/test-presentation/test-region suites.
 
+[Language/query contracts](rust-syntax-language-query-contracts.md) reconcile all
+12 SyntaxLanguageTests and five SyntaxQueryTests groups. The pinned parser/runtime
+range corpus repairs Kotlin imports; 76 syntax checks and standalone positive/
+missing-resource checks pass. The full gate passes 901 app tests/all 66 doctests.
+Source total: 37/66;
+29 remain across worker, test presentation and test regions.
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

@@ -411,3 +411,116 @@ fn swift_corpus_fixtures_preserve_native_facts_and_colors_in_both_line_endings()
         }
     }
 }
+
+#[test]
+fn swift_language_fixture_capture_roles_keep_exact_token_boundaries() {
+    for (path, expected) in [
+        (
+            "sample.rs",
+            &[
+                ("struct", "keyword.type"),
+                ("render", "function"),
+                ("println", "function.macro"),
+                ("usize", "type.builtin"),
+                ("/// Doc comment\n", "comment.documentation"),
+            ][..],
+        ),
+        (
+            "sample.go",
+            &[
+                ("func", "keyword.function"),
+                ("scan", "namespace"),
+                ("string", "type.builtin"),
+                ("append", "function.builtin"),
+            ][..],
+        ),
+        (
+            "sample.py",
+            &[
+                ("def", "keyword.function"),
+                ("async", "keyword.coroutine"),
+                ("@dataclass", "attribute"),
+                ("range", "function.builtin"),
+                ("self", "variable.builtin"),
+            ][..],
+        ),
+        (
+            "sample.js",
+            &[
+                ("class", "keyword.type"),
+                ("render", "function.method"),
+                ("#secret", "property"),
+                ("console", "variable.builtin"),
+                ("MAX_SCANS", "constant"),
+            ][..],
+        ),
+        (
+            "sample.ts",
+            &[
+                ("interface", "keyword.type"),
+                ("readonly", "keyword.modifier"),
+                ("string", "type.builtin"),
+            ][..],
+        ),
+        // kotlin-ng's native roles normalize keyword/type subcategories while
+        // retaining the same exact tokens and displayed color families.
+        (
+            "sample.kt",
+            &[
+                ("fun", "keyword"),
+                ("radiology.scan", "namespace"),
+                ("String", "type"),
+                ("XRAY", "constant"),
+                ("return", "keyword"),
+            ][..],
+        ),
+        (
+            "sample.jsx",
+            &[("ul", "tag"), ("Badge", "tag"), ("className", "attribute")][..],
+        ),
+        (
+            "sample.tsx",
+            &[
+                ("ul", "tag"),
+                ("data-count", "attribute"),
+                ("number", "type.builtin"),
+            ][..],
+        ),
+        (
+            "View.js",
+            &[("main", "tag"), ("className", "attribute")][..],
+        ),
+    ] {
+        let text = if path == "View.js" {
+            "export const View = () => <main className=\"x\">hi</main>;\n"
+        } else {
+            crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES
+                .iter()
+                .find(|fixture| fixture.0 == path)
+                .unwrap()
+                .1
+        };
+        let buffer = SourceBuffer::from_str(path, text);
+        let syntax = crate::syntax::DocumentSyntax::analyze(&buffer);
+        assert!(
+            !syntax.calls.parse_errors && syntax.native_highlights.error.is_none(),
+            "{path}"
+        );
+        for &(token, role) in expected {
+            assert!(
+                syntax
+                    .native_highlights
+                    .captures
+                    .iter()
+                    .any(|capture| capture.name == role && &text[capture.bytes.clone()] == token),
+                "{path}: {role} {token:?}"
+            );
+        }
+        assert!(!syntax
+            .native_highlights
+            .captures
+            .iter()
+            .any(|capture| capture.name == "function.builtin"
+                && &text[capture.bytes.clone()] == "New"));
+    }
+}

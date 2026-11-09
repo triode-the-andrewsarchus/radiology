@@ -342,4 +342,47 @@ mod cache_tests {
             1
         );
     }
+    #[test]
+    fn registered_grammars_embed_all_roles_and_tsx_keeps_every_overlay() {
+        for language in crate::syntax::LanguageRegistry::parsed_languages() {
+            let grammar = language.grammar.unwrap();
+            for role in [
+                QueryRole::Calls,
+                QueryRole::Folds,
+                QueryRole::Occurrences,
+                QueryRole::Highlights,
+            ] {
+                let compiled = query(grammar, role)
+                    .unwrap_or_else(|error| panic!("{} {role:?}: {error}", language.id));
+                assert!(compiled.pattern_count() > 0 && !compiled.capture_names().is_empty());
+            }
+            let structure = query(grammar, QueryRole::Folds).unwrap().capture_names();
+            assert!(
+                structure.iter().any(|name| name.starts_with("symbol.")),
+                "{}: symbols",
+                language.id
+            );
+            assert!(
+                structure.iter().any(|name| name.starts_with("fold.")),
+                "{}: folds",
+                language.id
+            );
+            assert!(
+                query(grammar, QueryRole::Calls)
+                    .unwrap()
+                    .capture_names()
+                    .contains(&"scope.function"),
+                "{}: callable scopes",
+                language.id
+            );
+        }
+        let source = highlight_source(SupportedGrammar::Tsx);
+        for marker in [
+            "(template_string)",
+            "(predefined_type)",
+            "jsx_opening_element",
+        ] {
+            assert!(source.contains(marker), "TSX lost {marker}");
+        }
+    }
 }

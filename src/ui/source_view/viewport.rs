@@ -3594,36 +3594,54 @@ mod tests {
 
     #[test]
     fn indentation_disclosure_uses_the_preceding_header_and_reveals_whole_body() {
-        for scale in [1.0, 2.0] {
-            let ctx = reader_context(scale);
-            let mut reader = Reader::new("");
-            let text = "def render():\n    parts = [\"胸部\"]\n    return parts\nnext()\n";
-            reader.source = SourceBuffer::from_str("a.py", text);
-            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
-            let fold = reader
-                .ranges
-                .iter()
-                .find(|fold| fold.kind == crate::syntax::FoldKind::Callable)
-                .unwrap()
-                .clone();
-            assert_eq!(fold.header_line(&reader.source), 1);
-            assert_eq!(fold.hidden_range(&reader.source), fold.byte_range);
-            reader.frame(&ctx, Vec::new());
-            let point = pos2(20.0, 18.0);
-            reader.frame(&ctx, pointer(point, true));
-            reader.frame(&ctx, pointer(point, false));
-            let output = reader.frame(&ctx, Vec::new());
-            assert!(reader.folds.is_folded(&fold.byte_range));
-            assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("parts") || text.galley.job.text.contains("胸部"))));
-            reader
-                .folds
-                .reveal_byte(fold.byte_range.start, &reader.source, &reader.ranges);
-            assert!(!reader.folds.is_folded(&fold.byte_range));
-            let output = reader.frame(&ctx, vec![]);
-            text_shape(&output, "    parts = [\"胸部\"]");
-            text_shape(&output, "    return parts");
-            assert_eq!(reader.copy_all(&ctx), text);
-            assert_eq!(reader.source.text, text);
+        for (path, text, kind, hidden, restored) in [
+            (
+                "a.py",
+                "def render():\n    parts = [\"胸部\"]\n    return parts\nnext()\n",
+                crate::syntax::FoldKind::Callable,
+                &["parts", "胸部"][..],
+                &["    parts = [\"胸部\"]", "    return parts"][..],
+            ),
+            (
+                "a.kt",
+                "// Imports\nimport demo.One\n\nfun run() { println(\"胸部\"); }\n",
+                crate::syntax::FoldKind::Imports,
+                &["import demo.One"][..],
+                &["import demo.One"][..],
+            ),
+        ] {
+            for scale in [1.0, 2.0] {
+                let ctx = reader_context(scale);
+                let mut reader = Reader::new("");
+                reader.source = SourceBuffer::from_str(path, text);
+                reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+                let fold = reader
+                    .ranges
+                    .iter()
+                    .find(|fold| fold.kind == kind)
+                    .unwrap()
+                    .clone();
+                assert_eq!(fold.header_line(&reader.source), 1);
+                assert_eq!(fold.hidden_range(&reader.source), fold.byte_range);
+                reader.frame(&ctx, Vec::new());
+                let point = pos2(20.0, 18.0);
+                reader.frame(&ctx, pointer(point, true));
+                reader.frame(&ctx, pointer(point, false));
+                let output = reader.frame(&ctx, Vec::new());
+                assert!(reader.folds.is_folded(&fold.byte_range), "{path}/{scale}");
+                assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if hidden.iter().any(|word| text.galley.job.text.contains(word)))));
+                assert_eq!(reader.copy_all(&ctx), text);
+                reader
+                    .folds
+                    .reveal_byte(fold.byte_range.start, &reader.source, &reader.ranges);
+                assert!(!reader.folds.is_folded(&fold.byte_range));
+                let output = reader.frame(&ctx, vec![]);
+                for line in restored {
+                    text_shape(&output, line);
+                }
+                assert_eq!(reader.copy_all(&ctx), text);
+                assert_eq!(reader.source.text, text);
+            }
         }
     }
 

@@ -1,0 +1,171 @@
+[
+  {
+    "name": "single.kt",
+    "text": "import demo.One\nval text = \"x\"\n",
+    "folds": []
+  },
+  {
+    "name": "blank.kt",
+    "text": "import demo.One\n\nval text = \"x\"\n",
+    "folds": [
+      [
+        0,
+        17
+      ]
+    ]
+  },
+  {
+    "name": "consecutive.kt",
+    "text": "import demo.One\nimport demo.Two\n\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        33
+      ]
+    ]
+  },
+  {
+    "name": "comment.kt",
+    "text": "import demo.One\n// between\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        42
+      ]
+    ]
+  },
+  {
+    "name": "separate.kt",
+    "text": "import demo.One\n\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        17
+      ]
+    ]
+  },
+  {
+    "name": "crlf.kt",
+    "text": "import demo.One;\r\n \t\r\nfun run() {}\r\n",
+    "folds": [
+      [
+        0,
+        22
+      ]
+    ]
+  },
+  {
+    "name": "comment_blank.kt",
+    "text": "import demo.One\n// between\n\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        28
+      ]
+    ]
+  },
+  {
+    "name": "blank_comment.kt",
+    "text": "import demo.One\n\n// between\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        43
+      ]
+    ]
+  },
+  {
+    "name": "trailing_comment.kt",
+    "text": "import demo.One\n// trailing\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        27
+      ]
+    ]
+  },
+  {
+    "name": "multi_blank.kt",
+    "text": "import demo.One\n\n\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        17
+      ]
+    ]
+  },
+  {
+    "name": "block_blank.kt",
+    "text": "import demo.One\n/* block\n comment */\n\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        38
+      ]
+    ]
+  },
+  {
+    "name": "old-fixture.kt",
+    "text": "// leading café 😀\r\npackage demo\r\n\r\nimport demo.First as Premier\r\n// between 😀\r\n\r\nimport demo.second.*;\r\n/* between */\r\nimport demo.Third\r\n// trailing: must remain visible\r\nfun run() {\r\n work()\r\n}\r\n",
+    "folds": [
+      [
+        39,
+        88
+      ],
+      [
+        126,
+        178
+      ]
+    ]
+  },
+  {
+    "name": "semi_inline.kt",
+    "text": "import demo.One; // inline\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        42
+      ]
+    ]
+  },
+  {
+    "name": "semi_trailing.kt",
+    "text": "import demo.One;\n// trailing\nfun run() {}\n",
+    "folds": []
+  },
+  {
+    "name": "inline.kt",
+    "text": "import demo.One // inline\nimport demo.Two\nfun run() {}\n",
+    "folds": [
+      [
+        0,
+        41
+      ]
+    ]
+  },
+  {
+    "name": "same_line.kt",
+    "text": "import demo.One; import demo.Two;\nfun run() {}\n",
+    "folds": []
+  },
+  {
+    "name": "eof_comment.kt",
+    "text": "import demo.One\n// trailing\n",
+    "folds": [
+      [
+        0,
+        27
+      ]
+    ]
+  },
+  {
+    "name": "blank_end.kt",
+    "text": "import demo.One\n\n\n",
+    "folds": [
+      [
+        0,
+        17
+      ]
+    ]
+  }
+]

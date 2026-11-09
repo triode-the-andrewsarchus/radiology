@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-11-09 — Language/query contracts and exact Kotlin import ranges (Codex)
+
+The exact Kotlin fixture failed its Imports assertion; Rust omitted the single
+import's blank separator and grouped across blank boundaries. A C probe built the
+exact fwcd grammar and Tree-sitter revisions from Package.resolved. Host runtime
+VCS metadata matches Swift's da6fe9... revision. Eighteen real parsed range cases
+now ship as a small test fixture. They establish semicolon/comment attachment and
+blank separation, correcting the old trailing-comment/run assumptions rather than
+weakening the failing test. A bounded parsed-import stage reconstructs those
+ranges and reuses make_fold/shared precedence; no second parser or source rewrite.
+All eighteen match, and long-separator cancellation never publishes partial data.
+
+Actual gutter clicks at both scales now exercise the new Kotlin fold alongside
+Python: fold/reveal and Copy All preserve original source. Twelve language groups
+and five query groups have explicit mappings, including exact capture tokens,
+Go builtin exclusions, typed declaration/scope/fold structure and TSX overlays.
+All 76 syntax checks, binary resource checks, viewport matrix, strict Clippy, normal
+build and warning-free docs pass. A copied executable verifies all ten grammars
+plus fallbacks from an empty directory. A private export missing the Swift query
+fails compilation with the exact missing path; original resource hash unchanged.
+
+The fresh serial workspace gate passes 901 app tests, eleven existing opt-in
+ignores, binary/font/text checks 2/13/22 and all 66 doctests. It includes the new
+production grouping and all recent buffer/outline/call-site assertions. Full
+compile uses -j 1 and tests are serial; normal Cargo configuration stays 16 jobs.
+Source/syntax is 37/66 mapped, leaving worker 9, presentation 7 and regions 13,
+then compiler/inspector and final acceptance. Architecture +413 NLOC/eight net
+functions (five tests, three net runtime), one JSON fixture, no new dependency,
+public API, UI state, hotspot or cycle. Avg CCN 3.42→3.43, max 132, 36 hotspots;
+all 125 clone instances unchanged. Necessary boundary branches replace the old
+incorrect grouping shortcut. The temporary parser/export/binaries were removed;
+small manifests/harness/range logs remain. [Language/query contracts](plans/rust-syntax-language-query-contracts.md);
+archive: ~/.local/state/radiology-qa/syntax-language-20261109-1a235ff/.
+
 ## 2026-11-09 — Call-site extraction assertion reconciliation (Codex)
 
 All four Swift CallSiteExtraction groups now have explicit mappings. The exact

@@ -531,3 +531,145 @@ fn mixed_c_and_cpp_header_keeps_alias_and_method_but_not_function_pointer_outlin
         .iter()
         .any(|symbol| symbol.kind == SymbolKind::Method && symbol.name == "read"));
 }
+
+#[test]
+fn swift_language_fixture_structures_keep_kinds_containment_and_fold_roles() {
+    use crate::syntax::FoldKind;
+    use SymbolKind::*;
+    for (path, expected, folds, closure) in [
+        (
+            "sample.rs",
+            &[
+                (Struct, "Scan"),
+                (Enum, "Modality"),
+                (Trait, "Render"),
+                (Module, "helpers"),
+                (Constant, "MAX_SCANS"),
+            ][..],
+            &[FoldKind::Type][..],
+            true,
+        ),
+        (
+            "sample.go",
+            &[
+                (Module, "scan"),
+                (Struct, "Scan"),
+                (Method, "Render"),
+                (Function, "New"),
+            ][..],
+            &[FoldKind::Imports][..],
+            true,
+        ),
+        (
+            "sample.py",
+            &[(Class, "Scan"), (Function, "load")][..],
+            &[FoldKind::Type][..],
+            false,
+        ),
+        (
+            "sample.js",
+            &[
+                (Class, "Scan"),
+                (Method, "render"),
+                (Function, "load"),
+                (Function, "double"),
+            ][..],
+            &[FoldKind::Type][..],
+            true,
+        ),
+        (
+            "sample.ts",
+            &[
+                (Interface, "Renderer"),
+                (TypeAlias, "Modality"),
+                (Enum, "Level"),
+                (EnumMember, "Low"),
+                (Module, "Helpers"),
+                (Class, "Scan"),
+            ][..],
+            &[FoldKind::Type][..],
+            false,
+        ),
+        (
+            "sample.kt",
+            &[
+                (Class, "Scan"),
+                (Enum, "Modality"),
+                (TypeAlias, "Titles"),
+                (Initializer, "constructor"),
+                (EnumMember, "XRAY"),
+            ][..],
+            &[FoldKind::Imports][..],
+            true,
+        ),
+        (
+            "sample.kts",
+            &[
+                (Function, "collect"),
+                (Class, "Report"),
+                (Property, "scanRoot"),
+            ][..],
+            &[][..],
+            false,
+        ),
+        ("sample.jsx", &[(Function, "ScanList")][..], &[][..], false),
+        ("sample.tsx", &[(Interface, "Props")][..], &[][..], false),
+        ("sample.c", &[(Struct, "Scan")][..], &[][..], false),
+        ("sample.cpp", &[(Class, "Scan")][..], &[][..], false),
+        (
+            "sample.swift",
+            &[
+                (Trait, "Renderer"),
+                (Struct, "Scan"),
+                (TypeAlias, "Titles"),
+                (Initializer, "init"),
+                (Deinitializer, "deinit"),
+            ][..],
+            &[FoldKind::Type][..],
+            false,
+        ),
+    ] {
+        let text = crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES
+            .iter()
+            .find(|fixture| fixture.0 == path)
+            .unwrap()
+            .1;
+        let (buffer, symbols) = declarations(path, text);
+        let rows = flattened(&symbols);
+        for &(kind, name) in expected {
+            assert!(
+                rows.iter().any(|row| row.kind == kind && row.name == name),
+                "{path}: missing {kind:?} {name}"
+            );
+        }
+        if matches!(path, "sample.rs" | "sample.py") {
+            assert!(
+                symbols
+                    .iter()
+                    .any(|root| root.children.iter().any(|child| child.name == "render")),
+                "{path}: render must remain nested"
+            );
+        }
+        let syntax = DocumentSyntax::analyze(&buffer);
+        assert!(
+            syntax
+                .folds
+                .iter()
+                .any(|fold| fold.kind == FoldKind::Callable),
+            "{path}"
+        );
+        for kind in folds {
+            assert!(
+                syntax.folds.iter().any(|fold| &fold.kind == kind),
+                "{path}: {kind:?}"
+            );
+        }
+        assert!(
+            !closure || syntax.calls.scopes.iter().any(|scope| scope.closure),
+            "{path}"
+        );
+        assert!(!rows
+            .iter()
+            .any(|row| row.name == "parts" && row.kind == Property));
+    }
+}
