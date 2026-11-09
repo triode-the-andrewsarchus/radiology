@@ -13,10 +13,12 @@ fn generated_swift_index_drives_definition_reference_search_and_repository_retir
         let tool = rust_indexer_fixture(settings.path(), "src/lib.rs");
         std::fs::write(tool.with_file_name("fixture.scip"), &wire).unwrap();
         open_reader(&mut app, owner.path(), "src/lib.rs");
-        assert!(app.semantic_index.is_none());
+        assert!(
+            app.semantic_index.is_some(),
+            "opening automatically generates compiler data"
+        );
         let ctx = Context::default();
         ctx.set_pixels_per_point(scale);
-        app.execute_command(&ctx, ToolbarAction::GenerateIndex);
         focus::settle_frame(&mut app, &ctx);
         assert_eq!(app.generation_report().unwrap().documents, 2);
         assert_eq!(app.semantic_index.as_ref().unwrap().source_digests.len(), 2);

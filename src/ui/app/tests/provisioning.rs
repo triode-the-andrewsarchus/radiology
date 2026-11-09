@@ -92,6 +92,7 @@ fn cancel_and_repository_replacement_retire_installation_without_late_generation
     std::fs::write(fixture.bin.join("pause"), "").unwrap();
     let prior = Arc::new(SemanticIndex::default());
     app.semantic_index = Some(prior.clone());
+    let previous_report = format!("{:?}", app.generation_report());
     let next = settings.path().join("second");
     repository(&next);
     for replace_repository in [false, true] {
@@ -114,7 +115,7 @@ fn cancel_and_repository_replacement_retire_installation_without_late_generation
             app.poll_index(&Context::default());
             assert!(app.tool_provisioner.was_cancelled());
             assert!(Arc::ptr_eq(app.semantic_index.as_ref().unwrap(), &prior));
-            assert!(app.generation_report().is_none());
+            assert_eq!(format!("{:?}", app.generation_report()), previous_report);
         }
     }
 }

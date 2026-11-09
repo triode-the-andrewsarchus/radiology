@@ -468,6 +468,13 @@ and strict build/lint/docs pass. Compiler/personality is 17/35 mapped; Indexing 
 Kotlin 6 and PR Kotlin 2 remain. The fresh full serial gate passes 919 app checks,
 twelve opt-in ignores, binary/font/text 2/13/23 and all 67 doctests.
 
+[Automatic index opening](rust-automatic-index-lifecycle.md) repairs the cache-only
+open/refresh gap through the existing owner and workers. Seven focused app cases
+and actual 1×/2× restart/copy acceptance pass. This does not yet close the ten-group
+IndexingTests suite: invocation reporting and remaining lifecycle assertions retain
+their audit, plus unknown-adapter validation. Full serial verification passes 926
+app checks, binary/font/text 2/13/23 and all 67 doctests (twelve opt-in ignores).
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

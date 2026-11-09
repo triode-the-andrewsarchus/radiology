@@ -4,9 +4,9 @@ Reference: all five CScipTests and three ClangFallbackTests groups. All eight ha
 explicit Rust evidence, bringing compiler/personality reconciliation to 17/35.
 The remaining eighteen are IndexingTests (10), KotlinIndexingTests (6) and
 PRKotlinNavigationTests (2); inspector/trait and final whole-app acceptance remain.
-The next lifecycle audit must address Swift's automatic open/stale-cache refresh:
-Rust currently restores/imports caches on open and leaves generation explicit.
-This is an observed remaining difference, not an accepted scope exclusion.
+The later [automatic lifecycle](rust-automatic-index-lifecycle.md) repairs the
+open/stale-cache generation difference identified at this checkpoint. Remaining
+lifecycle assertions retain their own audit.
 
 ## Assertion mapping
 

@@ -1,5 +1,46 @@
 # Progress
 
+## 2026-11-09 — Automatic index open and refresh lifecycle (Codex)
+
+Opening/refreshing a checkout or pinned After and Reload Index now publish the
+normalized cache, then generate missing/stale/failed projects through existing
+exact reuse. Current successful caches require no executable/probe. Default
+checkout legacy imports precede generation; unsupported projects remain imports/
+structure reads. Prior data/cache bytes survive failure and successful reload
+recovers. Settings errors still block fallback, and installation remains explicit.
+
+Extended the existing personality intent owner with one Import phase and one
+cache-warning handoff. Current inspection owns the displayed plan. Cancellation
+captures Loading before changing owner status, retires cache/import continuation,
+and preserves prior data. Explicit installation retires pending automatic opening.
+Generic loading-cancelled text covers every stage and identifies retained data.
+No new worker/parser/copier/cache writer or wire format.
+
+Seven new actual-app cases cover two-document startup/warm/stale/failure/recovery,
+missing tools, generation/root retirement, both cache/import cancel boundaries,
+failed-project retry and installation precedence. Focused generation/Kotlin/
+provisioning checks pass after correcting three former manual-only assumptions.
+Strict Clippy, normal build and warning-free docs pass. Full serial workspace
+verification passes 926 app tests (twelve opt-in ignores), binary/font/text
+2/13/23 and all 67 doctests (59+4+4). Architecture +362 NLOC/net five analyzed
+functions/one test file; one runtime advancement method reuses the existing owner.
+Clone identities remain unchanged (125, zero new/removed), average/max CCN
+3.43/132, 36 hotspots and one cycle unchanged.
+
+Actual standalone 1× dark and 2× light sessions pass automatic first generation,
+warm restart with no executable or invocation, then failed stale refresh retaining
+cache/reader bytes. Go to Line/Copy All work and copied bytes match. All six app
+launches and both compositor pairs exit zero, binary/source hashes preserved apart
+from the deliberate dependency edit. Reused existing sibling QA helpers without
+changing/integrating that app. Fixed harness-only Unix socket length and app-ID
+filter mistakes before the accepted run; private runtime directories were removed.
+
+Compiler/personality remains 17/35 pending the full Indexing/Kotlin/PR assertion
+reconciliation. Next concrete lifecycle requirements: actual command-line details
+on failures and rejecting unknown configured adapters (Swift already does).
+Inspector/traits 15 and final acceptance remain. [Details](plans/rust-automatic-index-lifecycle.md);
+evidence: ~/.local/state/radiology-qa/automatic-index-20261109-8569474/.
+
 ## 2026-11-09 — C/C++ compiler and fallback contracts (Codex)
 
 All five CScip and three ClangFallback groups now have explicit mappings. Exact

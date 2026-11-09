@@ -1,5 +1,11 @@
 # Rust indexing parity
 
+[Automatic open/refresh](rust-automatic-index-lifecycle.md) supersedes the old
+manual-only opening/probing statements below. Current caches stop without probes;
+missing/stale/failed projects generate automatically, retaining prior publications
+on failure. Installation remains explicit. Further assertion reconciliation is open.
+
+
 Current addition (2026-11-02): [language-family coverage diagnostics](rust-index-language-coverage.md)
 now match the Swift project diagnostic with current-inventory cache restoration.
 This does not change per-file coverage or partial-index status.

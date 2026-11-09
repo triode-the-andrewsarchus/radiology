@@ -4,6 +4,7 @@ use crate::semantic::indexing::personality::{Personality, PersonalityStore, Sett
 #[derive(Clone, Copy)]
 pub(in crate::ui::app) enum Intent {
     Load,
+    Import,
     Inspect,
     Generate(bool),
 }
@@ -14,6 +15,7 @@ pub(in crate::ui::app) struct State {
     pub settings: Option<Arc<Settings>>,
     pub error: Option<String>,
     pub cancelled: bool,
+    pub cache_warning: Option<String>,
     cancelled_load: bool,
     pub job: crate::background::LatestRead<Result<Arc<Settings>, String>>,
     intent: Option<Intent>,
@@ -21,8 +23,8 @@ pub(in crate::ui::app) struct State {
 
 impl State {
     pub fn cancel(&mut self) {
-        if self.job.is_running() {
-            self.cancelled_load = matches!(self.intent, Some(Intent::Load));
+        if self.job.is_running() || matches!(self.intent, Some(Intent::Load | Intent::Import)) {
+            self.cancelled_load = matches!(self.intent, Some(Intent::Load | Intent::Import));
             self.job.stop();
             self.intent = None;
             self.cancelled = true;
@@ -84,6 +86,7 @@ impl RadiologyApp {
         self.index_personality.selected = self.session.indexing_personality(&root);
         self.index_personality.settings = None;
         self.index_personality.error = None;
+        self.index_personality.cache_warning = None;
         self.index_personality.cancelled = false;
         self.index_personality.intent = Some(intent);
         self.error = None;
@@ -131,18 +134,72 @@ impl RadiologyApp {
                         }
                     }
                     Some(Intent::Load) => {
+                        self.index_personality.intent = Some(Intent::Load);
                         self.inspect_captured_index_projects();
                         if let Some(request) = self.index_request() {
                             self.index_generator.start_cached(request);
                         } else if self.review.is_none()
                             && self.indexing_personality() == Personality::Default
                         {
+                            self.index_personality.intent = Some(Intent::Import);
                             self.import_repository_index();
+                        } else {
+                            self.index_personality.intent = None;
                         }
                     }
                     Some(Intent::Inspect) => self.inspect_captured_index_projects(),
-                    None => {}
+                    Some(Intent::Import) | None => {}
                 }
+            }
+        }
+    }
+
+    /// Advances the accepted open through cache, legacy import and generation.
+    pub(in crate::ui::app) fn advance_index_open(&mut self) {
+        if self.index_personality.job.is_running()
+            || self.index_generator.is_running()
+            || self.index_plan_job.is_running()
+        {
+            return;
+        }
+        let refresh = match self.index_personality.intent {
+            Some(Intent::Load) => match self.index_cache_status() {
+                CacheLoadStatus::Idle | CacheLoadStatus::Loading => return,
+                CacheLoadStatus::Cancelled => false,
+                CacheLoadStatus::Loaded => self.generation_report.as_ref().is_some_and(|report| {
+                    report.stale_reason.is_some()
+                        || report
+                            .outcomes
+                            .iter()
+                            .any(|outcome| outcome.failure.is_some())
+                }),
+                CacheLoadStatus::Missing | CacheLoadStatus::Failed(_) => {
+                    if let CacheLoadStatus::Failed(error) = self.index_cache_status() {
+                        self.index_personality.cache_warning =
+                            Some(format!("Cached index: {error}"));
+                    }
+                    if self.review.is_none() && self.indexing_personality() == Personality::Default
+                    {
+                        self.index_personality.intent = Some(Intent::Import);
+                        self.import_repository_index();
+                        return;
+                    }
+                    true
+                }
+            },
+            Some(Intent::Import) => {
+                if self.index_importer.is_running() {
+                    return;
+                }
+                !matches!(self.index_importer.status(), IndexImportStatus::Cancelled)
+            }
+            _ => return,
+        };
+        self.index_personality.intent = None;
+        if refresh && self.index_plan_error.is_none() && !self.index_plan.selected.is_empty() {
+            if let Some(mut request) = self.index_request() {
+                request.reuse = true;
+                self.start_index_generation(request);
             }
         }
     }
@@ -177,6 +234,7 @@ impl RadiologyApp {
 
     pub(in crate::ui::app) fn cancel_index_generation(&mut self) {
         self.index_personality.cancel();
+        self.index_importer.stop();
         self.index_generator.stop();
     }
 
@@ -249,7 +307,7 @@ impl RadiologyApp {
             );
         }
         if self.index_personality.cancelled {
-            ui.label("Index settings load cancelled");
+            ui.label("Index loading cancelled");
             return std::ops::ControlFlow::Break(
                 ui.button("Reload Settings")
                     .clicked()
@@ -266,7 +324,11 @@ impl RadiologyApp {
         } else if let Some(error) = &self.index_personality.error {
             ui.label("Indexing settings failed").on_hover_text(error);
         } else if self.index_personality.cancelled {
-            ui.label("Index settings load cancelled");
+            ui.label(if self.semantic_index.is_some() {
+                "Index loading cancelled · previous data retained"
+            } else {
+                "Index loading cancelled"
+            });
         } else {
             return false;
         }

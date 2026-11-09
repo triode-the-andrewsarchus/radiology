@@ -82,8 +82,6 @@ fn kotlin_review(noise: bool) -> (tempfile::TempDir, RadiologyApp) {
     app.pending_open_file = Some(READER.into());
     app.accept_review(review);
     settle(&mut app);
-    app.generate_index(false);
-    settle(&mut app);
     assert!(
         app.semantic_index.is_some(),
         "{:?}",

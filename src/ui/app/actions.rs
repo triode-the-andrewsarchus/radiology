@@ -138,11 +138,11 @@ impl RadiologyApp {
             CancelToolInstallation => self.tool_provisioner.stop(),
             ReloadIndexImport => self.load_repository_index(),
             CancelIndexImport => {
+                let loading_cache = self.index_cache_status()
+                    == &crate::semantic::indexing::service::CacheLoadStatus::Loading;
                 self.index_personality.cancel();
                 self.index_importer.stop();
-                if self.index_cache_status()
-                    == &crate::semantic::indexing::service::CacheLoadStatus::Loading
-                {
+                if loading_cache {
                     self.index_generator.stop();
                 }
             }

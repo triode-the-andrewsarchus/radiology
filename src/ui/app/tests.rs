@@ -907,7 +907,7 @@ fn index_planning_finds_tracked_build_inputs_and_reports_discovery_failure() {
         .selected
         .iter()
         .any(|project| project.id() == "scip-clang"));
-    assert!(app.generation_report.is_none());
+    assert!(app.generation_report.is_some());
     let ctx = Context::default();
     app.index_projects_open = true;
     rendered_frame(&mut app, &ctx);
@@ -1067,7 +1067,10 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     open_reader(&mut app, &root, "a.rs");
     app.execute_command(&ctx, ToolbarAction::GenerateIndex);
     assert!(app.is_index_loading());
-    assert!(app.semantic_index.is_none());
+    assert!(
+        app.semantic_index.is_some(),
+        "automatic data stays available during forced Reindex"
+    );
     settle(&mut app);
     assert_eq!(app.generation_report().unwrap().documents, 1);
     let digest = app.semantic_index.as_ref().unwrap().source_digests["a.rs"].clone();
@@ -1126,8 +1129,10 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
         .unwrap()
         .matches_buffer(app.open_buffer.as_ref().unwrap()));
     open_reader(&mut app, &root, "a.rs");
-    assert!(app.generation_report().unwrap().cached);
-    assert!(app.generation_report().unwrap().stale_reason.is_some());
+    assert!(!app.generation_report().unwrap().cached);
+    assert!(app.generation_report().unwrap().outcomes[0]
+        .failure
+        .is_some());
     assert!(!app
         .semantic_index
         .as_ref()
@@ -1166,7 +1171,7 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     settle(&mut app);
     assert!(app.semantic_index.is_none());
 
-    // Corrupt cache diagnostics survive a successful explicitly unverified import.
+    // Corrupt-cache diagnostics survive import and the failed automatic refresh.
     let cache = app.session.repository_cache(&root).unwrap().join("indexes");
     let entry = std::fs::read_dir(cache)
         .unwrap()
@@ -1184,15 +1189,21 @@ fn generate_command_publishes_source_provenance_preserves_prior_data_and_retires
     .unwrap();
     app.open_repository(&root);
     settle(&mut app);
-    assert!(matches!(
-        app.index_cache_status(),
-        crate::semantic::indexing::service::CacheLoadStatus::Failed(_)
-    ));
+    assert!(app
+        .generation_report()
+        .unwrap()
+        .cache_warning
+        .as_deref()
+        .unwrap()
+        .contains("Cached index:"));
+    assert!(app.generation_report().unwrap().outcomes[0]
+        .failure
+        .is_some());
     assert!(matches!(
         app.index_import_status(),
         crate::semantic::loader::IndexImportStatus::Imported { documents: 1, .. }
     ));
-    assert!(app.generation_report().is_none());
+    assert_eq!(app.generation_report().unwrap().documents, 0);
     let imported = app.semantic_index.as_ref().unwrap();
     assert!(imported.documents.contains_key("b.rs"));
     assert!(imported.source_digests.is_empty());
@@ -2713,7 +2724,7 @@ fn repeated_reindex_shortcut_keeps_the_running_generation() {
     );
     std::fs::write(&executable, script).unwrap();
     app.open_repository(&root);
-    settle(&mut app);
+    settle_repository(&mut app);
     let ctx = Context::default();
     let mut event = crate::ui::commands::test_key(egui::Key::I);
     if let egui::Event::Key { modifiers, .. } = &mut event {
@@ -3125,3 +3136,6 @@ mod context_model;
 mod context_navigation;
 mod semantic_identity;
 mod semantic_navigation;
+
+#[cfg(unix)]
+mod index_lifecycle;

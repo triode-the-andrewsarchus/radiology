@@ -10,18 +10,25 @@ All eighteen ContextModel groups, the seven caller-tree plus one palette group
 and all 66 source/syntax groups have explicit mappings. Compiler/personality (18 remaining of 35)
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
-parallel-run limits remain open. The next known lifecycle difference is automatic
-index generation on open/stale-cache refresh; Rust currently restores caches and
-keeps generation explicit.
+parallel-run limits remain open. Automatic open/stale-cache generation is now
+implemented; remaining lifecycle work includes actual invocation diagnostics and
+unknown-adapter validation, alongside the remaining suite assertions.
 
-The latest complete serial workspace gate passes 919 app tests (twelve opt-in
+The latest complete serial workspace gate passes 926 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
-C/C++ preparation status, explicit reuse and recent source/personality additions.
+automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
 checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Automatic indexing lifecycle](plans/rust-automatic-index-lifecycle.md) now
+publishes caches before automatically generating missing/stale/failed projects,
+retains prior data on failure, and retires every pending stage on cancellation or
+replacement. Seven focused app cases and native dark/light 1×/2× restart/copy checks
+pass, with all owned processes exiting zero. Strict lint/build/docs and the fresh
+full serial workspace gate pass. Remaining compiler counts are unchanged.
 
 [C/C++ compiler contracts](plans/rust-clang-contracts.md) map all eight compiler/
 fallback groups through exact recorded and real-tool fixtures, both-scale app

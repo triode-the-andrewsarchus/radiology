@@ -3,15 +3,18 @@
 Current source reconciliation: [test-presentation contracts](rust-test-presentation-contracts.md)
 complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
-The latest complete production gate passes 919 app checks (twelve opt-in
+The latest complete production gate passes 926 app checks (twelve opt-in
 ignores), binary/font/text 2/13/23 and all 67 doctests, including C/C++ preparation
-status and explicit cross-checkout reuse. Compiler/personality 18 of 35 and inspector/trait 15 groups remain, followed
+status, explicit cross-checkout reuse and automatic indexing. Compiler/personality 18 of 35 and inspector/trait 15 groups remain, followed
 by final integrated/native/standalone/reuse acceptance.
 [Explicit reuse](rust-index-reuse-contracts.md) closes all three IndexReuse groups
 and the final personality group (compiler/personality 9/35). All 108 indexing
 checks, strict Clippy, build, docs and the full serial workspace gate pass. [C/C++ contracts](rust-clang-contracts.md) now map eight more groups (17/35 compiler/
 personality total). Real compiler, focused/app checks and strict gates pass; the
-fresh full serial gate passes. Earlier checkpoint-time counts below are historical.
+fresh full serial gate passes. [Automatic open/refresh](rust-automatic-index-lifecycle.md) now repairs the cache-only
+startup gap. Seven focused app and native 1×/2× startup/restart/failure/copy checks
+pass, along with the full serial workspace gate. Compiler group counts remain unchanged
+until remaining lifecycle assertions are reconciled. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

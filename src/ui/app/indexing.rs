@@ -43,6 +43,8 @@ impl RadiologyApp {
             return;
         };
         self.error = None;
+        self.index_personality.cancel();
+        self.index_personality.cancelled = false;
         self.index_generator.stop();
         self.index_importer.stop();
         self.tool_probe_job.stop();
@@ -245,30 +247,27 @@ impl RadiologyApp {
     }
 
     fn poll_generated_index(&mut self) {
-        let loading_cache = self.index_cache_status() == &CacheLoadStatus::Loading;
-        if let Some(generated) = self.index_generator.poll() {
+        if let Some(mut generated) = self.index_generator.poll() {
+            if !generated.report.cached {
+                if let Some(warning) = self.index_personality.cache_warning.take() {
+                    generated.report.cache_warning = Some(match generated.report.cache_warning {
+                        Some(other) => format!("{warning}\n{other}"),
+                        None => warning,
+                    });
+                }
+            }
             if let Some(index) = generated.index {
                 self.semantic_index = Some(Arc::new(index));
                 self.refresh_symbol_context();
                 self.refresh_critical_projection();
             }
-            self.index_plan = generated.report.plan.clone();
-            self.index_plan_error = None;
+            if !generated.report.cached {
+                self.index_plan = generated.report.plan.clone();
+                self.index_plan_error = None;
+            }
             self.generation_report = Some(generated.report);
         }
-        if loading_cache
-            && self.review.is_none()
-            && self.index_personality.selected
-                == crate::semantic::indexing::personality::Personality::Default
-            && self.index_personality.error.is_none()
-            && !self.index_personality.job.is_running()
-            && matches!(
-                self.index_cache_status(),
-                CacheLoadStatus::Missing | CacheLoadStatus::Failed(_)
-            )
-        {
-            self.import_repository_index();
-        }
+        self.advance_index_open();
     }
 
     /// Returns whether import, project inspection or tool probing is running.
