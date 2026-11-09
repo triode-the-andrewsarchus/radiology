@@ -43,6 +43,14 @@ impl SourceQueryInputs {
     }
 }
 
+/// Retained source identities, including a conservative per-entry tree allowance.
+pub(crate) fn source_identity_bytes(sources: &BTreeMap<String, String>) -> usize {
+    sources
+        .iter()
+        .map(|(path, digest)| path.capacity() + digest.capacity() + 64)
+        .sum()
+}
+
 const BYTE_LIMIT: usize = 32 * 1024 * 1024;
 
 pub(crate) struct QueryCache<K, V, const CAPACITY: usize> {
@@ -138,6 +146,14 @@ impl<K: PartialEq, V, const CAPACITY: usize> QueryCache<K, V, CAPACITY> {
             .map(|entry| &entry.1)
     }
 
+    /// Removes an owned result and releases its accounted payload without cloning.
+    pub(crate) fn take(&mut self, key: &K) -> Option<V> {
+        let position = self.entries.iter().position(|entry| &entry.0 == key)?;
+        let (_, value, bytes) = self.entries.remove(position)?;
+        self.bytes -= bytes;
+        Some(value)
+    }
+
     /// Bounds both entry count and retained payload; reads do not reorder entries.
     pub(crate) fn insert(&mut self, key: K, value: V, bytes: usize) {
         let bytes = bytes.saturating_add(std::mem::size_of::<(K, V, usize)>());
@@ -193,6 +209,14 @@ mod tests {
         cache.insert(2, "updated", 2);
         assert_eq!(cache.entries.len(), 2);
         assert_eq!(cache.get(&2), Some(&"updated"));
+        let retained_bytes = cache.bytes;
+        assert_eq!(cache.take(&2), Some("updated"));
+        assert_eq!(cache.take(&2), None);
+        assert_eq!(
+            cache.bytes,
+            retained_bytes - 2 - std::mem::size_of::<(usize, &str, usize)>()
+        );
+        cache.insert(2, "updated", 2);
         cache.insert(4, "oversized", usize::MAX);
         assert_eq!(cache.entries.len(), 2);
         cache.insert(5, "large", BYTE_LIMIT - 64);

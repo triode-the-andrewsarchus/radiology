@@ -1,5 +1,11 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+The [reference/caller reconciliation](rust-call-tree-contracts.md) maps seven
+caller groups and the fixed palette table. Loaded-trace reuse is repaired and
+passes focused ownership, worker and both-scale app checks. Source/syntax,
+compiler and inspector reconciliation
+plus the final acceptance gates below remain open.
+
 The [window/coverage reconciliation](rust-context-window-contracts.md) brings
 ContextModel to eighteen mapped groups. Its combined workspace gate passes;
 the reference/call-tree and final acceptance gates below remain open.

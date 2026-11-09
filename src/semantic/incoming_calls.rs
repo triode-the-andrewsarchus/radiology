@@ -51,6 +51,28 @@ pub struct CallerTree {
     pub source_identities: std::collections::BTreeMap<String, String>,
 }
 
+impl CallerTree {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.rows.capacity() * std::mem::size_of::<CallerRow>()
+            + self
+                .rows
+                .iter()
+                .map(|row| {
+                    row.name.capacity()
+                        + row.location.path.capacity()
+                        + row.note.as_ref().map_or(0, String::capacity)
+                        + row.symbol.as_ref().map_or(0, |id| {
+                            id.symbol.capacity() + id.document.as_ref().map_or(0, String::capacity)
+                        })
+                })
+                .sum::<usize>()
+            + self.notices.capacity() * std::mem::size_of::<String>()
+            + self.notices.iter().map(String::capacity).sum::<usize>()
+            + crate::source::queries::source_identity_bytes(&self.source_identities)
+    }
+}
+
 /// Resource limits for one incoming-call request.
 #[derive(Debug, Clone, Copy)]
 pub struct CallerLimits {

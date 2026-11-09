@@ -138,6 +138,20 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
                 .collect::<Vec<_>>(),
             [6, 7, 8, 9, 10]
         );
+        let callers = app.reference_context.disclosures[&0]
+            .callers()
+            .cloned()
+            .unwrap();
+        assert_eq!(callers.rows.first().unwrap().name, "total_area");
+        app.reference_context.expand(0, false);
+        assert!(app.reference_context.disclosures.is_empty());
+        app.reference_context.expand(0, true);
+        assert!(!app.reference_context.disclosures[&0].callers_loading());
+        assert_eq!(
+            app.reference_context.disclosures[&0].callers(),
+            Some(&callers)
+        );
+        focus::settle_frame(&mut app, &ctx);
         let mut caret_identities = HashSet::new();
         for (line, column) in [(8, 16), (8, 22), (9, 26), (9, 2), (8, 13)] {
             app.caret_line = line;

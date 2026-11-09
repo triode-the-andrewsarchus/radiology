@@ -1,5 +1,12 @@
 # Radiology documentation index and current state
 
+[Reference caller-tree contracts](plans/rust-call-tree-contracts.md) repair loaded
+trace reuse after collapse/reopen through the existing bounded query cache and
+map the seven Swift caller groups plus exact identity palette assignments.
+Focused checks, strict Clippy, build and docs pass. A fresh full workspace run
+follows this checkpoint; source/syntax, compiler, inspector and final integrated
+acceptance remain.
+
 [Context excerpt windows and coverage](plans/rust-context-window-contracts.md)
 now add scalar-safe visible omission markers through the shared snippet path and
 map the last two ContextModel groups. All eighteen have explicit mappings;

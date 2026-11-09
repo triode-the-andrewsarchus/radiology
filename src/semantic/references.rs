@@ -75,6 +75,15 @@ pub(crate) struct ReferenceContext {
     explicit: Option<ReferenceTarget>,
     automatic: Option<ReferenceTarget>,
     inputs: Option<Arc<SourceQueryInputs>>,
+    // Scope and source invalidation are owned by refresh, alongside disclosures.
+    closed_callers: crate::source::queries::QueryCache<
+        (String, super::ScipRange, String),
+        (
+            super::incoming_calls::CallerTree,
+            super::incoming_calls::CallerLimits,
+        ),
+        24,
+    >,
     cache: crate::source::queries::QueryCache<
         SemanticSymbolID,
         (Arc<ReferenceResults>, ReferenceLimits),
@@ -161,6 +170,7 @@ impl ReferenceContext {
         self.results = Default::default();
         self.selected = None;
         self.disclosures.clear();
+        self.closed_callers.invalidate();
         self.error = None;
         self.target = target;
         self.limits = Default::default();
@@ -226,14 +236,29 @@ impl ReferenceContext {
             return;
         };
         self.selected = Some(row);
+        let Some(digest) = self.results.source_digest(&hit.path) else {
+            return;
+        };
+        let key = (hit.path.clone(), hit.range.clone(), digest.to_owned());
         if !expanded {
-            self.disclosures.remove(&row);
+            if let Some((tree, limits)) = self
+                .disclosures
+                .remove(&row)
+                .and_then(ReferenceDisclosure::into_callers)
+            {
+                let bytes = tree.retained_bytes() + key.0.capacity() + key.2.capacity();
+                self.closed_callers.insert(key, (tree, limits), bytes);
+            }
             return;
         }
-        if let (Some(inputs), Some(digest)) = (&self.inputs, self.results.source_digest(&hit.path))
-        {
+        if let Some(inputs) = &self.inputs {
             self.disclosures.entry(row).or_insert_with(|| {
-                ReferenceDisclosure::new(inputs.clone(), hit.clone(), digest.to_owned())
+                ReferenceDisclosure::new(
+                    inputs.clone(),
+                    hit.clone(),
+                    digest.to_owned(),
+                    self.closed_callers.take(&key),
+                )
             });
         }
     }
@@ -287,6 +312,7 @@ impl ReferenceContext {
             changed |= published;
         }
         if source_changed {
+            self.closed_callers.invalidate();
             self.start_query();
         }
         changed
@@ -656,7 +682,15 @@ mod tests {
         let mut context = ReferenceContext::default();
         context.update(Some(inputs.clone()), Some(target(&inputs, 24)));
         settle(&mut context);
+        assert!(context.disclosures.is_empty());
         context.expand(0, true);
+        assert!(context.disclosures[&0].callers_loading());
+        context.expand(0, false);
+        context.expand(0, true);
+        assert!(
+            context.disclosures[&0].callers_loading(),
+            "pending work cannot enter the completed cache"
+        );
         context.expand(1, true);
         settle(&mut context);
         assert_eq!(context.disclosures.len(), 2);
@@ -665,6 +699,11 @@ mod tests {
         context.expand(0, false);
         assert_eq!(context.disclosures[&1].callers(), retained.as_ref());
         context.expand(0, true);
+        assert!(
+            !context.disclosures[&0].callers_loading(),
+            "reopening a loaded disclosure must reuse the accepted caller tree"
+        );
+        assert_eq!(context.disclosures[&0].callers().unwrap().rows.len(), 2);
         let replacement = Arc::new(SourceQueryInputs {
             source: inputs.source.clone(),
             buffer: inputs.buffer.clone(),
@@ -733,6 +772,8 @@ mod tests {
             .unwrap()
             .source_identities
             .contains_key("c.rs"));
+        context.show(target(&inputs, 24));
+        context.expand(row, false);
         let displayed = Arc::new(SourceBuffer::from_str("c.rs", "fn three() { new(); }"));
         context.update(
             Some(Arc::new(SourceQueryInputs {
@@ -745,6 +786,12 @@ mod tests {
         assert!(
             context.disclosures.is_empty(),
             "changed caller-only source retained an old tree"
+        );
+        settle(&mut context);
+        context.expand(row, true);
+        assert!(
+            context.disclosures[&row].callers_loading(),
+            "a collapsed tree survived an accepted caller-only source edit"
         );
     }
 

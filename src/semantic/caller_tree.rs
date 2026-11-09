@@ -164,6 +164,17 @@ mod tests {
         let slot2 = caller_pill_slot("handleRequest", "src/server.rs");
         assert_eq!(slot1, slot2);
 
+        for (method, file, expected) in [
+            ("launch", "first.rs", 1),
+            ("launch", "second.rs", 11),
+            ("entry", "entry.rs", 8),
+            ("launch", "modules/agent/ffi/src/engine.rs", 4),
+            ("café", "src/uni.rs", 3),
+            ("ab", "c", 11),
+            ("a", "bc", 7),
+        ] {
+            assert_eq!(caller_pill_slot(method, file), expected);
+        }
         let color = caller_pill_color("handleRequest", "src/server.rs");
         assert_eq!(color, CALLER_PALETTE[slot1]);
     }

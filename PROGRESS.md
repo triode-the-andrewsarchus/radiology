@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-09 — Loaded caller-trace reuse and Swift tree contracts (Codex)
+
+The collapse/reopen regression first failed because a loaded tree restarted.
+Completed trees and continuation limits now move through the existing weighted
+QueryCache, keyed by validated path/range/digest. Reopening restores the tree
+before polling and starts no trace worker. Closed results hold no source/index
+Arc, loader or worker, and retain the existing 24-entry/32 MiB bound. Pending or
+failed continuations are excluded; index/root/revision/target/source ownership
+continues to retire reuse. Source excerpt preparation remains independent.
+
+All seven ReferenceCallTree groups and the fixed palette group now have explicit
+mappings. Tests extend exact Unicode branch locations, self/mutual recursion with
+unique branch identities, distinct global as well as local same-name owners and
+301-row continuation. All seven portable Swift palette assignments already match.
+The real both-scale Context fixture confirms total_area and immediate loaded
+reuse. Caller-only accepted source edits require a fresh trace even after collapse.
+
+Focused reference/cache/app/worker/palette checks pass (12/3/2/9/1), as do strict
+all-target Clippy, ordinary build and warning-free docs. A fresh complete serial
+workspace gate follows this checkpoint; the preceding full-run result belongs to
+b959b1f. Architecture +141 NLOC/four small functions, no new files/hotspots/cycles,
+average/max CCN unchanged 3.42/132. Clone count stays 125; one existing test fragment
+has a shorter boundary. Shared source-identity accounting removes the actual new
+runtime clone. [Caller-tree mapping](plans/rust-call-tree-contracts.md); logs:
+`~/.local/state/radiology-qa/caller-disclosure-20261109-b959b1f/`.
+
+Next: source/syntax/projection/test-region assertion reconciliation, then compiler
+and inspector suites and final integrated native/standalone/reuse acceptance.
+Android SDK-backed success and prior parallel-run limits stay open. Full
+accessibility and actual sibling integration remain outside current scope.
+
 ## 2026-11-09 — Context excerpt windows and coverage (Codex)
 
 Clipped sidebar excerpts now show omission markers using the existing shared

@@ -51,19 +51,38 @@ impl ReferenceDisclosure {
         self.job.is_running()
     }
 
-    pub(crate) fn new(inputs: Arc<SourceQueryInputs>, hit: ReferenceHit, digest: String) -> Self {
+    pub(crate) fn new(
+        inputs: Arc<SourceQueryInputs>,
+        hit: ReferenceHit,
+        digest: String,
+        cached: Option<(CallerTree, CallerLimits)>,
+    ) -> Self {
+        let (tree, limits) = cached.map_or((None, CallerLimits::default()), |(tree, limits)| {
+            (Some(tree), limits)
+        });
         let mut disclosure = Self {
             preview: Default::default(),
             hit,
             digest,
             job: Default::default(),
-            limits: Default::default(),
-            tree: None,
+            limits,
+            tree,
             error: None,
         };
         disclosure.request_preview(inputs.clone());
-        disclosure.start_trace(inputs);
+        if disclosure.tree.is_none() {
+            disclosure.start_trace(inputs);
+        }
         disclosure
+    }
+
+    // Pending continuations retire on collapse, matching Swift's loading phase.
+    pub(crate) fn into_callers(self) -> Option<(CallerTree, CallerLimits)> {
+        if self.job.is_running() || self.error.is_some() {
+            None
+        } else {
+            self.tree.map(|tree| (tree, self.limits))
+        }
     }
 
     fn request_preview(&mut self, inputs: Arc<SourceQueryInputs>) {

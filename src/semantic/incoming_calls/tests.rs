@@ -149,6 +149,9 @@ fn parsed_branches_match_swift_and_keep_callback_closure_and_nested_boundaries()
         tree.rows[0].location.byte_offset,
         inputs.buffer.text.find("café();").unwrap()
     );
+    assert_eq!(tree.rows[5].location.path, "entry.rs");
+    assert_eq!(tree.rows[6].line, 3);
+    assert_eq!(&inputs.buffer.text[hit.byte_range.clone()], "café");
     assert!(tree.notices.is_empty() && !tree.has_more);
     assert_eq!(tree.source_identities.len(), 3);
 }
@@ -174,29 +177,30 @@ fn row_limit_expansion_preserves_the_dfs_prefix() {
 
 #[test]
 fn recursion_stops_only_the_current_path_and_preserves_other_entry_branches() {
-    let (_root, inputs) = fixture(&[("cycle.rs", "fn café() {}\nfn launch() { café(); relay(); }\nfn relay() { launch(); }\nfn entry() { relay(); }\nfn other() { launch(); }\n")]);
-    let (hit, digest) = selected(&inputs, "café", true);
-    let tree = run(&inputs, &hit, &digest, 256);
-    assert_eq!(
-        tree.rows
-            .iter()
-            .map(|row| (row.name.as_str(), row.depth))
-            .collect::<Vec<_>>(),
-        [
-            ("café", 0),
-            ("launch", 1),
-            ("relay", 2),
-            ("entry", 3),
-            ("other", 2)
-        ]
-    );
-    assert_eq!(
-        tree.rows[2].note.as_deref(),
-        Some("Recursive branch stopped")
-    );
-    let prefix = run(&inputs, &hit, &digest, 3);
-    assert_eq!(prefix.rows, tree.rows[..3]);
-    assert!(prefix.has_more && !tree.has_more);
+    for (text, selected_name, expected, stopped) in [
+        ("fn middle() { middle(); }\nfn entry() { middle(); }\n", "middle",
+            &[("middle", 0), ("entry", 1)][..], 0),
+        ("fn café() {}\nfn launch() { café(); relay(); }\nfn relay() { launch(); }\nfn entry() { relay(); }\nfn other() { launch(); }\n", "café",
+            &[("café", 0), ("launch", 1), ("relay", 2), ("entry", 3), ("other", 2)][..], 2),
+    ] {
+        let (_root, inputs) = fixture(&[("cycle.rs", text)]);
+        let (hit, digest) = selected(&inputs, selected_name, true);
+        let tree = run(&inputs, &hit, &digest, 256);
+        assert_eq!(tree.rows.iter().map(|row| (row.name.as_str(), row.depth)).collect::<Vec<_>>(), expected);
+        assert_eq!(tree.rows[stopped].note.as_deref(), Some("Recursive branch stopped"));
+        assert_eq!(tree.rows.last().unwrap().note.as_deref(), Some("No indexed callers"));
+        let prefix = run(&inputs, &hit, &digest, stopped + 1);
+        assert_eq!(prefix.rows, tree.rows[..stopped + 1]);
+        assert!(prefix.has_more && !tree.has_more);
+        let mut path = Vec::new();
+        for row in &tree.rows {
+            path.truncate(row.depth);
+            if let Some(id) = &row.symbol {
+                assert!(!path.contains(&id), "a callable identity repeated within one branch");
+                path.push(id);
+            }
+        }
+    }
 }
 
 #[test]
@@ -321,50 +325,60 @@ fn unindexed_callable_and_top_level_do_not_borrow_a_preceding_definition() {
 
 #[test]
 fn identical_offsets_in_distinct_documents_keep_document_local_owners_separate() {
-    let (_root, mut inputs) = fixture(&[
-        ("leaf.rs", "fn café() {}\n"),
-        (
-            "a.rs",
-            "fn middle() { café(); }\nfn entry() { middle(); }\n",
-        ),
-        (
-            "b.rs",
-            "fn middle() { café(); }\nfn other() { middle(); }\n",
-        ),
-    ]);
-    let mut documents = inputs.index.documents.values().cloned().collect::<Vec<_>>();
-    for document in &mut documents {
-        for occurrence in &mut document.occurrences {
-            if occurrence.symbol.ends_with("middle().") {
-                occurrence.symbol = "local 1".into();
+    for local in [true, false] {
+        let (_root, mut inputs) = fixture(&[
+            ("leaf.rs", "fn café() {}\n"),
+            (
+                "a.rs",
+                "fn middle() { café(); }\nfn entry() { middle(); }\n",
+            ),
+            (
+                "b.rs",
+                "fn middle() { café(); }\nfn other() { middle(); }\n",
+            ),
+        ]);
+        let mut documents = inputs.index.documents.values().cloned().collect::<Vec<_>>();
+        for document in &mut documents {
+            for occurrence in &mut document.occurrences {
+                if occurrence.symbol.ends_with("middle().") {
+                    occurrence.symbol = if local {
+                        "local 1".into()
+                    } else {
+                        format!("test cargo fixture 1 {}/middle().", document.relative_path)
+                    };
+                }
             }
         }
+        let mut index = SemanticIndex::from_scip(ScipIndex {
+            documents,
+            ..Default::default()
+        });
+        index.source_digests = inputs.index.source_digests.clone();
+        inputs.index = Arc::new(index);
+        let (hit, digest) = selected(&inputs, "café", true);
+        let tree = run(&inputs, &hit, &digest, 256);
+        let labels = tree
+            .rows
+            .iter()
+            .map(|row| (row.name.as_str(), row.location.path.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            labels,
+            [
+                ("café", "leaf.rs"),
+                ("middle", "a.rs"),
+                ("entry", "a.rs"),
+                ("middle", "b.rs"),
+                ("other", "b.rs")
+            ]
+        );
+        assert_ne!(tree.rows[1].symbol, tree.rows[3].symbol);
+        assert!(!tree.has_more);
+        assert!(!tree
+            .rows
+            .iter()
+            .any(|row| row.note.as_deref() == Some("Recursive branch stopped")));
     }
-    let mut index = SemanticIndex::from_scip(ScipIndex {
-        documents,
-        ..Default::default()
-    });
-    index.source_digests = inputs.index.source_digests.clone();
-    inputs.index = Arc::new(index);
-    let (hit, digest) = selected(&inputs, "café", true);
-    let tree = run(&inputs, &hit, &digest, 256);
-    let labels = tree
-        .rows
-        .iter()
-        .map(|row| (row.name.as_str(), row.location.path.as_str()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        labels,
-        [
-            ("café", "leaf.rs"),
-            ("middle", "a.rs"),
-            ("entry", "a.rs"),
-            ("middle", "b.rs"),
-            ("other", "b.rs")
-        ]
-    );
-    assert_ne!(tree.rows[1].symbol, tree.rows[3].symbol);
-    assert!(!tree.has_more);
 }
 
 #[test]
@@ -416,9 +430,11 @@ fn traversal_can_exceed_legacy_depth_limits_without_recursive_stack_calls() {
     let (hit, digest) = selected(&inputs, "café", true);
     let limited = run(&inputs, &hit, &digest, 256);
     assert!(limited.has_more && limited.rows.len() == 256);
+    assert_eq!(limited.rows.last().unwrap().depth, 255);
     let all = run(&inputs, &hit, &digest, 512);
     assert_eq!(all.rows.len(), 301);
     assert_eq!(all.rows.last().unwrap().depth, 300);
+    assert_eq!(all.rows.last().unwrap().name, "caller299");
     assert_eq!(limited.rows, all.rows[..256]);
     assert!(!all.has_more);
 }

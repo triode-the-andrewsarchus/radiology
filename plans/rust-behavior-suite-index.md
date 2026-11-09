@@ -354,6 +354,13 @@ snippet path, now with omitted-edge markers. The coverage matrix maps retained,
 empty and absent index states, exact labels/reasons and atomic source publication.
 All eighteen ContextModel groups have mappings; the checkpoint's combined full workspace gate passes. Reference/call-tree/palette and other suite/final acceptance remain open.
 
+[Reference caller-tree contracts](rust-call-tree-contracts.md) reconcile all seven
+ReferenceCallTreeTests groups and the CallTreePaletteTests group. Loaded trees now
+survive collapse/reopen under bounded current-source ownership. Self/mutual cycles,
+branch boundaries, same-name local/global identities, deep continuation and exact
+portable color assignments have explicit mappings. Final focused results are
+recorded in that checkpoint; the later suite and acceptance gates remain open.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

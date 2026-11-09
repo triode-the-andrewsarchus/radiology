@@ -88,11 +88,7 @@ impl ReferenceResults {
                 .iter()
                 .map(|group| group.path.capacity() + group.content_digest.capacity())
                 .sum::<usize>()
-            + self
-                .source_identities
-                .iter()
-                .map(|(path, digest)| path.capacity() + digest.capacity() + 64)
-                .sum::<usize>()
+            + crate::source::queries::source_identity_bytes(&self.source_identities)
             + self.unreadable.capacity() * std::mem::size_of::<UnreadableReferenceFile>()
             + self
                 .unreadable
