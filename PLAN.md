@@ -4,27 +4,37 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
-Overall Swift/Rust parity remains unproven. The standalone app remains the current
-product; actual little-screen-clip integration and full accessibility are deferred.
-All eighteen ContextModel groups, the seven caller-tree plus one palette group
-and all 66 source/syntax groups have explicit mappings. All 35 compiler/personality
-groups and all fifteen inspector/trait functions are now mapped too. Final
-complete requirement-ledger review and any uncovered integrated acceptance remain.
-Fresh standalone/exported-library and affected native acceptance pass for a5fd157. Android SDK-backed success remains open; the fresh half-core parallel suite also passes. Automatic open/stale-cache generation is now
-implemented, unknown adapters fail before planning, and attempted invocations are
-recorded/copied from Generation Details. Final acceptance still needs proof.
+Desktop feature and broad UI implementation is accepted within the documented
+platform/corpus boundaries. Overall completion remains unproven because successful
+SDK-backed Android indexing is still unverified. The standalone app remains the
+product; actual little-screen-clip adoption and full accessibility are deferred.
+Keyboard shortcuts remain in scope.
 
-The latest complete serial workspace gate passes 943 app tests (twelve opt-in
-ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
-automatic indexing, C/C++ status, explicit reuse and recent source additions.
-Strict Clippy, normal build and warning-free docs pass. Fresh exported-workspace
-build, independent full/asset hosts and source-unavailable resource/runtime checks
-pass. Fresh native generation/restart/failure/Copy Command checks also pass at both
-scales with exported sources available/unavailable. Complete ledger review and any
-uncovered integrated acceptance remain open.
-See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
+The [final requirement audit](plans/rust-final-requirement-audit.md) reconciles
+R1–R17, the upstream additions and all 317 ordinary Swift functions across 66 suites
+with their assertion-level Rust checkpoints. Eleven optional probe files/seventeen
+functions retain explicit environment/corpus limits; name mapping alone is not
+behavioral proof. All 81 root Swift reference file hashes remain unchanged.
+
+The current a5fd157 production snapshot passes 943 app tests (twelve opt-in ignores),
+binary/font/text 2/13/23 and 68 doctests, both serially and with sixteen build jobs/
+sixteen test threads. Strict Clippy, build and formatting pass. Fresh committed
+export, independent full-reader and asset/text consumers, source-unavailable copied
+executables, integrated native PR and representative source/stress checks pass.
+The latest [runtime acceptance](plans/rust-final-runtime-acceptance.md) states exact
+compiler/process/native boundaries. Earlier actual IME, portal, compiler and seL4
+acceptance retain their documented scope.
+
+Remaining required work: SDK-backed Android generation/navigation (or explicit user
+deferral), fixing any defect it exposes and recording/rechecking affected behavior.
+SDK license acceptance authorization is pending. See [PROGRESS.md](PROGRESS.md) for
+the latest checkpoint and the audit for exact external-corpus limits.
 
 ## Recent checkpoint index
+
+[Final requirement audit](plans/rust-final-requirement-audit.md) connects every
+ordinary suite to its contracts and records original/upstream dispositions, exact
+supplemental method links, architecture/reuse evidence and the remaining Android gate.
 
 [Review/index coordination](plans/rust-review-index-coordination.md) fixes a fresh
 native finding: automatic checkout compilation could run while an explicit PR was

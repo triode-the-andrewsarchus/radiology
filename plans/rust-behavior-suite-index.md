@@ -1,5 +1,11 @@
 # Swift behavior-suite evidence index — 2026-11-05
 
+Current audit: [complete requirement/suite traceability](rust-final-requirement-audit.md)
+now maps all 317 ordinary functions to assertion-level checkpoints and separately
+records the seventeen optional probe functions. The inventory below retains its
+historical organization; the linked final audit gives current dispositions and
+explicit limits. SDK-backed Android success remains unverified.
+
 Reference inventory at Rust `fbf6872`:81 root Swift files,66 ordinary suite files,11 opt-in probe files and four support files;334 annotated test functions before parameter expansion. Fixture source files are separate. File-level categories do not imply that every test in an ordinary suite runs unconditionally. The hashed function inventory is retained in the evidence archive for the Return checkpoint.
 
 This is an index of source and existing acceptance evidence, **not proof that every Swift assertion has been reconciled**. Each linked checkpoint states its actual tests, native/compiler boundaries and remaining limits. Reading a filename or passing the Rust suite alone does not establish parity. The current pass rechecked reader navigation/selection and found the Return mismatch repaired in [its checkpoint](rust-reader-return-selection.md). Continue the remaining groups against their individual assertions; keep discovered gaps in scope.

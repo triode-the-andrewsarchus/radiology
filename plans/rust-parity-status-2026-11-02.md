@@ -1,5 +1,14 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+Current disposition (2026-11-09): the [final requirement audit](rust-final-requirement-audit.md)
+reconciles the original/upstream desktop scope and all 317 ordinary suite functions.
+The latest [runtime acceptance](rust-final-runtime-acceptance.md) refreshes a5fd157
+with full serial/parallel 943-app/68-doctest gates, independent exports/hosts and
+both-scale native PR/source/stress checks. SDK-backed Android success remains
+unverified; optional external-corpus limits are explicit. The following checkpoint
+narrative is chronological and retains each earlier snapshot's counts and pending
+work; the remaining-gates section at the end is current.
+
 Current source reconciliation: [test-presentation contracts](rust-test-presentation-contracts.md)
 complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
@@ -507,18 +516,21 @@ while complete requirement/suite review and any uncovered integration remain.
 
 ## Remaining acceptance gates
 
-1. **Remaining behavior and compiler acceptance:** finish mapping the other
-   checked-in Swift behavior fixtures to current Rust coverage. Mixed language,
-   recovered syntax, representative long/wrapped/Unicode source, pending text owners
-   and integrated PR/revision/cache workflows are accepted above. Use documented
-   Swift limits for dependency-heavy C/C++ and Android/Gradle success or explicit
-   failure behavior. Repair any new gaps.
-2. **Standalone/reuse acceptance maintenance:** the linked host audit passes a clean
-   locked build with half-core Cargo settings, embedded resource independence and
-   external host consumption for its audited state. Preserve independent app lifecycle and the local shared text/font crates;
-   actual sibling integration remains deferred. Re-run the relevant gates after any
-   fixes and audit the complete requirement ledger before claiming parity.
+1. **Android SDK-backed success:** verify real Android/Gradle generation and exact
+   navigation through the application service. The concrete private SDK package/
+   license acceptance request is pending explicit authorization. Missing-SDK failure,
+   actual JVM generation and recorded PR navigation do not prove this success path.
+   An explicit user deferral may remove it from the current acceptance scope.
+2. **Any defect found by that gate:** repair it, run affected tests/native checks,
+   update the requirement audit and commit/push the result. Preserve independent
+   lifecycle, shared text/font boundaries and read-only viewed repositories.
 
-New gaps found during these gates belong in the same scope and must be repaired,
-not relabeled as completed. The non-Git database failure found in this pass was
-fixed, tested with actual Clang/native controls and pushed as `3add1c3`.
+The original/upstream desktop requirement audit, ordinary fixture reconciliation,
+fresh independent consumers/exported-resource checks, affected native PR/source/
+stress flows and full half-core parallel suite are now accepted in their documented
+scopes. See the [final audit](rust-final-requirement-audit.md) for all suite links and
+external-corpus/probe boundaries. Do not reinterpret these boundaries as evidence
+that Swift/AppKit or the original private macOS corpora ran on Linux.
+
+New gaps found during acceptance remain in scope and must be repaired, not relabeled
+as completed. Full accessibility and actual sibling adoption remain deferred.

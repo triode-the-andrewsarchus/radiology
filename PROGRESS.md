@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-09 — Complete original/upstream desktop requirement audit (Codex)
+
+Rechecked all 81 root Swift hashes against the recorded inventory; no reference
+assertions were changed. The final ledger traces all 317 annotated ordinary
+functions/66 suites across 58 assertion-level contract documents, separately
+classifies eleven optional probe files/seventeen methods and supplies exact Rust
+test links for seventeen previously descriptive-only method mappings. It records
+R1–R17, upstream capabilities, native/compiler boundaries, standalone/shared-reader
+acceptance and architecture-delta evidence. Mapping/counts are traceability;
+behavioral proof remains the linked actual assertions and accepted runtime flows.
+
+Desktop feature/broad UI implementation is accepted within those stated limits.
+Both full serial and sixteen-job/sixteen-thread workspace runs pass at current
+production a5fd157: 943 app/twelve ignores, binary/font/text 2/13/23, 68 doctests.
+The fresh runtime/export/host acceptance is committed and pushed as 7ea44ee.
+PLAN now lists the remaining required gate rather than historical completed work.
+
+SDK-backed Android success remains unverified; a concrete private SDK download/
+license-acceptance request is pending. No acceptance on silence. Exact private
+macOS corpus/timing probes are explicitly not claimed; portable behavior has
+assertion/native/compiler evidence. No new missing major desktop feature was found.
+The goal remains active; full accessibility and actual sibling adoption are deferred.
+[Final audit and complete suite index](plans/rust-final-requirement-audit.md).
+Archive: ~/.local/state/radiology-qa/final-requirement-audit-20261109-a5fd157/.
+
 ## 2026-11-09 — Accept corrected native PR, source stress and independent export (Codex)
 
 Current a5fd157 passes the fresh serial workspace gate: 943 app tests/twelve

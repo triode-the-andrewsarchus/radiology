@@ -1,5 +1,11 @@
 # Upstream parity expansion — 2026-11-02
 
+Current disposition (2026-11-09): the [final audit](rust-final-requirement-audit.md)
+reconciles these additions with the original desktop scope. Later contracts and
+actual IME/portal/compiler/native evidence close historical pending notes below;
+SDK-backed Android remains a separate unverified gate. The matrix preserves the
+requirements and chronological implementation notes.
+
 Reference update: main `6d446b9` → `7edfc79` (one upstream publication commit,
 172 feature/resource/test/documentation files plus PLAN/PROGRESS). The Rust branch
 was rebased across all 271 commits. Only the initial PLAN/PROGRESS index entries
