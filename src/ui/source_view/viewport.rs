@@ -5288,29 +5288,13 @@ mod tests {
 
     #[test]
     fn critical_projection_splits_colored_spans_without_changing_source_geometry_or_bytes() {
-        let ctx = egui::Context::default();
         let text = r#"fn f() { let s = "😀"; unknown(); }"#;
-        let mut reader = Reader::new(text);
-        let color = Color32::from_rgb(200, 130, 80);
-        reader.highlights = vec![vec![HighlightedSpan {
-            bytes: 0..text.len(),
-            text: text.into(),
-            color,
-            is_bold: false,
-            is_italic: false,
-        }]];
-        let normal = reader.frame(&ctx, Vec::new());
-        let (_, normal) = text_shape(&normal, text);
         let name = text.find("unknown").unwrap();
-        reader.projection = Some(crate::critical::SourceProjection::new(
-            &reader.source,
-            vec![0..name, name + 7..text.len()],
-        ));
-        reader.mode = SourceMode::Critical;
-        let output = reader.frame(&ctx, Vec::new());
-        let (_, critical) = text_shape(&output, text);
-        assert_eq!(critical.job.text, text);
-        assert_eq!(critical.size(), normal.size());
+        let colors = [
+            Color32::from_rgb(200, 130, 80),
+            Color32::from_rgb(60, 130, 230),
+            Color32::from_rgb(100, 190, 100),
+        ];
         let at = |galley: &egui::Galley, byte| {
             galley
                 .job
@@ -5321,17 +5305,154 @@ mod tests {
                 .format
                 .color
         };
-        assert_eq!(at(&critical, name), color);
-        assert_ne!(at(&critical, 0), color);
-        assert_ne!(at(&critical, name + 7), color);
-        reader.mode = SourceMode::Normal;
-        let output = reader.frame(&ctx, Vec::new());
-        assert_eq!(at(&text_shape(&output, text).1, 0), color);
-        reader.mode = SourceMode::Critical;
-        reader.source = SourceBuffer::from_str("fixture.rs", &text.replace("unknown", "altered"));
-        let output = reader.frame(&ctx, Vec::new());
-        let (_, stale) = text_shape(&output, &text.replace("unknown", "altered"));
-        assert_eq!(at(&stale, 0), color); // Wrong-content projection is ignored.
+        for scale in [1.0, 2.0] {
+            for theme in [AppTheme::dark(), AppTheme::light()] {
+                let ctx = reader_context(scale);
+                let mut reader = Reader::new(text);
+                reader.theme = theme;
+                reader.highlights = vec![[0..name, name..name + 7, name + 7..text.len()]
+                    .into_iter()
+                    .zip(colors)
+                    .map(|(bytes, color)| HighlightedSpan {
+                        text: text[bytes.clone()].into(),
+                        bytes,
+                        color,
+                        is_bold: false,
+                        is_italic: false,
+                    })
+                    .collect()];
+                reader.frame(&ctx, vec![]);
+                reader.viewport.select(name..name + 7);
+                reader.pins.toggle_pin(
+                    "syntactic:unknown",
+                    std::iter::once(name..name + 7).collect(),
+                );
+                let selection = reader.viewport.selection;
+                let highlights = reader.highlights.clone();
+                let pins = reader.pins.groups.clone();
+                let normal = reader.frame(&ctx, vec![]);
+                let (origin, normal) = text_shape(&normal, text);
+                let projection = crate::critical::SourceProjection::new(
+                    &reader.source,
+                    vec![name + 7..text.len(), 0..name],
+                );
+                reader.projection = Some(projection.clone());
+                reader.mode = SourceMode::Critical;
+                for _ in 0..3 {
+                    let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+                    let (position, critical) = text_shape(&output, text);
+                    assert_eq!((position, critical.size()), (origin, normal.size()));
+                    assert_eq!(at(&critical, name), colors[1]);
+                    assert_eq!(
+                        at(&critical, 0),
+                        colors[0].gamma_multiply(if reader.theme.is_dark { 0.38 } else { 0.30 })
+                    );
+                    assert_eq!(
+                        at(&critical, name + 7),
+                        colors[2].gamma_multiply(if reader.theme.is_dark { 0.38 } else { 0.30 })
+                    );
+                    assert_eq!(output.platform_output.copied_text, "unknown");
+                    assert!(
+                        !filled_bands(&output, reader.theme.accent.gamma_multiply(0.35)).is_empty()
+                    );
+                    let pin = reader
+                        .theme
+                        .occurrence_color(pins[0].color)
+                        .gamma_multiply(if reader.theme.is_dark { 0.22 } else { 0.15 });
+                    assert!(!filled_bands(&output, pin).is_empty());
+                    assert_eq!(reader.viewport.selection, selection);
+                    assert_eq!(reader.highlights, highlights);
+                    assert_eq!(reader.pins.groups, pins);
+                    assert_eq!(reader.source.text, text);
+                }
+                // Replace with a range strictly inside one syntax-color run.
+                reader.projection = Some(crate::critical::SourceProjection::new(
+                    &reader.source,
+                    std::iter::once(name + 2..name + 4).collect(),
+                ));
+                let output = reader.frame(&ctx, vec![]);
+                let (_, bounded) = text_shape(&output, text);
+                assert_eq!(at(&bounded, 0), colors[0]);
+                assert_eq!(at(&bounded, name + 1), colors[1]);
+                assert_ne!(at(&bounded, name + 2), colors[1]);
+                assert_eq!(at(&bounded, name + 4), colors[1]);
+                reader.projection = None;
+                let output = reader.frame(&ctx, vec![]);
+                assert_eq!(at(&text_shape(&output, text).1, name + 2), colors[1]);
+                reader.projection = Some(projection);
+                reader.mode = SourceMode::Normal;
+                let output = reader.frame(&ctx, vec![]);
+                assert_eq!(at(&text_shape(&output, text).1, 0), colors[0]);
+                reader.mode = SourceMode::Critical;
+                let original = reader.source.clone();
+                reader.source =
+                    SourceBuffer::from_str("fixture.rs", &text.replace("unknown", "altered"));
+                let output = reader.frame(&ctx, vec![]);
+                assert_eq!(
+                    at(
+                        &text_shape(&output, &text.replace("unknown", "altered")).1,
+                        0
+                    ),
+                    colors[0]
+                );
+                reader.source = original;
+                let output = reader.frame(&ctx, vec![]);
+                assert_ne!(
+                    at(&text_shape(&output, text).1, 0),
+                    colors[0],
+                    "the same projection reapplies after restoring identical source"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn critical_projection_survives_fold_redraw_and_copy_keeps_hidden_original_bytes() {
+        let text = "fn scan() {\r\n    work().clone();\r\n}\r\n";
+        let clone = text.find("clone").unwrap();
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new(text);
+            reader.ranges = crate::syntax::DocumentSyntax::analyze(&reader.source).folds;
+            reader.mode = SourceMode::Critical;
+            let projection = crate::critical::SourceProjection::new(
+                &reader.source,
+                std::iter::once(clone..clone + 5).collect(),
+            );
+            reader.projection = Some(projection.clone());
+            reader.frame(&ctx, vec![]);
+            reader.viewport.request_focus(&ctx);
+            reader.frame(&ctx, vec![key(Key::A, Modifiers::CTRL)]);
+            let selection = reader.viewport.selection;
+            let caret = (reader.line, reader.column);
+            for _ in 0..2 {
+                reader.folds.toggle_header(1, &reader.ranges);
+                assert!(reader.folds.is_header_folded(1, &reader.ranges));
+                let output = reader.frame(&ctx, vec![egui::Event::Copy]);
+                assert!(
+                    !crate::ui::test_support::text_shapes(&output).any(|shape| shape
+                        .galley
+                        .job
+                        .text
+                        .contains("clone"))
+                );
+                assert_eq!(output.platform_output.copied_text, text);
+                assert_eq!(reader.viewport.selection, selection);
+                assert_eq!((reader.line, reader.column), caret);
+                assert_eq!(reader.projection.as_ref(), Some(&projection));
+                reader.folds.toggle_header(1, &reader.ranges);
+                let output = reader.frame(&ctx, vec![]);
+                let (_, galley) = text_shape(&output, "    work().clone();");
+                assert!(galley
+                    .job
+                    .sections
+                    .iter()
+                    .any(|section| section.format.color
+                        == reader.theme.text_primary.gamma_multiply(0.38)));
+                assert_eq!(reader.viewport.selection, selection);
+                assert_eq!(reader.source.text, text);
+            }
+        }
     }
 
     #[test]

@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-11-09 — Critical projection drawing parity (Codex)
+
+All three Swift drawing groups now have explicit mapping. Expanded real viewport
+frames at both scales/themes verify each syntax color dims independently, prominent
+calls retain color, selection/pin layers and geometry remain unchanged, canonical
+Copy works, bounded replacement ranges clear old dimming, None/Normal clear it,
+and changed source rejects stale projections. Identical restored source reapplies
+the same projection. A new CRLF function test folds/unfolds twice, keeps selection,
+caret and projection, hides projected text and copies complete hidden original bytes.
+Repeated actual paint outputs replace Swift's TextKit hook counters/attributes;
+no fresh native compositor/AppKit evidence or typography redesign is claimed.
+
+All 65 viewport tests, ten Critical Lens app/popup checks, final focused tests,
+strict all-target Clippy, formatting and diff checks pass. Clippy's single-range
+collection diagnostic was resolved with explicit once/collect syntax. No fresh
+full-workspace/build/docs run for this test-only checkpoint; 091cd94's complete
+run remains the latest. Architecture +119 measured NLOC/one test function, with
+all 123 clone instances identical and unchanged average/max CCN, 36 hotspots and
+cycles. No production code or dependency changed; existing Reader/paint/selection/
+pin/fold/copy mechanisms are reused. [Drawing mapping](plans/rust-critical-drawing-contracts.md)
+and PLAN/behavior index/parity ledger record the boundary and archive
+`~/.local/state/radiology-qa/critical-drawing-20261109-9122073/`.
+
+All nine Critical Lens/hover suites (29 annotated Swift groups) now have explicit
+mappings. Code Paths, semantic/context/navigation, source/syntax, compiler/indexing
+and inspector suites still need remaining reconciliation, then final whole-app/
+native and standalone acceptance maintenance. Known parallel timing limits and
+Android remain open. Full accessibility and actual sibling adoption remain deferred.
+
 ## 2026-11-09 — Critical graph-worker lifecycle parity (Codex)
 
 All five Swift worker groups now have explicit mapping. Two new tests verify

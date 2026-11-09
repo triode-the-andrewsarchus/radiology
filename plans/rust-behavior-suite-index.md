@@ -220,6 +220,12 @@ same-length changes, stale digests, real in-flight viewer/structure replacement,
 cancellation/reaping and unresolved/dynamic partial coverage pass. The three
 SourceProjectionDrawingTests groups retain their separate audit.
 
+[Drawing reconciliation](rust-critical-drawing-contracts.md) maps all three
+SourceProjectionDrawingTests groups through actual both-scale/theme frames,
+syntax color bounds, selection/pin layers, canonical CRLF copy, folds and source
+replacement. All nine suites in this section (29 annotated groups) now have
+explicit mappings; other sections and final acceptance remain open.
+
 ## Code Paths
 
 Rust entry points: [tests.rs](../src/code_paths/resolver/tests.rs), [tests.rs](../src/code_paths/store/tests.rs), [tests.rs](../src/ui/app/code_paths/tests.rs), [ui_tests.rs](../src/ui/app/code_paths/ui_tests.rs).

@@ -6,10 +6,15 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Critical drawing contracts](rust-critical-drawing-contracts.md) now map the three
+Swift groups through actual source paint/copy/fold/replacement frames at both
+scales/themes. With the preceding checkpoints, all nine Critical Lens/hover suites
+(29 groups) have explicit mappings. Other suites and final acceptance remain open.
+
 [Critical worker contracts](rust-critical-worker-contracts.md) now map all five
 Swift groups through immutable worker replacement, exact callee digests, cached
 request coherence and real pinned-read viewer/structure promotion with cancellation
-and child reaping. No runtime correction was needed. Three drawing groups and
+and child reaping. No runtime correction was needed. Drawing is reconciled above;
 other suites/final acceptance remain open.
 
 [Critical summary/hover contracts](rust-critical-summary-contracts.md) now map
