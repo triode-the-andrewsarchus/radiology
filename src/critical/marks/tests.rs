@@ -120,3 +120,36 @@ fn dropping_a_session_retains_accepted_edits_even_before_load_publication() {
         1
     );
 }
+
+#[test]
+fn corrupt_or_foreign_saved_marks_leave_an_empty_session_without_overwriting_disk() {
+    let owner = tempfile::tempdir().unwrap();
+    let root = owner.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    let directory = owner.path().join("private-marks");
+    let store = OverrideStore::new(directory.clone());
+    let mut initial = CriticalityOverrides::default();
+    edit(Some(Criticality::Critical)).apply(&mut initial);
+    store
+        .save(&root, &initial, store.reserve_revision())
+        .unwrap();
+    let path = std::fs::read_dir(&directory)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let mut foreign: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    foreign["repository_root"] = serde_json::json!("/another-repository");
+    let mut session = MarkSession::new(Some(store));
+    for bytes in [b"{not json".to_vec(), serde_json::to_vec(&foreign).unwrap()] {
+        std::fs::write(&path, &bytes).unwrap();
+        session.open(root.clone());
+        settle(&mut session);
+        assert!(session.overrides().is_empty());
+        assert!(session.error().is_some());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+    }
+}

@@ -187,8 +187,15 @@ Evidence: [rust-critical-projection-reuse](rust-critical-projection-reuse.md), [
 | [CriticalSummaryModelTests](../Tests/RadiologyTests/CriticalSummaryModelTests.swift) | 4 |
 | [CriticalityOverrideStoreTests](../Tests/RadiologyTests/CriticalityOverrideStoreTests.swift) | 2 |
 | [CriticalityPolicyTests](../Tests/RadiologyTests/CriticalityPolicyTests.swift) | 3 |
+
 | [SourceProjectionDrawingTests](../Tests/RadiologyTests/SourceProjectionDrawingTests.swift) | 3 |
 | [HoverPopoverInteractionTests](../Tests/RadiologyTests/HoverPopoverInteractionTests.swift) | 2 |
+
+[Policy and override storage](rust-critical-policy-contracts.md) now reconcile all
+three CriticalityPolicyTests and both CriticalityOverrideStoreTests groups,
+including indexed menu evidence, invalid-load session fallback and real deletion
+permission errors. The other Critical Lens rows retain their existing evidence
+and still need remaining assertion-level reconciliation.
 
 ## Code Paths
 

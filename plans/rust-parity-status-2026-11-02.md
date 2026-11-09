@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Critical policy and storage](rust-critical-policy-contracts.md) reconcile the
+five Swift policy/override groups without runtime changes. The expanded matrix
+checks classification reasons and reset precedence; actual session and filesystem
+checks establish invalid-data fallback and reported deletion failures. Other
+Critical Lens workflows and final acceptance remain open.
+
 The integrated review suite now has all four assertion groups mapped. Its final
 [failure/supersession audit](rust-review-retirement-contracts.md) combines actual
 CLI retries, three live-child cancellations, repository/PR replacement and pinned

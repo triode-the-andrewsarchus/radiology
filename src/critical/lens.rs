@@ -522,59 +522,130 @@ mod tests {
         );
 
         assert!(SCIPSymbolHeader::parse("local 12").is_none());
+        let placeholder = SCIPSymbolHeader::parse("rust-analyzer cargo . . x/").unwrap();
+        assert!(placeholder.package_name().is_none());
+        let escaped = SCIPSymbolHeader::parse("a b  c d e f/").unwrap();
+        assert_eq!(escaped.manager, "b c");
+        let url = "rust-analyzer cargo std https://github.com/rust-lang/rust/library/std fs/OpenOptions#open().";
+        assert!(SCIPSymbolHeader::parse(url)
+            .unwrap()
+            .version
+            .starts_with("https://"));
+        assert_eq!(
+            crate::semantic::index::SCIPSymbolString::descriptor_text(url),
+            "fs/OpenOptions#open()."
+        );
+        assert_eq!(
+            SCIPSymbolHeader::parse("rust-analyzer cargo core . option/Option#unwrap().")
+                .unwrap()
+                .package_name(),
+            Some("core")
+        );
     }
 
     #[test]
     fn test_policy_precedence() {
-        let mut policy = CriticalityPolicy::default();
-        policy.repository_packages.insert("my_crate".to_string());
-
-        // FFI package
-        let ffi_sym = "rust-analyzer cargo libc 0.2.147 io/read().";
-        let c_ffi = policy.classify(ffi_sym, None, false);
-        assert_eq!(c_ffi.criticality, Criticality::Critical);
-        assert_eq!(c_ffi.reason, CriticalityReason::FfiPackage);
-
-        // System API
-        let sys_sym = "rust-analyzer cargo std 1.70.0 fs/File#open().";
-        let c_sys = policy.classify(sys_sym, None, false);
-        assert_eq!(c_sys.criticality, Criticality::Critical);
-        assert_eq!(c_sys.reason, CriticalityReason::SystemApi);
-
-        // Runtime plumbing
-        let plumb_sym = "rust-analyzer cargo core 1.70.0 clone/Clone#clone().";
-        let c_plumb = policy.classify(plumb_sym, None, false);
-        assert_eq!(c_plumb.criticality, Criticality::Ordinary);
-        assert_eq!(c_plumb.reason, CriticalityReason::RuntimePlumbing);
-
-        // Repository crate
-        let repo_sym = "rust-analyzer cargo my_crate 0.1.0 engine/start().";
-        let c_repo = policy.classify(repo_sym, None, false);
-        assert_eq!(c_repo.criticality, Criticality::Critical);
-        assert_eq!(c_repo.reason, CriticalityReason::RepositoryDefinition);
-
-        // User override beats policy
-        policy
-            .overrides
-            .set_symbol(plumb_sym, Some(Criticality::Critical));
-        let c_over = policy.classify(plumb_sym, None, false);
-        assert_eq!(c_over.criticality, Criticality::Critical);
-        assert_eq!(c_over.reason, CriticalityReason::SymbolOverride);
+        use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, SemanticIndex};
+        use Criticality::{Critical as C, Ordinary as O, Unknown as U};
+        use CriticalityReason::*;
+        let repository = "rust-analyzer cargo app 0.1.0 main/run().";
+        let index = SemanticIndex::from_scip(ScipIndex {
+            documents: vec![ScipDocument {
+                relative_path: "src/main.rs".into(),
+                occurrences: vec![ScipOccurrence {
+                    symbol: repository.into(),
+                    symbol_roles: 1,
+                    range: ScipRange::from_packed(&[0, 3, 6]),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let policy = CriticalityPolicy::for_index(Some(&index), Default::default());
+        assert_eq!(policy.repository_packages, HashSet::from(["app".into()]));
+        for (symbol, criticality, reason) in [
+            (repository, C, RepositoryDefinition),
+            ("rust-analyzer cargo app 0.1.0 android/only().", C, RepositoryDefinition),
+            ("rust-analyzer cargo core . option/Option#unwrap().", O, RuntimePlumbing),
+            ("rust-analyzer cargo std https://github.com/rust-lang/rust/library/std fs/OpenOptions#open().", C, SystemApi),
+            ("rust-analyzer cargo std . io/error/impl#[Error]last_os_error().", O, RuntimePlumbing),
+            ("rust-analyzer cargo std . io/error/ErrorKind#WouldBlock#", O, RuntimePlumbing),
+            ("rust-analyzer cargo std . io/buffered/bufreader/BufReader#new().", O, RuntimePlumbing),
+            ("rust-analyzer cargo std . io/stdio/stdout().", C, SystemApi),
+            ("rust-analyzer cargo std . io/Read#read().", C, SystemApi),
+            ("rust-analyzer cargo std . os/fd/raw/impl#[`fs::File`][AsRawFd]as_raw_fd().", C, FfiPackage),
+            ("rust-analyzer cargo libc 0.2.189 flock().", C, FfiPackage),
+            ("rust-analyzer cargo libsqlite3-sys 0.35.0 sqlite3_open().", C, FfiPackage),
+            ("rust-analyzer cargo mystery-sys 1.0.0 do_thing().", U, External),
+            ("rust-analyzer cargo core . ptr/read().", O, RuntimePlumbing),
+            ("rust-analyzer cargo serde_json 1.0.151 value/Value#as_object().", U, External),
+            ("rust-analyzer cargo tokio 1.53.1 fs/File#open().", C, SystemApi),
+            ("rust-analyzer cargo tokio 1.53.1 task/spawn().", U, External),
+            ("scip-go gomod std go1.22 fmt/Println().", U, External),
+            ("local 3", U, Local),
+        ] {
+            assert_eq!(policy.classify(symbol, None, symbol == repository),
+                CriticalityClassification { criticality, reason }, "{symbol}");
+        }
+        assert_eq!(
+            policy.classify(
+                "rust-analyzer cargo app 0.1.0 ffi/v8__IsSandboxEnabled().",
+                Some("unsafe extern \"C\" fn v8__IsSandboxEnabled() -> bool"),
+                true
+            ),
+            CriticalityClassification {
+                criticality: C,
+                reason: FfiSignature
+            }
+        );
     }
 
     #[test]
-    fn test_criticality_classification() {
-        let policy = CriticalityPolicy::default();
-        let c1 = policy.classify("rust-analyzer cargo core 0 clone().", None, false);
-        assert_eq!(c1.criticality, Criticality::Ordinary);
-        assert_eq!(c1.reason, CriticalityReason::RuntimePlumbing);
-
-        let c2 = policy.classify("rust-analyzer cargo payments 1 clone().", None, true);
-        assert_eq!(c2.criticality, Criticality::Critical);
-        assert_eq!(c2.reason, CriticalityReason::RepositoryDefinition);
-
-        let c3 = policy.classify("rust-analyzer cargo external 1 sys_open().", None, false);
-        assert_eq!(c3.criticality, Criticality::Unknown);
-        assert_eq!(c3.reason, CriticalityReason::External);
+    fn symbol_package_overrides_and_resets_preserve_builtin_precedence() {
+        use Criticality::{Critical, Ordinary, Unknown};
+        use CriticalityReason::*;
+        let system = "rust-analyzer cargo std . fs/OpenOptions#open().";
+        let ffi = "rust-analyzer cargo std . os/fd/AsRawFd#as_raw_fd().";
+        let repository = "rust-analyzer cargo app 0.1.0 main/run().";
+        let mut policy = CriticalityPolicy::new(HashSet::from(["app".into()]), Default::default());
+        policy
+            .overrides
+            .set_package("rust-analyzer cargo std", Some(Ordinary));
+        policy.overrides.set_symbol(system, Some(Critical));
+        policy.overrides.set_symbol(repository, Some(Ordinary));
+        policy.overrides.set_symbol("local 3", Some(Critical));
+        assert!(!policy.overrides.symbols.contains_key("local 3"));
+        for (symbol, criticality, reason) in [
+            (ffi, Ordinary, PackageOverride),
+            (system, Critical, SymbolOverride),
+            (repository, Ordinary, SymbolOverride),
+            ("local 3", Unknown, Local),
+        ] {
+            assert_eq!(
+                policy.classify(symbol, None, symbol == repository),
+                CriticalityClassification {
+                    criticality,
+                    reason
+                }
+            );
+        }
+        let builtin =
+            CriticalityPolicy::new(policy.repository_packages.clone(), Default::default());
+        assert_eq!(
+            builtin.classify(repository, None, true).reason,
+            RepositoryDefinition
+        );
+        policy.overrides.set_symbol(system, None);
+        assert_eq!(policy.classify(system, None, false).reason, PackageOverride);
+        policy
+            .overrides
+            .set_package("rust-analyzer cargo std", Some(Unknown));
+        assert!(policy.overrides.packages.is_empty());
+        assert_eq!(
+            policy.classify(system, None, false),
+            builtin.classify(system, None, false)
+        );
+        assert_eq!(policy.classify(ffi, None, false).reason, FfiPackage);
     }
 }

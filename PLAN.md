@@ -4,6 +4,13 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Critical policy/storage contracts](plans/rust-critical-policy-contracts.md)
+now map three Swift policy and two override-store groups. Expanded tests confirm
+classification/reset rules, indexed Built-In metadata, empty session fallback
+for invalid saved marks and read-only-parent deletion errors. Runtime already
+satisfies these contracts; remaining Critical Lens model/frontier/summary audits
+and whole-app acceptance remain open.
+
 [Review retirement contracts](plans/rust-review-retirement-contracts.md)
 now map the fourth integrated PR group through real request failure/retry,
 checkout exit, root/PR replacement, refresh and cancelled-child reaping at both

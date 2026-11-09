@@ -33,6 +33,12 @@ fn atomic_marks_round_trip_isolate_roots_and_delete_without_creating_idle_storag
         .save(&root, &overrides, store.reserve_revision())
         .unwrap());
     let loaded = store.load(&root, &AtomicBool::new(false)).unwrap();
+    assert_eq!(
+        loaded.repository_root,
+        std::fs::canonicalize(&root).unwrap().to_str().unwrap()
+    );
+    let (file, _) = store.location(&root).unwrap();
+    assert!(file.starts_with(&store.directory) && !file.starts_with(&root));
     assert_eq!(loaded.symbols, overrides.symbols);
     assert_eq!(loaded.packages, overrides.packages);
     let other = root.with_file_name("other-repository");
@@ -139,6 +145,17 @@ fn failed_newer_saves_preserve_disk_and_prevent_delayed_older_snapshots() {
         .unwrap();
     let (path, _) = store.location(&root).unwrap();
     let pristine = std::fs::read(&path).unwrap();
+    #[cfg(unix)]
+    if unsafe { libc::geteuid() } != 0 {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = std::fs::metadata(&store.directory).unwrap().permissions();
+        std::fs::set_permissions(&store.directory, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let deletion = store.save(&root, &Default::default(), store.reserve_revision());
+        // Restore before assertions so failed checks cannot leave a read-only fixture.
+        std::fs::set_permissions(&store.directory, permissions).unwrap();
+        assert!(deletion.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), pristine);
+    }
     let delayed = store.reserve_revision();
     let mut oversized = decisions();
     oversized.set_symbol(&"x".repeat(MAX_BYTES as usize), Some(Criticality::Ordinary));

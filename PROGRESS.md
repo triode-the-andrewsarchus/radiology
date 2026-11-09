@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Critical policy and override-store assertion mapping (Codex)
+
+All three policy and both override-store Swift groups now have explicit evidence.
+The three policy tests cover the complete classification/reason table, real
+index-derived repository packages, placeholder/URL/escaped-space headers,
+symbol/package/local precedence and resets. The semantic menu test verifies
+indexed extern signatures and override-free Built-In reasons. Existing reader
+integration confirms source/caret/history/folds/pins preservation and restart.
+
+A new MarkSession test loads damaged and foreign-root files: effective decisions
+stay empty, diagnostics surface, and neither saved bytes nor checkout change.
+Store assertions now verify canonical root/private location and actual deletion
+failure under a read-only parent. Permissions are restored before assertions;
+this branch ran as UID 1000, while root retains the unconditional directory-error
+case. No production behavior/API/dependency change was needed.
+
+All 48 Critical Lens service tests and three app integration tests pass, plus
+strict all-target Clippy, formatting and diff checks. This checkpoint is test-only;
+there is no new full-suite/native run claim. Architecture +153 measured NLOC/one
+test function, identical complete clone multisets (122 instances), hotspots and
+cycles. Old touched fixture clones account for the raw comparator warnings.
+[Policy/storage audit](plans/rust-critical-policy-contracts.md) records exact
+boundaries and archive `~/.local/state/radiology-qa/critical-policy-20261109-b7b4cb8/`.
+Next: reconcile the remaining Critical Lens frontier/model/summary assertions.
+Other suites, final native acceptance, known parallel timing limits and Android
+remain open; full accessibility and sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Combined review supersession and numbered failures (Codex)
 
 The final integrated PullRequestReview group now has an assertion-level mapping.

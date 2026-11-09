@@ -1,5 +1,5 @@
 use super::*;
-use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange};
+use crate::semantic::{ScipDocument, ScipIndex, ScipOccurrence, ScipRange, ScipSymbolInformation};
 
 #[test]
 fn marking_requires_exact_global_semantics_and_uses_cached_package_ownership() {
@@ -10,6 +10,11 @@ fn marking_requires_exact_global_semantics_and_uses_cached_package_ownership() {
     let mut index = SemanticIndex::from_scip(ScipIndex {
         documents: vec![ScipDocument {
             relative_path: "a.rs".into(),
+            symbols: vec![ScipSymbolInformation {
+                symbol: symbol.into(),
+                signature: "fn call()".into(),
+                ..Default::default()
+            }],
             occurrences: vec![ScipOccurrence {
                 symbol: symbol.into(),
                 symbol_roles: 1,
@@ -41,6 +46,23 @@ fn marking_requires_exact_global_semantics_and_uses_cached_package_ownership() {
     );
     assert_eq!(menu.built_in.criticality, Criticality::Critical);
     assert_eq!(menu.package_decision, Some(Criticality::Ordinary));
+    assert_eq!(
+        menu.built_in.reason,
+        crate::critical::CriticalityReason::RepositoryDefinition
+    );
+    let id = crate::semantic::index::SemanticSymbolID::new(symbol, "a.rs");
+    index.symbols.get_mut(&id).unwrap().signature = "unsafe extern \"C\" fn call()".into();
+    let extern_menu = MarkContext {
+        index: &index,
+        overrides: &overrides,
+    }
+    .at_byte(&buffer, column)
+    .unwrap();
+    assert_eq!(
+        extern_menu.built_in.reason,
+        crate::critical::CriticalityReason::FfiSignature
+    );
+    assert_eq!(extern_menu.package_decision, Some(Criticality::Ordinary));
     let before =
         SourceBuffer::from_bytes("a.rs", buffer.data.clone(), Some(ReviewRevision::Before))
             .unwrap();
