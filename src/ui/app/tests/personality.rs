@@ -78,54 +78,75 @@ fn personality_selection_persists_across_alias_relaunch_and_pr_without_reader_ch
 
 #[test]
 fn settings_errors_block_fallback_and_preserve_recovery_path_source_and_history() {
-    let (_owner, mut app) = isolated_source("main.c", "int main(void) { return 0; }\n");
-    disable_tools(&mut app);
-    let buffer = app.open_buffer.clone().unwrap();
-    let history = format!("{:?}", app.history);
-    let path = app.indexing_settings_path().unwrap();
-    let original = std::fs::read(&path).unwrap();
-    app.semantic_index = Some(Arc::new(SemanticIndex::default()));
-    std::fs::write(&path, "invalid settings").unwrap();
-    let ctx = Context::default();
-    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
-    settle(&mut app);
-    assert!(app
-        .indexing_personality_error()
-        .unwrap()
-        .contains("default.toml"));
-    assert!(app.indexing_personality_settings().is_none());
-    assert!(app.semantic_index.is_none() && app.generation_report().is_none());
-    assert_eq!(app.indexing_settings_path(), Some(path.clone()));
-    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
-    assert_eq!(format!("{:?}", app.history), history);
-    app.index_projects_open = true;
-    rendered_frame(&mut app, &ctx);
-    let output = rendered_frame(&mut app, &ctx);
-    for label in ["Personality", "Show Settings File", "Reload Settings"] {
-        crate::ui::test_support::text_center(&output, label);
+    for personality in [Personality::Default, Personality::Sel4] {
+        let (_owner, mut app) = isolated_source("main.c", "int main(void) { return 0; }\n");
+        disable_tools(&mut app);
+        let ctx = Context::default();
+        if personality != Personality::Default {
+            app.execute_command(&ctx, ToolbarAction::SelectIndexingPersonality(personality));
+            settle(&mut app);
+        }
+        let buffer = app.open_buffer.clone().unwrap();
+        let history = format!("{:?}", app.history);
+        let path = app.indexing_settings_path().unwrap();
+        let original = std::fs::read(&path).unwrap();
+        app.semantic_index = Some(Arc::new(SemanticIndex::default()));
+        std::fs::write(&path, "invalid settings").unwrap();
+        app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+        settle(&mut app);
+        assert!(app
+            .indexing_personality_error()
+            .unwrap()
+            .contains(&format!("{}.toml", personality.id())));
+        assert!(app.indexing_personality_settings().is_none());
+        assert!(app.semantic_index.is_none() && app.generation_report().is_none());
+        assert_eq!(app.indexing_settings_path(), Some(path.clone()));
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert_eq!(format!("{:?}", app.history), history);
+        app.index_projects_open = true;
+        rendered_frame(&mut app, &ctx);
+        let output = rendered_frame(&mut app, &ctx);
+        for label in ["Personality", "Show Settings File", "Reload Settings"] {
+            crate::ui::test_support::text_center(&output, label);
+        }
+        let command = crate::desktop::prepare_reveal(
+            path.parent().unwrap(),
+            &format!("{}.toml", personality.id()),
+        )
+        .unwrap();
+        assert!(command.arguments.iter().any(|argument| argument
+            .to_string_lossy()
+            .contains(&format!("{}.toml", personality.id()))));
+        let edited = String::from_utf8(original).unwrap().replace(
+            if personality == Personality::Default {
+                "clang_jobs = 4"
+            } else {
+                "clang_jobs = 1"
+            },
+            "clang_jobs = 2",
+        );
+        std::fs::write(&path, &edited).unwrap();
+        app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
+        settle(&mut app);
+        assert!(app.indexing_personality_error().is_none());
+        assert_eq!(app.indexing_personality_settings().unwrap().clang_jobs(), 2);
+        app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+        settle(&mut app);
+        assert_eq!(
+            app.generation_report().unwrap().plan.selected[0]
+                .personality_digest
+                .as_deref(),
+            Some(app.indexing_personality_settings().unwrap().digest())
+        );
+        assert_eq!(std::fs::read_to_string(path).unwrap(), edited);
+        assert_eq!(app.indexing_personality(), personality);
+        if personality == Personality::Sel4 {
+            assert_eq!(
+                app.generation_report().unwrap().plan.selected[0].indexer,
+                crate::semantic::indexing::Indexer::Sel4
+            );
+        }
     }
-    let command = crate::desktop::prepare_reveal(path.parent().unwrap(), "default.toml").unwrap();
-    assert!(command
-        .arguments
-        .iter()
-        .any(|argument| argument.to_string_lossy().contains("default.toml")));
-    let edited = String::from_utf8(original)
-        .unwrap()
-        .replace("clang_jobs = 4", "clang_jobs = 2");
-    std::fs::write(&path, &edited).unwrap();
-    app.execute_command(&ctx, ToolbarAction::ReloadIndexImport);
-    settle(&mut app);
-    assert!(app.indexing_personality_error().is_none());
-    assert_eq!(app.indexing_personality_settings().unwrap().clang_jobs(), 2);
-    app.execute_command(&ctx, ToolbarAction::GenerateIndex);
-    settle(&mut app);
-    assert_eq!(
-        app.generation_report().unwrap().plan.selected[0]
-            .personality_digest
-            .as_deref(),
-        Some(app.indexing_personality_settings().unwrap().digest())
-    );
-    assert_eq!(std::fs::read_to_string(path).unwrap(), edited);
 }
 
 #[test]
@@ -271,4 +292,62 @@ fn actual_picker_arrows_return_and_escape_preserve_source_and_history() {
     );
     assert_eq!(format!("{:?}", app.history), history);
     assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+}
+
+#[test]
+fn rapid_personality_switches_keep_the_reader_and_bounded_projects_window() {
+    for scale in [1.0, 2.0] {
+        for dark in [false, true] {
+            let (_owner, mut app) = opened_repository();
+            disable_tools(&mut app);
+            let ctx = Context::default();
+            ctx.set_pixels_per_point(scale);
+            if app.theme.is_dark != dark {
+                app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+                settle(&mut app);
+            }
+            let source = app.open_buffer.clone().unwrap();
+            let caret = (app.caret_line, app.caret_col);
+            let history = format!("{:?}", app.history);
+            for selected in [Personality::Sel4, Personality::Default, Personality::Sel4] {
+                app.execute_command(&ctx, ToolbarAction::SelectIndexingPersonality(selected));
+            }
+            settle(&mut app);
+            assert_eq!(app.indexing_personality(), Personality::Sel4);
+            assert_eq!(
+                app.indexing_personality_settings().unwrap().personality(),
+                Personality::Sel4
+            );
+            assert_eq!(
+                app.generation_report().unwrap().plan.selected[0].indexer,
+                crate::semantic::indexing::Indexer::Sel4
+            );
+            app.index_projects_open = true;
+            for _ in 0..3 {
+                rendered_frame(&mut app, &ctx);
+            }
+            let output = rendered_frame(&mut app, &ctx);
+            for label in ["Personality", "seL4", "Show Settings File"] {
+                crate::ui::test_support::text_center(&output, label);
+            }
+            let window = ctx
+                .memory(|memory| memory.area_rect(egui::Id::new("Index Projects")))
+                .unwrap();
+            assert!(
+                window.width() >= 360.0 && window.width() < 600.0,
+                "{window:?}"
+            );
+            assert!(window.height() < 750.0, "{window:?}");
+            assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+            assert_eq!((app.caret_line, app.caret_col), caret);
+            assert_eq!(format!("{:?}", app.history), history);
+            app.execute_command(&ctx, ToolbarAction::GenerateIndex);
+            settle(&mut app);
+            assert_eq!(
+                app.generation_report().unwrap().plan.selected[0].indexer,
+                crate::semantic::indexing::Indexer::Sel4
+            );
+            assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+        }
+    }
 }

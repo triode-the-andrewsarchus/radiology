@@ -156,6 +156,7 @@ printf 'generated' > "$artifacts/headers.h"
 #[test]
 fn sel4_runs_shared_pinned_resources_outside_source_and_isolates_default_cache() {
     let (fixture, request) = sel4_fixture();
+    let runs = fixture.bin.join("python.runs");
     let mut automatic = request.clone();
     automatic.settings = None;
     assert_eq!(run(automatic.clone()).report.documents, 1);
@@ -189,13 +190,7 @@ fn sel4_runs_shared_pinned_resources_outside_source_and_isolates_default_cache()
         run(reuse).report.outcomes[0].reused_from.as_deref(),
         Some("checkout")
     );
-    assert_eq!(
-        fs::read_to_string(fixture.bin.join("python.runs"))
-            .unwrap()
-            .lines()
-            .count(),
-        1
-    );
+    assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
     assert!(load(&automatic).unwrap().report.cached);
     let mut warm = request.clone();
     warm.tools.search_path.clear();
@@ -207,6 +202,28 @@ fn sel4_runs_shared_pinned_resources_outside_source_and_isolates_default_cache()
         "clang_jobs = 2",
     ));
     assert!(load(&warm).is_err());
+    // A settings edit must regenerate the selected pipeline, never fall back.
+    warm.tools = request.tools.clone();
+    let edited = run(warm.clone());
+    let outcome = &edited.report.outcomes[0];
+    assert_eq!(outcome.strategy.indexer, Indexer::Sel4);
+    assert!(outcome.reused_from.is_none() && outcome.failure.is_none());
+    assert_eq!(
+        outcome.strategy.personality_digest.as_deref(),
+        Some(warm.settings.as_ref().unwrap().digest())
+    );
+    assert_eq!(
+        fs::read(fixture.bin.join("captured.toml")).unwrap(),
+        warm.settings.as_ref().unwrap().bytes()
+    );
+    assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
+    assert!(load(&warm).unwrap().report.cached);
+    assert!(
+        load(&request).is_err(),
+        "old settings cannot read the regenerated cache"
+    );
+    let default_path = crate::semantic::indexing::cache::path(&automatic).unwrap();
+    assert_eq!(fs::read(default_path).unwrap(), default_bytes);
     assert!(!fixture.source.join("__pycache__").exists());
     assert_eq!(fs::read_dir(&fixture.source).unwrap().count(), 2);
 }

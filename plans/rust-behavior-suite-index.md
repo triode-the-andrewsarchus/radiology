@@ -446,6 +446,12 @@ Evidence: [rust-indexing-parity](rust-indexing-parity.md), [rust-indexing-person
 | [IndexingPersonalityTests](../Tests/RadiologyTests/IndexingPersonalityTests.swift) | 5 |
 | [IndexingPersonalityUITests](../Tests/RadiologyTests/IndexingPersonalityUITests.swift) | 1 |
 
+[Personality assertion reconciliation](rust-personality-contracts.md) maps five of
+six personality/settings/UI groups. The final cache group remains open for explicit
+cross-checkout reuse, despite verified settings-edit regeneration and namespace
+isolation. All 19 focused checks and strict Clippy pass. Compiler/personality total
+is 5/35 mapped; 30 remain including that partial group.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

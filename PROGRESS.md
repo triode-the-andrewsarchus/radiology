@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-09 — Personality contracts and explicit reuse gap (Codex)
+
+Five of six Swift personality/settings/UI groups now have explicit mappings.
+The sixth is partially verified but remains open: Swift accepts an explicit
+cross-checkout cache/root reuse source; Rust currently scopes reuse to the same
+canonical attached repository (including its pinned PR roots). This is a remaining
+feature contract, not a scope exclusion or an automatic global-cache borrowing
+requirement. The other compiler/personality suites still need reconciliation.
+
+Strengthened existing service checks to regenerate scip-sel4 after a captured jobs
+edit, verify exact settings/digest, warm restore/new versus old capture and Default
+cache-byte isolation. Actual app settings errors/repair now cover both personalities.
+A new app matrix verifies rapid obsolete-selection retirement, source/caret/history,
+selected regeneration and bounded Index Projects at both scales/themes. Controlled
+service runs prove successful execution; new UI runs disable tools and preserve
+honest failures. No runtime change or claim of a new real 67-profile run.
+
+All 19 focused tests, strict all-target Clippy, formatting/diff pass. Architecture
+NEUTRAL: +94 NLOC/one test, avg/max CCN 3.43/132, 36 hotspots/one cycle unchanged;
+125 clones with zero normalized additions/removals. Exact run-log assertions avoid
+repeated count plumbing. Latest full production gate remains c20eba6. Compiler/
+personality 5/35 mapped (30 remain), inspector/traits 15 and final acceptance remain;
+source/syntax stays 66/66. [Mapping](plans/rust-personality-contracts.md); logs:
+~/.local/state/radiology-qa/personality-20261109-fb5b7d4/.
+
 ## 2026-11-09 — Test-presentation assertion reconciliation (Codex)
 
 All seven Swift presentation groups now map explicitly through the exact shared

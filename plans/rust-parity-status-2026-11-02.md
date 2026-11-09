@@ -4,9 +4,11 @@ Current source reconciliation: [test-presentation contracts](rust-test-presentat
 complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
 The latest complete production gate remains c20eba6 (901 app checks/all 66
-doctests). Compiler/personality 35 and inspector/trait 15 groups remain, followed
+doctests). Compiler/personality 30 of 35 and inspector/trait 15 groups remain, followed
 by final integrated/native/standalone/reuse acceptance.
-Earlier checkpoint-time counts below are historical.
+[Personality contracts](rust-personality-contracts.md) map five settings/model/UI
+groups; explicit cross-checkout cache reuse keeps the sixth open. All 19 focused
+checks and strict Clippy pass. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.
