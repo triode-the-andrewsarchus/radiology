@@ -122,3 +122,32 @@ SDK-backed Android acceptance remain open. Radiology remains standalone.
 The next-priority reused-path defect is now fixed and mapped in
 [per-file diff isolation](rust-blob-diff-isolation.md). Other repository assertions
 remain open.
+
+
+## Checkout exit during preparation — 2026-11-09
+
+Swift `PullRequestReviewTests.errorsAndSupersededLoadsNeverPublishStaleReviews`
+requires exiting a pending retry on checkout to preserve its reader/history.
+`AppModel.exitPullRequest` cancels and clears persisted review identity before its
+`isReviewing` guard. Rust previously always reopened the repository. The red
+regression first exposed the retained saved PR identity; the source also showed
+reader/history were scheduled for replacement.
+
+`ExitPRReview` now checks whether a review is accepted. On checkout it uses the
+existing `cancel_review_preparation` and `set_active_pr(None)`; accepted-review exit
+keeps the existing repository-open transaction. Generic Cancel still preserves
+restoration identity, matching existing startup recovery behavior.
+
+The extended `cancelled_and_failed_review_jobs_keep_the_accepted_reader_and_drop_launch_intent`
+checks both cancellation paths with a live worker, late failure completion,
+identical source Arc/history, cleared launch intent and saved session readback.
+It also checks clearing an already published failure. Existing real CLI retry
+checks and the both-scale forced successful-publication retirement matrix remain
+part of the passing review-filtered run. This closes the concrete checkout exit
+defect; it does not yet mark the entire fourth integrated Swift group mapped.
+
+Archive `~/.local/state/radiology-qa/review-retirement-20261109-e7fc0f2/` contains
+`red.log`, `review.log` (82 passing), `final-regression.log`, `clippy.log` and
+`architecture.json`. No fresh whole-suite, compositor or Swift/AppKit execution
+is claimed. The final architecture comparison is neutral, +25 measured NLOC,
+unchanged function/file/clone counts and average/max complexity 3.41/132.

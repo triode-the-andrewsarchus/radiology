@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Checkout review exit](plans/rust-review-recovery.md#checkout-exit-during-preparation--2026-11-09)
+now cancels pending preparation and clears saved PR restoration without reopening
+the local reader. The final integrated retired-load group still needs its complete
+assertion mapping; this checkpoint closes its confirmed checkout-exit defect.
+
 [Changed-block navigation](plans/rust-change-block-flow-contracts.md) now maps the
 third integrated PR group: actual keyboard jumps reveal hidden tests, preserve
 exact Back carets and reach EOF once. Real deferred source results prove revision/

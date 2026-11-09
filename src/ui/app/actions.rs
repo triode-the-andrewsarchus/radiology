@@ -222,9 +222,14 @@ impl RadiologyApp {
                 }
             }
             ExitPRReview => {
-                self.save_bookmarks();
-                if let Some(root) = self.repository_root.clone() {
-                    self.open_repository(&root);
+                if self.review.is_none() {
+                    self.cancel_review_preparation();
+                    self.session.set_active_pr(None);
+                } else {
+                    self.save_bookmarks();
+                    if let Some(root) = self.repository_root.clone() {
+                        self.open_repository(&root);
+                    }
                 }
             }
             Refresh | RefreshPR => self.refresh(),

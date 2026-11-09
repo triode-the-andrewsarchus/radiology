@@ -5,25 +5,42 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn cancelled_and_failed_review_jobs_keep_the_accepted_reader_and_drop_launch_intent() {
-    let (_dir, mut app) = opened_repository();
+    let (settings, mut app) = opened_repository();
     let buffer = app.open_buffer.clone().unwrap();
     let history = app.history.current().cloned();
     let saved = app.session.last_repository.clone();
-    let (started, begin) = mpsc::channel();
-    let (retired, done) = mpsc::channel();
-    app.review_job.spawn(move |cancel| {
-        await_retirement(cancel, started, retired);
-        Err("retired review must never publish".into())
-    });
-    app.pending_pr = Some(7);
-    app.pending_open_file = Some("stale.rs".into());
-    begin.recv_timeout(Duration::from_secs(5)).unwrap();
-    app.cancel_review_preparation();
-    done.recv_timeout(Duration::from_secs(5)).unwrap();
-    app.poll_review(&Context::default());
-    assert!(app.error.is_none());
-    assert!(app.pending_pr.is_none());
-    assert!(app.pending_open_file.is_none());
+    for exit in [false, true] {
+        app.session.set_active_pr(Some(7));
+        let (started, begin) = mpsc::channel();
+        let (retired, done) = mpsc::channel();
+        app.review_job.spawn(move |cancel| {
+            await_retirement(cancel, started, retired);
+            Err("retired review must never publish".into())
+        });
+        app.pending_pr = Some(7);
+        app.pending_open_file = Some("stale.rs".into());
+        begin.recv_timeout(Duration::from_secs(5)).unwrap();
+        if exit {
+            app.execute_command(&Context::default(), ToolbarAction::ExitPRReview);
+        } else {
+            app.cancel_review_preparation();
+        }
+        done.recv_timeout(Duration::from_secs(5)).unwrap();
+        app.poll_review(&Context::default());
+        assert!(app.error.is_none());
+        assert!(app.review_error().is_none());
+        assert!(app.pending_pr.is_none());
+        assert!(app.pending_open_file.is_none());
+        settle(&mut app);
+        assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+        assert_eq!(app.history.current(), history.as_ref());
+        let expected_pr = if exit { None } else { Some(7) };
+        assert_eq!(app.session.active_pr, expected_pr);
+        assert_eq!(
+            SessionStore::load_from(settings.path().join("settings/session.json")).active_pr,
+            expected_pr
+        );
+    }
     app.pending_pr = Some(8);
     app.pending_open_file = Some("failed.rs".into());
     app.review_job.spawn(|_| Err("fixture timeout".into()));
@@ -40,6 +57,11 @@ fn cancelled_and_failed_review_jobs_keep_the_accepted_reader_and_drop_launch_int
     assert_eq!(app.session.last_repository, saved);
     assert!(app.review.is_none());
     assert!(app.active_pr.is_none());
+
+    // The same exit command also clears an already published failure.
+    app.execute_command(&Context::default(), ToolbarAction::ExitPRReview);
+    settle(&mut app);
+    assert!(app.review_error().is_none());
 }
 
 #[test]

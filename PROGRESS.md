@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-09 — Preserve checkout on pending review exit (Codex)
+
+A red regression caught Local Checkout retaining a saved PR restoration target.
+Source inspection also showed it unnecessarily reopened the repository while no
+review was accepted. The command now reuses review cancellation and session saving
+for that state, preserving the reader/history. Accepted-review exit retains its
+existing repository transition.
+
+The existing cancellation test now exercises Cancel and Local Checkout against a
+live worker, then drains late failure completion and checks identical source Arc,
+history and persisted session. Cancel retains restoration identity; explicit exit
+clears it. Already published failures clear on exit too. No new worker, helper,
+public API or dependency was needed. The existing forced-publication matrix still
+covers successful stale results after accepted-review exit/replacement.
+
+All 82 review-filtered tests pass, with the final consolidated regression rerun;
+strict all-target Clippy, formatting and diff checks pass. No fresh full workspace
+or native compositor run is claimed. Architecture +25 measured NLOC, no new
+functions/files/clones or complexity hotspots; the raw equal-score Python
+chokepoint ranking changes concern untouched files. QA archive:
+`~/.local/state/radiology-qa/review-retirement-20261109-e7fc0f2/`.
+[Recovery notes](plans/rust-review-recovery.md#checkout-exit-during-preparation--2026-11-09)
+record the evidence. Complete retired-load mapping, other unreconciled suites,
+final native acceptance, known parallel timing limits and Android remain open.
+
 ## 2026-11-09 — Hidden-test/EOF keys and source-publication ownership (Codex)
 
 The third integrated PR group now has explicit mapping. A new both-scale real Git
