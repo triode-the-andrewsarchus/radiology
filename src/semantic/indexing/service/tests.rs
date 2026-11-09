@@ -766,6 +766,8 @@ fn malformed_clang_inputs_fail_before_indexer_execution_without_writing_inputs_o
     assert!(generated.index.is_none());
     assert!(generated.report.outcomes[0].failure.is_some());
     assert!(!fixture.bin.join("scip-clang.args").exists());
+    assert!(generated.report.outcomes[0].command_line.is_none());
+    assert!(generated.report.outcomes[0].working_directory.is_none());
     assert_eq!(
         fs::read_to_string(fixture.source.join("compile_commands.json")).unwrap(),
         "not JSON"
@@ -1047,4 +1049,40 @@ fn trait_enrichment_uses_pinned_after_objects_and_retains_the_review_lease() {
         Some(crate::source::ReviewRevision::After)
     );
     assert_eq!(location.byte_offset, after.find("impl").unwrap());
+}
+
+#[test]
+fn attempted_invocation_survives_nonzero_and_spawn_failure_and_old_records_deserialize() {
+    for remove_on_probe in [false, true] {
+        let fixture = Fixture::new(&[
+            ("Cargo.toml", "[package]\nname='fixture'"),
+            ("lib.rs", "pub fn a() {}"),
+        ]);
+        fixture.tool(Indexer::Rust, &["lib.rs"], "echo failure >&2; exit 9");
+        if remove_on_probe {
+            let tool = fixture.bin.join("rust-analyzer");
+            let script = fs::read_to_string(&tool)
+                .unwrap()
+                .replace("then printf", "then /bin/rm -- \"$0\"; printf");
+            fs::write(tool, script).unwrap();
+        }
+        let generated = run(fixture.request());
+        let outcome = &generated.report.outcomes[0];
+        assert!(outcome.failure.is_some());
+        let command = shlex::split(outcome.command_line.as_deref().unwrap()).unwrap();
+        assert_eq!(
+            command[0],
+            fixture.bin.join("rust-analyzer").to_str().unwrap()
+        );
+        assert_eq!(command[1], "scip");
+        assert!(command.iter().any(|argument| argument == "--output"));
+        let directory = outcome.working_directory.as_ref().unwrap();
+        assert!(directory.starts_with(&fixture.cache) && !directory.exists());
+        let mut legacy = serde_json::to_value(outcome).unwrap();
+        let fields = legacy.as_object_mut().unwrap();
+        fields.remove("command_line");
+        fields.remove("working_directory");
+        let decoded: StrategyOutcome = serde_json::from_value(legacy).unwrap();
+        assert!(decoded.command_line.is_none() && decoded.working_directory.is_none());
+    }
 }

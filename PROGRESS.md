@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-11-09 — Actual invocation diagnostics (Codex)
+
+Project outcomes now capture the actual attempted executable/argv and private cwd
+before the process runs. Nonzero/spawn failures keep them; pre-invocation failures
+leave them absent. Shared ProcessCommand formatting round-trips literal UTF-8 argv
+and uses escaped notation for non-UTF-8/NUL, omitting environment/resources. Execution
+still uses the original literal command. Reuse/normalized reload preserve origin
+snapshots; serde defaults keep old cache records readable without a schema bump.
+
+Generation Details shows the command/cwd and copies the complete command with a
+small existing-style action. Both-scale real-widget clicks prove clipboard bytes,
+no extra execution, retained reader/history and no fake copy action on old records.
+Separated detail rendering from summary/count rows and shared the fixture's repaired-
+index assertions, removing the initial hotspot/clone. Architecture +222 measured
+NLOC/net six functions, avg/max CCN 3.43/132; 36 hotspots/one cycle and all 125
+normalized clone instances unchanged, zero additions/removals.
+
+Formatter/failure/legacy cases, all nine lifecycle and seven reuse checks pass.
+Strict Clippy, normal build and warning-free docs pass; generated API/example pages
+are inspected. Combined full serial workspace verification passes 932 app tests
+(twelve opt-in ignores), binary/font/text 2/13/23 and all 68 doctests, including
+the preceding adapter-validation checkpoint. No new
+native-desktop run is claimed for the command disclosure; frame checks use actual
+UI controls and the existing clipboard output path.
+
+The two known lifecycle feature gaps are repaired. Compiler/personality remains
+17/35 pending complete Indexing/Kotlin/PR assertion proof, inspector/traits 15 and
+final acceptance remain. [Details](plans/rust-invocation-diagnostics.md); evidence:
+~/.local/state/radiology-qa/index-diagnostics-20261109-5f729cc/.
+
 ## 2026-11-09 — Unknown adapter validation (Codex)
 
 Default Settings captures now reject IDs outside the enum-backed automatic registry,

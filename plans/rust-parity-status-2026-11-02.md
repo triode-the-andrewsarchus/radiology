@@ -3,9 +3,9 @@
 Current source reconciliation: [test-presentation contracts](rust-test-presentation-contracts.md)
 complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
 cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
-The latest complete production gate passes 926 app checks (twelve opt-in
-ignores), binary/font/text 2/13/23 and all 67 doctests, including C/C++ preparation
-status, explicit cross-checkout reuse and automatic indexing. Compiler/personality 18 of 35 and inspector/trait 15 groups remain, followed
+The latest complete production gate passes 932 app checks (twelve opt-in
+ignores), binary/font/text 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation, C/C++
+preparation status, explicit cross-checkout reuse and automatic indexing. Compiler/personality 18 of 35 and inspector/trait 15 groups remain, followed
 by final integrated/native/standalone/reuse acceptance.
 [Explicit reuse](rust-index-reuse-contracts.md) closes all three IndexReuse groups
 and the final personality group (compiler/personality 9/35). All 108 indexing
@@ -16,7 +16,9 @@ startup gap. Seven focused app and native 1×/2× startup/restart/failure/copy c
 pass, along with the full serial workspace gate. Compiler group counts remain unchanged
 until remaining lifecycle assertions are reconciled. [Adapter validation](rust-adapter-validation.md) now rejects unknown configured
 IDs before planning and preserves settings for repair. Focused/strict gates pass;
-invocation diagnostics and combined verification follow. Earlier checkpoint-time counts below are historical.
+invocation diagnostics and combined verification follow. [Invocation diagnostics](rust-invocation-diagnostics.md) now retain/copy attempted
+commands and working directories without changing cache format. Focused checks
+and strict gates pass, as does combined serial verification. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

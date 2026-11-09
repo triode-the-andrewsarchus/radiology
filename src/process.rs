@@ -26,6 +26,44 @@ pub struct ProcessCommand {
     pub resources: Vec<(std::path::PathBuf, Vec<u8>)>,
 }
 
+impl ProcessCommand {
+    /// Renders the executable and literal arguments for diagnostic display.
+    ///
+    /// UTF-8 arguments are shell-quoted without changing their contents. Non-UTF-8
+    /// or NUL-containing arguments use escaped debug notation instead. This text
+    /// is never used to execute a process; execution retains the original argv.
+    /// Environment overrides and resource contents are not included.
+    ///
+    /// # Examples
+    /// ```
+    /// use radiology::process::ProcessCommand;
+    /// let command = ProcessCommand {
+    ///     executable: "/tools/my indexer".into(),
+    ///     arguments: vec!["--name".into(), "a; b".into()],
+    ///     directory: "/work".into(),
+    ///     environment: Default::default(),
+    ///     resources: Vec::new(),
+    /// };
+    /// assert_eq!(shlex::split(&command.diagnostic_line()).unwrap(),
+    ///     ["/tools/my indexer", "--name", "a; b"]);
+    /// ```
+    #[must_use]
+    pub fn diagnostic_line(&self) -> String {
+        let words: Option<Vec<_>> = std::iter::once(self.executable.as_os_str())
+            .chain(self.arguments.iter().map(std::ffi::OsString::as_os_str))
+            .map(std::ffi::OsStr::to_str)
+            .collect();
+        words
+            .and_then(|words| shlex::try_join(words).ok())
+            .unwrap_or_else(|| {
+                format!(
+                    "Executable: {:?}; arguments: {:?}",
+                    self.executable, self.arguments
+                )
+            })
+    }
+}
+
 const CAPTURE_PART: usize = 32 * 1024;
 
 /// Bounded first/last diagnostics, with the full byte count retained.

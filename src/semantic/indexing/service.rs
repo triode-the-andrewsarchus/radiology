@@ -225,6 +225,13 @@ pub struct StrategyOutcome {
     pub strategy: IndexingStrategy,
     /// Actual successful tool version, if its probe succeeded.
     pub version: Option<String>,
+    /// Actual attempted executable/argv, quoted for display rather than execution.
+    /// Reused records retain their original invocation; older caches leave it absent.
+    #[serde(default)]
+    pub command_line: Option<String>,
+    /// Private working directory of that invocation; its temporary inputs may be gone.
+    #[serde(default)]
+    pub working_directory: Option<PathBuf>,
     /// Original generating After commit or `checkout`, when this project was reused.
     #[serde(default)]
     pub reused_from: Option<String>,
@@ -621,6 +628,8 @@ fn run_strategy(
     let mut outcome = StrategyOutcome {
         strategy: strategy.clone(),
         version: None,
+        command_line: None,
+        working_directory: None,
         reused_from: None,
         cache_warning: None,
         documents: 0,
@@ -851,6 +860,8 @@ fn run_command(
     state: &Mutex<GenerationProgress>,
     outcome: &mut StrategyOutcome,
 ) -> Result<(), String> {
+    outcome.command_line = Some(command.diagnostic_line());
+    outcome.working_directory = Some(command.directory.clone());
     progress(state, "Running indexer…");
     let mut marker = Vec::new();
     let result = process::run_observed(command, cancel, timeout, |stream, bytes| {

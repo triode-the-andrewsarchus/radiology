@@ -39,6 +39,19 @@ printf artifact"#);
     (owner, root, app, executable)
 }
 
+fn assert_repaired_index(app: &mut RadiologyApp, source: &Arc<SourceBuffer>) {
+    app.load_repository_index();
+    settle(app);
+    assert!(app.indexing_personality_error().is_none());
+    let report = app.generation_report().unwrap();
+    assert_eq!(report.documents, 2);
+    assert!(report
+        .outcomes
+        .iter()
+        .all(|outcome| outcome.failure.is_none()));
+    assert!(Arc::ptr_eq(source, app.open_buffer.as_ref().unwrap()));
+}
+
 #[test]
 fn automatic_open_generates_once_and_current_cache_needs_no_executable() {
     let (_owner, root, mut app, tool) = project();
@@ -148,10 +161,7 @@ fn automatic_missing_tool_reports_failure_and_reload_recovers_without_installati
     fs::write(&tool, script).unwrap();
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(&tool, fs::Permissions::from_mode(0o755)).unwrap();
-    app.load_repository_index();
-    settle(&mut app);
-    assert_eq!(app.generation_report().unwrap().documents, 2);
-    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_repaired_index(&mut app, &source);
 }
 
 #[test]
@@ -316,9 +326,50 @@ fn unknown_adapters_fail_before_automatic_execution_and_preserve_repairable_sett
     assert_eq!(fs::read_to_string(&path).unwrap(), invalid);
     let source = app.open_buffer.clone().unwrap();
     fs::write(&path, original).unwrap();
-    app.load_repository_index();
-    settle(&mut app);
-    assert!(app.indexing_personality_error().is_none());
-    assert_eq!(app.generation_report().unwrap().documents, 2);
-    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+    assert_repaired_index(&mut app, &source);
+}
+
+#[test]
+fn failed_invocation_details_copy_exact_command_without_moving_or_running_the_reader() {
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    for scale in [1.0, 2.0] {
+        let (_owner, root, mut app, tool) = project();
+        fs::write(tool.with_extension("fail"), "").unwrap();
+        open_reader(&mut app, &root, "src/lib.rs");
+        let expected = app.generation_report().unwrap().outcomes[0]
+            .command_line
+            .clone()
+            .unwrap();
+        let source = app.open_buffer.clone().unwrap();
+        let history = format!("{:?}", app.history);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        app.index_projects_open = true;
+        for _ in 0..3 {
+            rendered_frame(&mut app, &ctx);
+        }
+        let output = rendered_frame(&mut app, &ctx);
+        focus::frame(
+            &mut app,
+            &ctx,
+            click(text_center(&output, "Generation Details")),
+        );
+        let output = rendered_frame(&mut app, &ctx);
+        assert!(text_shapes(&output).any(|text| text
+            .galley
+            .job
+            .text
+            .starts_with("Working directory:")));
+        let copied = focus::frame(&mut app, &ctx, click(text_center(&output, "Copy Command")));
+        assert_eq!(copied.platform_output.copied_text, expected);
+        assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(
+            fs::read_to_string(tool.with_extension("runs")).unwrap(),
+            "run\n"
+        );
+        app.generation_report.as_mut().unwrap().outcomes[0].command_line = None;
+        let output = rendered_frame(&mut app, &ctx);
+        assert!(!text_shapes(&output).any(|text| text.galley.job.text == "Copy Command"));
+    }
 }

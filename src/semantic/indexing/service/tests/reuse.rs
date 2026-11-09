@@ -35,6 +35,23 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
     }
     let first = run(fixture.request());
     let sources = first.index.unwrap().sources;
+    let invocations: Vec<_> = first
+        .report
+        .outcomes
+        .iter()
+        .map(|outcome| {
+            (
+                outcome.command_line.clone(),
+                outcome.working_directory.clone(),
+            )
+        })
+        .collect();
+    assert!(invocations
+        .iter()
+        .all(|(command, directory)| command.is_some()
+            && directory
+                .as_ref()
+                .is_some_and(|directory| !directory.exists())));
     assert_eq!(sources.len(), 2);
     let accepted = project_cache(&fixture);
     let mut request = fixture.request();
@@ -47,6 +64,18 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
         .iter()
         .all(|outcome| outcome.reused_from.as_deref() == Some("checkout")));
     assert!(!reused.report.is_partial());
+    assert_eq!(
+        reused
+            .report
+            .outcomes
+            .iter()
+            .map(|outcome| (
+                outcome.command_line.clone(),
+                outcome.working_directory.clone()
+            ))
+            .collect::<Vec<_>>(),
+        invocations
+    );
     assert!(reused.report.summary().starts_with("Updated index"));
     assert_eq!(project_cache(&fixture), accepted);
     assert_eq!(fs::read_to_string(&runs).unwrap().lines().count(), 2);
@@ -67,6 +96,20 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
     assert_eq!(fs::read_to_string(&runs).unwrap().lines().count(), 3);
     let cached = load(&request).unwrap();
     assert_eq!(cached.report.reuse_warning(), mixed.report.reuse_warning());
+    assert_eq!(
+        cached
+            .report
+            .outcomes
+            .iter()
+            .map(|outcome| (&outcome.command_line, &outcome.working_directory))
+            .collect::<Vec<_>>(),
+        mixed
+            .report
+            .outcomes
+            .iter()
+            .map(|outcome| (&outcome.command_line, &outcome.working_directory))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(cached.index.unwrap().sources, mixed.index.unwrap().sources);
 
     // A sibling's bytes can influence either project, so both must regenerate.

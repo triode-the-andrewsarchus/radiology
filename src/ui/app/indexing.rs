@@ -729,12 +729,39 @@ impl RadiologyApp {
         if let Some(failure) = &outcome.failure {
             ui.label(failure);
         }
+        Self::show_project_details(ui, outcome);
+    }
+
+    fn show_project_details(
+        ui: &mut egui::Ui,
+        outcome: &crate::semantic::indexing::service::StrategyOutcome,
+    ) {
         if !outcome.diagnostics.is_empty()
             || !outcome.missing_paths.is_empty()
             || outcome.cache_warning.is_some()
+            || outcome.command_line.is_some()
         {
             ui.collapsing("Generation Details", |ui| {
+                if let Some(command) = &outcome.command_line {
+                    if ui
+                        .small_button("Copy Command")
+                        .on_hover_text(
+                            "Copy the recorded invocation; private input files may no longer exist",
+                        )
+                        .clicked()
+                    {
+                        ui.output_mut(|output| output.copied_text = command.clone());
+                    }
+                }
                 egui::ScrollArea::both().max_height(160.0).show(ui, |ui| {
+                    if let Some(directory) = &outcome.working_directory {
+                        ui.label(format!("Working directory: {}", directory.display()));
+                    }
+                    if let Some(command) = &outcome.command_line {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(command).monospace()).wrap(false),
+                        );
+                    }
                     if let Some(warning) = &outcome.cache_warning {
                         ui.label(format!("Cache: {warning}"));
                     }

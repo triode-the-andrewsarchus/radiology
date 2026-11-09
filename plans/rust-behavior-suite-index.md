@@ -480,6 +480,13 @@ plan gap through capture-time field validation. Exact raw TOML syntax, known-ID
 acceptance and actual automatic-open failure/repair pass. Invocation diagnostics
 and remaining IndexingTests assertions retain their separate work.
 
+[Invocation diagnostics](rust-invocation-diagnostics.md) now repair the missing
+command/cwd metadata on attempted runs and copy it from actual failure controls
+at both scales. Reuse, old-record compatibility and cache restoration pass. The
+combined full serial gate passes 932 app tests (twelve opt-in ignores),
+binary/font/text 2/13/23 and all 68 doctests. The remaining suite assertions still need
+their own mapping, so compiler/personality stays 17/35.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

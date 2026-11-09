@@ -281,3 +281,44 @@ fn only_lease_aware_children_inherit_the_store_file_and_parent_cloexec_is_unchan
         0
     );
 }
+
+#[test]
+fn diagnostic_command_roundtrips_literal_unicode_quotes_empty_and_shell_like_arguments() {
+    let mut command = shell(Path::new("/private work"), "printf '%s' \"$1\"");
+    command.executable = "/tools/my indexer".into();
+    let words = [
+        "",
+        "café 🦀",
+        "quote'and\"double",
+        "$(touch sentinel); *",
+        "line\nnext",
+    ];
+    command.arguments = words.iter().map(Into::into).collect();
+    command
+        .environment
+        .insert("ENV_ONLY_SENTINEL".into(), "not an argument".into());
+    command.resources.push((
+        "/private/payload".into(),
+        b"RESOURCE_ONLY_SENTINEL".to_vec(),
+    ));
+    let line = command.diagnostic_line();
+    let expected: Vec<_> = std::iter::once("/tools/my indexer")
+        .chain(words)
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(shlex::split(&line).unwrap(), expected);
+    assert!(!line.contains("ENV_ONLY_SENTINEL") && !line.contains("RESOURCE_ONLY_SENTINEL"));
+}
+
+#[cfg(unix)]
+#[test]
+fn diagnostic_command_keeps_non_utf8_and_nul_bytes_visible_as_escaped_notation() {
+    use std::os::unix::ffi::OsStringExt;
+    let mut command = shell(Path::new("/private"), "unused");
+    for bytes in [vec![b'x', 0xff], vec![b'a', 0, b'b']] {
+        command.arguments = vec![std::ffi::OsString::from_vec(bytes)];
+        let line = command.diagnostic_line();
+        assert!(line.starts_with("Executable: ") && line.contains("arguments:"));
+        assert!(!line.contains('\u{fffd}') && !line.contains('\0'));
+    }
+}

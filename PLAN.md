@@ -11,18 +11,24 @@ and all 66 source/syntax groups have explicit mappings. Compiler/personality (18
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
-implemented, and unknown configured adapters now fail before planning. Remaining
-lifecycle work includes actual invocation diagnostics and the remaining suite
-assertions.
+implemented, unknown adapters fail before planning, and attempted invocations are
+recorded/copied from Generation Details. The remaining compiler and inspector
+suite assertions and final acceptance still need proof.
 
-The latest complete serial workspace gate passes 926 app tests (twelve opt-in
-ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
+The latest complete serial workspace gate passes 932 app tests (twelve opt-in
+ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
 checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Invocation diagnostics](plans/rust-invocation-diagnostics.md) now retain actual
+command/cwd on failures, reuse and cache reloads, with a working Copy Command
+control at both scales. Old caches remain readable without guessed invocation
+metadata. Focused checks, strict Clippy/build/docs and the combined serial workspace
+verification, including adapter validation, pass.
 
 [Adapter validation](plans/rust-adapter-validation.md) rejects unknown Default
 adapter IDs through the existing typed field reader, preserving invalid settings

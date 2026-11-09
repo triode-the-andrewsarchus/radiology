@@ -183,6 +183,8 @@ fn failed_stale_and_cancelled_runs_leave_history_until_successful_publication() 
                 .selected
                 .remove(0),
             version: Some("fixture".into()),
+            command_line: None,
+            working_directory: None,
             reused_from: None,
             cache_warning: None,
             documents: 1,
