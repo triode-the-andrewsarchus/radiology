@@ -14,7 +14,9 @@ personality total). Real compiler, focused/app checks and strict gates pass; the
 fresh full serial gate passes. [Automatic open/refresh](rust-automatic-index-lifecycle.md) now repairs the cache-only
 startup gap. Seven focused app and native 1×/2× startup/restart/failure/copy checks
 pass, along with the full serial workspace gate. Compiler group counts remain unchanged
-until remaining lifecycle assertions are reconciled. Earlier checkpoint-time counts below are historical.
+until remaining lifecycle assertions are reconciled. [Adapter validation](rust-adapter-validation.md) now rejects unknown configured
+IDs before planning and preserves settings for repair. Focused/strict gates pass;
+invocation diagnostics and combined verification follow. Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
 source filtering and display labels, and maps nine of 66 source/syntax groups.

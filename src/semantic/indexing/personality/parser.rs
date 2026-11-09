@@ -55,6 +55,33 @@ impl<'a> Root<'a> {
         Ok(())
     }
 
+    pub(super) fn indexers(&self, personality: super::Personality) -> Result<Vec<String>, String> {
+        let indexers = self.strings("indexers")?;
+        if personality == super::Personality::Default {
+            let unknown: std::collections::BTreeSet<_> = indexers
+                .iter()
+                .filter(|id| {
+                    !super::super::Indexer::AUTOMATIC
+                        .iter()
+                        .any(|indexer| indexer.id() == *id)
+                })
+                .map(String::as_str)
+                .collect();
+            if !unknown.is_empty() {
+                return Err(format!(
+                    "Unknown personality indexers: {}.",
+                    unknown.into_iter().collect::<Vec<_>>().join(", ")
+                ));
+            }
+        }
+        if personality == super::Personality::Sel4 && indexers != ["scip-sel4"] {
+            return Err(
+                "The seL4 personality requires the scip-sel4 configuration-union indexer".into(),
+            );
+        }
+        Ok(indexers)
+    }
+
     pub(super) fn bootstrap_python(&self) -> Result<Vec<String>, String> {
         if self.table.contains_key("bootstrap_python") {
             self.strings("bootstrap_python")

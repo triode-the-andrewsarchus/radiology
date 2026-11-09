@@ -48,17 +48,22 @@ fn shared_templates_capture_typed_settings_all_profiles_and_pipeline_provenance(
 
 #[test]
 fn typed_roots_accept_comments_literal_strings_and_multiline_string_arrays() {
+    let raw = "name = 'literal # value' # comment\nindexers = [\n \"a,b\", # comment\n 'c',\n]\n[recipe]\nignored = true";
+    let document = toml_edit::Document::parse(raw).unwrap();
+    let root = parser::Root::new(document.as_table(), raw).unwrap();
+    assert_eq!(root.string("name").unwrap(), "literal # value");
+    assert_eq!(root.strings("indexers").unwrap(), ["a,b", "c"]);
     let text = default_text()
         .replace("name = \"Default\"", "name = 'literal # value' # comment")
         .replace(
             "indexers = []",
-            "indexers = [\n \"a,b\", # comment\n 'scip-clang',\n]",
+            "indexers = [\n \"scip-go\", # comment\n 'scip-clang',\n]",
         )
         .replace("project_limit = 32", "project_limit = +256")
         .replace("clang_jobs = 4", "clang_jobs = 64");
     let settings = parse(Personality::Default, &text).unwrap();
     assert_eq!(settings.name(), "literal # value");
-    assert_eq!(settings.indexers(), ["a,b", "scip-clang"]);
+    assert_eq!(settings.indexers(), ["scip-go", "scip-clang"]);
     assert_eq!(settings.project_limit(), 256);
     assert_eq!(settings.clang_jobs(), 64);
     let text = format!("{text}\nbootstrap_python = ['python3', '/path with spaces/python']\n[recipe]\nignored = true\n");
@@ -228,4 +233,24 @@ fn oversized_regular_settings_are_rejected_before_parsing_and_never_replaced() {
         .unwrap_err()
         .contains("2 MiB"));
     assert_eq!(fs::metadata(path).unwrap().len(), MAX_BYTES + 1);
+}
+
+#[test]
+fn automatic_allowlists_reject_unknown_and_personality_only_ids_without_losing_parser_literals() {
+    for id in super::super::Indexer::AUTOMATIC {
+        let settings = parse(
+            Personality::Default,
+            &default_text().replace("indexers = []", &format!("indexers = ['{}']", id.id())),
+        )
+        .unwrap();
+        assert_eq!(settings.indexers(), [id.id()]);
+    }
+    let text = default_text().replace(
+        "indexers = []",
+        "indexers = ['z-missing', 'scip-clang', 'scip-sel4', 'a-missing', 'z-missing']",
+    );
+    assert_eq!(
+        parse(Personality::Default, &text).unwrap_err(),
+        "Unknown personality indexers: a-missing, scip-sel4, z-missing."
+    );
 }

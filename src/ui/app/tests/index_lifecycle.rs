@@ -293,3 +293,32 @@ fn explicit_install_retires_the_pending_automatic_open() {
     assert!(app.semantic_index.is_none() && app.generation_report().is_none());
     assert!(!tool.with_extension("runs").exists());
 }
+
+#[test]
+fn unknown_adapters_fail_before_automatic_execution_and_preserve_repairable_settings() {
+    use crate::semantic::indexing::personality::Personality;
+    let (owner, root, mut app, tool) = project();
+    let path = owner
+        .path()
+        .join("settings/indexing-personalities/default.toml");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let original = std::str::from_utf8(Personality::Default.template()).unwrap();
+    let invalid = original.replace("indexers = []", "indexers = ['ghost', 'scip-clang']");
+    fs::write(&path, &invalid).unwrap();
+    open_reader(&mut app, &root, "src/lib.rs");
+    assert!(app
+        .indexing_personality_error()
+        .unwrap()
+        .contains("Unknown personality indexers: ghost."));
+    assert!(app.index_plan().selected.is_empty());
+    assert!(app.semantic_index.is_none() && app.generation_report().is_none());
+    assert!(!tool.with_extension("runs").exists());
+    assert_eq!(fs::read_to_string(&path).unwrap(), invalid);
+    let source = app.open_buffer.clone().unwrap();
+    fs::write(&path, original).unwrap();
+    app.load_repository_index();
+    settle(&mut app);
+    assert!(app.indexing_personality_error().is_none());
+    assert_eq!(app.generation_report().unwrap().documents, 2);
+    assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+}

@@ -99,9 +99,9 @@ measurement and run logs are retained beside the native evidence.
 The IndexingTests suite still has assertion-level work, including persisted actual
 invocation details for failed runs; current StrategyOutcome records version,
 stdout/stderr and failure status but lacks Swift's actual commandLine field.
-Also verify/reject configured unknown adapter IDs at service/open time: Swift
-rejects them explicitly; current Rust settings planning can filter to no selected
-projects. These are remaining parity requirements, not accepted exclusions.
+The later [adapter-validation checkpoint](rust-adapter-validation.md) now rejects
+unknown configured IDs during capture, closing the silent empty-plan gap found
+here. Actual invocation details remain required, not an accepted exclusion.
 Kotlin/PR compiler assertions, inspector/traits, final integrated/native/standalone/
 shared-host acceptance and Android SDK-backed success remain separately open.
 Full accessibility and actual sibling adoption stay deferred.

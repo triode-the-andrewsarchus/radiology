@@ -11,8 +11,9 @@ and all 66 source/syntax groups have explicit mappings. Compiler/personality (18
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
-implemented; remaining lifecycle work includes actual invocation diagnostics and
-unknown-adapter validation, alongside the remaining suite assertions.
+implemented, and unknown configured adapters now fail before planning. Remaining
+lifecycle work includes actual invocation diagnostics and the remaining suite
+assertions.
 
 The latest complete serial workspace gate passes 926 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
@@ -22,6 +23,11 @@ checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Adapter validation](plans/rust-adapter-validation.md) rejects unknown Default
+adapter IDs through the existing typed field reader, preserving invalid settings
+and visible repair. All 20 personality/eight lifecycle cases, strict checks and
+the Settings doctest pass. Invocation diagnostics and the combined full gate follow.
 
 [Automatic indexing lifecycle](plans/rust-automatic-index-lifecycle.md) now
 publishes caches before automatically generating missing/stale/failed projects,

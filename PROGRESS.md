@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-09 — Unknown adapter validation (Codex)
+
+Default Settings captures now reject IDs outside the enum-backed automatic registry,
+including seL4 outside its own personality. Errors sort/deduplicate unknown names;
+invalid user settings remain untouched. Validation runs before planning, tools or
+cache work for both app and library callers. The existing typed root reader owns
+this adapter field policy; raw TOML comma/comment/multiline-array coverage remains
+exact and separate from valid semantic settings.
+
+All 20 personality/eight lifecycle cases pass, including every known ID, multiple
+unknowns and actual automatic-open failure/repair retaining reader identity. Strict
+Clippy, normal build, warning-free docs and the Settings doctest pass. Architecture
+NEUTRAL: +84 measured NLOC/net one function, avg/max CCN 3.43/132, 36 hotspots/one
+cycle and all 125 normalized clones unchanged. Moving the whole adapter-field
+policy to the existing typed parser removed the initial capture hotspot.
+
+Latest complete production gate remains 5f729cc (926 app tests/all 67 doctests);
+this focused checkpoint precedes invocation diagnostics and combined verification.
+Compiler/personality remains 17/35. [Details](plans/rust-adapter-validation.md);
+evidence: ~/.local/state/radiology-qa/index-diagnostics-20261109-5f729cc/.
+
 ## 2026-11-09 — Automatic index open and refresh lifecycle (Codex)
 
 Opening/refreshing a checkout or pinned After and Reload Index now publish the

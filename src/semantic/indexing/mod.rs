@@ -43,6 +43,18 @@ pub enum Indexer {
 }
 
 impl Indexer {
+    /// Adapters available to the Default personality, in registry priority order.
+    ///
+    /// seL4 is selected by its own personality rather than an automatic allowlist.
+    pub const AUTOMATIC: [Self; 6] = [
+        Self::Rust,
+        Self::Go,
+        Self::TypeScript,
+        Self::Python,
+        Self::Clang,
+        Self::Kotlin,
+    ];
+
     /// Returns the persistent adapter identifier.
     #[must_use]
     pub fn id(self) -> &'static str {

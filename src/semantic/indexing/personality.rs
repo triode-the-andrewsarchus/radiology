@@ -140,7 +140,8 @@ impl Settings {
     ///
     /// # Errors
     /// Rejects oversized/non-UTF-8 TOML, duplicate or unknown root values, unsupported
-    /// root syntax, mismatched identity/engine/schema and out-of-range limits.
+    /// root syntax, mismatched identity/engine/schema, unknown automatic adapters
+    /// and out-of-range limits.
     pub fn parse(personality: Personality, path: PathBuf, bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() as u64 > MAX_BYTES {
             return Err("Personality settings exceed the 2 MiB limit".into());
@@ -151,12 +152,7 @@ impl Settings {
             .map_err(|error| format!("Invalid personality TOML: {error}"))?;
         let root = parser::Root::new(document.as_table(), text)?;
         root.validate_identity(personality)?;
-        let indexers = root.strings("indexers")?;
-        if personality == Personality::Sel4 && indexers != ["scip-sel4"] {
-            return Err(
-                "The seL4 personality requires the scip-sel4 configuration-union indexer".into(),
-            );
-        }
+        let indexers = root.indexers(personality)?;
         Ok(Self {
             personality,
             path,

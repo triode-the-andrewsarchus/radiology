@@ -475,6 +475,11 @@ IndexingTests suite: invocation reporting and remaining lifecycle assertions ret
 their audit, plus unknown-adapter validation. Full serial verification passes 926
 app checks, binary/font/text 2/13/23 and all 67 doctests (twelve opt-in ignores).
 
+[Unknown adapter validation](rust-adapter-validation.md) closes the silent empty-
+plan gap through capture-time field validation. Exact raw TOML syntax, known-ID
+acceptance and actual automatic-open failure/repair pass. Invocation diagnostics
+and remaining IndexingTests assertions retain their separate work.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).
