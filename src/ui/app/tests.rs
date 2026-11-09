@@ -1269,6 +1269,11 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
     let root = dir.path().join("repo");
     let ctx = Context::default();
     std::fs::write(root.join("a.rs"), text).unwrap();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"lens-fixture\"\n",
+    )
+    .unwrap();
     app.execute_command(&ctx, ToolbarAction::ReloadSource);
     settle(&mut app);
     app.execute_command(&ctx, ToolbarAction::ToggleMode(SourceMode::Critical));
@@ -1293,6 +1298,14 @@ fn critical_mode_uses_background_calls_and_rebuilds_when_an_index_arrives() {
         app.critical_lens.cache_counts(),
         (before_return.0, before_return.1 + 1)
     );
+
+    app.open_file("Cargo.toml");
+    settle(&mut app);
+    assert!(!app.call_sites.supported);
+    assert!(app.critical_projection().is_none());
+    assert_eq!(app.critical_status(), Some("Call syntax unavailable"));
+    app.open_file("a.rs");
+    settle(&mut app);
 
     // Import real SCIP wire data after the syntax-only presentation was published.
     write_critical_index(&root, text);
@@ -2998,3 +3011,5 @@ mod repository;
 mod review_recovery;
 
 mod change_blocks;
+
+mod critical_model;

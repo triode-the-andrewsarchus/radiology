@@ -201,6 +201,12 @@ CriticalFrontierTests functions, including conditional lower-bound normalization
 root/nested unknown deduplication, macro/cap chains and a painted conditional hover
 status. Other model, worker and hover rows still need their remaining audit.
 
+[Model/projection reconciliation](rust-critical-model-projection-contracts.md)
+now maps four CriticalLensModelTests and three CriticalProjectionTests groups.
+It fixes unsupported-source publication and strengthens combined app, persistence,
+real-fixture and byte-ownership checks. Drawing, worker and summary/hover rows
+remain subject to their separate remaining audit.
+
 ## Code Paths
 
 Rust entry points: [tests.rs](../src/code_paths/resolver/tests.rs), [tests.rs](../src/code_paths/store/tests.rs), [tests.rs](../src/ui/app/code_paths/tests.rs), [ui_tests.rs](../src/ui/app/code_paths/ui_tests.rs).

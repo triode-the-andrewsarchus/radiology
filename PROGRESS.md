@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-11-09 — Critical Lens model/projection parity (Codex)
+
+A red app regression confirmed unsupported Cargo.toml still published an empty
+Critical Lens projection. App scheduling now requires accepted source, Critical
+mode and supported call syntax; otherwise it reuses stop. Lower-level pure
+projection semantics remain unchanged. The app getter documents unsupported state.
+
+Seven Swift model/projection groups now have explicit mapping. A new both-scale
+app flow checks constant symbol/package markings and resets, immutable reader
+facts, actual caret keys requesting no projection work, mode-toggle cache reuse,
+unindexed call visibility and persisted choices after root reopening. The exact
+Swift Rust-analyzer fixture verifies repository-method versus declaration/type/
+receiver dimming. A rich Unicode source checks all prominent bytes belong to
+syntactic call names, including critical-marked non-call exclusions.
+
+MarkSession tests now combine pre-publication package/new-symbol edits with an
+untouched persisted symbol, and rapid saves retain 26 distinct final choices plus
+package reset. Existing source/index/policy/cancellation tests remain applicable.
+The 52 service tests, both-scale app flow, fixed unsupported workflow, strict
+all-target Clippy, build and warning-free docs pass. The full locked offline
+retry passes 850 app tests (11 existing ignored), two binary/13 font/22 text tests
+and all 65 doctests. Initial workspace linking crashed with SIGBUS before tests ran;
+isolated binary linking passed, and the full retry uses one Cargo build job with
+serial tests. The cause is unconfirmed; normal Cargo configuration remains 16 jobs.
+Architecture +285 measured NLOC/three test functions/one focused test
+file, no new production function, identical complete clone multisets and unchanged
+hotspots/cycles. [Model/projection audit](plans/rust-critical-model-projection-contracts.md)
+records exact boundaries and archive
+`~/.local/state/radiology-qa/critical-model-projection-20261109-8e23c03/`.
+Next: remaining summary/hover/graph-worker/drawing assertions. Broader native
+acceptance, other suites, known parallel timing limits and Android remain open;
+full accessibility and sibling-app adoption remain deferred.
+
 ## 2026-11-09 — Conditional frontier lower bounds and hover status (Codex)
 
 A red Swift-shaped summary with a parsed closure and Complete coverage produced

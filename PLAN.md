@@ -4,17 +4,23 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Critical model/projection contracts](plans/rust-critical-model-projection-contracts.md)
+now map seven Swift groups. Unsupported source clears the app projection; both-scale
+constant markings and real caret frames preserve reader state and reuse facts.
+The same Rust-analyzer fixture as Swift and a Unicode-rich byte matrix verify
+projection semantics. Summary/hover/worker/drawing and final acceptance remain open.
+
 [Critical frontier contracts](plans/rust-critical-frontier-contracts.md) now map
 all three Swift reachability groups. Supplied conditional summaries cannot prove
 zero, prepared/deeper gaps retain their counts without duplication, and hover
 status shows conditional sites. Expanded graph/cap and painted popup checks pass;
-model/summary/worker reconciliation and final whole-app acceptance remain open.
+model/projection reconciliation is recorded above; summary/worker and final acceptance remain open.
 
 [Critical policy/storage contracts](plans/rust-critical-policy-contracts.md)
 now map three Swift policy and two override-store groups. Expanded tests confirm
 classification/reset rules, indexed Built-In metadata, empty session fallback
 for invalid saved marks and read-only-parent deletion errors. Runtime already
-satisfies these contracts; remaining Critical Lens model/summary audits
+satisfies these contracts; remaining Critical Lens summary/worker audits
 and whole-app acceptance remain open.
 
 [Review retirement contracts](plans/rust-review-retirement-contracts.md)

@@ -74,18 +74,20 @@ impl RadiologyApp {
 
     pub(super) fn refresh_critical_projection(&mut self) {
         self.refresh_critical_annotations();
-        if self.mode == SourceMode::Critical {
-            if let Some(buffer) = &self.open_buffer {
-                let index = (buffer.revision != Some(ReviewRevision::Before))
-                    .then(|| self.semantic_index.clone())
-                    .flatten();
-                self.critical_lens.start(
-                    buffer.clone(),
-                    self.call_sites.clone(),
-                    index,
-                    self.critical_marks.overrides().clone(),
-                );
-            }
+        if let Some(buffer) = self
+            .open_buffer
+            .as_ref()
+            .filter(|_| self.mode == SourceMode::Critical && self.call_sites.supported)
+        {
+            let index = (buffer.revision != Some(ReviewRevision::Before))
+                .then(|| self.semantic_index.clone())
+                .flatten();
+            self.critical_lens.start(
+                buffer.clone(),
+                self.call_sites.clone(),
+                index,
+                self.critical_marks.overrides().clone(),
+            );
         } else {
             self.critical_lens.stop();
         }
@@ -159,6 +161,8 @@ impl RadiologyApp {
     }
 
     /// Returns the current exact-source Critical Lens presentation, when ready.
+    ///
+    /// Files without supported call syntax have no projection.
     #[must_use]
     pub fn critical_projection(&self) -> Option<&crate::critical::SourceProjection> {
         self.open_buffer

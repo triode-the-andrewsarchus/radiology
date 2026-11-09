@@ -149,6 +149,11 @@ fn exact_callee_occurrences_win_over_same_start_broader_candidates() {
 fn projections_bind_to_content_path_revision_and_supported_call_coverage() {
     let buffer = SourceBuffer::from_str("a.rs", "fn f() { clone(); }");
     let projected = projection(&buffer, None, Default::default());
+    let name = buffer.text.find("clone").unwrap();
+    assert_eq!(
+        projected.receded_byte_ranges,
+        vec![0..name, name + 5..buffer.byte_len()]
+    );
     assert!(!projected.matches(&SourceBuffer::from_str("b.rs", &buffer.text)));
     assert!(!projected.matches(&SourceBuffer::from_str(
         "a.rs",
@@ -194,4 +199,114 @@ fn projections_bind_to_content_path_revision_and_supported_call_coverage() {
         projected.receded_byte_ranges,
         std::iter::once(4..7).collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn only_exact_syntactic_call_names_escape_dimming_in_unicode_source() {
+    const CRITICAL: &str = "rust-analyzer cargo example 1 repo().";
+    let source = r#"// repo() in a comment is not a call
+fn declared(value: Type) {
+    let label = "unknown() 🚀 é";
+    if self.field != CONSTANT { repo(value); self.field.clone(); }
+    mystery::unknown::<Type>(self.field, 42)?;
+    let pattern = Some(value);
+    if let Some(binding) = pattern { return binding; }
+    macro_name!("text");
+}"#;
+    let buffer = SourceBuffer::from_str("focus.rs", source);
+    let index = super::super::test_support::index_ranges(
+        &buffer,
+        [
+            ("clone", RUNTIME),
+            ("repo", CRITICAL),
+            ("field", CRITICAL),
+            ("binding", "local 7"),
+        ]
+        .map(|(token, symbol)| {
+            let start = source.rfind(token).unwrap();
+            (start..start + token.len(), symbol.into())
+        }),
+    );
+    let mut overrides = CriticalityOverrides::default();
+    overrides.set_symbol(CRITICAL, Some(crate::critical::Criticality::Critical));
+    let projected = projection(&buffer, Some(&index), overrides);
+    for token in ["repo", "unknown::<", "macro_name"] {
+        assert!(
+            !projected.is_receded(source.rfind(token).unwrap()),
+            "{token}"
+        );
+    }
+    for token in [
+        "clone",
+        "declared",
+        "Type",
+        "let",
+        "if",
+        "return",
+        "self",
+        "field",
+        "CONSTANT",
+        "42",
+        "?",
+        "binding",
+        "Some(binding)",
+        "text",
+        "🚀",
+        "é",
+    ] {
+        assert!(
+            projected.is_receded(source.rfind(token).unwrap()),
+            "{token}"
+        );
+    }
+    let syntax = DocumentSyntax::analyze(&buffer);
+    for byte in 0..buffer.byte_len() {
+        if !projected.is_receded(byte) {
+            assert!(syntax.calls.sites.iter().any(|site| site
+                .name
+                .as_ref()
+                .is_some_and(|range| range.contains(&byte))));
+        }
+    }
+    assert_eq!(
+        projected.receded_byte_ranges,
+        SourceProjection::normalized(projected.receded_byte_ranges.clone())
+    );
+    assert!(projected
+        .receded_byte_ranges
+        .iter()
+        .all(|range| source.is_char_boundary(range.start) && source.is_char_boundary(range.end)));
+}
+
+#[test]
+fn swift_fixture_recedes_declarations_types_receivers_and_expressions() {
+    let raw = crate::semantic::ScipIndex::decode(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/Tests/RadiologyTests/Fixtures/scip-rust/index.scip"
+    )))
+    .unwrap();
+    let index = SemanticIndex::from_scip(raw);
+    let buffer = SourceBuffer::from_str(
+        "src/lib.rs",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/Tests/RadiologyTests/Fixtures/scip-rust/src/lib.rs"
+        )),
+    );
+    let projected = projection(&buffer, Some(&index), Default::default());
+    assert!(!projected.is_receded(buffer.text.find("area()").unwrap()));
+    for token in ["total_area", "Circle", "for", "+=", "item.area"] {
+        assert!(
+            projected.is_receded(buffer.text.find(token).unwrap()),
+            "{token}"
+        );
+    }
+    assert!(projected.matches(&buffer));
+    assert_eq!(
+        projected.receded_byte_ranges,
+        SourceProjection::normalized(projected.receded_byte_ranges.clone())
+    );
+    let mut changed = buffer.data.clone();
+    changed[0] = b'Q';
+    assert!(!projected.matches(&SourceBuffer::from_bytes(&buffer.path, changed, None).unwrap()));
 }
