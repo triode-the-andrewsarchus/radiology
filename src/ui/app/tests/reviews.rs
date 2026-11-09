@@ -349,3 +349,111 @@ fn revision_switches_land_on_first_changed_lines_and_after_deleted_gaps() {
         "checkout only\n"
     );
 }
+
+#[test]
+fn changes_selection_follows_both_rename_revisions_without_moving_the_reader() {
+    use crate::ui::test_support::text_shapes;
+    let (_owner, root, review) = crate::pull_request::review::tests::fixture();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app) =
+            super::review_refresh::open_review(&root, review.clone(), ReviewRevision::After);
+        app.sidebar_tab = SidebarTab::Changes;
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        for (revision, path) in [
+            (ReviewRevision::Before, "renamed old.rs"),
+            (ReviewRevision::After, "renamed new.rs"),
+        ] {
+            app.navigate(SourceLocation::with_revision(path, 0, Some(revision)), true);
+            super::focus::settle_frame(&mut app, &ctx);
+            let accepted = app.open_buffer.clone().unwrap();
+            let history = format!("{:?}", app.history);
+            let output = super::focus::frame(&mut app, &ctx, vec![]);
+            let caption = text_shapes(&output)
+                .find(|text| text.galley.job.text == "renamed new.rs")
+                .expect("rename row");
+            let point = caption.pos + caption.galley.size() / 2.0;
+            assert!(output.shapes.iter().any(|shape| matches!(&shape.shape,
+                egui::Shape::Rect(rect) if rect.rect.contains(point) && rect.rect.height() < 80.0
+                    && rect.rect.width() > 100.0 && rect.stroke.color == app.theme.border && rect.stroke.width == 1.0
+            )), "{scale}× {revision:?}: selected rename row must be highlighted");
+            assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
+            assert_eq!(format!("{:?}", app.history), history);
+            assert_eq!(app.selected_path.as_deref(), Some(path));
+        }
+    }
+}
+
+#[test]
+fn changes_filter_reset_restores_visible_totals_without_reader_departure_and_empty_pr_has_no_reset()
+{
+    use crate::pull_request::review::{
+        tests::{fixture_with_tree_edits, git},
+        ReviewSnapshot,
+    };
+    use crate::ui::test_support::{click, text_center, text_shapes};
+    let (owner, root, review) = fixture_with_tree_edits(
+        "unchanged\n",
+        "unchanged\n",
+        |_| {},
+        |root| {
+            for path in ["added.rs", "binary.dat", "renamed new.rs"] {
+                std::fs::remove_file(root.join(path)).unwrap();
+            }
+            git(
+                root,
+                &["restore", "--source=main", "--worktree", "--staged", "."],
+            );
+            std::fs::write(root.join("README.md"), "# Notes\n").unwrap();
+        },
+    );
+    assert_eq!(review.changes.len(), 1);
+    let canonical = review.changes.clone();
+    let mut summary = review.summary.clone();
+    summary.head_ref_oid = Some(review.base.clone());
+    let empty = ReviewSnapshot::prepare(&root, summary, &owner.path().join("cache")).unwrap();
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app) =
+            super::review_refresh::open_review(&root, review.clone(), ReviewRevision::After);
+        app.navigate(
+            SourceLocation::with_revision("README.md", 0, Some(ReviewRevision::After)),
+            true,
+        );
+        settle(&mut app);
+        app.sidebar_tab = SidebarTab::Changes;
+        app.session.source_filters.path_query = "does-not-match-any-path".into();
+        app.filters_changed();
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        let accepted = app.open_buffer.clone().unwrap();
+        let history = format!("{:?}", app.history);
+        let output = super::focus::frame(&mut app, &ctx, vec![]);
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "README.md"));
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "1 of 1 files"));
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "+1"));
+        app.execute_command(&ctx, ToolbarAction::ToggleSourceFilesOnly);
+        let output = super::focus::frame(&mut app, &ctx, vec![]);
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "0 of 1 files"));
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "+0"));
+        assert!(text_shapes(&output)
+            .any(|t| t.galley.job.text == "No files match the current filters."));
+        assert!(!text_shapes(&output).any(|t| t.galley.job.text == "No changed files."));
+        let reset = text_center(&output, "Show All Files");
+        super::focus::frame(&mut app, &ctx, click(reset));
+        let output = super::focus::frame(&mut app, &ctx, vec![]);
+        assert_eq!(app.session.source_filters, Default::default());
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "README.md"));
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "+1"));
+        assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert_eq!(app.pr_changes, canonical);
+        app.accept_review(empty.clone());
+        settle(&mut app);
+        app.sidebar_tab = SidebarTab::Changes;
+        app.execute_command(&ctx, ToolbarAction::ToggleSourceFilesOnly);
+        let output = super::focus::frame(&mut app, &ctx, vec![]);
+        assert!(text_shapes(&output).any(|t| t.galley.job.text == "No changed files."));
+        assert!(!text_shapes(&output).any(|t| t.galley.job.text == "Show All Files"));
+        assert!(app.pr_changes.is_empty());
+    }
+}

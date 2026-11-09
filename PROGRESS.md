@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Revision-aware Changes selection and presentation contracts (Codex)
+
+A real rendered app regression failed because Before's old rename path did not
+highlight the canonical Changes row. Sidebar::show now accepts the selected
+source revision and reuses the filtered presentation's selection_id. Files retain
+the exact source path, checkout keeps path selection, and pinned Changes honor
+revision availability without a second alias map or stored selection state.
+
+One model matrix maps all three Swift presentation groups: ordered source/test
+filter combinations, visible counts/totals, rename/deletion availability and
+filtered-versus-genuine empty states. Both-scale app tests check the actual
+Before/After rename stroke and a real README-only PR's filter/reset flow. Reset
+restores rows/totals/default filters while preserving the accepted source Arc,
+history and canonical changes. A nonmatching Files query does not filter Changes;
+a genuinely empty PR shows the distinct message without offering reset.
+
+The focused selection, 20 matching Changes tests, final model matrix, formatting,
+strict all-target Clippy, build and warning-free docs pass. The full locked offline
+serial run passes 836 app tests/11 existing ignored, two binary/13 font/22 text
+tests and all 64 doctests. Architecture +259
+measured NLOC/three test functions/no new files; complete clone multisets,
+hotspots and cycles unchanged. Shared matrix checks removed a draft duplicate.
+[Presentation audit and host API migration](plans/rust-review-presentation-contracts.md)
+map all three groups. Integrated-review/fold assertions, final native acceptance,
+known parallel timing limits and Android remain open. Next: ReviewFoldDefaults
+signature/attribute ownership, async/manual choices, identity and viewport rules.
+
 ## 2026-11-09 — Review repository assertion reconciliation (Codex)
 
 A real older-clone regression reproduced missing commit IDs in failed fetch

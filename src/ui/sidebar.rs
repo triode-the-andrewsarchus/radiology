@@ -196,6 +196,9 @@ impl Sidebar {
     }
 
     /// Renders navigation modes with independent query and search controls.
+    ///
+    /// `selected_revision` maps a pinned source path to its canonical Changes
+    /// row, including the old path of a rename. Pass `None` for checkout files.
     #[allow(clippy::too_many_arguments)]
     pub fn show(
         ui: &mut Ui,
@@ -205,6 +208,7 @@ impl Sidebar {
         filters: &mut SourceFilters,
         expanded_dirs: &mut HashSet<String>,
         selected_path: Option<&str>,
+        selected_revision: Option<crate::source::ReviewRevision>,
         active_pr: Option<&PullRequestSummary>,
         all_changes: &[FileChange],
         search_options: &mut SearchOptions,
@@ -289,7 +293,10 @@ impl Sidebar {
                     });
             }
             SidebarTab::Changes => {
-                action = Self::changes(ui, theme, active_pr, &changes, selected_path, branch);
+                let selected = selected_revision.map_or(selected_path, |revision| {
+                    selected_path.and_then(|path| changes.selection_id(path, revision))
+                });
+                action = Self::changes(ui, theme, active_pr, &changes, selected, branch);
             }
             SidebarTab::Search => {
                 action = Self::search(ui, theme, search_options, search);

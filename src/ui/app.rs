@@ -787,6 +787,7 @@ impl RadiologyApp {
                         &mut self.session.source_filters,
                         &mut self.expanded_dirs,
                         self.selected_path.as_deref(),
+                        self.open_buffer.as_ref().and_then(|buffer| buffer.revision),
                         self.active_pr.as_ref(),
                         &self.pr_changes,
                         &mut self.search_options,

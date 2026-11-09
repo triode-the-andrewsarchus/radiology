@@ -587,6 +587,155 @@ mod tests {
     }
 
     #[test]
+    fn presentation_filters_keep_order_visible_totals_revision_selection_and_distinct_empty_states()
+    {
+        use crate::repository::filters::SourceFilters;
+        let mut rows = FileChange::parse_name_status(
+            concat!(
+                "M\0README.md\0M\0src/a.rs\0M\0tests/a.rs\0",
+                "M\0target/generated.rs\0M\0scripts/test_api.py\0D\0src/deleted.kt\0"
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        let mut renamed = FileChange::parse_name_status(
+            concat!(
+                "R070\0src/old.rs\0docs/old.md\0R070\0docs/new.md\0src/new.rs\0",
+                "R100\0src/moved.rs\0tests/test.rs\0D\0docs/gone.md\0D\0src/gone.rs\0"
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        for change in rows.iter_mut().chain(&mut renamed) {
+            change.additions = 2;
+            change.deletions = 1;
+        }
+        let canonical = rows.clone();
+        for (changes, source_files_only, hides_tests, expected) in [
+            (
+                &rows,
+                false,
+                false,
+                vec![
+                    "README.md",
+                    "src/a.rs",
+                    "tests/a.rs",
+                    "target/generated.rs",
+                    "scripts/test_api.py",
+                    "src/deleted.kt",
+                ],
+            ),
+            (
+                &rows,
+                true,
+                false,
+                vec![
+                    "src/a.rs",
+                    "tests/a.rs",
+                    "scripts/test_api.py",
+                    "src/deleted.kt",
+                ],
+            ),
+            (
+                &rows,
+                false,
+                true,
+                vec![
+                    "README.md",
+                    "src/a.rs",
+                    "target/generated.rs",
+                    "src/deleted.kt",
+                ],
+            ),
+            (&rows, true, true, vec!["src/a.rs", "src/deleted.kt"]),
+            (
+                &renamed,
+                true,
+                true,
+                vec!["docs/old.md", "src/new.rs", "tests/test.rs", "src/gone.rs"],
+            ),
+        ] {
+            let visible = ReviewChangesPresentation::new(
+                changes,
+                &SourceFilters {
+                    source_files_only,
+                    hides_tests,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(
+                visible
+                    .changes
+                    .iter()
+                    .map(|c| c.path.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                (
+                    visible.total_count,
+                    visible.additions(),
+                    visible.deletions()
+                ),
+                (changes.len(), expected.len() * 2, expected.len())
+            );
+            assert_eq!(
+                visible.file_count_label(),
+                format!("{} of {} files", expected.len(), changes.len())
+            );
+            assert_eq!(rows, canonical);
+        }
+        let visible = ReviewChangesPresentation::new(
+            &renamed,
+            &SourceFilters {
+                source_files_only: true,
+                hides_tests: true,
+                ..Default::default()
+            },
+        );
+        for (path, revision, expected) in [
+            ("src/old.rs", ReviewRevision::Before, Some("docs/old.md")),
+            ("docs/old.md", ReviewRevision::After, Some("docs/old.md")),
+            ("src/old.rs", ReviewRevision::After, None),
+            ("docs/old.md", ReviewRevision::Before, None),
+            ("docs/new.md", ReviewRevision::Before, Some("src/new.rs")),
+            (
+                "src/moved.rs",
+                ReviewRevision::Before,
+                Some("tests/test.rs"),
+            ),
+            ("docs/gone.md", ReviewRevision::Before, None),
+            ("src/gone.rs", ReviewRevision::Before, Some("src/gone.rs")),
+            ("src/gone.rs", ReviewRevision::After, None),
+        ] {
+            assert_eq!(visible.selection_id(path, revision), expected);
+        }
+        let added = FileChange::parse_name_status(b"A\0README.md\0").unwrap();
+        let filters = SourceFilters {
+            source_files_only: true,
+            ..Default::default()
+        };
+        let hidden = ReviewChangesPresentation::new(&added, &filters);
+        assert!(hidden.is_filtered_empty() && !hidden.is_genuinely_empty());
+        assert_eq!(
+            hidden.selection_id("README.md", ReviewRevision::After),
+            None
+        );
+        assert_eq!((hidden.additions(), hidden.deletions()), (0, 0));
+        let reset = ReviewChangesPresentation::new(&added, &SourceFilters::default());
+        assert_eq!(
+            reset.selection_id("README.md", ReviewRevision::After),
+            Some("README.md")
+        );
+        assert_eq!(
+            reset.selection_id("README.md", ReviewRevision::Before),
+            None
+        );
+        let empty = ReviewChangesPresentation::new(&[], &filters);
+        assert!(empty.is_genuinely_empty() && !empty.is_filtered_empty());
+    }
+
+    #[test]
     fn malformed_raw_records_never_return_a_partial_change_list() {
         let before = "1".repeat(40);
         let after = "2".repeat(40);

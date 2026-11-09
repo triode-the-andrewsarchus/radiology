@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Changes presentation](plans/rust-review-presentation-contracts.md) now maps all
+three Swift groups and fixes a missing Before-rename selection highlight through
+the shared model. Both-scale app selection and reset/empty workflows preserve the
+accepted reader and history. Review fold and integrated-review audits remain open.
+
 [Review repository contracts](plans/rust-review-repository-contracts.md) now map
 all four Swift groups. A clone predating the PR stays unchanged through private
 fetches and failures, missing-commit errors name the requested ID, and combined

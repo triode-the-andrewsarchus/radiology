@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Changes presentation](rust-review-presentation-contracts.md) fixes the Before
+rename selection highlight and maps all three Swift groups, including visible
+counts, revision availability and rendered filter reset/empty behavior. Separate
+integrated-review/fold audits and final acceptance remain open.
+
 [Review repository contracts](rust-review-repository-contracts.md) map all four
 repository groups, including missing-commit diagnostics, older-clone isolation,
 three-dot Unicode/CRLF/rename outcomes and exact leased-tree cache behavior.
