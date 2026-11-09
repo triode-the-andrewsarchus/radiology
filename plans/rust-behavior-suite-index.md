@@ -71,13 +71,17 @@ Evidence: [rust-bookmark-pane](rust-bookmark-pane.md).
 
 The [bookmark command checkpoint](rust-bookmark-command-parity.md) fixes declaration
 labels and bounds numbered commands without restricting UUID list activation. It
-adds focused app evidence; the full six-function bookmark reconciliation remains
-open.
+adds focused app evidence. The navigation functions are reconciled below; the
+separate three model/storage functions remain open.
 
 | Swift suite | Annotated functions |
 | --- | ---: |
 | [BookmarkTests](../Tests/RadiologyTests/BookmarkTests.swift) | 3 |
 | [BookmarkNavigationTests](../Tests/RadiologyTests/BookmarkNavigationTests.swift) | 3 |
+
+All three BookmarkNavigationTests functions are now reconciled in the
+[combined workflow checkpoint](rust-bookmark-navigation-contracts.md). It records
+the real Git/app boundaries and the separate remaining BookmarkTests model audit.
 
 ## Repository, filters, Files reveal and quick navigation
 

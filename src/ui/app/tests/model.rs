@@ -69,18 +69,7 @@ fn superseded_swift_preparation_and_language_changes_cannot_reuse_derived_facts(
         let ctx = Context::default();
         ctx.set_pixels_per_point(scale);
         app.open_file("Old.swift");
-        // Hold a genuinely completed parse at the existing publication boundary.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        let retired = loop {
-            if let Some(result) = app.source_loader.poll() {
-                break result.unwrap();
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "old Swift preparation did not finish"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        };
+        let retired = take_prepared_source(&mut app);
         assert!(retired
             .syntax
             .as_ref()

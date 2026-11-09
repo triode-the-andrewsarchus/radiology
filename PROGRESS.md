@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-11-08 — Reconciled the three bookmark navigation workflows (Codex)
+
+Added both-scale actual-app workflows for reordered keyboard shortcuts, exact Back
+departures, Unicode/CRLF relocation and saved-order relaunch; independent checkout,
+two PRs, Before/After and another repository; and missing/retired bookmark requests
+preserving the accepted reader or newer empty scope. Existing runtime passes; no
+production change. The earlier bookmark row-selection assertion was too broad for
+Back and is corrected without a product change.
+
+Shared the real completed-preparation wait with the app-model parse regression,
+plus local location/empty-scope assertions. Architecture +223 measured NLOC and six
+test-only functions; complete clone multisets unchanged, no new hotspot/cycle.
+Workspace passes 804 app tests/11 ignored, two binary, 13 font, 22 text and
+60 doctests; the final bookmark group, strict Clippy and formatting also pass.
+[Mapping, verification and boundaries](plans/rust-bookmark-navigation-contracts.md)
+keep the separate bookmark model/storage assertions and other suites open.
+
 ## 2026-11-08 — Bookmark labels and numbered command boundaries (Codex)
 
 Found and fixed two concrete Swift differences: new bookmarks now use the

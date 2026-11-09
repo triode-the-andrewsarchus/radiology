@@ -1,7 +1,8 @@
 # Bookmark labels and numbered command boundaries — 2026-11-08
 
 This checkpoint fixes two concrete differences found while reviewing the Swift
-bookmark implementation. It does not close the entire bookmark assertion audit.
+bookmark implementation. The subsequent [navigation audit](rust-bookmark-navigation-contracts.md)
+closes its three combined navigation workflows; the model/storage review remains.
 
 ## Behavior
 

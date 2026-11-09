@@ -64,6 +64,21 @@ fn repository(root: &Path) {
     std::fs::write(root.join("b.rs"), "fn beta() {\n    alpha();\n}\n").unwrap();
 }
 
+// Hold a genuinely completed result at the existing publication boundary.
+fn take_prepared_source(app: &mut RadiologyApp) -> crate::source::loader::PreparedSource {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if let Some(result) = app.source_loader.poll() {
+            return result.expect("source preparation failed");
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "source preparation did not finish"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 fn first_outline_target(app: &mut RadiologyApp) -> crate::ui::outline_list::OutlineTarget {
     use crate::ui::outline_list::OutlineAction;
     app.sync_outline();
