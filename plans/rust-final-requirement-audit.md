@@ -199,6 +199,10 @@ absolute macOS path and has no fixed portable timing threshold. Shared fold/view
 contracts and the fresh large/long-source native flows verify the portable product
 requirements; no AppKit performance equivalence is asserted.
 
+The [prepared SDK success harness](rust-android-success-harness.md) supplies an
+explicit debug/unit-test compiler/navigation/cache gate without accepting terms or
+downloading an SDK. Compiling that ignored test is not proof of Android success.
+
 Outstanding required work is successful SDK-backed Android generation/navigation
 (or an explicit user deferral), followed by recording its result and rerunning any
 affected gates if it exposes a defect. SDK package/license authorization is pending;

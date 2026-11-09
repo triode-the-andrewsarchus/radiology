@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Prepare real Android variant success gate without SDK installation (Codex)
+
+Added an explicit ignored Android success check through the existing isolated
+production generator and verify_lifecycle. A real AGP library requires main/debug/
+unit-test Kotlin compiler documents, Android Context usage, exact post-emoji UTF-16
+call/definition/reference mapping, complete coverage, Update reuse, tool-free cache
+reload and unchanged viewed source/inventory. Debug-to-main navigation is checked
+separately. Missing preflight components fail before generation; automatic SDK
+downloading is disabled and the test never accepts terms or provisions an SDK.
+The success path has not run and Android acceptance remains unverified.
+
+Shared actual managed-tool request setup removes a seven-line draft duplicate.
+The existing real multi-module JVM/partial-build/AGP-missing-SDK workflow passes
+again in 24.22 seconds after consolidation, with verified unchanged tool hashes.
+Strict all-target Clippy and formatting pass. Architecture NEUTRAL: +73 NLOC/two
+functions (new test CCN 2/shared setup 1), avg/max 3.43/132, 36 existing hotspots/one
+cycle and all 125 normalized clones unchanged. No runtime, API, dependency or UI
+change. The final half-core workspace gate passes 943 app tests/thirteen ignored,
+binary/font/text 2/13/23 and all 68 doctests. The new SDK success case accounts for
+the extra ignore; none of those passes establishes successful Android compilation.
+
+[Harness and invocation](plans/rust-android-success-harness.md), archive:
+~/.local/state/radiology-qa/android-success-harness-20261109-ab4fd59/.
+SDK package/license authorization remains pending; no SDK download or license
+acceptance occurred. A small successful fixture would not by itself prove the
+original dependency-heavy pinned PR758 application service probe.
+
 ## 2026-11-09 — Complete original/upstream desktop requirement audit (Codex)
 
 Rechecked all 81 root Swift hashes against the recorded inventory; no reference

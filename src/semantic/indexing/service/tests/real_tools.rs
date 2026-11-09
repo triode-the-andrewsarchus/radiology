@@ -550,9 +550,6 @@ fn real_clang_vendor_dependencies_invalidate_reuse_and_preserve_partial_builds()
 #[test]
 #[ignore = "requires RADIOLOGY_REAL_KOTLIN_TOOLS pinned installation, full JDK 17 and network access"]
 fn real_gradle_modules_keep_partial_shards_and_report_missing_android_sdk() {
-    let tool_root = std::env::var_os("RADIOLOGY_REAL_KOTLIN_TOOLS")
-        .map(PathBuf::from)
-        .expect("set RADIOLOGY_REAL_KOTLIN_TOOLS to the private managed tool root");
     let settings = "pluginManagement { repositories { google(); gradlePluginPortal(); mavenCentral() } }\nrootProject.name = \"radiology-modules\"\ninclude(\":app\", \":core\", \":broken\")\n";
     let root_build = "plugins { kotlin(\"jvm\") version \"2.4.20\" apply false }\nallprojects { repositories { mavenCentral() }; group = \"radiology.fixture\"; version = \"1.0.0\" }\n";
     let broken_path = "broken/src/main/kotlin/Broken.kt";
@@ -570,9 +567,7 @@ fn real_gradle_modules_keep_partial_shards_and_report_missing_android_sdk() {
         (broken_path, good_broken),
     ];
     let fixture = Fixture::new(&files);
-    let mut request = fixture.request();
-    request.tools = ToolDirectory::from_environment(Some(tool_root.canonicalize().unwrap()));
-    request.timeout = Duration::from_secs(600);
+    let request = managed_kotlin_request(&fixture);
     let artifacts = [
         ".gradle",
         ".kotlin",
@@ -663,6 +658,86 @@ fn real_gradle_modules_keep_partial_shards_and_report_missing_android_sdk() {
     for artifact in artifacts {
         assert!(!fixture.source.join(artifact).exists());
     }
+}
+
+#[test]
+#[ignore = "requires RADIOLOGY_REAL_ANDROID_SDK already licensed/provisioned, RADIOLOGY_REAL_KOTLIN_TOOLS, full JDK 17 and network access"]
+fn real_android_debug_and_unit_test_sources_keep_utf16_navigation_and_cached_coverage() {
+    let sdk = std::env::var_os("RADIOLOGY_REAL_ANDROID_SDK")
+        .map(PathBuf::from)
+        .expect("provide an already licensed Android SDK; this test never accepts SDK terms")
+        .canonicalize()
+        .unwrap();
+    for component in [
+        "platforms/android-36/android.jar",
+        "build-tools/36.0.0/aapt2",
+    ] {
+        assert!(sdk.join(component).is_file(), "missing SDK {component}");
+    }
+    let sdk_path = sdk
+        .to_str()
+        .unwrap()
+        .replace('\\', "\\\\")
+        .replace(':', "\\:");
+    let local_properties = format!("sdk.dir={sdk_path}\n");
+    let files = [
+        ("settings.gradle.kts", "pluginManagement { repositories { google(); gradlePluginPortal(); mavenCentral() } }\nrootProject.name = \"radiology-android\"\ninclude(\":reader\")\n"),
+        ("build.gradle.kts", "plugins { id(\"com.android.library\") version \"9.4.1\" apply false }\nallprojects { repositories { google(); mavenCentral() }; group = \"radiology.fixture\"; version = \"1.0.0\" }\n"),
+        ("gradle.properties", "android.builder.sdkDownload=false\n"),
+        ("local.properties", local_properties.as_str()),
+        ("reader/build.gradle.kts", "plugins { id(\"com.android.library\") }\nandroid { namespace = \"radiology.fixture\"; compileSdk = 36; buildToolsVersion = \"36.0.0\"; defaultConfig { minSdk = 26 } }\n"),
+        ("reader/src/main/AndroidManifest.xml", "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\n"),
+        ("reader/src/main/kotlin/Title.kt", "package fixture\nimport android.content.Context\nfun title(context: Context): String = context.packageName\n"),
+        ("reader/src/debug/kotlin/Reader.kt", "package fixture\nimport android.content.Context\nfun debugTitle(context: Context): String = title(context)\n"),
+        ("reader/src/test/kotlin/Caller.kt", "package fixture\nimport android.content.Context\nfun unitTitle(context: Context): String { /* 🦀 */ return debugTitle(context) }\n"),
+    ];
+    let fixture = Fixture::new(&files);
+    let request = managed_kotlin_request(&fixture);
+    let index = verify_lifecycle(
+        &fixture,
+        request,
+        &files,
+        Navigation {
+            caller: "reader/src/test/kotlin/Caller.kt",
+            callee: "debugTitle",
+            target: "reader/src/debug/kotlin/Reader.kt",
+            span: (2, 4, 14),
+            encoding: ColumnEncoding::Utf16,
+            documents: 3,
+            partial_build: false,
+        },
+        &[
+            ".gradle",
+            ".kotlin",
+            "reader/build",
+            ".radiology-scip",
+            ".radiology-index-tools",
+        ],
+    );
+    let reader = SourceBuffer::from_str(files[7].0, files[7].1);
+    let call = index
+        .occurrence_at_byte(&reader, files[7].1.rfind("title").unwrap())
+        .expect("debug variant resolves its main-source call");
+    let (path, range) = index.find_definition(&call.symbol).unwrap();
+    assert_eq!(path, files[6].0);
+    assert_eq!(
+        (range.start_line, range.start_col, range.end_col),
+        (2, 4, 9)
+    );
+    assert_eq!(
+        index.column_encoding(files[7].0),
+        Some(ColumnEncoding::Utf16)
+    );
+}
+
+fn managed_kotlin_request(fixture: &Fixture) -> GenerationRequest {
+    let tool_root = std::env::var_os("RADIOLOGY_REAL_KOTLIN_TOOLS")
+        .map(PathBuf::from)
+        .expect("set RADIOLOGY_REAL_KOTLIN_TOOLS to the private managed tool root");
+    let mut request = fixture.request();
+    request.tools = ToolDirectory::from_environment(Some(tool_root.canonicalize().unwrap()));
+    request.timeout = Duration::from_secs(600);
+    request
 }
 
 struct Navigation<'a> {

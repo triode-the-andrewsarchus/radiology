@@ -16,7 +16,8 @@ with their assertion-level Rust checkpoints. Eleven optional probe files/sevente
 functions retain explicit environment/corpus limits; name mapping alone is not
 behavioral proof. All 81 root Swift reference file hashes remain unchanged.
 
-The current a5fd157 production snapshot passes 943 app tests (twelve opt-in ignores),
+The a5fd157 production snapshot passes 943 app tests (twelve opt-in ignores at its
+runtime checkpoint),
 binary/font/text 2/13/23 and 68 doctests, both serially and with sixteen build jobs/
 sixteen test threads. Strict Clippy, build and formatting pass. Fresh committed
 export, independent full-reader and asset/text consumers, source-unavailable copied
@@ -31,6 +32,14 @@ SDK license acceptance authorization is pending. See [PROGRESS.md](PROGRESS.md) 
 the latest checkpoint and the audit for exact external-corpus limits.
 
 ## Recent checkpoint index
+
+[Prepared Android success harness](plans/rust-android-success-harness.md) adds an
+explicit SDK-backed debug/unit-test compilation and UTF-16 navigation gate through
+the shared real-tool lifecycle. It compiles and passes strict checks; actual SDK
+success remains unexecuted pending authorization. The final half-core workspace
+gate passes 943 app tests/thirteen ignores, binary/font/text 2/13/23 and 68 doctests.
+The existing real JVM/partial/missing-SDK test passes with the shared setup.
+No runtime/UI changes.
 
 [Final requirement audit](plans/rust-final-requirement-audit.md) connects every
 ordinary suite to its contracts and records original/upstream dispositions, exact
