@@ -75,7 +75,9 @@ The four remaining ContextModel groups are not claimed complete by this audit.
 In particular, expansion should be checked across index replacement: Swift's
 declaration identity includes indexRevision, while Rust's current summary owner
 contains source identity and selection range. This key difference needs an actual
-disclosure-state check before treating it as equivalent.
+disclosure-state check before treating it as equivalent. The subsequent
+[disclosure audit](rust-context-disclosure-contracts.md) reproduces and repairs
+that gap through the existing app ownership boundary.
 Reference/call-tree/palette, source/syntax, compiler/indexing and inspector suite
 reconciliation and final native/standalone gates remain indexed separately.
 Android's SDK/license gate and known parallel timing/linking limitations persist;

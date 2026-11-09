@@ -165,6 +165,7 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
         assert!(Arc::ptr_eq(&app.reference_context.results, &area_rows));
         assert_eq!(app.reference_context.selected, None);
         focus::settle_frame(&mut app, &ctx);
+        super::context_disclosure::assert_disclosure_and_focus(&mut app, &ctx, owner.path());
         super::context_fallback::assert_fallbacks(&mut app, &ctx);
         let other = super::context_lifecycle::assert_owner_changes(&mut app, &ctx, owner.path());
         super::context_lifecycle::assert_retirements(&mut app, &ctx, owner.path(), other.path());

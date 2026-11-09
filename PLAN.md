@@ -4,6 +4,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Context disclosure contracts](plans/rust-context-disclosure-contracts.md) now reset
+signature expansion with semantic-input ownership and map independent disclosure
+and explicit-reference/Follow Caret behavior through real app controls. Sixteen
+ContextModel groups are mapped; excerpt windowing and coverage remain.
+
 [Context lifecycle contracts](plans/rust-context-lifecycle-contracts.md) map stale
 publication, reset/root ownership, index replacement and same-index source edits
 through existing app/worker/cache owners. This test-only audit adds no production

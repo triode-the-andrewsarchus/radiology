@@ -339,6 +339,13 @@ identical-source roots cannot share row ownership, and source edits refresh both
 excerpts and definition snippets under one index. Fourteen groups have mappings;
 explicit focus, scalar-window snippets, availability and expansion remain open.
 
+[Context disclosures and explicit focus](rust-context-disclosure-contracts.md)
+map expansionBelongsToIdentityAndStartsCollapsed and
+explicitReferencesOverrideTheDeclarationUntilFollowCaret. Actual chevrons,
+Find References and Follow Caret drive both-scale checks. Index replacement now
+retires the signature using existing semantic-input ownership. Sixteen groups
+are mapped, leaving scalar-window excerpts and coverage.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

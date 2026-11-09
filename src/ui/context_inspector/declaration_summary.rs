@@ -11,7 +11,8 @@ use std::ops::Range;
 ///
 /// Pass the same value to [`super::ContextInspector::show`] across frames.
 /// Reset it to its default when changing repositories, including repositories
-/// containing identical relative paths and source bytes.
+/// containing identical relative paths and source bytes. Also reset when replacing
+/// the semantic index, even when the source and symbol coordinates are unchanged.
 #[derive(Default)]
 pub struct DeclarationSummary {
     owner: Option<(SourceIdentity, Range<usize>)>,

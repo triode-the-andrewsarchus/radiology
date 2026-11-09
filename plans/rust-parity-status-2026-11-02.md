@@ -1,5 +1,10 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Context disclosure/focus](rust-context-disclosure-contracts.md) closes signatures
+on index replacement and verifies independent expansion plus explicit reference
+focus. Sixteen ContextModel groups are mapped; source windowing and coverage remain.
+The following excerpt checkpoint will run a fresh combined full workspace gate.
+
 [Context lifecycle ownership](rust-context-lifecycle-contracts.md) now reconciles
 four further model groups using actual late-result endpoints, source reloads and
 index/root replacement. Fourteen ContextModel groups are mapped and four await

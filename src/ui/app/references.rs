@@ -105,6 +105,7 @@ impl RadiologyApp {
         } else if self.semantic_inputs.take().is_none() {
             return false;
         }
+        self.declaration_summary = Default::default();
         true
     }
 

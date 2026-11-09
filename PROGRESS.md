@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Declaration disclosure follows index ownership (Codex)
+
+The real chevron/index-replacement regression failed on a signature left open
+under a new index. One reset at the existing semantic-input ownership boundary
+now retires DeclarationSummary alongside definition/reference state. No new
+revision key, public parameter, renderer state or dependency. Host-facing renderer
+docs now include index replacement in their existing reset responsibility.
+
+Actual both-scale app controls reconcile default/independent disclosure, same-token
+retention, self-only definition collapse, new-declaration retirement, invalid row
+rejection, reverse reference toggling and reset. Find References pins Circle
+through movement into area's body; Follow Caret restores area without reader or
+history changes. Sixteen ContextModel groups are mapped; two remain.
+
+Focused app and all five declaration-summary checks pass, plus strict all-target
+Clippy, normal build and warning-free docs. The next excerpt checkpoint will run
+the fresh full workspace gate for both changes; no new full-run result is claimed
+by this commit. Architecture +150 NLOC/three test functions/one focused scenario
+file, unchanged average/max CCN 3.42/132, 36 high-complexity sites and cycles.
+[Disclosure mapping](plans/rust-context-disclosure-contracts.md); logs live under
+`~/.local/state/radiology-qa/context-disclosure-20261109-127cdc4/`.
+
+The remaining source-window check found a concrete follow-up: clipped excerpt
+rows currently have only a tooltip/flag, with no visible omission markers. Check
+Swift's 400-byte sidebar budget and exact long-Unicode fixture when repairing it.
+Coverage mapping and the larger PLAN gates remain unfinished.
+
 ## 2026-11-09 — Context lifecycle assertion reconciliation (Codex)
 
 Four Swift groups now have real-app evidence for stale results, reset/repository
