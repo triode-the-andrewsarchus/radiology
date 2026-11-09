@@ -5,6 +5,10 @@ Reference: [upstream contract](indexing-personalities.md) and
 are implemented. Real 67-profile Linux compiler/service acceptance now passes;
 native real-matrix controls/navigation now pass at both display scales.
 
+The [assertion reconciliation](rust-personality-contracts.md) and later
+[explicit handoff](rust-index-reuse-contracts.md) now map all six personality/UI
+groups, including cross-checkout seL4 cache reuse with edited captured settings.
+
 ## Settings and resource checkpoint
 
 `semantic::indexing::personality` exposes Default/seL4 identities, immutable

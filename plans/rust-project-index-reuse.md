@@ -1,5 +1,12 @@
 # Rust project index reuse and provenance
 
+## Explicit handoffs
+
+[Cross-checkout reuse](rust-index-reuse-contracts.md) now adds ordered explicit
+cache/root/label sources to GenerationRequest. It shares existing validation,
+stages destination-owned records and preserves imported/mixed provenance. Empty
+sources retain the repository-scoped contract below; there is no global scan.
+
 ## Contract
 
 GenerationRequest now carries a stable attached_root separately from the viewed

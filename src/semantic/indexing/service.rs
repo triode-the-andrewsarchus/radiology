@@ -13,6 +13,36 @@ use std::path::{Path, PathBuf};
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use std::time::{Duration, Instant};
 
+/// Explicit project-cache handoff from another attached checkout.
+///
+/// Generation reads this source only when [`GenerationRequest::reuse`] is enabled.
+/// Matching tool versions, settings, strategies and complete input fingerprints
+/// are required. Imported records are published in the destination's own cache;
+/// the source cache is never modified or searched beyond the requested strategy.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use radiology::semantic::indexing::service::{GenerationRequest, IndexReuseSource};
+/// # fn configure(mut request: GenerationRequest) {
+/// request.reuse = true;
+/// request.reuse_sources.push(IndexReuseSource {
+///     root: "/checkouts/previous".into(),
+///     cache: "/private/index-cache/previous".into(),
+///     label: "previous checkout".into(),
+/// });
+/// # }
+/// ```
+#[derive(Debug, Clone)]
+pub struct IndexReuseSource {
+    /// Canonicalizable attached checkout identity that owns the stored records.
+    pub root: PathBuf,
+    /// Private cache parent used by that checkout's generation request.
+    pub cache: PathBuf,
+    /// Origin shown in persisted reuse provenance and mixed-origin warnings.
+    pub label: String,
+}
+
 /// Inputs owned by one checkout or pinned-review generation request.
 #[derive(Clone)]
 pub struct GenerationRequest {
@@ -20,6 +50,12 @@ pub struct GenerationRequest {
     pub attached_root: PathBuf,
     /// Reuses exact project records with matching tool versions; false forces all tools.
     pub reuse: bool,
+    /// Ordered explicit fallback sources after this checkout's own project cache.
+    ///
+    /// An empty list preserves repository-scoped reuse. Sources are read-only;
+    /// regeneration (`reuse = false`) ignores them. Imported matches are staged
+    /// and published with the destination generation's source/cancellation checks.
+    pub reuse_sources: Vec<IndexReuseSource>,
     /// Immutable TOML/pipeline capture for this request; None preserves legacy defaults.
     pub settings: Option<Arc<super::personality::Settings>>,
     /// Viewed repository whose bytes must remain unchanged.

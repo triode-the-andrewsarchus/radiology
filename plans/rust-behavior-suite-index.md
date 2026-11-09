@@ -452,6 +452,14 @@ cross-checkout reuse, despite verified settings-edit regeneration and namespace
 isolation. All 19 focused checks and strict Clippy pass. Compiler/personality total
 is 5/35 mapped; 30 remain including that partial group.
 
+[Explicit reuse reconciliation](rust-index-reuse-contracts.md) now maps all three
+IndexReuseTests groups and closes the sixth personality group's cross-checkout
+handoff. Supplied candidates share existing validators/staging; copied provenance
+and destination independence are verified. Compiler/personality is 9/35 mapped,
+26 remain. Full indexing checks, strict Clippy, build and docs pass. The fresh
+full workspace gate passes 915 app checks, binary/font/text 2/13/23 and all 67
+doctests.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

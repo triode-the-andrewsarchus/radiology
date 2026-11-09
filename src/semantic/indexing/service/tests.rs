@@ -163,6 +163,7 @@ impl Fixture {
             settings: None,
             attached_root: self.source.clone(),
             reuse: false,
+            reuse_sources: Vec::new(),
             review: None,
             root: self.source.clone(),
             cache: self.cache.clone(),
@@ -217,6 +218,11 @@ fn field(number: u8, bytes: &[u8]) -> Vec<u8> {
     assert!(bytes.len() < 128);
     [vec![number << 3 | 2, bytes.len() as u8], bytes.to_vec()].concat()
 }
+fn load(request: &GenerationRequest) -> Result<GeneratedIndex, String> {
+    crate::semantic::indexing::cache::load(request, &AtomicBool::new(false))?
+        .ok_or("No cache".into())
+}
+
 fn run(request: GenerationRequest) -> GeneratedIndex {
     generate(
         request,
@@ -995,6 +1001,7 @@ fn trait_enrichment_uses_pinned_after_objects_and_retains_the_review_lease() {
         root: review.head_root.clone(),
         review: Some(review.clone()),
         reuse: false,
+        reuse_sources: Vec::new(),
         cache: owner.path().join("derived"),
         tools: ToolDirectory {
             managed: None,

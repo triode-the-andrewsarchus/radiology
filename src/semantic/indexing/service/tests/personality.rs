@@ -8,11 +8,6 @@ fn settings(personality: Personality, from: &str, to: &str) -> Arc<Settings> {
     Arc::new(Settings::parse(personality, "captured.toml".into(), text.as_bytes()).unwrap())
 }
 
-fn load(request: &GenerationRequest) -> Result<GeneratedIndex, String> {
-    crate::semantic::indexing::cache::load(request, &AtomicBool::new(false))?
-        .ok_or("No cache".into())
-}
-
 #[test]
 fn personality_planning_filters_before_caps_and_pins_selected_and_skipped_identity() {
     let settings = settings(
@@ -218,6 +213,23 @@ fn sel4_runs_shared_pinned_resources_outside_source_and_isolates_default_cache()
     );
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
     assert!(load(&warm).unwrap().report.cached);
+    let (other, mut handoff) = sel4_fixture();
+    handoff.settings = warm.settings.clone();
+    handoff.reuse = true;
+    handoff.reuse_sources.push(IndexReuseSource {
+        root: fixture.source.clone(),
+        cache: fixture.cache.clone(),
+        label: "working tree".into(),
+    });
+    let borrowed = run(handoff.clone());
+    assert_eq!(borrowed.report.outcomes[0].strategy.indexer, Indexer::Sel4);
+    assert_eq!(
+        borrowed.report.outcomes[0].reused_from.as_deref(),
+        Some("working tree")
+    );
+    assert!(borrowed.report.outcomes[0].failure.is_none());
+    assert!(!other.bin.join("python.args").exists());
+    assert!(load(&handoff).unwrap().report.cached);
     assert!(
         load(&request).is_err(),
         "old settings cannot read the regenerated cache"

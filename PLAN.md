@@ -7,23 +7,30 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 Overall Swift/Rust parity remains unproven. The standalone app remains the current
 product; actual little-screen-clip integration and full accessibility are deferred.
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
-and all 66 source/syntax groups have explicit mappings. Compiler/personality (30 remaining of 35)
+and all 66 source/syntax groups have explicit mappings. Compiler/personality (26 remaining of 35)
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
 parallel-run limits remain open.
 
-The latest complete serial workspace gate passes 901 app tests (eleven existing
-opt-in ignores), binary/font/text checks 2/13/22 and all 66 doctests, including the
-Kotlin import repair and all recent source-contract additions. Strict Clippy,
-normal build, warning-free docs and standalone resource checks also pass. See the
-newest [progress record](PROGRESS.md) for exact checkpoint evidence.
+The latest complete serial workspace gate passes 915 app tests (eleven existing
+opt-in ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
+explicit reuse handoff and all recent source/presentation/personality additions.
+Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
+checks remain recorded; final affected host/integrated acceptance remains open.
+See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
 
-[Personality contracts](plans/rust-personality-contracts.md) map five of six
-settings/personality groups; the final group remains open for explicit reuse from
-another checkout. Edited seL4 regeneration, both-personality settings recovery and
-rapid switches/window bounds pass with all 19 focused checks and strict Clippy.
+[Explicit index reuse](plans/rust-index-reuse-contracts.md) adds the missing ordered
+cache/root/label handoff through existing validators and destination-owned staging.
+Imported provenance survives reloads; forced regeneration ignores sources. All
+three IndexReuse groups and the final personality group are reconciled, bringing
+compiler/personality to 9/35. Indexing checks, strict Clippy, build and docs pass.
+
+[Personality contracts](plans/rust-personality-contracts.md) map the settings and
+UI groups; the later explicit-reuse checkpoint closes the sixth group's cache
+handoff. Edited seL4 regeneration, settings recovery and rapid switches/window
+bounds retain their focused evidence.
 
 [Test-presentation contracts](plans/rust-test-presentation-contracts.md) map the
 last seven source groups through exact canonical rows, copy/fold behavior,

@@ -65,9 +65,7 @@ fn exact_projects_reuse_but_changed_tools_inputs_modes_and_reindex_execute_again
     assert!(mixed.report.reuse_warning().is_some());
     assert!(mixed.report.is_partial());
     assert_eq!(fs::read_to_string(&runs).unwrap().lines().count(), 3);
-    let cached = super::super::super::cache::load(&request, &AtomicBool::new(false))
-        .unwrap()
-        .unwrap();
+    let cached = load(&request).unwrap();
     assert_eq!(cached.report.reuse_warning(), mixed.report.reuse_warning());
     assert_eq!(cached.index.unwrap().sources, mixed.index.unwrap().sources);
 
@@ -117,9 +115,16 @@ fn corrupt_project_records_regenerate_and_missing_tools_keep_accepted_records() 
     assert!(reused.report.is_partial());
     let (path, pristine) = project_cache(&fixture).pop().unwrap();
     let record: serde_json::Value = serde_json::from_slice(&pristine).unwrap();
-    for pointer in ["/source_digests/a.ts", "/scip/documents/0/relative_path"] {
+    for (pointer, value) in [
+        ("/source_digests/a.ts", serde_json::json!("../wrong")),
+        (
+            "/scip/documents/0/relative_path",
+            serde_json::json!("../wrong"),
+        ),
+        ("/format", serde_json::json!(2)),
+    ] {
         let mut corrupt = record.clone();
-        *corrupt.pointer_mut(pointer).unwrap() = serde_json::json!("../wrong");
+        *corrupt.pointer_mut(pointer).unwrap() = value;
         fs::write(&path, serde_json::to_vec(&corrupt).unwrap()).unwrap();
         let recovered = run(request.clone());
         assert!(recovered.report.outcomes[0].reused_from.is_none());
@@ -254,12 +259,160 @@ fn pinned_records_reuse_across_commits_with_equal_bytes_and_stable_attached_iden
     );
     assert!(reused.report.cache_warning.is_none());
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
-    let cached = super::super::super::cache::load(&request, &AtomicBool::new(false))
-        .unwrap()
-        .unwrap();
+    let cached = load(&request).unwrap();
     assert_eq!(
         cached.report.outcomes[0].reused_from.as_deref(),
         Some(origin.as_str())
     );
     assert!(cached.report.stale_reason.is_none());
+}
+
+#[test]
+fn explicit_checkout_reuse_publishes_owned_records_and_survives_source_removal() {
+    let source = Fixture::new(&[("package.json", "{}"), ("a.ts", "new"), ("b.ts", "other")]);
+    source.tool(Indexer::TypeScript, &["a.ts", "b.ts"], "");
+    run(source.request());
+    let accepted = project_cache(&source);
+    let target = Fixture::new(&[("package.json", "{}"), ("a.ts", "old"), ("b.ts", "other")]);
+    target.tool(Indexer::TypeScript, &["a.ts", "b.ts"], "");
+    run(target.request()); // An incompatible local record must be replaced.
+    fs::write(target.source.join("a.ts"), "new").unwrap();
+    let ran = target.bin.join("unexpected-run");
+    target.tool(
+        Indexer::TypeScript,
+        &["a.ts", "b.ts"],
+        &format!("printf ran > {}; exit 9", quote(&ran)),
+    );
+    let mut request = target.request();
+    request.reuse = true;
+    request.reuse_sources = vec![
+        IndexReuseSource {
+            root: source.source.clone(),
+            cache: target.source.join("forbidden-cache"),
+            label: "invalid source".into(),
+        },
+        IndexReuseSource {
+            root: source.source.clone(),
+            cache: source.cache.clone(),
+            label: "other checkout".into(),
+        },
+    ];
+    let imported = run(request.clone());
+    assert!(imported
+        .index
+        .as_ref()
+        .unwrap()
+        .matches_buffer(&SourceBuffer::from_str("a.ts", "new")));
+    assert_eq!(
+        imported.report.outcomes[0].reused_from.as_deref(),
+        Some("other checkout")
+    );
+    assert!(imported.report.outcomes[0].failure.is_none());
+    assert!(!ran.exists() && !target.source.join("forbidden-cache").exists());
+    assert_eq!(project_cache(&source), accepted);
+    let destination = project_cache(&target);
+    assert_eq!(destination.len(), 1);
+    assert_eq!(imported.index.as_ref().unwrap().documents.len(), 2);
+    let record: serde_json::Value = serde_json::from_slice(&destination[0].1).unwrap();
+    assert_eq!(
+        record["root"],
+        fs::canonicalize(&target.source).unwrap().to_str().unwrap()
+    );
+    fs::remove_dir_all(&source.cache).unwrap();
+    request.reuse_sources.clear();
+    let local = run(request.clone());
+    assert!(local.report.outcomes[0].failure.is_none());
+    assert_eq!(
+        local.report.outcomes[0].reused_from.as_deref(),
+        Some("other checkout")
+    );
+    assert!(!ran.exists());
+    assert_eq!(project_cache(&target), destination);
+    let cached = load(&request).unwrap();
+    assert!(cached.report.cached && cached.report.stale_reason.is_none());
+}
+
+#[test]
+fn explicit_sources_do_not_bypass_full_context_or_forced_regeneration() {
+    let files = [
+        ("Cargo.toml", "[package]\nname='fixture'"),
+        ("lib.rs", "a"),
+        ("web/package.json", "{}"),
+        ("web/a.ts", "b"),
+        ("shared/include.h", "original"),
+    ];
+    let source = Fixture::new(&files);
+    let target = Fixture::new(&files);
+    for fixture in [&source, &target] {
+        for (indexer, document) in [
+            (Indexer::Rust, "lib.rs"),
+            (Indexer::TypeScript, "a.ts"),
+            (Indexer::Clang, "shared/include.h"),
+        ] {
+            fixture.tool(indexer, &[document], "");
+        }
+    }
+    run(source.request());
+    let mut request = target.request();
+    request.reuse_sources.push(IndexReuseSource {
+        root: source.source.clone(),
+        cache: source.cache.clone(),
+        label: "source".into(),
+    });
+    let tool = target.bin.join("rust-analyzer");
+    fs::write(
+        &tool,
+        fs::read_to_string(&tool)
+            .unwrap()
+            .replace("fixture-1", "fixture-2"),
+    )
+    .unwrap();
+    request.reuse = true;
+    let mixed = run(request.clone());
+    assert!(mixed
+        .report
+        .outcomes
+        .iter()
+        .find(|outcome| outcome.strategy.indexer == Indexer::Rust)
+        .unwrap()
+        .reused_from
+        .is_none());
+    assert_eq!(
+        mixed
+            .report
+            .outcomes
+            .iter()
+            .find(|outcome| outcome.strategy.indexer == Indexer::TypeScript)
+            .unwrap()
+            .reused_from
+            .as_deref(),
+        Some("source")
+    );
+    assert!(mixed.report.reuse_warning().is_some() && mixed.report.is_partial());
+    let cached = load(&request).unwrap();
+    assert_eq!(cached.report.reuse_warning(), mixed.report.reuse_warning());
+    let sources = std::mem::take(&mut request.reuse_sources);
+    let local = run(request.clone());
+    assert!(local
+        .report
+        .outcomes
+        .iter()
+        .all(|outcome| outcome.reused_from.is_some()));
+    assert!(local.report.is_partial() && local.report.reuse_warning().is_some());
+    request.reuse_sources = sources;
+    for forced in [false, true] {
+        request.reuse = !forced;
+        fs::write(
+            target.source.join("shared/include.h"),
+            if forced { "original" } else { "changed" },
+        )
+        .unwrap();
+        let generated = run(request.clone());
+        assert_eq!(generated.report.outcomes.len(), 3);
+        assert!(generated
+            .report
+            .outcomes
+            .iter()
+            .all(|outcome| outcome.failure.is_none() && outcome.reused_from.is_none()));
+    }
 }

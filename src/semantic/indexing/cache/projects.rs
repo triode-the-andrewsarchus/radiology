@@ -104,6 +104,38 @@ pub(in crate::semantic::indexing) fn load(
     outcome: &StrategyOutcome,
     cancel: &AtomicBool,
 ) -> Result<Option<(StrategyOutcome, ScipIndex)>, String> {
+    let mut error = match load_from(request, inventory, baseline, outcome, cancel) {
+        Ok(Some(hit)) => return Ok(Some(hit)),
+        Ok(None) => None,
+        Err(error) => Some(error),
+    };
+    for source in &request.reuse_sources {
+        check_cancel(cancel)?;
+        let mut scoped = request.clone();
+        scoped.attached_root = source.root.clone();
+        scoped.cache = source.cache.clone();
+        match load_from(&scoped, inventory, baseline, outcome, cancel) {
+            Ok(Some((mut cached, scip))) => {
+                cached.reused_from = Some(source.label.clone());
+                return Ok(Some((cached, scip)));
+            }
+            Ok(None) => {}
+            Err(reason) => error = Some(reason),
+        }
+    }
+    match error {
+        Some(error) => Err(error),
+        None => Ok(None),
+    }
+}
+
+fn load_from(
+    request: &GenerationRequest,
+    inventory: &InputInventory,
+    baseline: &IndexingWorkspace,
+    outcome: &StrategyOutcome,
+    cancel: &AtomicBool,
+) -> Result<Option<(StrategyOutcome, ScipIndex)>, String> {
     let Some(bytes) = read_record(&path(request, &outcome.strategy)?, cancel)? else {
         return Ok(None);
     };
@@ -120,7 +152,10 @@ pub(in crate::semantic::indexing) fn load(
     }
     validate_documents(&entry.scip, inventory, &entry.source_digests, cancel)?;
     validate_project(&entry, baseline, cancel)?;
-    entry.outcome.reused_from = Some(entry.revision.unwrap_or_else(|| "checkout".into()));
+    entry.outcome.reused_from = entry
+        .outcome
+        .reused_from
+        .or_else(|| Some(entry.revision.unwrap_or_else(|| "checkout".into())));
     entry.outcome.cache_warning = None;
     Ok(Some((entry.outcome, entry.scip)))
 }
@@ -181,7 +216,10 @@ pub(in crate::semantic::indexing) fn stage_project(
     scip: &ScipIndex,
     cancel: &AtomicBool,
 ) -> Result<Option<PendingProject>, String> {
-    if outcome.reused_from.is_some() {
+    // An explicit handoff must leave an independently reusable destination record,
+    // including when its older local record was incompatible. Ordinary local
+    // reuse keeps its accepted bytes without rewriting the project record.
+    if outcome.reused_from.is_some() && request.reuse_sources.is_empty() {
         return Ok(None);
     }
     let destination = path(request, &outcome.strategy)?;

@@ -79,6 +79,7 @@ impl RadiologyApp {
             settings: Some(self.index_personality.settings.clone()?),
             attached_root: attached.clone(),
             reuse: false,
+            reuse_sources: Vec::new(),
             root: self
                 .review
                 .as_ref()

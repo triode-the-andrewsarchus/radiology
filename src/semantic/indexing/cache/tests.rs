@@ -203,6 +203,7 @@ pub(super) fn request(root: PathBuf, cache: PathBuf) -> GenerationRequest {
         settings: None,
         attached_root: root.clone(),
         reuse: false,
+        reuse_sources: Vec::new(),
         review: None,
         root: root.clone(),
         cache,

@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-11-09 — Explicit cross-checkout index reuse (Codex)
+
+GenerationRequest now accepts ordered IndexReuseSource cache/root/label handoffs,
+closing the gap found in personality reconciliation. It first tries local records,
+then supplied candidates through the same full-input/strategy/settings/tool/digest
+validation. Borrowed records are staged in the destination namespace, including
+replacement of incompatible older records; forced Reindex ignores all sources.
+Candidates are read-only and cannot create cache paths inside viewed source.
+Imported origins remain through subsequent local reuse, preserving mixed-origin
+warnings. No new cache format, dependency, global scan or alternate writer.
+
+Tests prove two-document import with a compiler that would exit 9, read-only origin,
+destination ownership, successful reuse after deleting the source cache, legacy
+format rejection, full-context invalidation, mixed provenance reload and forced
+regeneration. Edited seL4 settings also reuse into another attached checkout without
+running its bootstrap process. The existing test cache-loader helper now serves
+both suites from the common parent, removing duplicate assertion plumbing.
+
+All 108 indexing tests pass (eleven existing opt-in ignores), with seven reuse and
+nineteen personality cases covered. Strict all-target Clippy, normal build and
+warning-free docs pass; the rendered new API and compiled example are checked.
+The complete serial workspace gate passes 915 app tests, eleven existing opt-in
+ignores, binary/font/text 2/13/23 and all 67 doctests (59+4+4), including the new
+public request example and all recent source/presentation/personality additions.
+Architecture +213 NLOC/
+three functions (one validator extraction/two tests), avg/max CCN 3.43/132,
+36 hotspots/one cycle and all 125 normalized clone instances unchanged.
+
+All three IndexReuse groups and the last personality group are reconciled:
+compiler/personality 9/35 mapped, 26 remain. Source/syntax stays 66/66; inspector/
+traits 15 and final integrated/native/standalone/reuse acceptance remain.
+[Mapping](plans/rust-index-reuse-contracts.md); evidence:
+~/.local/state/radiology-qa/explicit-reuse-20261109-ae75dde/.
+
 ## 2026-11-09 — Personality contracts and explicit reuse gap (Codex)
 
 Five of six Swift personality/settings/UI groups now have explicit mappings.
