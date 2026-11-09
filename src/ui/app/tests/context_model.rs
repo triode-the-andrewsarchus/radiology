@@ -3,7 +3,7 @@ use super::*;
 use crate::source::preview::PreviewPhase;
 
 // Publish symbol facts only: an unexpected excerpt worker must remain observable.
-fn settle_metadata(app: &mut RadiologyApp, ctx: &Context) {
+pub(super) fn settle_metadata(app: &mut RadiologyApp, ctx: &Context) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while app.under_caret_job.is_running() {
         app.poll_under_caret_context(ctx);
@@ -99,11 +99,7 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
         app.refresh_symbol_context();
         focus::settle_frame(&mut app, &ctx);
         let painted = focus::frame(&mut app, &ctx, vec![]);
-        assert!(
-            crate::ui::test_support::text_shapes(&painted)
-                .any(|text| text.galley.job.text == "Method"),
-            "the declaration summary must prefer the index's Method kind"
-        );
+        crate::ui::test_support::assert_visible_text(&painted, "Method");
         let area_rows = app.reference_context.results.clone();
         let area_target = app.reference_context.target().cloned().unwrap();
         assert_eq!(area_target.name, "area");
@@ -169,6 +165,7 @@ fn context_reuses_previews_and_declaration_rows_across_identity_changes() {
         assert!(Arc::ptr_eq(&app.reference_context.results, &area_rows));
         assert_eq!(app.reference_context.selected, None);
         focus::settle_frame(&mut app, &ctx);
+        super::context_fallback::assert_fallbacks(&mut app, &ctx);
     }
 }
 

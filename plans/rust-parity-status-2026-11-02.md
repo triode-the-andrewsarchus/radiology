@@ -1,5 +1,10 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Context fallback contracts](rust-context-fallback-contracts.md) now show a missing
+repository-definition explanation and map implementation/outline/local/external
+behavior at both scales. Eight of eighteen ContextModel groups are mapped; ten
+remain. Other suites and final acceptance remain open.
+
 [Context declaration/identity contracts](rust-context-declaration-contracts.md)
 now correct enclosing Method labels and complete the first two ContextModel
 groups through both-scale identity/preview/row/selection/disclosure checks.

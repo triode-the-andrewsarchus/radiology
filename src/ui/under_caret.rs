@@ -241,6 +241,15 @@ fn show_details(
                 });
             }
         }
+    } else if context.definition_count == 0
+        && !context.is_on_definition
+        && matches!(preview, PreviewPhase::None)
+    {
+        super::text_fit::explanation(
+            ui,
+            "No definition indexed in this repository.",
+            theme.text_secondary,
+        );
     } else {
         super::source_preview::show(ui, theme, preview);
     }
@@ -337,6 +346,12 @@ mod tests {
         context.definition_count = 0;
         context.external_package = Some("dependency 2.3".into());
         assert!(render(&context, false, false).contains("dependency 2.3"));
+        assert!(render(&context, true, false).contains("No definition indexed in this repository"));
+        context.external_package = None;
+        assert!(render(&context, true, false).contains("No definition indexed in this repository"));
+        context.is_on_definition = true;
+        assert!(!render(&context, true, false).contains("No definition indexed"));
+        context.is_on_definition = false;
         context.id = crate::semantic::index::SemanticSymbolID::new("local 0", "source.rs");
         context.local_definition_line = Some(crate::source::preview::PreviewLine {
             number: 1,
@@ -345,6 +360,7 @@ mod tests {
             clipped: false,
         });
         let local = render(&context, true, false);
+        assert!(!local.contains("No definition indexed"));
         assert!(local.lines().any(|line| line == "let café    = 1;"));
         assert_eq!(
             context.local_definition_line.as_ref().unwrap().text,

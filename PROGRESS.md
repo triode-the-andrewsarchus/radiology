@@ -1,5 +1,49 @@
 # Progress
 
+## 2026-11-09 — Context fallback and missing-source feedback (Codex)
+
+The real core-operator app regression failed because expanded details showed
+package metadata but no visible reason for the absent source preview. The
+renderer now uses the existing bounded explanation style for “No definition
+indexed in this repository.”, retaining honest external-versus-missing-coverage
+help. Here definitions, locals and existing worker states retain their own UI.
+No new model state, query, worker, API, dependency, font or geometry.
+
+Four complete ContextModel groups are mapped at both scales: the impl closing
+brace binds real Circle identity; blank/keyword positions retain appropriate
+outline fallback; an explicit absent-structure input clears declaration context
+without losing indexed local semantics; local r has three occurrences and its
+exact line 8 definition without preview I/O; core += has no invented destination
+and visibly explains missing source. Actual Reload Source restores structure,
+and passive source/history ownership stays intact. Eight of eighteen groups are
+mapped; ten remain.
+
+Draft independent checks were consolidated into the existing real-fixture app
+matrix, reusing metadata-only publication and actual clipped-text assertions. A
+nonexistent command-method typo was caught and corrected by the compiler. The
+long explanation failed full visibility by one pixel; concise final copy fits at
+both scales. Final app and all three under-caret UI tests pass, as do strict
+all-target Clippy, normal build and warning-free docs. The complete locked/offline
+workspace run passes 886 app tests (eleven existing opt-in ignores), two binary/
+13 font/22 text tests and all 66 doctests. The app count stays unchanged because
+the new scenarios reuse the existing fixture-matrix test. Full-run compilation
+uses -j 1 with serial tests; ordinary half-core Cargo jobs=16 remains unchanged.
+
+Architecture adds 127 measured NLOC/two functions/one focused scenario file,
+unchanged average/max CCN 3.42/132, 36 hotspots and cycles. Full normalized
+124-instance clone multisets have zero additions/removals after removing five
+actual draft clones through real matrix/assertion reuse. Raw old touched-file
+clone and equal-score untouched Python flags are unchanged debt.
+[Contract/evidence](plans/rust-context-fallback-contracts.md); archive
+`~/.local/state/radiology-qa/context-fallback-20261109-c30623b/`.
+
+Next: reproduce/fix nested multiline declaration display (Rust passes raw outer
+indentation to generic fitting; Swift strips it and caps 600 bytes/eight lines).
+Then remaining ten ContextModel groups, reference/call-tree/palette, source/
+syntax, compiler/indexing and inspector reconciliation, then final native and
+standalone acceptance. Known parallel timing/linking limits and Android remain
+open. Full accessibility and actual sibling integration remain deferred.
+
 ## 2026-11-09 — Indexed declaration labels and Context identity contracts (Codex)
 
 The expanded real-fixture app check failed because the enclosing area declaration

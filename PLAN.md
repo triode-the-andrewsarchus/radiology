@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Context fallback contracts](plans/rust-context-fallback-contracts.md) now explain
+missing repository definitions visibly and map implementation, outline fallback,
+local facts and external-source handling through the real app at both scales.
+Eight of eighteen ContextModel groups are mapped; ten remain. Other audits and
+final acceptance remain open.
+
 [Context declaration/identity contracts](plans/rust-context-declaration-contracts.md)
 now prefer indexed Method kinds in the enclosing summary and map the first two
 ContextModel groups through both-scale real-fixture identity/preview/reference

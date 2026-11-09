@@ -317,6 +317,13 @@ caret changes. The enclosing summary now prefers the index's Method kind.
 Both-scale real-fixture and both-scale/theme summary checks preserve parser
 fallback and pin metadata. Four ContextModel groups are mapped; fourteen remain.
 
+[Context fallback contracts](rust-context-fallback-contracts.md) map four more
+ContextModel groups: real SCIP implementation links, blank/keyword/absent-structure
+fallback, quiet indexed locals and explanatory external-source details. The
+existing real-fixture app matrix drives all cases at both scales, including fully
+visible explanations and actual reload after the absent-structure input. Eight
+ContextModel groups are mapped; ten remain.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).
