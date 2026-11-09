@@ -135,16 +135,19 @@ fn locals_use_exact_scoped_unicode_occurrences_and_primed_definition_lines() {
 #[test]
 fn no_repository_definition_retains_package_facts_without_inventing_a_destination() {
     let buffer = SourceBuffer::from_str("a.rs", "target();");
-    for (symbol, expected) in [
+    for (symbol, name, expected) in [
         (
             "rust-analyzer cargo dependency 2.3 target().",
-            "dependency 2.3",
+            "target", Some("dependency 2.3"),
         ),
         (
             "rust-analyzer cargo dependency https://source/revision target().",
-            "dependency",
+            "target", Some("dependency"),
         ),
-        ("rust-analyzer cargo my  crate . target().", "my crate"),
+        ("rust-analyzer cargo my  crate . target().", "target", Some("my crate")),
+        ("rust-analyzer cargo core https://github.com/rust-lang/rust/library/core slice/impl#[`[T]`]first().", "first", Some("core")),
+        ("rust-analyzer cargo serde_json 1.0.151 value/Value#", "Value", Some("serde_json 1.0.151")),
+        ("local 4", "target", None),
     ] {
         let index = SemanticIndex::from_scip(ScipIndex {
             documents: vec![document(
@@ -154,10 +157,10 @@ fn no_repository_definition_retains_package_facts_without_inventing_a_destinatio
             ..Default::default()
         });
         let context = prepare(&buffer, &index, 1);
-        assert_eq!(context.external_package.as_deref(), Some(expected));
+        assert_eq!(context.external_package.as_deref(), expected);
         assert_eq!(context.definition_count, 0);
         assert!(context.destination.is_none());
-        assert_eq!(context.name, "target");
+        assert_eq!(context.name, name);
     }
 }
 

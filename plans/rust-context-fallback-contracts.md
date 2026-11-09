@@ -78,7 +78,9 @@ signature group strips the declaration's own indentation and caps its text at
 600 source bytes/eight lines. Rust's parser currently retains the raw header in
 DocumentSymbol.detail, and the declaration renderer passes it directly to the
 4096-byte generic text fitter. Preserve raw source/copy contracts while checking
-this display difference with Swift's exact fixture; it is not mapped here.
+this display difference with Swift's exact fixture. The subsequent
+[signature checkpoint](rust-context-signature-contracts.md) reproduces and fixes
+it without changing raw source/copy; it was not mapped by the fallback checkpoint.
 
 Remaining: ten ContextModel groups, reference/call-tree/palette, source/syntax,
 compiler/indexing and inspector reconciliation, then final native/standalone

@@ -98,7 +98,7 @@ fn declaration_signature_is_bounded_but_copy_and_links_keep_exact_source() {
         })
         .expect("expanded signature");
     assert!(signature.galley.rows.len() <= 8);
-    assert!(signature.galley.job.text.len() <= 4099);
+    assert!(signature.galley.job.text.len() <= 603);
     assert!(signature.galley.size().x <= 214.01);
     assert!(fixture.symbols[0].detail.as_ref().unwrap().len() > 4096);
     let position = signature.pos + egui::vec2(20.0, 5.0);
@@ -236,6 +236,45 @@ fn declaration_kind_prefers_index_metadata_and_falls_back_without_it() {
                         .any(|text| text.galley.job.text == expected)
                 );
                 assert!(!fixture.state.expanded);
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_multiline_signature_reads_flush_and_stops_before_the_body() {
+    let source = "impl App {\n    #[inline]\n    fn open(\n        &self,\n        name: &str, // ✓ ünïcode\n    ) -> Result<(), E> {\n        body();\n    }\n}\n";
+    for ending in ["\n", "\r\n"] {
+        let source = source.replace('\n', ending);
+        for dark in [true, false] {
+            for scale in [1.0, 2.0] {
+                let mut fixture = Summary::new();
+                fixture.ctx = crate::ui::test_support::themed_context(dark, scale).0;
+                fixture.buffer = SourceBuffer::from_str("app.rs", &source);
+                let symbols = SymbolExtractor::extract(&fixture.buffer);
+                let mut enclosing = Vec::new();
+                symbols[0].breadcrumbs(fixture.buffer.byte_offset(7, 9), &mut enclosing);
+                let declaration = enclosing.last().unwrap();
+                assert_eq!(declaration.name, "open");
+                let raw = declaration.detail.clone().unwrap();
+                assert!(raw.contains("\n        &self,"));
+                fixture.symbols = vec![declaration.clone()];
+                let output = fixture.expand();
+                let signature = crate::ui::test_support::text_shapes(&output)
+                    .find(|text| text.galley.job.text.starts_with("fn open("))
+                    .unwrap();
+                assert_eq!(
+                    signature.galley.job.text,
+                    "fn open(\n    &self,\n    name: &str, // ✓ ünïcode\n) -> Result<(), E>"
+                );
+                assert_eq!(fixture.symbols[0].detail.as_deref(), Some(raw.as_str()));
+                assert_eq!(fixture.buffer.text, source);
+                enclosing.clear();
+                symbols[0].breadcrumbs(fixture.buffer.byte_offset(8, 5), &mut enclosing);
+                assert_eq!(
+                    enclosing.last().unwrap().kind,
+                    crate::syntax::SymbolKind::Extension
+                );
             }
         }
     }

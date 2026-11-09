@@ -324,6 +324,14 @@ existing real-fixture app matrix drives all cases at both scales, including full
 visible explanations and actual reload after the absent-structure input. Eight
 ContextModel groups are mapped; ten remain.
 
+[Nested signature presentation](rust-context-signature-contracts.md) maps
+ContextModelTests.nestedMultilineSignaturesStopAtTheBodyAndReadFlush. The exact
+Swift source paints flush after keyboard disclosure at both scales/themes and
+with LF/CRLF; raw-copy bounds and source selection survive shared limiting.
+The exact escaped impl/core-URL, numeric serde_json version and local-package
+cases additionally map escapedImplDescriptorsAndURLVersionsReadCleanly through
+existing Context preparation. Ten groups are mapped; eight remain unaudited.
+
 ## Source, syntax, projection and test regions
 
 Rust entry points: [buffer.rs](../src/source/buffer.rs), [test_code.rs](../src/source/test_code.rs), [native_tests.rs](../src/syntax/outline/native_tests.rs), [tests.rs](../src/syntax/fold_queries/tests.rs), [test_detector.rs](../src/syntax/test_detector.rs), [corpus.rs](../src/ui/app/tests/corpus.rs).

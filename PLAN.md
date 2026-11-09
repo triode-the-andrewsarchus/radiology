@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Nested declaration signatures](plans/rust-context-signature-contracts.md) now
+remove the containing declaration's indentation and reuse the scalar-safe
+600-byte/eight-line limit. Raw source/copy and exact selection ranges remain.
+The exact escaped-descriptor/package cases also pass through existing Context
+preparation. Ten groups are mapped; eight still need reconciliation.
+
 [Context fallback contracts](plans/rust-context-fallback-contracts.md) now explain
 missing repository definitions visibly and map implementation, outline fallback,
 local facts and external-source handling through the real app at both scales.

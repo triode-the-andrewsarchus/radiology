@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-11-09 — Signature and descriptor display contracts (Codex)
+
+The exact Swift nested-open fixture failed on retained impl indentation, and the
+oversized-header test failed the 600-byte display budget. The summary now shares
+Context's existing scalar-safe 600-byte/eight-line limiter and removes only the
+source declaration's own space/tab prefix from continuation lines. Indent checks
+are bounded by display length; malformed ranges cannot index outside source.
+Raw DocumentSymbol.detail, source bytes, explicit full-header copying and exact
+navigation ranges remain intact. No new state, job, dependency or public API.
+
+The new keyboard-disclosure regression verifies the complete Swift signature and
+body/attribute exclusion at both scales/themes, using LF and CRLF. It preserves
+raw header/source and verifies the closing-method/implementation boundary. The
+existing long-header copy/link check now requires the signature display budget
+while retaining full >4096-byte copy. Five summary and five semantic Context
+checks pass, along with strict all-target Clippy, build and warning-free docs.
+The complete locked/offline workspace passes 887 app tests (eleven existing
+opt-in ignores), two binary/13 font/22 text tests and all 66 doctests. Full-run
+compilation uses -j 1 with serial tests; normal half-core jobs=16 is unchanged.
+
+The exact escaped impl/core-URL, serde_json 1.0.151 and local 4 symbol cases were
+then added to the existing Context table. Existing descriptor/header parsing
+already yields first/core, Value/versioned package, and no local package without
+invented destinations. Final semantic checks and strict Clippy pass for that
+last test-only extension; runtime code is identical to the complete-run snapshot.
+This also maps Swift's descriptor/package group: ten ContextModel groups are
+mapped and eight await reconciliation.
+
+Architecture is NEUTRAL: +67 measured NLOC/two functions/no files, average/max CCN
+3.42/132, 36 high-complexity sites and dependency cycles unchanged. Clone count
+stays at 125; the existing markdown instance beyond the previous pre-doc report
+is repeated historical next-step prose, not a source clone. Full multiplicity/
+content evidence accompanies [the contract](plans/rust-context-signature-contracts.md)
+in `~/.local/state/radiology-qa/context-signature-20261109-e86dbd3/`.
+
+Next Context work covers publication retirement, cache-owner replacement,
+explicit-reference focus, scalar-window snippets, file coverage and expansion. Broader suites/native acceptance remain indexed in PLAN; the
+Android/license and parallel-run limitations still apply.
+
 ## 2026-11-09 — Context fallback and missing-source feedback (Codex)
 
 The real core-operator app regression failed because expanded details showed

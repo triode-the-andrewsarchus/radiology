@@ -236,7 +236,7 @@ fn file_occurrences(
     Ok(file_occurrence_count)
 }
 
-fn bounded_signature(text: &str) -> String {
+pub(crate) fn bounded_signature(text: &str) -> String {
     let mut end = text.len().min(600);
     while !text.is_char_boundary(end) {
         end -= 1;

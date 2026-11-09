@@ -1,5 +1,11 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Nested signature presentation](rust-context-signature-contracts.md) closes the
+outer-indentation/oversized-header display gap using existing signature bounds.
+The exact Swift fixture passes at both scales/themes with LF/CRLF. ContextModel
+also passes the exact descriptor/package table through existing code. Ten groups
+are mapped and eight are unaudited; whole-app parity remains unproven.
+
 [Context fallback contracts](rust-context-fallback-contracts.md) now show a missing
 repository-definition explanation and map implementation/outline/local/external
 behavior at both scales. Eight of eighteen ContextModel groups are mapped; ten

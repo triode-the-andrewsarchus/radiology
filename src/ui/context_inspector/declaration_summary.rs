@@ -133,6 +133,7 @@ impl DeclarationSummary {
                 .as_deref()
                 .unwrap_or_else(|| buffer.line_text(symbol.line))
                 .trim();
+            let display = display_signature(signature, symbol, buffer);
             let font = egui::FontId::monospace(12.0);
             let available_rows = ((ui.available_height() - 64.0)
                 / ui.fonts(|fonts| fonts.row_height(&font)))
@@ -140,7 +141,7 @@ impl DeclarationSummary {
             .clamp(1.0, 8.0) as usize;
             let text = crate::ui::text_fit::lines(
                 ui,
-                signature,
+                &display,
                 font,
                 theme.text_primary,
                 ui.available_width(),
@@ -163,6 +164,33 @@ impl DeclarationSummary {
         }
         action
     }
+}
+
+// Keep source/detail ownership and exact-copy text separate from bounded display.
+fn display_signature(signature: &str, symbol: &DocumentSymbol, buffer: &SourceBuffer) -> String {
+    let bounded = crate::semantic::context::bounded_signature(signature);
+    let line_start = buffer.line_starts[buffer.line_at_byte(symbol.range.start) - 1];
+    let indent = buffer
+        .text
+        .get(line_start..symbol.range.start)
+        .filter(|indent| {
+            indent.len() <= bounded.len() && indent.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
+        })
+        .unwrap_or("");
+    bounded
+        .lines()
+        .enumerate()
+        .map(|(offset, line)| {
+            if offset == 0 {
+                line
+            } else {
+                line.strip_prefix(indent).unwrap_or(line)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim_end()
+        .to_owned()
 }
 
 fn kind_glyph(kind: i32) -> &'static str {
