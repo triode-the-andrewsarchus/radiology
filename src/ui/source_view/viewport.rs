@@ -5631,6 +5631,105 @@ mod tests {
         assert_eq!(reader.line, 1);
     }
     #[test]
+    fn swift_test_projection_keeps_canonical_rows_copy_and_independent_folds() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let text = crate::syntax::test_fixtures::TEST_PRESENTATION_SOURCE;
+            let mut reader = Reader::new(text);
+            reader.wrap = false;
+            let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+            reader.ranges = syntax.folds;
+            reader.test_code.load(&reader.source, syntax.tests, true);
+            reader.frame(&ctx, vec![]);
+            let rows = |reader: &Reader| {
+                reader
+                    .viewport
+                    .fragments
+                    .iter()
+                    .filter(|part| part.first_in_line && !part.bytes.is_empty())
+                    .map(|part| part.line)
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(rows(&reader), [1, 2, 3, 8, 9, 10, 11, 12]);
+            assert_eq!(reader.copy_all(&ctx), text);
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.frame(&ctx, vec![]);
+            assert_eq!(rows(&reader), [1, 2, 3, 8, 11, 12]);
+            reader.folds.toggle_header(8, &reader.ranges);
+            reader.frame(&ctx, vec![]);
+            assert_eq!(rows(&reader), [1, 2, 3, 8, 9, 10, 11, 12]);
+            reader.test_code.set_enabled(&reader.source, false);
+            reader.frame(&ctx, vec![]);
+            assert_eq!(rows(&reader), [1, 2, 3, 4, 8, 9, 10, 11, 12]);
+            assert!(!reader.folds.is_header_folded(8, &reader.ranges));
+            reader.test_code.set_enabled(&reader.source, true);
+            reader.frame(&ctx, vec![]);
+            assert_eq!(rows(&reader), [1, 2, 3, 8, 9, 10, 11, 12]);
+            let byte = reader.source.byte_offset(5, 8);
+            reader.test_code.reveal_byte(&reader.source, byte);
+            reader
+                .folds
+                .reveal_byte(byte, &reader.source, &reader.ranges);
+            let output = reader.frame(&ctx, vec![]);
+            assert_eq!(rows(&reader), (1..=12).collect::<Vec<_>>());
+            text_shape(&output, "Hide test code");
+            assert_eq!(reader.copy_all(&ctx), text);
+        }
+    }
+
+    #[test]
+    fn test_labels_retire_identity_and_cannot_hit_inside_folded_production() {
+        for scale in [1.0, 2.0] {
+            let ctx = reader_context(scale);
+            let mut reader = Reader::new("");
+            let mut labels = Vec::new();
+            for (path, source) in [
+                ("first.rs", "// a\n#[cfg(test)]\nfn helper() {}\n"),
+                ("other.rs", "// 🚀\n#[cfg(test)]\nfn helper() {}\n"),
+            ] {
+                reader.source = SourceBuffer::from_str(path, source);
+                reader.test_code.load(
+                    &reader.source,
+                    crate::syntax::TestRegionDetector::detect(&reader.source),
+                    true,
+                );
+                let output = reader.frame(&ctx, vec![]);
+                let (origin, label) = text_shape(&output, "Test code · 1 lines hidden");
+                labels.push((origin + label.size() / 2.0, source.find("#[cfg").unwrap()));
+            }
+            assert_eq!(labels[0].0, labels[1].0);
+            assert_ne!(labels[0].1, labels[1].1);
+            let (point, new_id) = labels[1];
+            reader.frame(&ctx, pointer(point, true));
+            reader.frame(&ctx, pointer(point, false));
+            assert!(
+                matches!(reader.last_action, Some(SourceViewAction::ToggleTestRegion(id)) if id == new_id)
+            );
+            assert!(!reader.test_code.is_hidden(new_id));
+
+            reader.source = SourceBuffer::from_str(
+                "nested.rs",
+                "fn outer() {\n    #[cfg(test)]\n    fn helper() {}\n    production();\n}\n",
+            );
+            let syntax = crate::syntax::DocumentSyntax::analyze(&reader.source);
+            reader.ranges = syntax.folds;
+            reader.folds.collapse_all_functions(&reader.ranges);
+            reader.test_code.load(&reader.source, syntax.tests, true);
+            let output = reader.frame(&ctx, vec![]);
+            assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(t) if t.galley.job.text.contains("Test code"))));
+            reader.frame(&ctx, pointer(point, true));
+            reader.frame(&ctx, pointer(point, false));
+            assert!(!matches!(
+                reader.last_action,
+                Some(SourceViewAction::ToggleTestRegion(_))
+            ));
+            reader.folds.toggle_header(1, &reader.ranges);
+            let output = reader.frame(&ctx, vec![]);
+            text_shape(&output, "Test code · 1 lines hidden");
+        }
+    }
+
+    #[test]
     fn hidden_test_headers_offer_a_working_reveal_control_and_copy_retains_bytes() {
         let ctx = egui::Context::default();
         let text = "fn production() {}\n#[cfg(test)]\nmod checks {\n fn hidden_only() {}\n}\nfn tail() {}\n";

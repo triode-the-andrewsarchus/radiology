@@ -247,6 +247,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn union_merges_swift_overlapping_touching_contained_and_empty_ranges() {
+        assert_eq!(
+            union_ranges(vec![10..15, 0..3, 12..22, 3..5, 30..30, 16..18]),
+            vec![0..5, 10..22]
+        );
+    }
+
+    #[test]
     fn nested_hidden_newlines_join_delimiters_with_exact_unicode_coordinates() {
         let source = "fn café() {\r\n hidden 😀();\r\n} tail\r\nnext";
         let start = source.find('{').unwrap() + 1;

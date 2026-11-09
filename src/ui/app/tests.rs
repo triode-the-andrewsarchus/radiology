@@ -533,6 +533,110 @@ fn other(message: &str) { println!("message {message}"); }
 }
 
 #[test]
+fn swift_test_navigation_preserves_exact_back_and_preference_ownership() {
+    let (dir, mut app) = reader();
+    let text = crate::syntax::test_fixtures::TEST_PRESENTATION_SOURCE;
+    std::fs::write(dir.path().join("app.rs"), text).unwrap();
+    app.session.source_filters.hides_tests = true;
+    open_reader(&mut app, dir.path(), "app.rs");
+    let buffer = app.open_buffer.clone().unwrap();
+    let rows = crate::syntax::outline::outline_rows(&app.outline_symbols, &buffer);
+    let helper = rows
+        .iter()
+        .find(|row| row.symbol.name == "detached_for_test")
+        .unwrap()
+        .symbol
+        .clone();
+    let production = rows
+        .iter()
+        .find(|row| row.symbol.name == "create_durable_agent")
+        .unwrap()
+        .symbol
+        .clone();
+    assert!(app.test_code.hides_declaration(&helper.range));
+    assert!(!app.test_code.hides_declaration(&production.range));
+    let departure = buffer.byte_offset(8, 7);
+    app.caret_line = 8;
+    app.caret_col = 7;
+    app.reading_positions
+        .observe(&buffer, None, Some(departure));
+    app.history
+        .update_current(buffer.location_at_byte(departure));
+    app.navigate(buffer.location_at_byte(buffer.byte_offset(5, 12)), true);
+    settle(&mut app);
+    assert!(!app.test_code.hides_declaration(&helper.range));
+    let ctx = Context::default();
+    app.execute_command(&ctx, ToolbarAction::NavigateBack);
+    settle(&mut app);
+    assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), departure);
+    assert!(!app.test_code.hides_declaration(&helper.range));
+    let id = text.find("    #[cfg(test)]").unwrap();
+    app.test_code.toggle(&buffer, id);
+    assert!(app.test_code.hides_declaration(&helper.range));
+    // Go to Line uses this same exact-source navigation endpoint.
+    app.jump_to_location("app.rs", 6, buffer.byte_offset(6, 0));
+    assert!(!app.test_code.hides_declaration(&helper.range));
+    let history = format!("{:?}", app.history);
+    let caret = (app.caret_line, app.caret_col);
+    app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+    assert!(app.test_code.hidden_ranges().is_empty());
+    app.execute_command(&ctx, ToolbarAction::ToggleHideTests);
+    assert!(app.test_code.hides_declaration(&helper.range));
+    assert_eq!(format!("{:?}", app.history), history);
+    assert_eq!((app.caret_line, app.caret_col), caret);
+    assert!(Arc::ptr_eq(app.open_buffer.as_ref().unwrap(), &buffer));
+    assert_eq!(buffer.text, text);
+}
+
+#[test]
+fn swift_test_pending_navigation_and_identical_paths_reset_reveal_ownership() {
+    let (dir, mut app) = reader();
+    let text = crate::syntax::test_fixtures::TEST_PRESENTATION_SOURCE;
+    let top = "#[cfg(test)]\nmod t {\n    fn a() {}\n}\nfn prod() {}\n";
+    std::fs::create_dir(dir.path().join("tests")).unwrap();
+    for (path, source) in [
+        ("app.rs", text),
+        ("copy.rs", text),
+        ("top.rs", top),
+        ("only_tests.rs", "#![cfg(test)]\nfn a() {}\n"),
+        ("tests/integration.rs", top),
+    ] {
+        std::fs::write(dir.path().join(path), source).unwrap();
+    }
+    app.session.source_filters.hides_tests = true;
+    open_reader(&mut app, dir.path(), "top.rs");
+    assert_eq!(
+        app.test_code.status().as_deref(),
+        Some("1 test region hidden")
+    );
+    let target =
+        SourceBuffer::from_str("app.rs", text).location_at_byte(text.find("let marker").unwrap());
+    app.navigate(target.clone(), true);
+    assert!(app.is_source_loading());
+    assert_eq!(app.open_buffer.as_ref().unwrap().path, "top.rs");
+    settle(&mut app);
+    let buffer = app.open_buffer.as_ref().unwrap();
+    assert_eq!(buffer.path, "app.rs");
+    assert_eq!(
+        buffer.byte_offset(app.caret_line, app.caret_col),
+        target.byte_offset
+    );
+    assert!(app.test_code.hidden_ranges().is_empty());
+    app.open_file("copy.rs");
+    settle(&mut app);
+    assert_eq!(
+        app.test_code.status().as_deref(),
+        Some("1 test region hidden")
+    );
+    for path in ["tests/integration.rs", "only_tests.rs"] {
+        app.open_file(path);
+        settle(&mut app);
+        assert_eq!(app.test_code.status().as_deref(), Some("Test file"));
+        assert!(app.test_code.hidden_ranges().is_empty());
+    }
+}
+
+#[test]
 fn hide_tests_preserves_manual_folds_and_explicit_navigation_reveals_source() {
     let (dir, mut app) = reader();
     let text = "fn production() {\n 1;\n}\n#[cfg(test)]\nmod checks {\n fn hidden_only() {}\n}\nfn tail() {}\n";

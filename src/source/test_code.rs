@@ -211,6 +211,40 @@ mod tests {
     }
 
     #[test]
+    fn swift_presentation_retains_exact_header_body_and_document_ownership() {
+        let text = crate::syntax::test_fixtures::TEST_PRESENTATION_SOURCE;
+        let buffer = SourceBuffer::from_str("app.rs", text);
+        let detection = TestRegionDetector::detect(&buffer);
+        assert_eq!(detection.regions.len(), 1);
+        let region = detection.regions[0].clone();
+        assert_eq!(region.header_line, 3);
+        assert_eq!(region.line_range, 3..8);
+        let mut state = TestCodePresentation::default();
+        state.load(&buffer, detection, true);
+        assert_eq!(&text[buffer.line_byte_range(3)], "    #[cfg(test)]");
+        assert_eq!(state.hidden_ranges().len(), 1);
+        let hidden = state.hidden_ranges()[0].clone();
+        assert_eq!(text.as_bytes()[hidden.start], b'\n');
+        assert!(text[hidden.clone()].ends_with("🧪\";\n        Arc::new(Self { marker })\n    }"));
+        assert_eq!(buffer.line_at_byte(hidden.end), 7);
+        let helper = text.find("pub(crate)").unwrap();
+        let production = text.find("fn create_durable").unwrap();
+        assert!(state.hides_declaration(&(helper..hidden.end)));
+        assert!(!state.hides_declaration(&(production..production + 2)));
+        state.toggle(&buffer, region.byte_range.start);
+        assert!(state.hidden_ranges().is_empty());
+        assert!(!state.hides_declaration(&(helper..hidden.end)));
+        let copy = SourceBuffer::from_str("copy.rs", text);
+        state.load(&copy, TestRegionDetector::detect(&copy), true);
+        assert!(state.is_hidden(region.byte_range.start));
+        assert_eq!(copy.text, text);
+        let changed = SourceBuffer::from_str("copy.rs", "fn production() {}\n");
+        state.load(&changed, TestRegionDetector::detect(&changed), true);
+        assert!(state.hidden_ranges().is_empty());
+        assert!(state.header(3).is_none());
+    }
+
+    #[test]
     fn projection_preserves_headers_production_tails_and_navigation_reveal() {
         let text = "fn production() {}\r\n#[cfg(test)]\r\nmod checks {\r\n fn check() {}\r\n} fn tail() {}\r\n";
         let buffer = SourceBuffer::from_str("src/lib.rs", text);

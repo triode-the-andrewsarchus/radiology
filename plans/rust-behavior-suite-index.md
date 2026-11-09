@@ -423,6 +423,12 @@ passes unchanged; [mapping and evidence](rust-test-region-contracts.md). Current
 source/syntax total is 59/66; seven presentation groups remain.
 
 
+[Test-presentation contracts](rust-test-presentation-contracts.md) now map all
+seven presentation groups, completing source/syntax 66/66. Both-scale actual
+viewport label/row/fold/copy checks and app navigation/ownership pass, alongside
+all 67 viewport checks, model/text checks and strict Clippy. Compiler/personality
+35 and inspector/trait 15 groups retain their separate reconciliation work.
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

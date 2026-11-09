@@ -6,10 +6,11 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 Overall Swift/Rust parity remains unproven. The standalone app remains the current
 product; actual little-screen-clip integration and full accessibility are deferred.
-All eighteen ContextModel groups and the seven caller-tree plus one palette group
-have explicit mappings. Fifty-nine of 66 source/syntax groups are reconciled; seven,
-the compiler/inspector suites and final integrated/native/standalone/reuse gates
-remain. Android SDK-backed success and documented parallel-run limits remain open.
+All eighteen ContextModel groups, the seven caller-tree plus one palette group
+and all 66 source/syntax groups have explicit mappings. Compiler/personality (35)
+and inspector/trait (15) assertion reconciliation plus final integrated/native/
+standalone/reuse acceptance remain. Android SDK-backed success and documented
+parallel-run limits remain open.
 
 The latest complete serial workspace gate passes 901 app tests (eleven existing
 opt-in ignores), binary/font/text checks 2/13/22 and all 66 doctests, including the
@@ -18,6 +19,12 @@ normal build, warning-free docs and standalone resource checks also pass. See th
 newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Test-presentation contracts](plans/rust-test-presentation-contracts.md) map the
+last seven source groups through exact canonical rows, copy/fold behavior,
+both-scale label clicks and app navigation/ownership. All 67 viewport checks,
+model/app cases, reader-text tests/doctests and strict Clippy pass. No runtime
+change; source/syntax mapping is complete, overall parity remains unproven.
 
 [Test-region contracts](plans/rust-test-region-contracts.md) map all thirteen
 Swift groups through fifteen exact sources and generated deep nesting. All 82

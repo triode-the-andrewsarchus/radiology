@@ -1,5 +1,29 @@
 # Progress
 
+## 2026-11-09 — Test-presentation assertion reconciliation (Codex)
+
+All seven Swift presentation groups now map explicitly through the exact shared
+Unicode source, canonical header/body intervals, every nonempty visible row,
+original-byte Copy All and independent manual/default folds. Actual label clicks
+at both scales retire old same-geometry IDs and cannot act through a folded
+production parent. App cases check asynchronous pending reveal, exact Back,
+preference/history/caret stability, identical-byte different-path reset and
+explicit test-only documents. Existing owners satisfy these cases unchanged.
+
+All 67 viewport tests, three model cases, both new app cases, 23 reader-text tests
+and four text doctests pass, plus strict all-target Clippy, formatting and diff
+checks. Rust preserves an empty EOF insertion row that Swift's glyph enumeration
+omits; all nonempty original rows match. Architecture +250 measured NLOC/nine
+functions (six tests/three source-fixture declarations); avg/max CCN 3.42/132,
+36 hotspots/one cycle and all 125 normalized clones unchanged. Consolidated the
+initial duplicate identity setup into a document matrix. No runtime/API change.
+
+Source/syntax is 66/66 mapped. Compiler/personality 35, inspector/traits 15 and
+final integrated/native/standalone/reuse acceptance remain. The last full
+production gate remains c20eba6; no new full-run claim for test-only additions.
+[Mapping](plans/rust-test-presentation-contracts.md); evidence:
+~/.local/state/radiology-qa/test-presentation-20261109-6995b84/.
+
 ## 2026-11-09 — Test-region assertion reconciliation (Codex)
 
 All thirteen Swift detector groups now have exact mappings: fifteen source

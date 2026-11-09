@@ -76,3 +76,7 @@ pub(crate) const MALFORMED_SOURCE_FIXTURES: &[(&str, &str)] = &[
     ("broken.kt", "fun broken( { val x = }"),
     ("broken.kts", "val x = ; class {"),
 ];
+
+/// Exact canonical source from Swift TestCodePresentationTests.rust.
+pub(crate) const TEST_PRESENTATION_SOURCE: &str =
+    include_str!("test_fixtures/test-presentation.rs");

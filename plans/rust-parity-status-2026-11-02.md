@@ -1,10 +1,11 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
-Current source reconciliation: [test-region contracts](rust-test-region-contracts.md)
-bring the section to 59/66 mapped groups. All 82 syntax tests and strict Clippy
-pass; this checkpoint is test-only. The latest complete gate remains c20eba6
-(901 app checks/all 66 doctests). Seven presentation groups remain, followed by
-compiler/inspector and final acceptance.
+Current source reconciliation: [test-presentation contracts](rust-test-presentation-contracts.md)
+complete the section at 66/66 mapped groups. All 67 viewport tests, model/app
+cases, reader-text checks and strict Clippy pass; this checkpoint is test-only.
+The latest complete production gate remains c20eba6 (901 app checks/all 66
+doctests). Compiler/personality 35 and inspector/trait 15 groups remain, followed
+by final integrated/native/standalone/reuse acceptance.
 Earlier checkpoint-time counts below are historical.
 
 [Registry/C reconciliation](rust-source-language-contracts.md) repairs template
