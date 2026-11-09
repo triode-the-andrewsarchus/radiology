@@ -54,3 +54,81 @@ fn shorthand_keeps_semantic_field_target_and_preserves_spelling_fallback_at_both
         );
     }
 }
+
+#[test]
+fn semantic_selection_preserves_unicode_bytes_and_external_operator_identity() {
+    use crate::semantic::test_support::{document, occurrence};
+    use crate::semantic::{ScipIndex, SemanticIndex};
+    let fixture = crate::semantic::test_support::scip_rust_fixture();
+    for (scale, encoding) in [(1.0, 1), (1.0, 2), (2.0, 1), (2.0, 2)] {
+        let (_settings, mut app, ctx) = checkout_context(fixture.path(), "src/lib.rs", scale);
+        let lib = app.open_buffer.clone().unwrap();
+        app.select_occurrences_at_byte(lib.byte_offset(8, 12));
+        let external = app.pin_store.ephemeral.as_ref().unwrap();
+        assert!(external.symbol_name.starts_with("rust-analyzer cargo core"));
+        assert!(!external.ranges.is_empty());
+        app.select_occurrences_at_byte(lib.byte_offset(3, 0));
+        assert!(app.pin_store.ephemeral.is_none());
+        let text = "let 🚀café = 1;\nuse(🚀café);\n";
+        std::fs::write(fixture.path().join("unicode.rs"), text).unwrap();
+        app.open_file("unicode.rs");
+        focus::settle_frame(&mut app, &ctx);
+        let source = app.open_buffer.clone().unwrap();
+        let symbol = "rust-analyzer cargo unicode 0.1.0 crate/café.";
+        let mut doc = document(
+            &source,
+            vec![
+                occurrence(&source, 4..13, symbol, true),
+                occurrence(&source, 23..32, symbol, false),
+            ],
+        );
+        if encoding == 1 {
+            doc.position_encoding = 1;
+            for (line, occurrence) in doc.occurrences.iter_mut().enumerate() {
+                occurrence.range = crate::semantic::ScipRange::from_packed(&[line as i32, 4, 13]);
+            }
+        }
+        app.semantic_index = Some(std::sync::Arc::new(SemanticIndex::from_scip(ScipIndex {
+            documents: vec![doc],
+            ..Default::default()
+        })));
+        app.select_occurrences_at_byte(6);
+        let selection = app.pin_store.ephemeral.clone().unwrap();
+        assert_eq!(selection.symbol_name, symbol);
+        assert_eq!(selection.active, 4..13);
+        assert_eq!(selection.ranges, [4..13, 23..32]);
+        let coordinates = reader_text::CoordinateIndex::new(&source.text);
+        let utf16 = selection
+            .ranges
+            .iter()
+            .map(|range| {
+                let start = coordinates
+                    .units_at_byte(
+                        &source.text,
+                        range.start,
+                        crate::source::ColumnEncoding::Utf16,
+                    )
+                    .unwrap();
+                let end = coordinates
+                    .units_at_byte(
+                        &source.text,
+                        range.end,
+                        crate::source::ColumnEncoding::Utf16,
+                    )
+                    .unwrap();
+                (start, end - start)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(utf16, [(4, 6), (20, 6)]);
+        app.pin_at_byte(6);
+        assert!(app.pin_store.ephemeral.is_none());
+        assert_eq!(
+            app.pin_store.groups.last().unwrap().ranges,
+            selection.ranges
+        );
+        assert_eq!(
+            std::fs::read_to_string(fixture.path().join("unicode.rs")).unwrap(),
+            text
+        );
+    }
+}

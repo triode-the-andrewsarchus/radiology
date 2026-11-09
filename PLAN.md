@@ -4,11 +4,19 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Semantic-index contracts](plans/rust-semantic-index-contracts.md) now map all eleven
+Swift groups, including cross-file/local identity, exact caret destinations,
+external/Unicode occurrence selection, search ranking, malformed/stale data and
+typed ranges. Existing mechanisms satisfy these checks; strict rejection of split
+Unicode coordinates remains documented. Other semantic/Context/navigation suites
+and final acceptance remain open.
+
 [SCIP metadata retention](plans/rust-scip-metadata-contracts.md) now preserves tool
 name/version/arguments/project root through decoding, project merging, normalized
 indexes, reuse and cache reloads. Older caches remain readable and an independent
-consumer uses the new API. Two SemanticIndexTests groups are mapped; remaining
-semantic/Context/navigation reconciliation and final acceptance remain open.
+consumer uses the new API. Its real-index decode group is included in the complete
+index mapping above; other semantic/Context/navigation suites and final acceptance
+remain open.
 
 [Semantic caret identity corrections](plans/rust-semantic-identity-contracts.md)
 fix local/field overlap selection, whole-file module caret hits and invalid document

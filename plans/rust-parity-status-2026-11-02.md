@@ -6,6 +6,12 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Semantic-index contracts](rust-semantic-index-contracts.md) now map all eleven
+Swift index groups. Exact fixture destinations/local names, external operators,
+UTF-8/UTF-16 occurrence selection/pins, the search matrix, typed enclosing ranges
+and malformed/stale data pass. Existing strict Unicode-boundary rejection is
+explicit. Other semantic/Context/navigation suites and final acceptance stay open.
+
 [SCIP metadata retention](rust-scip-metadata-contracts.md) now keeps complete tool
 records across wire decode, project merging, normalized indexes, cache-only loads
 and incremental reuse. Older caches remain readable; an independent consumer uses

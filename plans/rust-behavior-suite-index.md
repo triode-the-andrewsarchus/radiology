@@ -264,13 +264,17 @@ Evidence: [rust-semantic-navigation](rust-semantic-navigation.md), [rust-referen
 [Semantic caret/selection corrections](rust-semantic-identity-contracts.md) map the
 shorthand-field SemanticIndexTests group using the same wire fixture, plus targeted
 caret tie/whole-file and invalid-path regressions. Remaining groups in this section
-still need reconciliation; raw tool/root metadata retention is an identified gap.
+still need reconciliation; tool/root metadata is now retained below.
 
 [SCIP metadata reconciliation](rust-scip-metadata-contracts.md) maps the complete
 real-index decode SemanticIndexTests group, including document encodings, function
 signature/kind and Unicode docs. Tool records survive decoding/merging/reuse/cache
-and an independent host. Together with shorthand identity, two of eleven index
-groups are mapped; the remaining groups and other suites in this section stay open.
+and an independent host. The subsequent
+[complete index contract mapping](rust-semantic-index-contracts.md) reconciles all
+eleven groups, including real cross-file/local identities and caret targets,
+external/Unicode selection, search ranking, strict coordinate validation,
+stale/malformed inputs and typed/unknown wire fields. Other suites in this section
+still need their own reconciliation.
 
 ## Source, syntax, projection and test regions
 

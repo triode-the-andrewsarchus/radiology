@@ -1121,6 +1121,13 @@ mod tests {
 
     #[test]
     fn test_fallback_name_parsing() {
+        for (symbol, name) in [
+            ("rust-analyzer cargo ra_fixture 0.1.0 shapes/impl#[Circle]area().", "area"),
+            ("rust-analyzer cargo core https://github.com/rust-lang/rust/library/core ops/arith/impl#[f64][`AddAssign<Self>`]add_assign().", "add_assign"),
+            ("scip-typescript npm pkg 1.0.0 src/`file.ts`/`weird name`.", "weird name"),
+            ("local 12", "12"),
+        ] { assert_eq!(SCIPSymbolString::fallback_name(symbol), name); }
+        assert_eq!(SCIPSymbolString::descriptor_text("a b  c d e f/"), "f/");
         assert_eq!(SCIPSymbolString::fallback_name("local 42"), "42");
         assert_eq!(
             SCIPSymbolString::fallback_name("rust-analyzer cargo pkg 0.1.0 src/lib.rs/MyType#"),

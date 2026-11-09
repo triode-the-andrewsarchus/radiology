@@ -26,6 +26,8 @@ fn nested_index() -> Vec<u8> {
     let occurrence = [
         field(1, &[0, 1, 2]),
         field(8, &typed),
+        field(11, &[8, 2, 16, 0, 24, 6, 32, 1]),
+        [varint(99 << 3), varint(7)].concat(),
         field(2, b"local 1"),
         vec![24, 1],
     ]
@@ -95,8 +97,24 @@ fn nested_messages_stop_at_every_retirement_checkpoint_and_recover_exact_fields(
     assert_eq!(doc.relative_path, "a.rs");
     assert_eq!(doc.position_encoding, 2);
     assert_eq!(doc.occurrences[0].range, ScipRange::from_packed(&[0, 3, 7]));
+    assert_eq!(
+        doc.occurrences[0].enclosing_range,
+        ScipRange::from_packed(&[2, 0, 6, 1])
+    );
+    assert!(doc.occurrences[0].is_definition());
     assert_eq!(doc.symbols[0].signature, "fn work()");
     assert!(fresh.external_symbols[0].relationships[0].is_reference);
+    let normalized = crate::semantic::SemanticIndex::from_scip(fresh);
+    assert_eq!(
+        normalized.column_encoding("a.rs"),
+        Some(crate::source::ColumnEncoding::Utf16)
+    );
+    assert_eq!(
+        normalized.display_name(&crate::semantic::index::SemanticSymbolID::new(
+            "local 1", "a.rs"
+        )),
+        "1"
+    );
 }
 
 #[test]

@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-11-09 — Complete semantic-index assertion mapping (Codex)
+
+All eleven Swift SemanticIndexTests groups now have explicit evidence. New real
+wire-fixture checks require exact cross-file Circle coordinates, document-scoped
+local names/definitions, mapped lib occurrences, actual Context names/kinds/
+definition flags/destinations, external core operators and repository-only search.
+Shortened source drops invalid ranges without fabricating bytes; malformed/empty
+wire inputs degrade correctly. Exact search-tier and UTF-8/16/32 coordinate
+matrices pass. Split scalars/surrogates remain rejected by Rust's existing strict
+source contract rather than clamped; negative packed coordinates are rejected.
+
+Both-scale app selection/pinning verifies external identity and Unicode byte
+ranges under both UTF-8 and UTF-16 indexes, shared UTF-16 equivalents and unchanged
+source. Extended existing nested decoder fixture checks typed multiline enclosing
+range, definition role, unknown occurrence fields, normalization and fallback names
+through every cancellation checkpoint. Exact Swift descriptor cases extend the
+existing test. No production API, UI, dependency or cache changes were necessary.
+
+All 187 semantic tests pass (11 existing opt-in ignored); final 21 index/nine
+protobuf/two app tests and strict all-target Clippy, format/diff checks pass. The
+initial new coordinate test incorrectly unwrapped an already-rejected negative
+range; corrected to assert rejection. A test-only module path error was corrected
+before final checks. No fresh full workspace/build/docs run; 2f3bc46 remains the
+latest full result, with 864 app tests and all 66 doctests passing.
+Architecture NEUTRAL: +304 measured NLOC/four test functions, no new measured
+files/production functions, unchanged average/max CCN 3.42/132, 36 hotspots/cycles
+and identical 124-instance clone multisets (zero additions/removals). Existing
+fixtures, coordinates, Context/selection/pins and guarded decoder are reused.
+[Contract mapping](plans/rust-semantic-index-contracts.md), PLAN and behavior/parity
+indexes record archive `~/.local/state/radiology-qa/semantic-index-audit-20261109-2f3bc46/`.
+
+Next: remaining Context/navigation/reference/call-tree assertion reconciliation,
+source/syntax, compiler/indexing and inspector suites, then final native/standalone
+acceptance. Known parallel timing limits and Android remain open. Full
+accessibility and actual sibling-app integration remain deferred.
+
 ## 2026-11-09 — SCIP tool metadata retained across indexing (Codex)
 
 The real Swift-fixture regression failed because raw SCIP decoding dropped tool
