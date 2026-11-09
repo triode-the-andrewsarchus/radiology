@@ -643,6 +643,8 @@ fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() 
     for tracked in [Some(true), Some(false), None] {
         let fixture = Fixture::new(&[
             ("build/compile_commands.json", "[]"),
+            ("native/CMakeLists.txt", "# native target\n"),
+            ("native/cmake-build-debug/compile_commands.json", "[]"),
             ("native.c", "int f(void) { return 0; }\n"),
             ("include/header.h", "#define VALUE 1\n"),
             ("flags.rsp", "-I../include -c ../native.c -o native.o"),
@@ -675,6 +677,16 @@ fn clang_generation_uses_a_private_rebased_database_and_keeps_original_inputs() 
                 quote(&witness)
             ),
         );
+        let inventory = fixture
+            .request()
+            .inventory(&AtomicBool::new(false))
+            .unwrap();
+        for path in [
+            "build/compile_commands.json",
+            "native/cmake-build-debug/compile_commands.json",
+        ] {
+            assert!(inventory.paths.iter().any(|input| input == path));
+        }
         let generated = run(fixture.request());
         assert!(generated.report.cache_warning.is_none());
         assert_eq!(generated.report.documents, 1, "{:?}", generated.report);

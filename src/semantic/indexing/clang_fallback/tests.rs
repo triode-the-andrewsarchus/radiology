@@ -245,3 +245,59 @@ fn inferred_paths_and_recursive_header_work_are_bounded_without_dropping_source_
     assert_eq!(paths.len(), MAX_DIRECTORIES);
     assert!(paths[2].ends_with("private/0"));
 }
+
+#[test]
+fn swift_default_fixture_infers_layout_headers_and_literal_option_names() {
+    let mut fixture = Fixture::new(&[
+        (
+            "src/main.cpp",
+            "#include <layout/api.hpp>\nint run() { return api(); }\n",
+        ),
+        ("src/main.c", "int main(void) { return 0; }\n"),
+        ("src/case.C", "class Reader {};\n"),
+        ("support/include/layout/api.hpp", "int api();\n"),
+    ]);
+    let entries = fixture.entries();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["file"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["src/case.C", "src/main.c", "src/main.cpp"]
+    );
+    let cpp = entries
+        .iter()
+        .find(|entry| entry["file"] == "src/main.cpp")
+        .unwrap();
+    assert!(includes(cpp).contains(
+        &fixture
+            .owner
+            .path()
+            .join("support/include")
+            .to_str()
+            .unwrap()
+    ));
+    assert_eq!(cpp["arguments"][3], "-std=gnu++20");
+    assert_eq!(entries[0]["arguments"][3], "-std=gnu++20");
+    assert_eq!(entries[1]["arguments"][3], "-std=gnu11");
+    let plan = IndexPlan::inspect(
+        fixture
+            .paths
+            .iter()
+            .map(String::as_str)
+            .chain(["compile_commands.json"]),
+    );
+    assert_eq!(plan.selected[0].evidence, ["compile_commands.json"]);
+    fixture.paths = vec!["support/include/layout/api.hpp".into()];
+    assert_eq!(
+        fixture.entries()[0]["file"],
+        "support/include/layout/api.hpp"
+    );
+    fixture.add("-fplugin=helper.cpp", "int helper() { return 1; }\n");
+    let entries = fixture.entries();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0]["arguments"].as_array().unwrap().last().unwrap(),
+        "./-fplugin=helper.cpp"
+    );
+}

@@ -7,19 +7,27 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 Overall Swift/Rust parity remains unproven. The standalone app remains the current
 product; actual little-screen-clip integration and full accessibility are deferred.
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
-and all 66 source/syntax groups have explicit mappings. Compiler/personality (26 remaining of 35)
+and all 66 source/syntax groups have explicit mappings. Compiler/personality (18 remaining of 35)
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
-parallel-run limits remain open.
+parallel-run limits remain open. The next known lifecycle difference is automatic
+index generation on open/stale-cache refresh; Rust currently restores caches and
+keeps generation explicit.
 
-The latest complete serial workspace gate passes 915 app tests (eleven existing
-opt-in ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
-explicit reuse handoff and all recent source/presentation/personality additions.
+The latest complete serial workspace gate passes 919 app tests (twelve opt-in
+ignores), binary/font/text checks 2/13/23 and all 67 doctests, including the
+C/C++ preparation status, explicit reuse and recent source/personality additions.
 Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
 checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[C/C++ compiler contracts](plans/rust-clang-contracts.md) map all eight compiler/
+fallback groups through exact recorded and real-tool fixtures, both-scale app
+navigation and live 1,500-file preparation cancellation. Preparation now reports
+its actual phase. Focused/real checks, strict Clippy, build, docs and the fresh
+full serial workspace gate pass. Compiler/personality is 17/35 mapped.
 
 [Explicit index reuse](plans/rust-index-reuse-contracts.md) adds the missing ordered
 cache/root/label handoff through existing validators and destination-owned staging.

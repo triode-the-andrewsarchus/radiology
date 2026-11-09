@@ -61,3 +61,47 @@ fn cpp_reader_publishes_scopes_name_bytes_and_committed_function_folds() {
     assert!(!app.fold_store.is_folded(&fold.byte_range));
     assert_eq!(app.open_buffer.as_ref().unwrap().text, text);
 }
+
+#[test]
+fn recorded_clang_reader_resolves_c_references_definition_and_exact_back() {
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("Tests/RadiologyTests/Fixtures/scip-clang");
+    let (owner, mut app) = reader();
+    let root = owner.path().join("checkout");
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    for path in [
+        "index.scip",
+        "src/math.c",
+        "src/math.h",
+        "src/reader.c",
+        "src/reader.cpp",
+    ] {
+        std::fs::copy(fixture.join(path), root.join(path)).unwrap();
+    }
+    open_reader(&mut app, &root, "src/reader.c");
+    for scale in [1.0, 2.0] {
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        let buffer = app.open_buffer.clone().unwrap();
+        let departure = buffer.text.find("add(left").unwrap() + 1;
+        app.jump_to_location("src/reader.c", buffer.line_at_byte(departure), departure);
+        app.refresh_symbol_context();
+        assert!(app.command_enabled(&ToolbarAction::GoToDefinition));
+        app.execute_command(&ctx, ToolbarAction::FindReferences);
+        settle(&mut app);
+        assert_eq!(app.reference_context.results.reference_count, 2);
+        assert_eq!(app.reference_context.results.definition_count, 1);
+        app.execute_command(&ctx, ToolbarAction::GoToDefinition);
+        settle(&mut app);
+        assert_eq!(app.open_buffer.as_ref().unwrap().path, "src/math.c");
+        app.execute_command(&ctx, ToolbarAction::NavigateBack);
+        settle(&mut app);
+        assert_eq!(
+            app.history.current(),
+            Some(&buffer.location_at_byte(departure))
+        );
+        assert_eq!(buffer.byte_offset(app.caret_line, app.caret_col), departure);
+        assert_eq!(app.open_buffer.as_ref().unwrap().data, buffer.data);
+        rendered_frame(&mut app, &ctx);
+    }
+}

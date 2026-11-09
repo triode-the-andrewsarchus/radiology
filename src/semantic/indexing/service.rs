@@ -737,6 +737,16 @@ fn execute_strategy(
         .map_err(|e| e.to_string())?;
     let output = run.path().join("index.scip");
     progress(state, "Preparing indexer inputs…");
+    if outcome.strategy.indexer == Indexer::Clang {
+        progress(
+            state,
+            if outcome.strategy.is_best_effort() {
+                "Preparing best-effort C/C++ inputs…"
+            } else {
+                "Preparing compilation database…"
+            },
+        );
+    }
     let compilation_database = prepare_compilation_database(
         &outcome.strategy,
         request,

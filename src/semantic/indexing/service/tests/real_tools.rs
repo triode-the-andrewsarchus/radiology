@@ -91,6 +91,97 @@ fn real_scip_clang_response_inputs_navigation_unicode_reuse_and_reload() {
 }
 
 #[test]
+#[ignore = "requires real scip-clang; optionally set RADIOLOGY_REAL_SCIP_CLANG"]
+fn real_clang_swift_fixture_retains_partial_coverage_across_database_transitions() {
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("Tests/RadiologyTests/Fixtures/scip-clang");
+    let owned: Vec<_> = ["src/math.h", "src/math.c", "src/reader.c", "src/reader.cpp"]
+        .into_iter()
+        .map(|path| {
+            (
+                path.to_owned(),
+                fs::read_to_string(root.join(path)).unwrap(),
+            )
+        })
+        .chain(std::iter::once((
+            "src/unused.cpp".into(),
+            "int unused() { return 1; }\n".into(),
+        )))
+        .collect();
+    let files: Vec<_> = owned
+        .iter()
+        .map(|(path, source)| (path.as_str(), source.as_str()))
+        .collect();
+    let fixture = Fixture::new(&files);
+    let database = fixture.source.join("build/compile_commands.json");
+    fs::create_dir(database.parent().unwrap()).unwrap();
+    let commands: Vec<_> = [("math.c", "c11"), ("reader.c", "c11"), ("reader.cpp", "c++20")].into_iter().map(|(name, standard)| serde_json::json!({"directory": ".", "file": format!("src/{name}"), "arguments": ["/usr/bin/clang", format!("-std={standard}"), "-Isrc", "-c", format!("src/{name}"), "-o", format!("{name}.o")]})).collect();
+    let bytes = serde_json::to_vec(&commands).unwrap();
+    fs::write(&database, &bytes).unwrap();
+    let request = external_tool_request(&fixture, Indexer::Clang, "RADIOLOGY_REAL_SCIP_CLANG");
+    for configured in [true, false, true] {
+        if configured {
+            fs::write(&database, &bytes).unwrap();
+        } else {
+            fs::remove_file(&database).unwrap();
+        }
+        let generated = run(request.clone());
+        eprintln!("Configured {configured}: {:#?}", generated.report);
+        let outcome = &generated.report.outcomes[0];
+        assert!(outcome.failure.is_none() && outcome.reused_from.is_none());
+        assert_eq!(outcome.strategy.is_best_effort(), !configured);
+        assert_eq!(generated.report.documents, if configured { 4 } else { 5 });
+        assert!(generated.report.is_partial());
+        assert_eq!(
+            outcome.missing_paths,
+            if configured {
+                vec!["src/unused.cpp"]
+            } else {
+                vec![]
+            }
+        );
+        let index = generated.index.unwrap();
+        assert_eq!(
+            index.column_encoding("src/reader.cpp"),
+            Some(ColumnEncoding::Utf8)
+        );
+        let caller = SourceBuffer::from_str("src/reader.c", &owned[2].1);
+        let add = index
+            .occurrence_at_byte(&caller, caller.text.find("add(left").unwrap() + 1)
+            .unwrap();
+        assert_eq!(index.find_definition(&add.symbol).unwrap().0, "src/math.c");
+        let cached = super::load(&request).unwrap();
+        assert!(cached.report.cached && cached.report.is_partial());
+        assert_eq!(
+            cached.report.outcomes[0].strategy.is_best_effort(),
+            !configured
+        );
+        assert_eq!(cached.index.unwrap().documents.len(), index.documents.len());
+        let mut expected = files.clone();
+        if configured {
+            expected.push((
+                "build/compile_commands.json",
+                std::str::from_utf8(&bytes).unwrap(),
+            ));
+        }
+        assert_viewed_inputs_unchanged(&fixture, &expected);
+        assert_eq!(
+            fs::read_dir(fixture.source.join("build")).unwrap().count(),
+            usize::from(configured)
+        );
+        for artifact in [
+            "index.scip",
+            "scip-clang-supplementary-output",
+            "math.c.o",
+            "reader.c.o",
+            "reader.cpp.o",
+        ] {
+            assert!(!fixture.source.join(artifact).exists());
+        }
+    }
+}
+
+#[test]
 #[ignore = "builds pinned scip-java and downloads Kotlin/Gradle; requires JDK 17+ and network access"]
 fn pinned_kotlin_java_install_navigation_unicode_reuse_and_reload() {
     let files = [

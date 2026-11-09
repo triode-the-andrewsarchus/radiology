@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-11-09 — C/C++ compiler and fallback contracts (Codex)
+
+All five CScip and three ClangFallback groups now have explicit mappings. Exact
+recorded compiler data preserves UTF-8 overload identities/definition lines, C
+reference counts and the compiler's known extern-C occurrence gap. Actual app
+actions at both scales prove reference/definition navigation and exact Back.
+Exact defaults cover header inference, standards, uppercase/literal names and
+real-database priority; hidden root/nested CMake inventories and pinned isolation
+retain existing owners. Exact diagnostic summary/warning strings are checked.
+
+A new real-tool case runs the Swift sources plus unused.cpp through configured→
+default→configured, checking four/five-document coverage, exact missing paths,
+Partial cache restoration and original-byte/output isolation. Existing real
+fallback and C/C++ response-file lifecycles also pass with the cached official
+scip-clang 0.4.0 binary and verified SHA-256. No download or install. Initial test
+assertions were corrected to count references separately from definitions and to
+include the deliberately supplied compilation database in expected input inventory;
+no product behavior was weakened.
+
+Generation status now names actual defaults/compilation-database preparation,
+using the existing progress owner. The live 1,500-file replacement case cancels
+that observed phase in under two seconds and proves no old compiler/cache/copy or
+late publication. All 110 indexing tests pass (twelve opt-in ignores), recorded
+semantic/app and exact defaults/cancellation checks pass, plus strict Clippy/build/
+warning-free docs. The fresh full serial workspace gate passes 919 app tests,
+twelve opt-in ignores, binary/font/text checks 2/13/23 and all 67 doctests
+(59+4+4), including all recent runtime changes. Architecture +334 NLOC/
+five tests, avg/max CCN 3.43/132, 36 hotspots/one cycle and all 125 normalized clones
+unchanged. No new source file/helper/runtime state/dependency or cache format.
+
+Compiler/personality is 17/35 mapped; Indexing 10, Kotlin 6, PR Kotlin 2 remain.
+Next lifecycle audit must address automatic open/stale-cache generation: Swift
+starts its service on repository open; Rust currently restores/imports caches and
+keeps generation explicit. Existing historical indexing notes also list that gap.
+Inspector/traits 15 and final integrated/native/standalone/reuse acceptance remain;
+source/syntax stays 66/66. [Mapping](plans/rust-clang-contracts.md); evidence:
+~/.local/state/radiology-qa/clang-contracts-20261109-8d1b04f/.
+
 ## 2026-11-09 — Explicit cross-checkout index reuse (Codex)
 
 GenerationRequest now accepts ordered IndexReuseSource cache/root/label handoffs,

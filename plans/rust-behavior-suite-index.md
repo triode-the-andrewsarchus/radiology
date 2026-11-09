@@ -460,6 +460,14 @@ and destination independence are verified. Compiler/personality is 9/35 mapped,
 full workspace gate passes 915 app checks, binary/font/text 2/13/23 and all 67
 doctests.
 
+[C/C++ compiler reconciliation](rust-clang-contracts.md) maps all five CScip and
+three ClangFallback groups, with exact recorded/real fixtures, hidden/pinned
+input ownership and actual app Back. Actual preparation phase status and the live
+1,500-file cancellation case pass. All 110 indexing checks, three real-tool cases
+and strict build/lint/docs pass. Compiler/personality is 17/35 mapped; Indexing 10,
+Kotlin 6 and PR Kotlin 2 remain. The fresh full serial gate passes 919 app checks,
+twelve opt-in ignores, binary/font/text 2/13/23 and all 67 doctests.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

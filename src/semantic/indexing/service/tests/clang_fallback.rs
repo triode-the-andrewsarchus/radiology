@@ -72,6 +72,7 @@ fn clang_errors_with_usable_output_cannot_claim_full_configured_coverage() {
     for message in [
         "sample.c:1: error: missing declaration",
         "num errored TUs: 2",
+        "Finished indexing 2 translation units (num errored TUs: 1).",
     ] {
         let fixture = Fixture::new(&[
             ("main.c", "int main(void) {}\n"),
@@ -90,7 +91,13 @@ fn clang_errors_with_usable_output_cannot_claim_full_configured_coverage() {
         assert_eq!(generated.report.outcomes[0].missing_count, 0);
         assert!(generated.report.outcomes[0].partial_build && generated.report.is_partial());
     }
-    for good in ["num errored TUs: 0", "num errored TUs: 000", "no errors"] {
+    for good in [
+        "num errored TUs: 0",
+        "num errored TUs: 000",
+        "no errors",
+        "Finished indexing 2 translation units (num errored TUs: 0).",
+        "warning: unused option",
+    ] {
         assert!(!clang_reported_errors(good));
     }
     assert!(clang_reported_errors(
@@ -146,4 +153,62 @@ fn clang_fallback_review_does_not_borrow_an_ignored_checkout_compilation_databas
         fs::read_to_string(root.join("compile_commands.json")).unwrap(),
         "checkout-only poison database"
     );
+}
+
+#[test]
+fn switching_repository_during_large_clang_defaults_retires_preparation_promptly() {
+    let owned: Vec<_> = (0..1500)
+        .map(|n| {
+            (
+                format!("src/file{n}.cpp"),
+                format!("int function{n}(int value) {{ return value + 1; }}\n"),
+            )
+        })
+        .collect();
+    let files: Vec<_> = owned
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let old = Fixture::new(&files);
+    old.tool(Indexer::Clang, &["src/file0.cpp"], "");
+    let next = Fixture::new(&[("README.md", "readme")]);
+    let mut generator = IndexGenerator::default();
+    generator.start(old.request());
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while generator.progress().message != "Preparing best-effort C/C++ inputs…" {
+        assert!(
+            generator.is_running() && Instant::now() < deadline,
+            "{:?}",
+            generator.progress()
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let started = Instant::now();
+    generator.start(next.request());
+    let replacement = settle(&mut generator);
+    assert!(started.elapsed() < Duration::from_secs(2));
+    assert!(replacement.index.is_none() && replacement.report.plan.selected.is_empty());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while walkdir::WalkDir::new(&old.cache)
+        .into_iter()
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("radiology-build-inputs-")
+        })
+    {
+        assert!(
+            Instant::now() < deadline,
+            "retired defaults still own input copies"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!old.bin.join("scip-clang.args").exists());
+    assert!(!walkdir::WalkDir::new(&old.cache)
+        .into_iter()
+        .filter_map(Result::ok)
+        .any(|entry| entry.path().extension().is_some_and(|ext| ext == "json")));
+    assert!(generator.poll().is_none());
 }

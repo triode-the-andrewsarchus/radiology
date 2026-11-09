@@ -374,3 +374,64 @@ fn encoded_ranges_use_exact_scalar_boundaries_and_reject_invalid_positions() {
             .is_none());
     }
 }
+
+#[test]
+fn recorded_clang_overloads_after_unicode_keep_compiler_gaps_and_c_references() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("Tests/RadiologyTests/Fixtures/scip-clang");
+    let raw = ScipIndex::decode(&std::fs::read(root.join("index.scip")).unwrap()).unwrap();
+    assert_eq!(raw.sources[0].tool_name, "scip-clang");
+    let index = SemanticIndex::from_scip(raw);
+    let mut paths: Vec<_> = index.documents.keys().map(String::as_str).collect();
+    paths.sort();
+    assert_eq!(
+        paths,
+        ["src/math.c", "src/math.h", "src/reader.c", "src/reader.cpp"]
+    );
+    let cpp = SourceBuffer::from_bytes(
+        "src/reader.cpp",
+        std::fs::read(root.join("src/reader.cpp")).unwrap(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        index.column_encoding(&cpp.path),
+        Some(crate::source::ColumnEncoding::Utf8)
+    );
+    let mut symbols = Vec::new();
+    for (spelling, line) in [("render(4)", 1), ("render(4, 5)", 4)] {
+        let byte = cpp.text.find(spelling).unwrap();
+        let occurrence = index.occurrence_at_byte(&cpp, byte + 1).unwrap();
+        let id = SemanticSymbolID::new(&occurrence.symbol, &cpp.path);
+        assert_eq!(index.display_name(&id), "render");
+        assert_eq!(
+            index
+                .find_definition_for_id(&id)
+                .map(|(path, range)| (path, range.start_line)),
+            Some(("src/reader.cpp", line))
+        );
+        symbols.push(occurrence.symbol.clone());
+    }
+    assert_ne!(symbols[0], symbols[1]);
+    for occurrence in &index.documents[&cpp.path].occurrences {
+        assert!(index
+            .byte_range(&cpp, occurrence.range.as_ref().unwrap())
+            .is_some());
+    }
+    assert!(index
+        .occurrence_at_byte(&cpp, cpp.text.find("add(value").unwrap() + 1)
+        .is_none());
+    let c = SourceBuffer::from_bytes(
+        "src/reader.c",
+        std::fs::read(root.join("src/reader.c")).unwrap(),
+        None,
+    )
+    .unwrap();
+    let add = index
+        .occurrence_at_byte(&c, c.text.find("add(left").unwrap() + 1)
+        .unwrap();
+    let id = SemanticSymbolID::new(&add.symbol, &c.path);
+    assert_eq!(index.display_name(&id), "add");
+    assert_eq!(index.find_definition_for_id(&id).unwrap().0, "src/math.c");
+    assert_eq!(index.find_references_for_id(&id).len(), 2);
+}
