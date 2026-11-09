@@ -493,6 +493,15 @@ lifecycle and owned process-group checks. The exact real-Rust generation fixture
 remains open, alongside Kotlin six and PR Kotlin two. Compiler/personality is
 26/35 mapped, nine remain; focused indexing/app/process and strict gates pass.
 
+[Kotlin and PR Kotlin contracts](rust-kotlin-contracts.md) now map all eight
+functions, including explicit partial UTF-16 cross-checkout reuse and tracked
+dependency-only automatic regeneration. The existing both-scale PR matrix retains
+overloads, references, exact Back and Before/After boundaries. All 116 indexing
+cases and three actual-app cases pass, with strict Clippy. Compiler/personality
+is 34/35 mapped; the exact real-Rust generation function remains. Combined serial
+workspace verification passes 939 app tests, binary/font/text 2/13/23 and all 68
+doctests (twelve opt-in ignores).
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

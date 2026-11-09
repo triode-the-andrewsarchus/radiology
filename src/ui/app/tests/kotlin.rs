@@ -8,6 +8,152 @@ use std::os::unix::fs::PermissionsExt;
 
 const READER: &str = "src/main/kotlin/Reader.kt";
 const STORE: &str = "src/main/kotlin/Store.kt";
+const INPUTS: [&str; 5] = [
+    "settings.gradle.kts",
+    "build.gradle.kts",
+    READER,
+    STORE,
+    "src/main/kotlin/Noise.kt",
+];
+
+#[test]
+fn tracked_kotlin_dependency_outside_browser_inventory_is_copied_and_invalidates_cache() {
+    let (_owner, mut app) = kotlin_review(true);
+    let root = app.repository_root.clone().unwrap();
+    let head = app.review.as_ref().unwrap().head_root.clone();
+    git(&root, &["rm", "-rf", "."]);
+    for path in INPUTS {
+        std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+        std::fs::copy(head.join(path), root.join(path)).unwrap();
+    }
+    let dependency = root.join("vendor/dependency/input.txt");
+    std::fs::create_dir_all(dependency.parent().unwrap()).unwrap();
+    std::fs::write(&dependency, "first\n").unwrap();
+    git(&root, &["add", "-f", "."]);
+    git(&root, &["commit", "-m", "Tracked Kotlin dependency"]);
+    let bin = &app.index_tools.search_path[0];
+    let observed = bin.join("copied-dependency");
+    std::fs::write(bin.join("gradle"),
+        "#!/bin/sh\nset -eu\n/bin/cat vendor/dependency/input.txt >> \"$(/usr/bin/dirname \"$0\")/copied-dependency\"\n").unwrap();
+    let runs = bin.join("runs");
+    app.open_repository(&root);
+    settle(&mut app);
+    assert!(app.review.is_none());
+    assert!(!app
+        .all_files
+        .iter()
+        .any(|file| file.path.starts_with("vendor/")));
+    assert_eq!(std::fs::read_to_string(&observed).unwrap(), "first\n");
+    std::fs::write(&dependency, "second version\n").unwrap();
+    app.load_repository_index();
+    settle(&mut app);
+    let report = app.generation_report().unwrap();
+    assert!(!report.cached && report.documents == 3);
+    assert!(report
+        .outcomes
+        .iter()
+        .all(|outcome| outcome.failure.is_none() && outcome.reused_from.is_none()));
+    assert_eq!(
+        std::fs::read_to_string(&observed).unwrap(),
+        "first\nsecond version\n"
+    );
+    assert_eq!(std::fs::read_to_string(runs).unwrap().lines().count(), 3);
+    assert_eq!(
+        std::fs::read_to_string(dependency).unwrap(),
+        "second version\n"
+    );
+    assert!(app.semantic_index.as_ref().unwrap().matches_buffer(
+        &SourceBuffer::from_bytes(READER, std::fs::read(head.join(READER)).unwrap(), None).unwrap()
+    ));
+    for path in INPUTS {
+        assert_eq!(
+            std::fs::read(root.join(path)).unwrap(),
+            std::fs::read(head.join(path)).unwrap()
+        );
+    }
+    assert_eq!(
+        git(&root, &["status", "--porcelain"]),
+        "M vendor/dependency/input.txt"
+    );
+}
+
+#[test]
+fn explicit_kotlin_checkout_reuse_keeps_partial_utf16_and_survives_source_cache_removal() {
+    use crate::semantic::indexing::service::{GenerationRequest, IndexGenerator, IndexReuseSource};
+    use std::time::{Duration, Instant};
+    let (owner, app) = kotlin_review(false);
+    let attached = app.repository_root.as_ref().unwrap();
+    let source_cache = app
+        .session
+        .repository_cache(attached)
+        .unwrap()
+        .join("indexes");
+    let root = owner.path().join("independent checkout");
+    let head = &app.review.as_ref().unwrap().head_root;
+    for path in ["build.gradle.kts", "settings.gradle.kts", READER, STORE] {
+        let destination = root.join(path);
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        std::fs::copy(head.join(path), destination).unwrap();
+    }
+    let runs = app.index_tools.search_path[0].join("runs");
+    let mut request = GenerationRequest {
+        attached_root: root.clone(),
+        root,
+        reuse: true,
+        reuse_sources: vec![IndexReuseSource {
+            root: attached.clone(),
+            cache: source_cache.clone(),
+            label: "original Kotlin".into(),
+        }],
+        settings: app.index_personality.settings.clone(),
+        review: None,
+        cache: owner.path().join("independent cache"),
+        tools: app.index_tools.clone(),
+        timeout: Duration::from_secs(10),
+        limits: Default::default(),
+    };
+    let mut generator = IndexGenerator::default();
+    for cached in [false, true] {
+        if cached {
+            std::fs::remove_dir_all(&source_cache).unwrap();
+            request.reuse_sources.clear();
+            request.tools = ToolDirectory {
+                managed: None,
+                home: None,
+                search_path: vec![],
+            };
+            generator.start_cached(request.clone());
+        } else {
+            generator.start(request.clone());
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let generated = loop {
+            if let Some(generated) = generator.poll() {
+                break generated;
+            }
+            assert!(Instant::now() < deadline, "{:?}", generator.error());
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert_eq!(generated.report.cached, cached);
+        assert_eq!(generated.report.documents, 2);
+        let outcome = &generated.report.outcomes[0];
+        assert!(outcome.failure.is_none() && outcome.partial_build);
+        assert_eq!(outcome.reused_from.as_deref(), Some("original Kotlin"));
+        let index = generated.index.unwrap();
+        assert!(!index.documents.contains_key("src/main/kotlin/Noise.kt"));
+        assert_eq!(
+            index.column_encoding(READER),
+            Some(crate::source::ColumnEncoding::Utf16)
+        );
+        let buffer = app.open_buffer.as_ref().unwrap();
+        let call = index
+            .occurrence_at_byte(buffer, buffer.text.find("read(2)").unwrap() + 1)
+            .unwrap();
+        let (path, range) = index.find_definition(&call.symbol).unwrap();
+        assert_eq!((path, range.start_line), (STORE, 3));
+        assert_eq!(std::fs::read_to_string(&runs).unwrap().lines().count(), 1);
+    }
+}
 
 fn kotlin_review(noise: bool) -> (tempfile::TempDir, RadiologyApp) {
     let (owner, root, old) = crate::pull_request::review::tests::fixture();
@@ -16,13 +162,7 @@ fn kotlin_review(noise: bool) -> (tempfile::TempDir, RadiologyApp) {
     git(&root, &["restore", "."]);
     git(&root, &["checkout", "review"]);
     git(&root, &["rm", "-rf", "."]);
-    for path in [
-        "settings.gradle.kts",
-        "build.gradle.kts",
-        READER,
-        STORE,
-        "src/main/kotlin/Noise.kt",
-    ] {
+    for path in INPUTS {
         if !noise && path.ends_with("Noise.kt") {
             continue;
         }

@@ -86,6 +86,33 @@ fn swift_mixed_checkout_plan_keeps_root_priority_and_exact_project_evidence() {
 }
 
 #[test]
+fn kotlin_build_roots_cover_members_without_inventing_loose_source_projects() {
+    let plan = IndexPlan::inspect([
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "modules/contacts/build.gradle.kts",
+        "modules/contacts/src/main/Contacts.kt",
+        "core/src/main/Core.kt",
+        "tools/independent/settings.gradle.kts",
+        "tools/independent/src/Main.kt",
+    ]);
+    assert_eq!(plan.selected.len(), 1);
+    let strategy = &plan.selected[0];
+    assert_eq!(strategy.indexer, Indexer::Kotlin);
+    assert_eq!(strategy.directory, "");
+    assert_eq!(
+        strategy.evidence,
+        ["build.gradle.kts", "settings.gradle.kts"]
+    );
+    assert_eq!(strategy.indexer.languages(), ["Kotlin", "Java"]);
+    assert!(Indexer::Kotlin.covers_path("src/Contacts.kt"));
+    assert!(Indexer::Kotlin.covers_path("src/Bridge.java"));
+    for paths in [vec!["Contacts.kt"], vec!["build.gradle.kts"]] {
+        assert!(IndexPlan::inspect(paths).selected.is_empty());
+    }
+}
+
+#[test]
 fn swift_twelve_project_monorepo_keeps_the_last_rust_project() {
     let paths: Vec<_> = (0..12)
         .flat_map(|n| {

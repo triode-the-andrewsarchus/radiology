@@ -7,7 +7,7 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 Overall Swift/Rust parity remains unproven. The standalone app remains the current
 product; actual little-screen-clip integration and full accessibility are deferred.
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
-and all 66 source/syntax groups have explicit mappings. Compiler/personality (9 remaining of 35)
+and all 66 source/syntax groups have explicit mappings. Compiler/personality (1 remaining of 35)
 and inspector/trait (15) assertion reconciliation plus final integrated/native/
 standalone/reuse acceptance remain. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
@@ -15,7 +15,7 @@ implemented, unknown adapters fail before planning, and attempted invocations ar
 recorded/copied from Generation Details. The remaining compiler and inspector
 suite assertions and final acceptance still need proof.
 
-The latest complete serial workspace gate passes 932 app tests (twelve opt-in
+The latest complete serial workspace gate passes 939 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
 Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
@@ -23,6 +23,12 @@ checks remain recorded; final affected host/integrated acceptance remains open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Kotlin/PR contracts](plans/rust-kotlin-contracts.md) map all eight groups, adding
+explicit partial UTF-16 cross-checkout reuse, destination-owned reload and tracked
+vendor-only invalidation proof through existing production paths. Focused checks
+and strict Clippy pass, as does combined serial verification. Compiler/personality
+is 34/35 mapped; the exact real-Rust fixture remains.
 
 [Indexing lifecycle contracts](plans/rust-indexing-contracts.md) now map nine of
 ten IndexingTests groups, including exact project ordering/nested paths, twelve-

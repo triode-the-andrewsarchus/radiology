@@ -339,6 +339,17 @@ fn internal_links_are_redirected_and_external_documentation_is_literal() {
     )
     .unwrap_err()
     .contains("external build input"));
+    fs::write(
+        workspace.root().join("alias/main.rs"),
+        "changed through directory link",
+    )
+    .unwrap();
+    assert!(workspace.verify_inputs(&cancel).is_err());
+    workspace.verify_source(&cancel).unwrap();
+    assert_eq!(
+        fs::read(source.join("src/main.rs")).unwrap(),
+        b"fn main() {}\r\n"
+    );
 }
 
 #[cfg(unix)]

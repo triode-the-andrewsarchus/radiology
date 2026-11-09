@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-11-09 — Kotlin and PR assertion contracts (Codex)
+
+All six KotlinIndexingTests and two PRKotlinNavigationTests functions now map to
+current evidence. Literal Gradle inventory proves whole-build ownership and no
+invented source-only/empty-manifest projects. The shared workspace case now writes
+through a rebased directory alias, detects copied-byte changes and proves original
+bytes remain intact. Existing both-scale recorded-compiler PR matrix covers exact
+overloads/UTF-16 references, Before/After semantic boundaries and exact-caret Back.
+
+New explicit-reuse coverage transfers the actual recorded partial two-document
+Kotlin index into an independent checkout through the public cache/root/label API.
+Noise stays excluded, UTF-16 and exact integer-overload definition survive, then
+destination-only reload works after deleting the original cache and removing all
+tools. Aggregate count stays one. A real tracked-vendor app case reads first/second
+bytes inside controlled Gradle, proves vendor is hidden in the browser, and changes
+only that dependency before automatic regeneration. All source bytes remain exact;
+Git status contains only the authored vendor edit. Existing Kotlin fixture/tool
+setup is shared; no runtime abstraction, API or source-style change.
+
+All three app cases and 116 indexing cases pass (twelve opt-in ignores), as does
+strict Clippy. Combined full serial workspace verification passes 939 app tests
+(twelve opt-in ignores), binary/font/text 2/13/23 and all 68 doctests (60+4+4).
+This frame/backend checkpoint claims no new native-desktop acceptance.
+Architecture NEUTRAL: +175 measured NLOC/net three test functions, no new file,
+avg/max CCN 3.43/132, 36 high-complexity functions/one cycle and all 125 normalized
+clone instances unchanged (zero additions/removals).
+
+Compiler/personality is 34/35 mapped; exact real-Rust generation remains. A private
+Rust 1.98.1/component installation is prepared under ~/.cache/radiology-qa-real-rust;
+normal user toolchain/configuration remains untouched. Inspector/traits fifteen,
+Android SDK-backed success and final integrated/native/standalone/reuse acceptance
+remain. [Mappings](plans/rust-kotlin-contracts.md); evidence:
+~/.local/state/radiology-qa/kotlin-contracts-20261109-b904c6f/.
+
 ## 2026-11-09 — Nine indexing lifecycle contracts (Codex)
 
 Mapped nine of ten IndexingTests functions against the exact Swift assertions and
