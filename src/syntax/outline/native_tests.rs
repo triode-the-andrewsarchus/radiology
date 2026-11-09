@@ -388,3 +388,146 @@ fn kotlin_pinned_upstream_corpus_keeps_its_expected_named_trees() {
     assert_eq!(count, 22, "pinned upstream corpus must retain every case");
     println!("accepted {count} pinned Kotlin corpus cases in LF and CRLF");
 }
+
+#[test]
+fn c_and_cpp_swift_fixtures_keep_declarators_calls_and_callable_boundaries() {
+    use SymbolKind::*;
+    for (path, expected, callable) in [
+        (
+            "sample.c",
+            &[
+                (Struct, "Scan"),
+                (Enum, "Modality"),
+                (TypeAlias, "ScanID"),
+                (Macro, "TWICE"),
+                (Function, "titles"),
+                (Function, "render"),
+            ][..],
+            "titles",
+        ),
+        (
+            "sample.cpp",
+            &[
+                (Module, "imaging"),
+                (Class, "Scan"),
+                (Method, "render"),
+                (Method, "~Scan"),
+                (Method, "operator+="),
+                (TypeAlias, "ScanID"),
+                (Function, "titles"),
+            ][..],
+            "render",
+        ),
+    ] {
+        let (_, source, _) = crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES
+            .iter()
+            .find(|fixture| fixture.0 == path)
+            .unwrap();
+        let (buffer, symbols) = declarations(path, source);
+        let rows = flattened(&symbols);
+        for &(kind, name) in expected {
+            assert!(
+                rows.iter()
+                    .any(|symbol| symbol.kind == kind && symbol.name == name),
+                "{path}: missing {kind:?} {name}; {rows:?}"
+            );
+        }
+        let syntax = DocumentSyntax::analyze(&buffer);
+        assert!(!syntax.calls.parse_errors);
+        let target = rows.iter().find(|symbol| symbol.name == callable).unwrap();
+        assert_eq!(&buffer.text[target.selection_range.clone()], callable);
+        let fold = crate::syntax::folds::enclosing_function_fold(
+            target.selection_range.start,
+            &symbols,
+            &syntax.folds,
+        )
+        .unwrap();
+        assert!(
+            target.selection_range.end <= fold.byte_range.start
+                && fold.byte_range.end <= target.range.end
+        );
+        assert_eq!(fold.kind, crate::syntax::FoldKind::Callable);
+        let names = syntax
+            .calls
+            .sites
+            .iter()
+            .filter_map(|site| site.name.as_ref().map(|range| &buffer.text[range.clone()]))
+            .collect::<Vec<_>>();
+        if path == "sample.c" {
+            assert!(names.contains(&"measure") && names.contains(&"callback"));
+            assert!(!names.contains(&"fake_call"));
+        } else {
+            let render = syntax
+                .calls
+                .scopes
+                .iter()
+                .position(|scope| scope.range == target.range)
+                .unwrap();
+            assert!(!syntax
+                .calls
+                .sites
+                .iter()
+                .filter(|site| site.owner == Some(render))
+                .any(|site| site
+                    .name
+                    .as_ref()
+                    .is_some_and(|range| &buffer.text[range.clone()] == "twice")));
+            let closures = syntax
+                .calls
+                .scopes
+                .iter()
+                .enumerate()
+                .filter(|(_, scope)| {
+                    scope.closure
+                        && target.range.start <= scope.range.start
+                        && scope.range.end <= target.range.end
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(closures.len(), 1);
+            assert_eq!(
+                syntax
+                    .calls
+                    .sites
+                    .iter()
+                    .filter(|site| site.owner == Some(closures[0].0))
+                    .count(),
+                1
+            );
+            let load = rows.iter().find(|symbol| symbol.name == "load").unwrap();
+            let owner = syntax
+                .calls
+                .scopes
+                .iter()
+                .position(|scope| scope.range == load.range)
+                .unwrap();
+            let direct = syntax
+                .calls
+                .sites
+                .iter()
+                .filter(|site| site.owner == Some(owner))
+                .filter_map(|site| site.name.as_ref().map(|range| &buffer.text[range.clone()]))
+                .collect::<Vec<_>>();
+            assert!(direct.contains(&"render") && direct.contains(&"twice"));
+        }
+    }
+}
+
+#[test]
+fn mixed_c_and_cpp_header_keeps_alias_and_method_but_not_function_pointer_outlines() {
+    let text = "typedef int (*Callback)(int);\nint (*handler)(int);\nstruct Scan { int value; };\nclass Reader { public: int read(); };\n";
+    let (_, symbols) = declarations("reader.h", text);
+    assert_eq!(
+        LanguageRegistry::for_path("reader.h").grammar,
+        Some(crate::syntax::SupportedGrammar::Cpp)
+    );
+    let rows = flattened(&symbols);
+    assert!(rows
+        .iter()
+        .any(|symbol| symbol.kind == SymbolKind::TypeAlias && symbol.name == "Callback"));
+    assert!(!rows
+        .iter()
+        .any(|symbol| symbol.kind.is_callable() && symbol.name == "handler"));
+    assert!(rows
+        .iter()
+        .any(|symbol| symbol.kind == SymbolKind::Method && symbol.name == "read"));
+}

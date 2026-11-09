@@ -55,6 +55,14 @@ fn filters_preserve_reader_preferences_and_manual_directory_expansion_through_re
             ("README.md", "# Notes\n"),
             ("src/app.rs", "fn main() {}\n"),
             ("src/contest.rs", "fn contest() {}\n"),
+            (
+                "src/reader.tpp",
+                "template <typename T> T read(T value) { return value; }\n",
+            ),
+            (
+                "src/reader.tcc",
+                "template <typename T> T read(T value) { return value; }\n",
+            ),
             ("tests/integration.rs", "#[test]\nfn t() {}\n"),
             ("docs/guide.md", "guide\n"),
         ] {
@@ -75,7 +83,7 @@ fn filters_preserve_reader_preferences_and_manual_directory_expansion_through_re
                 .source_filters
                 .filter_files(&app.all_files)
                 .len(),
-            3
+            5
         );
         assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
         assert_eq!(app.selected_path.as_deref(), Some("README.md"));
@@ -88,7 +96,7 @@ fn filters_preserve_reader_preferences_and_manual_directory_expansion_through_re
                 .source_filters
                 .filter_files(&app.all_files)
                 .len(),
-            2
+            4
         );
         app.session.source_filters.path_query = "rs".into();
         app.filters_changed();
@@ -133,20 +141,20 @@ fn filters_preserve_reader_preferences_and_manual_directory_expansion_through_re
                 .source_filters
                 .filter_files(&app.all_files)
                 .len(),
-            5
+            7
         );
         app.execute_command(&ctx, ToolbarAction::ToggleSourceFilesOnly);
         std::fs::write(root.join("src/added.rs"), "fn added() {}\n").unwrap();
         app.execute_command(&ctx, ToolbarAction::Refresh);
         settle(&mut app);
         frame(&mut app, &ctx, vec![]);
-        assert_eq!(app.all_files.len(), 6);
+        assert_eq!(app.all_files.len(), 8);
         assert_eq!(
             app.session
                 .source_filters
                 .filter_files(&app.all_files)
                 .len(),
-            4
+            6
         );
         assert_eq!(app.selected_path.as_deref(), Some("README.md"));
         assert_eq!(app.open_buffer.as_ref().unwrap().text, accepted.text);

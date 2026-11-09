@@ -1,5 +1,9 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+[Registry/C reconciliation](rust-source-language-contracts.md) repairs template
+source filtering and display labels, and maps nine of 66 source/syntax groups.
+Focused/app gates pass; 57 source groups and the combined full run remain open.
+
 [Caller keyboard retirement](rust-caller-keyboard-retirement.md) repairs the one
 failure found by the caller-cache full run. Focused checks pass; a fresh combined
 workspace gate is required before treating that checkpoint as fully verified.

@@ -384,4 +384,16 @@ mod tests {
         assert!(!calls.supported && calls.sites.is_empty() && calls.scopes.is_empty());
         assert!(!calls.matches(&buffer));
     }
+    #[test]
+    fn cpp_construction_and_destruction_remain_explicit_dynamic_sites() {
+        let buffer = SourceBuffer::from_str("allocation.cpp", "struct Thing {};\nThing *make() { return new Thing(); }\nvoid drop(Thing *value) { delete value; }\n");
+        let syntax = DocumentSyntax::analyze(&buffer);
+        assert!(!syntax.calls.parse_errors);
+        assert_eq!(syntax.calls.sites.len(), 2);
+        assert!(syntax
+            .calls
+            .sites
+            .iter()
+            .all(|site| site.kind == "dynamic" && site.name.is_none()));
+    }
 }

@@ -14,12 +14,12 @@ static SOURCE_EXTENSIONS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         "swift", "rs", "go", "py", "pyi", "js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts",
         "kt", "kts", "java", "scala", "sc", "groovy", "c", "h", "cc", "cpp", "cxx", "c++", "hh",
-        "hpp", "hxx", "h++", "inl", "ipp", "m", "mm", "cs", "fs", "fsi", "fsx", "rb", "php", "lua",
-        "zig", "nim", "dart", "ex", "exs", "erl", "hrl", "hs", "lhs", "ml", "mli", "clj", "cljs",
-        "cljc", "elm", "jl", "r", "pl", "pm", "sh", "bash", "zsh", "fish", "sql", "proto",
-        "thrift", "graphql", "gql", "vue", "svelte", "astro", "s", "asm", "cu", "cuh", "metal",
-        "glsl", "vert", "frag", "hlsl", "wgsl", "sv", "vhd", "vhdl", "ada", "adb", "ads", "f90",
-        "f95", "pas", "cr", "gleam", "odin", "sol", "move", "cairo",
+        "hpp", "hxx", "h++", "inl", "ipp", "tpp", "tcc", "m", "mm", "cs", "fs", "fsi", "fsx", "rb",
+        "php", "lua", "zig", "nim", "dart", "ex", "exs", "erl", "hrl", "hs", "lhs", "ml", "mli",
+        "clj", "cljs", "cljc", "elm", "jl", "r", "pl", "pm", "sh", "bash", "zsh", "fish", "sql",
+        "proto", "thrift", "graphql", "gql", "vue", "svelte", "astro", "s", "asm", "cu", "cuh",
+        "metal", "glsl", "vert", "frag", "hlsl", "wgsl", "sv", "vhd", "vhdl", "ada", "adb", "ads",
+        "f90", "f95", "pas", "cr", "gleam", "odin", "sol", "move", "cairo",
     ]
     .into_iter()
     .collect()
@@ -280,6 +280,8 @@ mod tests {
             "include/codec.h",
             "native/codec.hpp",
             "native/codec.cc",
+            "native/templates.tpp",
+            "native/templates.tcc",
             "ios/Bridge.m",
             "ios/Bridge.mm",
             "Sources/Radiology/AppModel.swift",

@@ -1,5 +1,11 @@
 # Radiology documentation index and current state
 
+[Source language and C/C++ contracts](plans/rust-source-language-contracts.md)
+restore tpp/tcc source filtering and Swift's TSX/plain-text labels, and map all
+five registry plus four C syntax groups. Focused/app checks, Clippy, build and docs
+pass. The combined full gate follows; 57 source/syntax groups and later acceptance
+still need reconciliation.
+
 [Caller keyboard retirement](plans/rust-caller-keyboard-retirement.md) fixes the
 full-run regression caused by immediate cached-tree reopening. Both input paths
 retain parent focus until controls republish, then navigate normally. Focused

@@ -79,10 +79,23 @@ fn native_dialects_color_roles_and_preserve_unicode_crlf_source() {
     let jsx = "// café 😀\r\nexport function View() {\r\n  return <section title=\"hi\">Hello</section>;\r\n}\r\n";
     let javascript =
         "// café 😀\r\nexport function greet(value) {\r\n  return value + \"hi\";\r\n}\r\n";
+    let fixtures = crate::syntax::test_fixtures::SWIFT_SOURCE_FIXTURES;
+    let c = fixtures
+        .iter()
+        .find(|fixture| fixture.0 == "sample.c")
+        .unwrap()
+        .1;
+    let cpp = fixtures
+        .iter()
+        .find(|fixture| fixture.0 == "sample.cpp")
+        .unwrap()
+        .1;
     for (path, text, expected) in [
         ("a.rs", "// café 😀\r\n#[derive(Debug)]\r\nstruct Record<'borrow> { field: &'borrow str }\r\nfn run<'borrow>(value: &'borrow str) -> Record<'borrow> {\r\n let text = \"hi\\n\"; let raw = r#\"raw\"#; let count = 42; let yes = true;\r\n println!(\"{}\", text); Record { field: value }\r\n}\r\n", vec![("derive", "attribute"), ("struct", "keyword"), ("Record", "type"), ("borrow", "label"), ("field:", "property"), ("str }", "type"), ("run", "function"), ("hi", "string"), ("\\n\"", "string.escape"), ("raw\"#", "string"), ("42", "number"), ("true", "constant"), ("println", "function")]),
         ("a.go", "// café 😀\r\npackage reader\r\ntype Record struct { Field string }\r\nfunc run(value string) string {\r\n text := \"hi\\n\"; count := 42; _ = count; println(text)\r\n return value\r\n}\r\n", vec![("package", "keyword"), ("reader", "namespace"), ("Record", "type"), ("Field", "property"), ("run", "function"), ("string", "type"), ("println", "function.builtin"), ("hi", "string"), ("\\n\"", "string.escape"), ("42", "number")]),
         ("a.py", "# café 😀\r\n@decorator\r\nclass Record:\r\n def run(self, value: str):\r\n  text = \"hi\\n\"; COUNT = 42\r\n  print(self.field)\r\n  return value\r\n", vec![("decorator", "attribute"), ("class", "keyword"), ("Record", "type"), ("run", "function"), ("self", "variable.builtin"), ("str", "type"), ("print", "function.builtin"), ("field", "property"), ("COUNT", "constant"), ("42", "number"), ("hi", "string"), ("\\n\"", "string.escape")]),
+        ("sample.c", c, vec![("int", "type.builtin"), ("measure", "function")]),
+        ("sample.cpp", cpp, vec![("template", "keyword")]),
         ("a.c", "// café 😀\r\nint run(int value) { return value; }\r\n", vec![("run", "function"), ("int", "type.builtin"), ("return", "keyword.return")]),
         ("a.cpp", "// café 😀\r\ntemplate <typename T> T run(T value) { return value; }\r\n", vec![("template", "keyword"), ("run", "function"), ("return", "keyword.return")]),
         ("a.swift", "// café 😀\r\nfunc run(value: Int) {\r\n let text = \"hi\\n\"\r\n print(text)\r\n}\r\n", vec![("run", "function"), ("func", "keyword"), ("hi", "string"), ("\\n\"", "primary")]),

@@ -273,7 +273,13 @@ fn language_gaps_follow_selected_adapters_and_exclude_non_source_formats() {
     let plan = IndexPlan::inspect(paths);
     assert_eq!(
         plan.uncovered_languages,
-        ["JavaScript", "Objective-C", "Python", "Swift", "TSX"]
+        [
+            "JavaScript",
+            "Objective-C",
+            "Python",
+            "Swift",
+            "TypeScript JSX"
+        ]
     );
     let value = serde_json::to_value(&plan).unwrap();
     assert!(value.get("uncovered_languages").is_none());

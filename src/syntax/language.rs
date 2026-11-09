@@ -180,7 +180,7 @@ impl LanguageRegistry {
             },
             "tsx" => LanguageInfo {
                 id: "tsx",
-                display_name: "TSX",
+                display_name: "TypeScript JSX",
                 grammar: Some(SupportedGrammar::Tsx),
             },
             "js" | "jsx" | "mjs" | "cjs" => LanguageInfo {
@@ -271,7 +271,7 @@ impl LanguageRegistry {
             },
             _ => LanguageInfo {
                 id: "text",
-                display_name: "Plain Text",
+                display_name: "Plain text",
                 grammar: None,
             },
         }
@@ -284,26 +284,86 @@ mod tests {
 
     #[test]
     fn test_language_detection() {
+        for (path, id) in [
+            ("Sources/App/Scan.swift", "swift"),
+            ("src/lib.rs", "rust"),
+            ("cmd/main.go", "go"),
+            ("scan.py", "python"),
+            ("types.pyi", "python"),
+            ("app.js", "javascript"),
+            ("App.jsx", "javascript"),
+            ("worker.mjs", "javascript"),
+            ("legacy.cjs", "javascript"),
+            ("model.ts", "typescript"),
+            ("loader.mts", "typescript"),
+            ("config.cts", "typescript"),
+            ("View.tsx", "tsx"),
+            ("Scan.kt", "kotlin"),
+            ("build.gradle.kts", "kotlin"),
+            ("scan.c", "c"),
+            ("scan.C", "cpp"),
+            ("scan.h", "cpp"),
+            ("scan.cpp", "cpp"),
+            ("scan.cc", "cpp"),
+            ("scan.cxx", "cpp"),
+            ("scan.c++", "cpp"),
+            ("scan.hpp", "cpp"),
+            ("scan.hh", "cpp"),
+            ("scan.hxx", "cpp"),
+            ("scan.h++", "cpp"),
+            ("scan.ipp", "cpp"),
+            ("scan.inl", "cpp"),
+            ("scan.tpp", "cpp"),
+            ("scan.tcc", "cpp"),
+            ("deep/Nested.Dir/Main.RS", "rust"),
+            ("Scan.SWIFT", "swift"),
+        ] {
+            let info = LanguageRegistry::for_path(path);
+            assert_eq!(info.id, id, "{path}");
+            assert!(info.grammar.is_some(), "{path}");
+        }
+        for path in [
+            "README.md",
+            "data.json",
+            "Makefile",
+            "image.png",
+            "notes",
+            "script.sh",
+        ] {
+            assert!(LanguageRegistry::for_path(path).grammar.is_none(), "{path}");
+        }
+        let languages = LanguageRegistry::parsed_languages().collect::<Vec<_>>();
+        assert_eq!(languages.len(), 10);
         assert_eq!(
-            LanguageRegistry::for_path("src/lib.rs").display_name,
-            "Rust"
+            languages
+                .iter()
+                .map(|info| info.id)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            10
         );
         assert_eq!(
-            LanguageRegistry::for_path("pkg/service.go").display_name,
-            "Go"
+            languages
+                .iter()
+                .map(|info| info.grammar)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            10
         );
-        assert_eq!(
-            LanguageRegistry::for_path("index.tsx").grammar,
-            Some(SupportedGrammar::Tsx)
-        );
-        assert_eq!(
-            LanguageRegistry::for_path("app.ts").grammar,
-            Some(SupportedGrammar::TypeScript)
-        );
-        assert_eq!(
-            LanguageRegistry::for_path("script.py").grammar,
-            Some(SupportedGrammar::Python)
-        );
+        for (path, name) in [
+            ("a/b/Scan.swift", "Swift"),
+            ("main.rs", "Rust"),
+            ("View.tsx", "TypeScript JSX"),
+            ("build.gradle.kts", "Kotlin"),
+            ("README.md", "Markdown"),
+            ("unknown.xyz", "Plain text"),
+        ] {
+            assert_eq!(
+                LanguageRegistry::for_path(path).display_name,
+                name,
+                "{path}"
+            );
+        }
         assert_eq!(LanguageRegistry::for_path("Makefile").id, "makefile");
     }
 
@@ -322,13 +382,13 @@ mod tests {
             ("View.js", JavaScript, "JavaScript", jsx, false),
             ("View.mjs", JavaScript, "JavaScript", jsx, false),
             ("View.cjs", JavaScript, "JavaScript", jsx, false),
-            ("View.tsx", Tsx, "TSX", typed_jsx, false),
+            ("View.tsx", Tsx, "TypeScript JSX", typed_jsx, false),
             ("View.ts", TypeScript, "TypeScript", typed, false),
             ("View.mts", TypeScript, "TypeScript", typed, false),
             ("View.cts", TypeScript, "TypeScript", typed, false),
             ("View.ts", TypeScript, "TypeScript", jsx, true),
             ("Cast.ts", TypeScript, "TypeScript", assertion, false),
-            ("Cast.tsx", Tsx, "TSX", assertion, true),
+            ("Cast.tsx", Tsx, "TypeScript JSX", assertion, true),
         ] {
             for crlf in [false, true] {
                 let source = if crlf {

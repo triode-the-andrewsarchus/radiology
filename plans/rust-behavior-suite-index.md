@@ -380,6 +380,14 @@ Evidence: [rust-integrated-source-corpus](rust-integrated-source-corpus.md), [ru
 | [TestCodePresentationTests](../Tests/RadiologyTests/TestCodePresentationTests.swift) | 7 |
 | [TestRegionDetectorTests](../Tests/RadiologyTests/TestRegionDetectorTests.swift) | 13 |
 
+[Source language/C syntax contracts](rust-source-language-contracts.md) map all five
+SourceLanguageRegistryTests groups and four CSyntaxTests groups. The shared filter
+now accepts tpp/tcc and display metadata matches Swift's TSX/plain-text labels.
+Exact checked-in C/C++ structures, scopes, calls, headers and allocation boundaries
+pass without new parsing mechanisms. Nine of 66 source groups have explicit
+mappings in this pass; the remaining 57 require assertion reconciliation. The
+fresh combined full gate is pending; focused and app checks pass.
+
 ## Compiler lifecycle and personalities
 
 Rust entry points: [real_tools.rs](../src/semantic/indexing/service/tests/real_tools.rs), [reuse.rs](../src/semantic/indexing/service/tests/reuse.rs), [tests.rs](../src/semantic/indexing/personality/tests.rs), [personality.rs](../src/ui/app/tests/personality.rs), [kotlin.rs](../src/ui/app/tests/kotlin.rs).

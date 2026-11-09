@@ -34,6 +34,12 @@ fn swift_source_corpus_keeps_reader_bytes_folds_copy_and_history_through_recover
         for (path, text, callable, broken) in cases {
             app.open_file(&path);
             settle_frame(&mut app, &ctx);
+            if path.ends_with("sample.tsx") {
+                crate::ui::test_support::assert_visible_text(
+                    &frame(&mut app, &ctx, vec![]),
+                    "TypeScript JSX",
+                );
+            }
             let buffer = app.open_buffer.clone().unwrap();
             assert_eq!(buffer.text, text, "{path}/{scale}");
             assert!(

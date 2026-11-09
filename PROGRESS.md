@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-09 — Source registry and C/C++ assertion reconciliation (Codex)
+
+Source Files Only now includes tpp/tcc implementation files already supported by
+the parser. Shared language metadata now displays TypeScript JSX and Plain text,
+matching Swift. Both label/filter checks first failed, then pass with the existing
+registry/classifier repaired. Actual app filter/refresh and TSX footer checks at
+both scales preserve reader/history, themes/wrap/copy and inventory ownership.
+
+All five registry groups and four C syntax groups have explicit mappings. Exact
+C/C++ fixture declarators, types/macros/methods, callable folds, qualified calls,
+closure ownership, header function pointers and dynamic new/delete sites pass
+through existing parsing/query mechanisms. All Swift extension aliases and the
+ten unique structural grammars are checked; no new parser or runtime helper.
+Nine of the source section's 66 groups are reconciled; the other 57 and later
+compiler/inspector/final acceptance gates remain open.
+
+Focused registry/classifier/outline/calls/highlights checks pass (2/2/13/4/7),
+alongside index-gap and both app filter/corpus checks. Strict all-target Clippy,
+normal build and warning-free docs pass. The next fresh serial workspace gate
+will validate this checkpoint plus caller keyboard retirement; no later full
+success is claimed yet. Architecture +248 NLOC/three focused tests, no new files,
+hotspots or cycles; avg/max CCN 3.42/132, 36 high-complexity sites and all 125 clone
+instances remain, with zero normalized clone additions/removals.
+[Source/C contracts](plans/rust-source-language-contracts.md); logs:
+~/.local/state/radiology-qa/source-contracts-20261109-51aaa44/.
+
 ## 2026-11-09 — Cached caller keyboard retirement (Codex)
 
 The fresh full run for 8fa696f finished with 888 application passes, one failure
@@ -20,8 +46,8 @@ Architecture +23 NLOC, net zero functions (one retirement method, one overlappin
 test folded into the expanded matrix), no new files/hotspots/cycles; avg/max CCN
 3.42/132 and clone count 125 remain. [Keyboard repair](plans/rust-caller-keyboard-retirement.md);
 logs: ~/.local/state/radiology-qa/caller-keyboard-20261109-8fa696f/.
-The source-registry/C syntax assertion draft is temporarily in the named Git stash
-Source registry and C contract audit draft and resumes after this repair is pushed.
+The source-registry/C syntax assertion draft was isolated in a named Git stash
+while this repair was verified, then restored for the following checkpoint.
 
 ## 2026-11-09 — Loaded caller-trace reuse and Swift tree contracts (Codex)
 
