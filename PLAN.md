@@ -9,8 +9,8 @@ product; actual little-screen-clip integration and full accessibility are deferr
 All eighteen ContextModel groups, the seven caller-tree plus one palette group
 and all 66 source/syntax groups have explicit mappings. All 35 compiler/personality
 groups and all fifteen inspector/trait functions are now mapped too. Final
-integrated/native/standalone/reuse acceptance and the complete requirement-ledger
-review remain. Android SDK-backed success and documented
+integrated/native acceptance and the complete requirement-ledger review remain.
+Fresh standalone/exported-library acceptance passes for e49c5ec. Android SDK-backed success and documented
 parallel-run limits remain open. Automatic open/stale-cache generation is now
 implemented, unknown adapters fail before planning, and attempted invocations are
 recorded/copied from Generation Details. Final acceptance still needs proof.
@@ -18,11 +18,17 @@ recorded/copied from Generation Details. Final acceptance still needs proof.
 The latest complete serial workspace gate passes 942 app tests (twelve opt-in
 ignores), binary/font/text checks 2/13/23 and all 68 doctests, including invocation diagnostics, adapter validation,
 automatic indexing, C/C++ status, explicit reuse and recent source additions.
-Strict Clippy, normal build and warning-free docs pass. Prior standalone resource
-checks remain recorded; final affected host/integrated acceptance remains open.
+Strict Clippy, normal build and warning-free docs pass. Fresh exported-workspace
+build, independent full/asset hosts and source-unavailable resource/runtime checks
+pass; final native/integrated acceptance and complete ledger review remain open.
 See the newest [progress record](PROGRESS.md) for exact checkpoint evidence.
 
 ## Recent checkpoint index
+
+[Fresh standalone/reuse acceptance](plans/rust-final-standalone-acceptance.md) builds
+a committed archive in a new target with sixteen jobs, runs both locked external
+consumers, audits Linux dependency boundaries and reruns all three executables with
+exported sources unavailable. All pass; no product source/dependency changes.
 
 [Inspector/trait contracts](plans/rust-inspector-trait-contracts.md) map all fifteen
 functions with real divider drags, all-mask persisted preferences, Code Paths/

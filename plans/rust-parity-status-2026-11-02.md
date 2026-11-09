@@ -489,6 +489,14 @@ methods are exposed for hosts. All four Swift occurrence-pin assertions have
 explicit Rust evidence. Other assertion/compiler reconciliation remains open;
 repeat affected standalone/reuse gates after later changes.
 
+## Fresh independent acceptance — 2026-11-09
+
+[Committed export and external-host reruns](rust-final-standalone-acceptance.md) pass
+at e49c5ec: new locked/offline build target, half-core Cargo config, full reader
+at both scales, asset-only dependency boundary, all path-package checks and all
+three executables with exported sources unavailable. Final native/integrated/ledger
+review and SDK-backed Android remain separate.
+
 ## Remaining acceptance gates
 
 1. **Remaining behavior and compiler acceptance:** finish mapping the other

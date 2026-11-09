@@ -1,5 +1,36 @@
 # Progress
 
+## 2026-11-09 — Fresh independent export and host acceptance (Codex)
+
+Exported committed e49c5ec into a new QA source/target directory and built the whole
+workspace locked/offline. Sixteen configured jobs match half the thirty-two available
+logical CPUs; workspace Cargo.lock remains exact. No sibling artifact participates.
+Both external consumers pass locked/offline: full public reader/library/text/fonts at
+1×/2×, and asset/text-only without application/GUI/Wayland/portal dependencies.
+Metadata path-package audits confirm all local dependencies stay in the new export.
+
+Copied app/full-host/asset-host executables then run from an otherwise empty directory
+with the entire exported source renamed away. All three exit zero. App resource smoke
+covers eleven native language/query families and five color fallbacks; full host
+rechecks focus, exact viewport anchor/caret, Unicode Copy, changed-source rejection,
+shared text/fonts and Kotlin parsing. Source is restored afterward; no working
+checkout or sibling path is moved. The archive retains source tar/hash, complete
+consumer inputs/locks, metadata, runtime output/exit codes and executable hashes.
+
+The copied older consumer lock initially fails offline resolution on a yanked Windows
+clipboard version. Preserved that diagnostic/lock, seeded QA consumers from current
+workspace pins, let Cargo update only consumer locks offline, then reran locked builds
+and runtime successfully. No product dependencies or lockfile changed. This is a
+Linux debug export and exercised resource/library acceptance, not an installer or
+platform-wide guarantee. The preceding 942 app/68 doctest serial gate and strict
+Clippy remain current; this checkpoint changes documentation only.
+
+The standalone/shared-host maintenance gate passes for e49c5ec. Final native/integrated
+acceptance, the complete original/upstream/suite ledger audit and SDK-backed Android
+success remain open. Full accessibility and actual sibling adoption remain deferred.
+[Evidence scope](plans/rust-final-standalone-acceptance.md); archive:
+~/.local/state/radiology-qa/final-standalone-20261109-e49c5ec/.
+
 ## 2026-11-09 — Inspector and trait assertion contracts (Codex)
 
 All fifteen inspector/layout/trait Swift functions now have explicit current Rust

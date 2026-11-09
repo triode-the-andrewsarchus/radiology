@@ -119,3 +119,10 @@ changes. Other Swift assertions in the [suite index](rust-behavior-suite-index.m
 still require reconciliation. SDK-backed Android success remains pending the user's
 Google SDK-license authorization. Actual sibling adoption and full accessibility
 remain outside the current scope.
+
+## Fresh committed export follow-up — 2026-11-09
+
+[The new standalone checkpoint](rust-final-standalone-acceptance.md) reruns clean
+exported build, both locked consumers, metadata boundaries and source-unavailable
+executables at e49c5ec. All pass. Historical manifests/counts above retain their
+original scope; no public API change is needed for the fresh reader host.
