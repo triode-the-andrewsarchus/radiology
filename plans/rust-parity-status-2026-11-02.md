@@ -6,6 +6,11 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Review fold-default contracts](rust-review-fold-contracts.md) map all seven Swift
+groups, including nested/attribute ownership and held publication/manual/revision/
+PR-scope outcomes. Runtime behavior is unchanged; the separate integrated-review
+audit and final acceptance remain open.
+
 [Changes presentation](rust-review-presentation-contracts.md) fixes the Before
 rename selection highlight and maps all three Swift groups, including visible
 counts, revision availability and rendered filter reset/empty behavior. Separate

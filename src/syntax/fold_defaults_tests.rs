@@ -131,11 +131,13 @@ fn python_decorator_and_rust_attributes_belong_only_to_their_declarations() {
     for (path,text,changed,opened,closed) in [
         ("a.py","@decorator\ndef first():\n    one()\n    more()\ndef second():\n    two()\n    more()\n",1,3,6),
         ("a.rs","#[one]\n// attached comment\n#[two]\nfn first() {\n one();\n}\nfn second() {\n two();\n}\n",1,4,7),
+        ("a.rs","#[cfg(target_os = \"android\")]\nfn marked() {\n let a = || {\n  1\n };\n let b = || {\n  2\n };\n a() + b();\n}\nfn quiet() {\n 3;\n}\n",1,2,11),
     ] {
         let changes=FileLineChanges { hunks:vec![DiffHunk { before_start:changed,before_count:1,after_start:changed,after_count:1 }], ..Default::default() };
         let (buffer,syntax,store)=defaults(path,text,Some(ReviewRevision::After),Some(&changes));
         assert!(!store.is_header_folded(opened, &syntax.folds),"{path}");
         assert!(store.is_header_folded(closed, &syntax.folds),"{path}");
+        assert!(syntax.folds.iter().filter(|fold| fold.kind == FoldKind::Callable && fold.start_line != opened).all(|fold| store.is_folded(&fold.byte_range)), "{path}: sibling and anonymous callable bodies stay folded");
         let owner=syntax.calls.scopes.iter().find(|scope| scope.body_range.as_ref().is_some_and(|body| buffer.line_at_byte(body.start)==opened)).unwrap();
         assert_eq!(buffer.line_at_byte(owner.annotated_range.start),changed);
     }
@@ -245,4 +247,45 @@ fn multiline_signatures_stay_visible_and_same_line_containers_are_not_function_d
             "impl Demo { fn first() {\n one();\n }\n fn second() {\n two();\n }\n}\n"
         ))
     ));
+}
+
+#[test]
+fn review_signature_closure_and_added_body_changes_expand_only_their_owners() {
+    let text = "fn outer() {\n    fn nested(\n        arg: i32,\n    ) -> i32 {\n        arg + 1\n    }\n    let a = || {\n        1\n    };\n    let b = || {\n        2\n    };\n    nested(a()) + b();\n}\nfn quiet() -> i32 {\n    3\n}\n";
+    for (before_start, before_count, after_start, after_count, before_closed, after_closed) in [
+        (3, 1, 3, 1, vec![7, 10, 15], vec![7, 10, 15]),
+        (8, 1, 8, 1, vec![4, 10, 15], vec![4, 10, 15]),
+        (14, 0, 15, 3, vec![1, 4, 7, 10, 15], vec![1, 4, 7, 10]),
+        (15, 3, 14, 0, vec![1, 4, 7, 10], vec![1, 4, 7, 10, 15]),
+    ] {
+        let changes = FileLineChanges {
+            hunks: vec![DiffHunk {
+                before_start,
+                before_count,
+                after_start,
+                after_count,
+            }],
+            ..Default::default()
+        };
+        for (revision, expected) in [
+            (ReviewRevision::Before, before_closed),
+            (ReviewRevision::After, after_closed),
+        ] {
+            let (buffer, syntax, store) = defaults("a.rs", text, Some(revision), Some(&changes));
+            assert_eq!(
+                syntax
+                    .folds
+                    .iter()
+                    .filter(|f| f.kind == FoldKind::Callable)
+                    .count(),
+                5
+            );
+            assert_eq!(
+                store.collapsed_headers(&syntax.folds),
+                expected.into_iter().collect(),
+                "{revision:?} {before_start}→{after_start}"
+            );
+            assert_eq!(buffer.text, text);
+        }
+    }
 }

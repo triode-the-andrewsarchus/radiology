@@ -43,7 +43,7 @@ pub(in crate::ui::app) fn open_review(
     (settings, app)
 }
 
-fn review_context(
+pub(super) fn review_context(
     root: &Path,
     review: ReviewSnapshot,
     scale: f32,

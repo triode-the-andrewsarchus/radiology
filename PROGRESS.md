@@ -1,5 +1,32 @@
 # Progress
 
+## 2026-11-09 — Review fold-default assertion reconciliation (Codex)
+
+All seven Swift fold-default groups now have explicit mappings through Rust's
+atomic source/syntax/hunk/default preparation. A new nested signature/closure/
+added-deleted-body matrix checks both revisions and exact closed sibling sets.
+The attribute/decorator matrix now checks anonymous sibling closures remain closed.
+A both-scale real PR app workflow holds appearance and reload results, checks
+manual/bulk choices and independent revision memory, preserves passive viewport/
+caret/history, rejects an obsolete result after a newer jump and resets choices
+for a different PR with identical commits. Runtime already satisfies these checks.
+
+The lifecycle test's initial failure was an incorrect expectation: explicit
+revision navigation exposes its destination function. The final test uses a tail
+row to distinguish restoration from destination reveal. Existing scaled-review
+setup is now reused by this and the revision-map test, removing a draft clone.
+
+All 48 fold-related, seven loader, six reading-position and the revision-map
+checks pass, along with formatting and strict all-target workspace Clippy. This
+is a test-only checkpoint; no fresh full workspace run is claimed. The preceding
+00cc20c full run remains the historical 836 app/64 doctest baseline. Architecture
++113 measured NLOC/two test functions, unchanged complete clone multisets,
+hotspots and cycles. [Seven-group audit](plans/rust-review-fold-contracts.md)
+explains the atomic publication equivalent of Swift's independent late inputs.
+The four-function PullRequestReview integration audit, final native acceptance,
+known parallel timing limits, other unreconciled behavior suites and Android
+remain open. Next: reconcile the integrated PR review flows against Swift.
+
 ## 2026-11-09 — Revision-aware Changes selection and presentation contracts (Codex)
 
 A real rendered app regression failed because Before's old rename path did not

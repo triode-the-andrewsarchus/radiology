@@ -4,10 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Review fold-default contracts](plans/rust-review-fold-contracts.md) now map all
+seven Swift groups through Rust's atomic source publication. Nested signatures,
+attributes/closures, real empty-side changes and both-scale held-result/manual/
+revision/PR-scope workflows pass. Runtime behavior already satisfies these checks;
+shared test harness reuse removes draft duplication. Integrated review and final
+acceptance remain open.
+
 [Changes presentation](plans/rust-review-presentation-contracts.md) now maps all
 three Swift groups and fixes a missing Before-rename selection highlight through
 the shared model. Both-scale app selection and reset/empty workflows preserve the
-accepted reader and history. Review fold and integrated-review audits remain open.
+accepted reader and history. Fold defaults are reconciled above; the integrated
+review audit remains open.
 
 [Review repository contracts](plans/rust-review-repository-contracts.md) now map
 all four Swift groups. A clone predating the PR stays unchanged through private

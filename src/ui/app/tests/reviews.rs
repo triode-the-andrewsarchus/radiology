@@ -293,10 +293,8 @@ fn revision_switches_land_on_first_changed_lines_and_after_deleted_gaps() {
     let head = crate::pull_request::review::tests::git(&root, &["rev-parse", "HEAD"]);
     let status = crate::pull_request::review::tests::git(&root, &["status", "--porcelain"]);
     for scale in [1.0, 2.0] {
-        let (_settings, mut app) =
-            super::review_refresh::open_review(&root, review.clone(), ReviewRevision::After);
-        let ctx = Context::default();
-        ctx.set_pixels_per_point(scale);
+        let (_settings, mut app, ctx) =
+            super::review_refresh::review_context(&root, review.clone(), scale);
         for (from, line, to, expected_line) in [
             (ReviewRevision::Before, 3, ReviewRevision::After, 2),
             (ReviewRevision::Before, 7, ReviewRevision::After, 3),
@@ -455,5 +453,81 @@ fn changes_filter_reset_restores_visible_totals_without_reader_departure_and_emp
         assert!(text_shapes(&output).any(|t| t.galley.job.text == "No changed files."));
         assert!(!text_shapes(&output).any(|t| t.galley.job.text == "Show All Files"));
         assert!(app.pr_changes.is_empty());
+    }
+}
+
+#[test]
+fn review_fold_choices_survive_late_appearance_and_retired_reload_but_reset_for_new_scopes() {
+    use super::focus::{frame, settle_frame};
+    let before = format!(
+        "fn changed() {{\n    old();\n}}\nfn quiet() {{\n    untouched();\n}}\n{}",
+        "// tail café reading anchor\n".repeat(160)
+    );
+    let after = before.replace("old()", "new()");
+    let (_owner, root, review) =
+        crate::pull_request::review::tests::fixture_with_sources(&before, &after);
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app, ctx) =
+            super::review_refresh::review_context(&root, review.clone(), scale);
+        assert_folded_headers(&app, &[4]);
+        app.fold_store.toggle_header(4, &app.fold_ranges);
+        app.fold_store.toggle_header(1, &app.fold_ranges);
+        assert_folded_headers(&app, &[1]);
+        let accepted = app.open_buffer.clone().unwrap();
+        app.scroll_to_line = None;
+        let top = accepted.byte_offset(30, 0);
+        app.source_viewport.restore_top(&accepted, top);
+        frame(&mut app, &ctx, vec![]);
+        let history = format!("{:?}", app.history);
+        app.execute_command(&ctx, ToolbarAction::ToggleTheme);
+        let appearance = take_prepared_source(&mut app);
+        assert!(appearance.syntax.is_none() && appearance.initial_folds.is_none());
+        assert!(app.command_enabled(&ToolbarAction::CollapseFunctions));
+        app.execute_command(&ctx, ToolbarAction::CollapseFunctions);
+        assert_folded_headers(&app, &[1, 4]);
+        app.publish_source(appearance);
+        frame(&mut app, &ctx, vec![]);
+        assert_folded_headers(&app, &[1, 4]);
+        assert_eq!(app.source_viewport.top_byte(&accepted), Some(top));
+        assert_eq!((app.caret_line, app.caret_col), (1, 0));
+        assert_eq!(format!("{:?}", app.history), history);
+        assert!(Arc::ptr_eq(&accepted, app.open_buffer.as_ref().unwrap()));
+        // Revision navigation reveals its destination; use an unrelated tail row
+        // so that body-reveal policy does not mask whether choices were restored.
+        app.navigate(accepted.location_at_byte(accepted.byte_offset(30, 0)), true);
+        settle_frame(&mut app, &ctx);
+        app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::Before));
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, before);
+        assert_folded_headers(&app, &[4]);
+        app.execute_command(&ctx, ToolbarAction::FoldToDefinitions);
+        assert_folded_headers(&app, &[1, 4]);
+        app.execute_command(&ctx, ToolbarAction::ToggleRevision(ReviewRevision::After));
+        settle_frame(&mut app, &ctx);
+        assert_folded_headers(&app, &[1, 4]);
+        app.execute_command(&ctx, ToolbarAction::ReloadSource);
+        let obsolete = take_prepared_source(&mut app);
+        assert!(obsolete.initial_folds.is_some());
+        let source = app.open_buffer.clone().unwrap();
+        let jump = source.location_at_byte(source.byte_offset(100, 2));
+        app.navigate(jump.clone(), true);
+        settle_frame(&mut app, &ctx);
+        let newer_top = app.source_viewport.top_byte(&source);
+        let newer_history = format!("{:?}", app.history);
+        app.publish_source(obsolete);
+        frame(&mut app, &ctx, vec![]);
+        assert_eq!((app.caret_line, app.caret_col), (100, 2));
+        assert_eq!(app.source_viewport.top_byte(&source), newer_top);
+        assert_ne!(newer_top, Some(top));
+        assert_eq!(format!("{:?}", app.history), newer_history);
+        assert!(Arc::ptr_eq(&source, app.open_buffer.as_ref().unwrap()));
+        assert_folded_headers(&app, &[1, 4]);
+        let mut other = review.clone();
+        other.summary.number = 8;
+        app.accept_review(other);
+        settle_frame(&mut app, &ctx);
+        assert_eq!(app.open_buffer.as_ref().unwrap().text, after);
+        assert_folded_headers(&app, &[4]);
+        assert_eq!(app.active_pr.as_ref().unwrap().number, 8);
     }
 }
