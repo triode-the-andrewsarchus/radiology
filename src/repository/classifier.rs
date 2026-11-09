@@ -269,72 +269,155 @@ impl TestPathClassifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    // Full checked-in Swift SourceFilterTests path matrix, plus prior Rust cases.
     #[test]
     fn test_source_classifier() {
-        assert!(SourceFileClassifier::is_source_file("src/lib.rs"));
-        assert!(SourceFileClassifier::is_source_file(
-            "frontend/components/App.tsx"
-        ));
-        assert!(SourceFileClassifier::is_source_file("backend/main.go"));
-        assert!(SourceFileClassifier::is_source_file("scripts/deploy.py"));
-
-        // Docs, Data, and Manifests are not source files
-        assert!(!SourceFileClassifier::is_source_file("README.md"));
-        assert!(!SourceFileClassifier::is_source_file("Cargo.toml"));
-        assert!(!SourceFileClassifier::is_source_file("package.json"));
-        assert!(!SourceFileClassifier::is_source_file("Package.swift"));
-        assert!(!SourceFileClassifier::is_source_file("build.gradle.kts"));
-        assert!(!SourceFileClassifier::is_source_file("setup.py"));
-        assert!(!SourceFileClassifier::is_source_file("web/index.html"));
-        assert!(!SourceFileClassifier::is_source_file("web/site.css"));
-
-        // Excluded directories and hidden paths
-        assert!(!SourceFileClassifier::is_source_file(
-            "target/debug/build.rs"
-        ));
-        assert!(!SourceFileClassifier::is_source_file(
-            "node_modules/pkg/index.js"
-        ));
-        assert!(!SourceFileClassifier::is_source_file(
-            ".github/workflows/ci.yml"
-        ));
-        assert!(!SourceFileClassifier::is_source_file(".eslintrc.js"));
-
-        // Generated files and config scripts
-        assert!(!SourceFileClassifier::is_source_file("dist/bundle.min.js"));
-        assert!(!SourceFileClassifier::is_source_file("vendor.min.js"));
-        assert!(!SourceFileClassifier::is_source_file("proto/api.pb.go"));
-        assert!(!SourceFileClassifier::is_source_file("types.generated.ts"));
-        assert!(!SourceFileClassifier::is_source_file("vite.config.ts"));
-        assert!(!SourceFileClassifier::is_source_file("jest.config.cjs"));
+        for path in [
+            "modules/agent/ffi/src/app.rs",
+            "fonts/src/main/kotlin/inc/tk/os/fonts/FontFiles.kt",
+            "scripts/pr-local.py",
+            "web/App.tsx",
+            "include/codec.h",
+            "native/codec.hpp",
+            "native/codec.cc",
+            "ios/Bridge.m",
+            "ios/Bridge.mm",
+            "Sources/Radiology/AppModel.swift",
+            "java/Main.java",
+            "tools/run.sh",
+            "db/schema.sql",
+            "api/service.proto",
+            "build.rs",
+            "src/bin/cli.rs",
+            "lib/src/test/kotlin/X.kt",
+            "types/global.d.ts",
+            "src/contest.rs",
+            "web/src/main.mjs",
+            "scripts/release.kts",
+            "src/lib.rs",
+            "frontend/components/App.tsx",
+            "backend/main.go",
+            "scripts/deploy.py",
+            "pkg/service.go",
+        ] {
+            assert!(SourceFileClassifier::is_source_file(path), "{path}");
+        }
+        for path in [
+            "target/debug/build/foo/out/bindings.rs",
+            "crate/target/release/x.rs",
+            "node_modules/react/index.js",
+            "web/node_modules/a/b.ts",
+            "app/build/generated/source/R.kt",
+            "dist/bundle.js",
+            "out/main.js",
+            "vendor/github.com/x/y.go",
+            ".venv/lib/python3.12/site-packages/x.py",
+            "pkg/__pycache__/m.py",
+            ".gradle/caches/x.kt",
+            ".next/server/page.js",
+            "coverage/lcov-report/a.js",
+            "Pods/AFNetworking/A.m",
+            "proto/generated/a.pb.go",
+            "api/a.pb.go",
+            "api/a_pb2.py",
+            "web/vendor.min.js",
+            "tools/tk-apps/home/bricks.generated.ts",
+            "README.md",
+            "docs/guide.md",
+            "notes.txt",
+            "Cargo.toml",
+            "Cargo.lock",
+            "package.json",
+            "tsconfig.json",
+            "Package.swift",
+            "app/build.gradle.kts",
+            "settings.gradle.kts",
+            "setup.py",
+            "vite.config.ts",
+            "jest.config.cjs",
+            ".eslintrc.js",
+            "Makefile",
+            "Dockerfile",
+            "web/index.html",
+            "web/site.css",
+            "assets/logo.png",
+            ".github/workflows/ci.yml",
+            "build.gradle.kts",
+            "dist/bundle.min.js",
+            "vendor.min.js",
+            "proto/api.pb.go",
+            "types.generated.ts",
+            "target/debug/build.rs",
+            "target/debug/build.rs",
+            "node_modules/pkg/index.js",
+        ] {
+            assert!(!SourceFileClassifier::is_source_file(path), "{path}");
+        }
     }
-
     #[test]
     fn test_test_classifier() {
-        assert!(TestPathClassifier::is_test_path("tests/integration.rs"));
-        assert!(TestPathClassifier::is_test_path("src/lib_test.go"));
-        assert!(TestPathClassifier::is_test_path(
-            "components/Button.test.tsx"
-        ));
-        assert!(TestPathClassifier::is_test_path(
-            "components/Button.spec.ts"
-        ));
-        assert!(TestPathClassifier::is_test_path("test/api/conftest.py"));
-        assert!(TestPathClassifier::is_test_path("app/tests.py"));
-        assert!(TestPathClassifier::is_test_path("app/tests.rs"));
-        assert!(TestPathClassifier::is_test_path(
-            "lib/src/jvmTest/kotlin/A.kt"
-        ));
-
-        // Negative tests
-        assert!(!TestPathClassifier::is_test_path("src/main.rs"));
-        assert!(!TestPathClassifier::is_test_path("pkg/testing/helpers.go"));
-        assert!(!TestPathClassifier::is_test_path("spec/openapi.yaml"));
-        assert!(!TestPathClassifier::is_test_path("fixtures/seed.json"));
-        assert!(!TestPathClassifier::is_test_path(
-            "src/main/kotlin/inc/SpeedTest.kt"
-        ));
-        assert!(!TestPathClassifier::is_test_path("README.test.md"));
+        for path in [
+            "engine/rust/tests/snapshot.rs",
+            "app/src/test/kotlin/inc/AppTest.kt",
+            "app/src/androidTest/X.kt",
+            "lib/src/jvmTest/kotlin/A.kt",
+            "lib/src/commonTest/A.kt",
+            "lib/src/androidUnitTest/A.kt",
+            "lib/src/testFixtures/kotlin/F.kt",
+            "web/__tests__/a.ts",
+            "web/__mocks__/fs.ts",
+            "web/__fixtures__/x.json",
+            "pkg/testdata/golden.txt",
+            "tools/tk-apps/test-support/developer.ts",
+            "Tests/RadiologyTests/A.swift",
+            "scripts/home-design-inspect.test.ts",
+            "ui/View.spec.tsx",
+            "scripts/build-tree-state.test.py",
+            "types/api.test-d.ts",
+            "server/handler_test.go",
+            "src/catalog/tests.rs",
+            "src/app/bundle_tests.rs",
+            "src/snapshot_profiles_test.rs",
+            "scripts/test_pr_local.py",
+            "pkg/util_test.py",
+            "app/tests.py",
+            "conftest.py",
+            "native/codec_unittest.cc",
+            "native/codec_test.cpp",
+            "tests/integration.rs",
+            "src/lib_test.go",
+            "components/Button.test.tsx",
+            "components/Button.spec.ts",
+            "test/api/conftest.py",
+            "app/tests.rs",
+            "tests/common.rs",
+            "src/app.test.ts",
+            "src/conftest.py",
+        ] {
+            assert!(TestPathClassifier::is_test_path(path), "{path}");
+        }
+        for path in [
+            "src/contest.rs",
+            "src/latest.ts",
+            "src/attestation.py",
+            "pkg/testing/helpers.go",
+            "spec/openapi.yaml",
+            "e2e/run.ts",
+            "fixtures/seed.json",
+            "src/main/kotlin/inc/SpeedTest.kt",
+            "src/test.rs",
+            "src/testable.ts",
+            "scripts/pr-local.py",
+            "scripts/home-design-inspect.ts",
+            "src/main/kotlin/tested/Thing.kt",
+            "docs/testing.md",
+            "src/protest.go",
+            "README.test.md",
+            "lib/src/Test/A.kt",
+            "lib/src/main/kotlin/jvmTest/A.kt",
+            "src/main.rs",
+        ] {
+            assert!(!TestPathClassifier::is_test_path(path), "{path}");
+        }
     }
 }

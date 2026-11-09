@@ -6,9 +6,13 @@ its Missing/Broken entries are historical findings. This ledger maps those findi
 to current implementation and test evidence, and keeps the outstanding acceptance
 work explicit. Overall parity is still unproven.
 
+[Source filter contracts](rust-source-filter-contracts.md) close the four Swift
+groups and repair loss of manual disclosures during same-root acceptance. Numeric
+name ordering, concurrent timing limits and other suites remain open.
+
 [Repository contracts](rust-repository-contracts.md) close the three Swift
 discovery/source-store functions and fix external symlink reads through the shared
-checkout policy. Filtering assertions and other suites remain open.
+checkout policy. Filtering assertions are reconciled above; other suites remain open.
 
 [Bookmark command parity](rust-bookmark-command-parity.md) now matches new-entry
 declaration labels and ten numbered slots, retaining UUID activation beyond those

@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-11-08 — Preserved same-root disclosures and reconciled source filters (Codex)
+
+A red app regression found refresh discarded manually expanded directories. Root
+acceptance now moves the existing disclosure set through reset when the canonical
+root is unchanged, matching Swift. Plain same-root reopening keeps disclosures but
+still waits for a file choice; another root clears them. No new runtime function,
+cache, worker, dependency, public API or persisted format.
+
+Expanded existing classifier tests cover all 105 Swift path cases plus prior Rust
+cases (127 distinct cases). A complete tree matrix and both-scale app workflow
+verify pruning, independent filters/query results, unchanged reader/history and
+inventory, persisted options, new files on refresh, collapsed state and rendered
+folder recovery after clearing filters. Final focused checks, strict Clippy and
+offline build pass. Architecture +340 measured NLOC including fixtures, two test
+functions, unchanged full clone multisets and no new hotspot/cycle.
+The final serial workspace run passes 810 app tests/11 ignored, supporting
+crate tests and 61 doctests. An earlier run overlapped a test-binary rebuild and failed two
+self-relaunch tests with NotFound; both pass in the final unchanged-binary run.
+[Evidence and boundaries](plans/rust-source-filter-contracts.md) retain numeric
+name ordering, concurrent timing limits, other suites and Android acceptance.
+
 ## 2026-11-08 — Unified checkout containment and reconciled repository tests (Codex)
 
 Found a real Swift mismatch: ordinary file/bookmark loading followed external

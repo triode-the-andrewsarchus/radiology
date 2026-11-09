@@ -135,8 +135,14 @@ impl RadiologyApp {
         let DiscoveredRepository {
             root, files, tree, ..
         } = repository;
+        let same_root = self.repository_root.as_ref() == Some(&root);
+        let expanded_dirs = if same_root {
+            std::mem::take(&mut self.expanded_dirs)
+        } else {
+            Default::default()
+        };
         let destination = match request.destination {
-            RepositoryDestination::RestoreCurrent => (self.repository_root.as_ref() == Some(&root))
+            RepositoryDestination::RestoreCurrent => same_root
                 .then(|| self.checkout_refresh_destination())
                 .flatten()
                 .map(|(location, target)| RepositoryDestination::Source { location, target })
@@ -145,6 +151,7 @@ impl RadiologyApp {
         };
         self.save_bookmarks();
         self.reset_repository_state();
+        self.expanded_dirs = expanded_dirs;
         let name = root
             .file_name()
             .and_then(|n| n.to_str())

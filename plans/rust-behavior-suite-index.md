@@ -99,7 +99,10 @@ Evidence: [rust-repository-opening](rust-repository-opening.md), [rust-unicode-f
 
 All three RepositoryTests functions are reconciled in the
 [repository checkpoint](rust-repository-contracts.md), including the ordinary-read
-symlink fix. SourceFilterTests and the other rows retain their current audit scope.
+symlink fix. All four SourceFilterTests groups are reconciled in the
+[source-filter checkpoint](rust-source-filter-contracts.md), with loaded-document
+presentation and remaining name-ordering limits explicit. Other rows retain their
+current audit scope.
 
 ## Repository search
 

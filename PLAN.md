@@ -4,11 +4,18 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Source filter contracts](plans/rust-source-filter-contracts.md) now reconcile all
+four Swift groups. Same-root discovery preserves manual directory disclosures;
+new-root opens clear them. Complete source/test classification and tree fixtures,
+reader/history/preferences and rendered recovery are checked. Numeric filename
+ordering, concurrent timing limits and other suites remain open.
+
 [Repository contracts](plans/rust-repository-contracts.md) now reconcile the three
 Swift discovery/source-store functions. Ordinary file/bookmark reads now reject
 external checkout symlinks through one shared read policy; internal aliases retain
 their requested paths. Red/green direct and both-scale app tests preserve accepted
-reader state on failure. Filtering and other suite assertions remain open.
+reader state on failure. Filtering is reconciled above; other suite assertions
+remain open.
 
 [Bookmark model contracts](plans/rust-bookmark-model-contracts.md) now reconcile the
 three model/storage groups alongside the three navigation workflows. Grouped moves

@@ -110,4 +110,108 @@ mod tests {
         assert_eq!(query_match.len(), 1);
         assert_eq!(query_match[0].path, "assets/logo.png");
     }
+    #[test]
+    fn reference_filter_combinations_prune_empty_directories_and_preserve_tree_order() {
+        use crate::repository::file_node::FileNode;
+        let files = [
+            "README.md",
+            "Cargo.toml",
+            "docs/guide.md",
+            "src/app.rs",
+            "src/contest.rs",
+            "src/app/bundle_tests.rs",
+            "src/main/kotlin/A.kt",
+            "src/test/kotlin/ATest.kt",
+            "tests/fixtures/data.json",
+            "tests/integration.rs",
+            "web/App.tsx",
+            "web/App.test.tsx",
+            "web/package.json",
+        ]
+        .map(RepositoryFile::new);
+        assert_eq!(SourceFilters::default().filter_files(&files), files);
+        for (hides_tests, source_files_only, expected) in [
+            (
+                true,
+                false,
+                vec![
+                    "docs",
+                    "docs/guide.md",
+                    "src",
+                    "src/main",
+                    "src/main/kotlin",
+                    "src/main/kotlin/A.kt",
+                    "src/app.rs",
+                    "src/contest.rs",
+                    "web",
+                    "web/App.tsx",
+                    "web/package.json",
+                    "Cargo.toml",
+                    "README.md",
+                ],
+            ),
+            (
+                false,
+                true,
+                vec![
+                    "src",
+                    "src/app",
+                    "src/app/bundle_tests.rs",
+                    "src/main",
+                    "src/main/kotlin",
+                    "src/main/kotlin/A.kt",
+                    "src/test",
+                    "src/test/kotlin",
+                    "src/test/kotlin/ATest.kt",
+                    "src/app.rs",
+                    "src/contest.rs",
+                    "tests",
+                    "tests/integration.rs",
+                    "web",
+                    "web/App.test.tsx",
+                    "web/App.tsx",
+                ],
+            ),
+            (
+                true,
+                true,
+                vec![
+                    "src",
+                    "src/main",
+                    "src/main/kotlin",
+                    "src/main/kotlin/A.kt",
+                    "src/app.rs",
+                    "src/contest.rs",
+                    "web",
+                    "web/App.tsx",
+                ],
+            ),
+        ] {
+            let filters = SourceFilters {
+                hides_tests,
+                source_files_only,
+                ..Default::default()
+            };
+            let filtered = filters.filter_files(&files);
+            assert_eq!(
+                filtered,
+                files
+                    .iter()
+                    .filter(|file| filters.includes_path(&file.path))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            );
+            let tree = FileNode::build_tree(&filtered);
+            let mut stack: Vec<_> = tree.iter().rev().collect();
+            let mut paths = Vec::new();
+            while let Some(node) = stack.pop() {
+                paths.push(node.path.as_str());
+                stack.extend(node.children.iter().rev());
+            }
+            assert_eq!(
+                paths, expected,
+                "hide tests={hides_tests}, source only={source_files_only}"
+            );
+        }
+    }
 }
