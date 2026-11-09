@@ -54,9 +54,10 @@ pub(crate) fn prepare(
             &before,
             &after,
         ])?;
-        Some(UnifiedDiffParser::parse(
-            &String::from_utf8(patch).map_err(|e| e.to_string())?,
-        ))
+        Some(
+            UnifiedDiffParser::parse(&String::from_utf8(patch).map_err(|e| e.to_string())?)
+                .map_err(|error| error.to_string())?,
+        )
     };
     control.check()?;
     Ok(Some(RefreshedSource {

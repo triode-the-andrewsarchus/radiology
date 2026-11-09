@@ -81,8 +81,9 @@ functions. Source inspection already identifies two unreconciled differences:
 Rust silently ignores malformed `@@` headers while Swift throws, and Rust's
 `map_line` preserves offsets inside replacement hunks or uses an empty side's
 preceding anchor while Swift lands at the first changed line or the line after a
-deletion gap. These need direct regression evidence and a separate repair; this
-search checkpoint does not claim they are complete.
+deletion gap. The subsequent [diff checkpoint](rust-diff-contracts.md) supplies
+red/green evidence and repairs both differences. Separate raw metadata and document
+identity assertions remain open there.
 
 Other Swift suites, broader final integration, the previously recorded concurrent
 semantic/selection timing limits and SDK-backed Android acceptance remain open.

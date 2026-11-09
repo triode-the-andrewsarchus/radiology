@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-11-08 — Rejected malformed diffs and corrected revision mapping (Codex)
+
+Two red regressions confirmed malformed hunk headers became empty changes and
+deleted lines targeted the preceding anchor. Shared parsing now returns a typed
+header error, propagated through checkout, pinned review and refresh callers.
+Binary markers are anchored to their own lines; numeric ranges are bounded.
+Shared line mapping now selects the first changed destination line or the line
+after an empty gap. No parallel parser, map, worker or dependency was added.
+
+Five tests cover Swift header/range/count/CRLF cases, all 16 line-map expectations
+plus an interior case, invalid output/bounds, preserved pinned changes on error and
+real Git revision commands at 1×/2× with exact Unicode/CRLF bytes. Existing checkout
+failure tests now include malformed patches. All 36 pull-request and 18 app review
+checks pass, as do checkout, strict Clippy, build and warning-free API docs.
+The locked offline serial workspace run passes 823 app tests/11 existing ignored,
+two binary/13 font/22 text tests and all 62 doctests.
+
+Architecture +249 measured NLOC/five test functions, unchanged full clone
+multisets/hotspots/cycles; average CCN 3.40→3.41. Public parser callers now handle
+`Result<FileLineChanges, DiffParseError>`; runnable docs show migration.
+[Contracts and remaining scope](plans/rust-diff-contracts.md) map three of five
+UnifiedDiffTests and all three change-navigation groups, retaining raw blob metadata
+and document identity as explicit next work. Other suites, final integration,
+parallel timing limits and Android acceptance remain open.
+
 ## 2026-11-08 — Explicit search cancellation and six search contracts (Codex)
 
 A direct runner regression reproduced cancellation being reported as successful

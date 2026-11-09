@@ -40,7 +40,7 @@ impl DiffHunk {
 /// use radiology::source::location::ReviewRevision;
 ///
 /// let diff_text = "@@ -10,2 +10,4 @@\n-old\n+new1\n+new2\n";
-/// let changes = UnifiedDiffParser::parse(diff_text);
+/// let changes = UnifiedDiffParser::parse(diff_text).unwrap();
 ///
 /// assert_eq!(changes.total_additions(), 4);
 /// assert_eq!(changes.total_deletions(), 2);
@@ -84,7 +84,7 @@ impl FileLineChanges {
     /// ```
     /// use radiology::{pull_request::diff::UnifiedDiffParser, source::SourceBuffer};
     /// let source = SourceBuffer::from_str("a.rs", "one\ntwo");
-    /// let changes = UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n");
+    /// let changes = UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n").unwrap();
     /// assert_eq!(changes.navigation_at_byte(&source, 0).next, Some(7));
     /// assert_eq!(changes.navigation_at_byte(&source, 7).next, None);
     /// ```
@@ -201,7 +201,8 @@ impl FileLineChanges {
     }
 
     /// Maps a canonical line into the other revision using exact zero-context hunks.
-    /// Lines replaced or deleted map to the nearest surviving destination line.
+    /// Lines inside a change map to its first destination line, or the line after
+    /// an empty destination gap. Lines outside changes retain accumulated shifts.
     #[must_use]
     pub fn map_line(&self, line: usize, from: ReviewRevision) -> usize {
         let mut delta = 0_isize;
@@ -216,8 +217,11 @@ impl FileLineChanges {
                 break;
             }
             if source.contains(&line) {
-                return (target.start + (line - source.start).min(target.len().saturating_sub(1)))
-                    .max(1);
+                return if target.is_empty() {
+                    target.start.saturating_add(1).max(1)
+                } else {
+                    target.start.max(1)
+                };
             }
             delta += target.len() as isize - source.len() as isize;
         }
@@ -225,34 +229,55 @@ impl FileLineChanges {
     }
 }
 
+/// Describes a malformed hunk in unified diff output.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Unrecognized diff hunk header: {header}")]
+pub struct DiffParseError {
+    /// Complete header that could not be interpreted safely.
+    pub header: String,
+}
+
 /// Parses unified diff outputs into structured [`FileLineChanges`].
 pub struct UnifiedDiffParser;
 
 impl UnifiedDiffParser {
     /// Parses the raw text output of `git diff -U0` into a [`FileLineChanges`] instance.
-    #[must_use]
-    pub fn parse(text: &str) -> FileLineChanges {
-        if text.contains("Binary files") || text.contains("GIT binary patch") {
-            return FileLineChanges {
-                hunks: Vec::new(),
-                is_binary: true,
-            };
-        }
-
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DiffParseError`] for a malformed hunk header or a range whose
+    /// end or empty-side navigation anchor cannot be represented.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radiology::pull_request::diff::UnifiedDiffParser;
+    /// let changes = UnifiedDiffParser::parse("@@ -1 +1,2 @@\n")?;
+    /// assert_eq!(changes.total_additions(), 2);
+    /// assert!(UnifiedDiffParser::parse("@@ -x +1 @@\n").is_err());
+    /// # Ok::<(), radiology::pull_request::diff::DiffParseError>(())
+    /// ```
+    pub fn parse(text: &str) -> Result<FileLineChanges, DiffParseError> {
         let mut hunks = Vec::new();
-
         for line in text.lines() {
+            if (line.starts_with("Binary files ") && line.ends_with(" differ"))
+                || line == "GIT binary patch"
+            {
+                return Ok(FileLineChanges {
+                    hunks: Vec::new(),
+                    is_binary: true,
+                });
+            }
             if line.starts_with("@@ ") {
-                if let Some(hunk) = Self::parse_hunk_header(line) {
-                    hunks.push(hunk);
-                }
+                hunks.push(Self::parse_hunk_header(line).ok_or_else(|| DiffParseError {
+                    header: line.into(),
+                })?);
             }
         }
-
-        FileLineChanges {
+        Ok(FileLineChanges {
             hunks,
             is_binary: false,
-        }
+        })
     }
 
     /// Parses a complete multi-file unified diff into a list of [`FileChange`] items.
@@ -371,14 +396,16 @@ impl UnifiedDiffParser {
     }
 
     fn parse_range(s: &str) -> Option<(usize, usize)> {
-        if let Some((start_str, count_str)) = s.split_once(',') {
-            let start = start_str.parse().ok()?;
-            let count = count_str.parse().ok()?;
-            Some((start, count))
+        let (start, count) = if let Some((start_str, count_str)) = s.split_once(',') {
+            (
+                start_str.parse::<usize>().ok()?,
+                count_str.parse::<usize>().ok()?,
+            )
         } else {
-            let start = s.parse().ok()?;
-            Some((start, 1))
-        }
+            (s.parse::<usize>().ok()?, 1)
+        };
+        isize::try_from(start.checked_add(count.max(1))?).ok()?;
+        Some((start, count))
     }
 }
 
@@ -400,7 +427,7 @@ mod tests {
                 [(4, 6), (5, 8)],
             ),
         ] {
-            let changes = UnifiedDiffParser::parse(diff);
+            let changes = UnifiedDiffParser::parse(diff).unwrap();
             for (line, expected) in cases {
                 assert_eq!(
                     changes.map_line(line, from),
@@ -408,6 +435,63 @@ mod tests {
                     "{diff}, {from:?}, line {line}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn line_map_lands_on_changes_and_after_empty_gaps_in_both_revisions() {
+        let changes =
+            UnifiedDiffParser::parse("@@ -3,8 +2,0 @@\n@@ -20,0 +10,3 @@\n@@ -31,2 +26,5 @@\n")
+                .unwrap();
+        for (revision, cases) in [
+            (
+                ReviewRevision::Before,
+                &[
+                    (1, 1),
+                    (2, 2),
+                    (3, 3),
+                    (10, 3),
+                    (11, 3),
+                    (20, 12),
+                    (21, 16),
+                    (31, 26),
+                    (32, 26),
+                    (33, 31),
+                    (40, 38),
+                ][..],
+            ),
+            (
+                ReviewRevision::After,
+                &[(3, 11), (11, 21), (25, 30), (26, 31), (29, 31), (100, 102)][..],
+            ),
+        ] {
+            for &(line, expected) in cases {
+                assert_eq!(
+                    changes.map_line(line, revision),
+                    expected,
+                    "{revision:?} line {line}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_hunk_headers_are_reported_instead_of_discarded() {
+        for header in [
+            "@@ -x +1 @@".into(),
+            "@@ -1 +x @@".into(),
+            "@@ -1 @@".into(),
+            "@@ -1,,2 +1 @@".into(),
+            "@@ --1 +1 @@".into(),
+            "@@ -1,-1 +1 @@".into(),
+            format!("@@ -0,{} +1 @@", isize::MAX as usize + 1),
+            format!("@@ -{},2 +1 @@", usize::MAX),
+            format!("@@ -1 +{},0 @@", usize::MAX),
+        ] {
+            let input = format!("@@ -1 +1 @@\n-old\n+new\n{header}\r\n");
+            let error = UnifiedDiffParser::parse(&input).unwrap_err();
+            assert_eq!(error.header, header);
+            assert!(error.to_string().contains(&error.header));
         }
     }
 
@@ -423,7 +507,7 @@ mod tests {
 +baz();
 +qux();
 "#;
-        let changes = UnifiedDiffParser::parse(diff);
+        let changes = UnifiedDiffParser::parse(diff).unwrap();
         assert_eq!(changes.hunks.len(), 1);
         let h = &changes.hunks[0];
         assert_eq!(h.before_start, 10);
@@ -433,6 +517,95 @@ mod tests {
 
         let after_ranges = changes.changed_lines(ReviewRevision::After);
         assert_eq!(after_ranges, vec![10..15]);
+    }
+
+    #[test]
+    fn headers_counts_ranges_and_binary_markers_match_swift_fixtures() {
+        let changes = UnifiedDiffParser::parse(
+            "diff --git a/x.kt b/x.kt\nindex old..new 100644\n--- a/x.kt\n+++ b/x.kt\n\
+             @@ -3,8 +2,0 @@ package inc.tk.os.engine\n-import java.io.InputStream\n\
+             @@ -20,0 +10 @@ import kotlinx.coroutines.launch\n+import kotlinx.coroutines.coroutineScope\n\
+             @@ -31,25 +20,21 @@ import kotlinx.serialization.json.int\n-/** old */\n+/** new */\n\\ No newline at end of file\n",
+        ).unwrap();
+        assert!(!changes.is_binary);
+        assert_eq!(
+            changes.hunks,
+            [
+                DiffHunk {
+                    before_start: 3,
+                    before_count: 8,
+                    after_start: 2,
+                    after_count: 0
+                },
+                DiffHunk {
+                    before_start: 20,
+                    before_count: 0,
+                    after_start: 10,
+                    after_count: 1
+                },
+                DiffHunk {
+                    before_start: 31,
+                    before_count: 25,
+                    after_start: 20,
+                    after_count: 21
+                },
+            ]
+        );
+        assert_eq!(
+            changes.changed_lines(ReviewRevision::After),
+            [10..11, 20..41]
+        );
+        assert_eq!(
+            changes.changed_lines(ReviewRevision::Before),
+            [3..11, 31..56]
+        );
+        assert_eq!(changes.change_anchors(ReviewRevision::After), [3, 10, 20]);
+        assert_eq!(
+            (changes.total_additions(), changes.total_deletions()),
+            (22, 33)
+        );
+        for (text, expected) in [
+            (
+                "--- /dev/null\n+++ b/new.rs\n@@ -0,0 +1,3 @@\n+a\n+b\n+c\n",
+                vec![(0, 0, 1, 3)],
+            ),
+            (
+                "--- a/old.rs\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-x\r\n-y\r\n",
+                vec![(1, 2, 0, 0)],
+            ),
+            ("@@ -4 +4 @@\r\n-é\r\n+🚀\r\n", vec![(4, 1, 4, 1)]),
+            (
+                "@@ -2 +2 @@ line1\n-line2\r\n+line2 changed\r\n@@ -3,0 +4 @@ line3\n+line4\r\n",
+                vec![(2, 1, 2, 1), (3, 0, 4, 1)],
+            ),
+        ] {
+            let changes = UnifiedDiffParser::parse(text).unwrap();
+            assert_eq!(
+                changes
+                    .hunks
+                    .iter()
+                    .map(|h| (h.before_start, h.before_count, h.after_start, h.after_count))
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+        for marker in [
+            "Binary files a/i.png and b/i.png differ\r\n",
+            "GIT binary patch\n",
+        ] {
+            let changes = UnifiedDiffParser::parse(marker).unwrap();
+            assert!(changes.is_binary);
+            assert!(changes.hunks.is_empty());
+        }
+        assert_eq!(
+            UnifiedDiffParser::parse("").unwrap(),
+            FileLineChanges::default()
+        );
+        assert!(
+            !UnifiedDiffParser::parse("+// Binary files a and b differ\n+GIT binary patch\n")
+                .unwrap()
+                .is_binary
+        );
     }
 
     #[test]
@@ -485,7 +658,8 @@ index 1111111..2222222 100644
                 .join("\n"),
         );
         let changes =
-            UnifiedDiffParser::parse("@@ -3,3 +3,3 @@\n@@ -12,2 +12,2 @@\n@@ -23 +23 @@\n");
+            UnifiedDiffParser::parse("@@ -3,3 +3,3 @@\n@@ -12,2 +12,2 @@\n@@ -23 +23 @@\n")
+                .unwrap();
         for (line, previous, next) in [
             (4, None, Some(12)),
             (13, Some(3), Some(23)),
@@ -502,7 +676,7 @@ index 1111111..2222222 100644
                 expected
             );
         }
-        let last = UnifiedDiffParser::parse("@@ -1 +1 @@\n");
+        let last = UnifiedDiffParser::parse("@@ -1 +1 @@\n").unwrap();
         for (text, previous) in [("changed", None), ("changed\n", Some(0))] {
             let source = SourceBuffer::from_str("a.rs", text);
             assert_eq!(
@@ -523,7 +697,7 @@ index 1111111..2222222 100644
         ] {
             let mut source = SourceBuffer::from_str("a.rs", "one\ntwo");
             source.revision = Some(revision);
-            let mut changes = UnifiedDiffParser::parse(patch);
+            let mut changes = UnifiedDiffParser::parse(patch).unwrap();
             assert!(changes.changed_lines(revision).is_empty());
             assert_eq!(
                 changes.navigation_at_byte(&source, 0).next,
@@ -540,7 +714,7 @@ index 1111111..2222222 100644
             );
         }
         let source = SourceBuffer::from_str("a.rs", "one\ntwo\nthree\nfour\n");
-        let changes = UnifiedDiffParser::parse("@@ -2,2 +1,0 @@\n@@ -6 +4 @@\n");
+        let changes = UnifiedDiffParser::parse("@@ -2,2 +1,0 @@\n@@ -6 +4 @@\n").unwrap();
         let point = source.byte_offset(2, 0);
         assert_eq!(changes.navigation_at_byte(&source, point).previous, None);
         assert_eq!(
@@ -564,7 +738,7 @@ index 1111111..2222222 100644
 +z
 +w
 "#;
-        let changes = UnifiedDiffParser::parse(diff);
+        let changes = UnifiedDiffParser::parse(diff).unwrap();
         assert_eq!(
             changes.previous_change_line(10, ReviewRevision::After),
             Some(5)

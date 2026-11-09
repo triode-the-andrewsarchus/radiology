@@ -82,6 +82,7 @@ impl GitRead<'_> {
                 &buffer.path,
             ])?;
             UnifiedDiffParser::parse(&String::from_utf8_lossy(&patch))
+                .map_err(|error| error.to_string())?
         } else {
             FileLineChanges {
                 hunks: vec![DiffHunk {

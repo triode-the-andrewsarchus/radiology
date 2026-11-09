@@ -234,3 +234,24 @@ fn file_manager_before_tree_reuses_verified_base_and_retains_pinned_ownership() 
         .unwrap_err()
         .contains("cancelled"));
 }
+
+#[cfg(unix)]
+#[test]
+fn malformed_patch_does_not_replace_pinned_changes_or_counts() {
+    let (owner, _, mut review) = fixture();
+    let script = crate::repository::test_support::fake_git(owner.path(), "printf '@@ -x +1 @@\\n'");
+    let cancel = AtomicBool::new(false);
+    let control = ReviewControl {
+        git: &script,
+        ..ReviewControl::new(&cancel)
+    };
+    let changes = review.changes.clone();
+    let diffs = review.diffs.clone();
+    let error = review.add_change(changes[0].clone(), &control).unwrap_err();
+    assert!(
+        error.contains("Unrecognized diff hunk header: @@ -x +1 @@"),
+        "{error}"
+    );
+    assert_eq!(review.changes, changes);
+    assert_eq!(review.diffs, diffs);
+}

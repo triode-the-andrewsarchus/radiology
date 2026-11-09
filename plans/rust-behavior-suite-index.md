@@ -130,7 +130,9 @@ service boundary, while UI Stop retains its prior presentation policy.
 
 Rust entry points: [diff.rs](../src/pull_request/diff.rs), [tests.rs](../src/pull_request/review/tests.rs), [review_refresh.rs](../src/ui/app/tests/review_refresh.rs), [fold_defaults_tests.rs](../src/syntax/fold_defaults_tests.rs).
 
-Evidence: [rust-byte-change-navigation](rust-byte-change-navigation.md), [rust-pr-refresh-restoration](rust-pr-refresh-restoration.md), [rust-integrated-pr-flow](rust-integrated-pr-flow.md).
+Evidence: [diff contracts](rust-diff-contracts.md) (three of five UnifiedDiffTests
+and all three ChangeBlockNavigationTests groups mapped; metadata/identity open),
+[rust-byte-change-navigation](rust-byte-change-navigation.md), [rust-pr-refresh-restoration](rust-pr-refresh-restoration.md), [rust-integrated-pr-flow](rust-integrated-pr-flow.md).
 
 | Swift suite | Annotated functions |
 | --- | ---: |

@@ -293,7 +293,8 @@ mod tests {
                     let symbols = symbols();
                     let changes = crate::pull_request::diff::UnifiedDiffParser::parse(
                         "@@ -2 +2 @@\n-old\n+new\n@@ -8 +8 @@\n-old\n+new\n",
-                    );
+                    )
+                    .unwrap();
                     let mut output = Default::default();
                     for _ in 0..2 {
                         output = painted_frame(&ctx, vec2(width, 100.0), vec![], |ui| {

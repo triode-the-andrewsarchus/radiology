@@ -258,7 +258,7 @@ fn empty_change_side_reaches_unterminated_eof_once_without_inventing_a_changed_l
     let (_owner, mut app) = reader_with_source("one\ntwo");
     let ctx = Context::default();
     frame(&mut app, &ctx, vec![]);
-    app.line_changes = Some(UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n"));
+    app.line_changes = Some(UnifiedDiffParser::parse("@@ -3,2 +2,0 @@\n-three\n-four\n").unwrap());
     app.source_viewport.request_focus(&ctx);
     frame(&mut app, &ctx, vec![key(Key::ArrowDown, Modifiers::ALT)]);
     settle_frame(&mut app, &ctx);
@@ -281,4 +281,71 @@ fn empty_change_side_reaches_unterminated_eof_once_without_inventing_a_changed_l
     app.execute_command(&ctx, ToolbarAction::NavigateBack);
     settle_frame(&mut app, &ctx);
     assert_eq!((app.caret_line, app.caret_col), (1, 0));
+}
+
+#[test]
+fn revision_switches_land_on_first_changed_lines_and_after_deleted_gaps() {
+    let before =
+        "one\r\nremoved café\r\nremoved two\r\nshared\r\nold a\r\nold b\r\nold c\r\ntail\r\n";
+    let after = "one\r\nshared\r\nnew a\r\nnew b\r\nnew c\r\nnew d\r\ntail\r\n";
+    let (_owner, root, review) =
+        crate::pull_request::review::tests::fixture_with_sources(before, after);
+    let head = crate::pull_request::review::tests::git(&root, &["rev-parse", "HEAD"]);
+    let status = crate::pull_request::review::tests::git(&root, &["status", "--porcelain"]);
+    for scale in [1.0, 2.0] {
+        let (_settings, mut app) =
+            super::review_refresh::open_review(&root, review.clone(), ReviewRevision::After);
+        let ctx = Context::default();
+        ctx.set_pixels_per_point(scale);
+        for (from, line, to, expected_line) in [
+            (ReviewRevision::Before, 3, ReviewRevision::After, 2),
+            (ReviewRevision::Before, 7, ReviewRevision::After, 3),
+            (ReviewRevision::After, 5, ReviewRevision::Before, 5),
+        ] {
+            let source = SourceBuffer::from_str(
+                "a file.rs",
+                if from == ReviewRevision::Before {
+                    before
+                } else {
+                    after
+                },
+            );
+            app.navigate(
+                SourceLocation::with_revision("a file.rs", source.byte_offset(line, 0), Some(from)),
+                true,
+            );
+            settle(&mut app);
+            app.execute_command(&ctx, ToolbarAction::ToggleRevision(to));
+            settle(&mut app);
+            super::focus::settle_frame(&mut app, &ctx);
+            let buffer = app.open_buffer.as_ref().unwrap();
+            assert_eq!(buffer.revision, Some(to));
+            assert_eq!(
+                buffer.text,
+                if to == ReviewRevision::Before {
+                    before
+                } else {
+                    after
+                }
+            );
+            assert_eq!(
+                (app.caret_line, app.caret_col),
+                (expected_line, 0),
+                "{scale}× {from:?}:{line}"
+            );
+            assert!(app.error.is_none(), "{:?}", app.error);
+        }
+    }
+    assert_eq!(
+        crate::pull_request::review::tests::git(&root, &["rev-parse", "HEAD"]),
+        head
+    );
+    assert_eq!(
+        crate::pull_request::review::tests::git(&root, &["status", "--porcelain"]),
+        status
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("a file.rs")).unwrap(),
+        "checkout only\n"
+    );
 }

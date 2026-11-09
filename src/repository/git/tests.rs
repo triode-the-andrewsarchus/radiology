@@ -8,6 +8,11 @@ fn checkout_hunks_reject_moving_head_changed_bytes_and_interrupted_patches() {
     let root = temp.path();
     for (action, timeout, error) in [
         (
+            "printf '@@ -x +1 @@\\n'",
+            Duration::from_secs(5),
+            Some("Unrecognized diff hunk header"),
+        ),
+        (
             "printf 'changed\\n' > source.rs",
             Duration::from_secs(5),
             None,

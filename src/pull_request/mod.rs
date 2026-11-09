@@ -12,7 +12,7 @@ pub mod recent;
 pub mod review;
 
 pub use change::{FileChange, FileChangeStatus, ReviewChangesPresentation};
-pub use diff::{DiffHunk, FileLineChanges, UnifiedDiffParser};
+pub use diff::{DiffHunk, DiffParseError, FileLineChanges, UnifiedDiffParser};
 pub use github::{GitHubClient, PullRequestSummary};
 
 #[cfg(all(test, unix))]

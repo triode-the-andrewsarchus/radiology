@@ -4,6 +4,12 @@ Radiology is a native, read-only repository browser for understanding unfamiliar
 
 ## Current accepted state
 
+[Diff parsing and revision mapping](plans/rust-diff-contracts.md) now reject malformed
+hunks and map changed lines to Swift's first-line/gap destinations through shared
+service paths. Both-scale real Git app switches and error propagation pass. Three
+of five unified-diff groups and all three change-navigation groups are mapped;
+raw metadata/document identity and other suites remain open.
+
 [Repository search contracts](plans/rust-search-contracts.md) now map all six Swift
 functions. Shared-runner cancellation returns an explicit error, while UI Stop
 keeps its retired-channel behavior. Exact Unicode records, argument boundaries,

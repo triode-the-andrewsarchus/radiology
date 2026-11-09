@@ -212,7 +212,7 @@ impl ReviewSnapshot {
             old.unwrap_or(path),
             path,
         ])?;
-        let diff = UnifiedDiffParser::parse(&patch);
+        let diff = UnifiedDiffParser::parse(&patch).map_err(|error| error.to_string())?;
         change.additions = diff.total_additions();
         change.deletions = diff.total_deletions();
         change.is_binary = diff.is_binary;

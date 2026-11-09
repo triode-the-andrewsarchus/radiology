@@ -14,7 +14,7 @@ fn snapshot(app: &RadiologyApp) -> GitSnapshot {
             .open_buffer
             .as_ref()
             .map(|buffer| SourceIdentity::new(buffer)),
-        lines: Some(UnifiedDiffParser::parse("@@ -1 +1,7 @@\n")),
+        lines: Some(UnifiedDiffParser::parse("@@ -1 +1,7 @@\n").unwrap()),
     }
 }
 
