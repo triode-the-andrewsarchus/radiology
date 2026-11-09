@@ -321,6 +321,32 @@ fn real_rust_analyzer_indexes_feature_gated_workspace_calls_and_reuses_the_resul
         },
         &["Cargo.lock", "target"],
     );
+    // Index the exact Swift corpus from source, without copying its recorded SCIP.
+    let reference =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("Tests/RadiologyTests/Fixtures/scip-rust");
+    let owned = ["Cargo.toml", "src/lib.rs", "src/shapes.rs"]
+        .map(|path| (path, fs::read_to_string(reference.join(path)).unwrap()));
+    let files: Vec<_> = owned
+        .iter()
+        .map(|(path, text)| (*path, text.as_str()))
+        .collect();
+    let fixture = Fixture::new(&files);
+    let request = external_tool_request(&fixture, Indexer::Rust, "RADIOLOGY_REAL_RUST_ANALYZER");
+    verify_lifecycle(
+        &fixture,
+        request,
+        &files,
+        Navigation {
+            caller: "src/lib.rs",
+            callee: "Circle",
+            target: "src/shapes.rs",
+            span: (0, 11, 17),
+            encoding: ColumnEncoding::Utf8,
+            documents: 2,
+            partial_build: false,
+        },
+        &["Cargo.lock", "target", "index.scip"],
+    );
 }
 
 #[test]

@@ -502,6 +502,13 @@ is 34/35 mapped; the exact real-Rust generation function remains. Combined seria
 workspace verification passes 939 app tests, binary/font/text 2/13/23 and all 68
 doctests (twelve opt-in ignores).
 
+[Exact real-Rust generation](rust-real-rust-contract.md) closes the tenth
+IndexingTests group with newly generated SCIP for the literal Swift corpus, exact
+Circle navigation and the existing reuse/reload/source-preservation assertions.
+The actual 1.98.1 component also passes the feature-gated workspace case; strict
+Clippy passes. Compiler/personality is fully mapped at 35/35. Inspector/traits and
+final acceptance remain open.
+
 ## Inspector regions and trait implementations
 
 Rust entry points: [panes.rs](../src/ui/app/tests/focus/panes.rs), [traits.rs](../src/ui/app/tests/focus/traits.rs), [tests.rs](../src/semantic/trait_impls/tests.rs), [tests.rs](../src/semantic/trait_context/tests.rs).

@@ -1,5 +1,31 @@
 # Progress
 
+## 2026-11-09 — Exact real-Rust generation contract (Codex)
+
+The existing opt-in real Rust lifecycle now also indexes the exact three Swift
+scip-rust input files without copying recorded SCIP. Actual rust-analyzer 1.98.1
+produces two documents, exact Circle definition/reference byte ranges, successful
+Update reuse and tool-free cached reload. Sources/inventory remain unchanged and
+Cargo.lock/target/index.scip stay outside the viewed checkout. The existing member-
+feature/miri three-document workspace passes in the same 4.18-second run. Actual
+version, invocation and bounded diagnostics are retained in the archive.
+
+The missing component is supplied by a separate QA rustup/Cargo home under
+~/.cache/radiology-qa-real-rust, pinned to the installed compiler's 1.98.1 version.
+Normal user toolchain/defaults are untouched. The manifest records the executable's
+version/hash. This extends an existing ignored test only: no new production API,
+worker, resource or UI change. Strict Clippy and formatting pass; latest full serial
+gate remains the preceding checkpoint's 939 app checks (twelve ignores), 2/13/23
+binary/font/text and all 68 doctests. Both modified opt-in paths explicitly pass.
+Architecture NEUTRAL: +25 measured NLOC, no new function/file/hotspot/cycle or clone;
+36 high-complexity functions, one cycle and all 125 normalized clones unchanged.
+
+Compiler/personality reconciliation is complete at 35/35 mapped groups. Inspector/
+traits fifteen and final integrated/native/standalone/reuse acceptance remain, along
+with SDK-backed Android success and its outstanding license authorization. No claim
+of overall parity is made. [Contract](plans/rust-real-rust-contract.md); evidence:
+~/.local/state/radiology-qa/real-rust-contract-20261109-15c6afb/.
+
 ## 2026-11-09 — Kotlin and PR assertion contracts (Codex)
 
 All six KotlinIndexingTests and two PRKotlinNavigationTests functions now map to

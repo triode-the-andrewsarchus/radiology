@@ -55,3 +55,9 @@ The initial temporary text-label collection repeated an existing test block; dir
 iterator assertions removed that allocation and new clone. Final measured delta: +138 NLOC/net three analyzed functions, no new file;
 avg/max CCN 3.43/132, 36 high-complexity functions, one cycle and all 125 normalized
 clone instances unchanged (zero additions/removals).
+
+## Real-tool follow-up
+
+[Fresh exact-corpus generation](rust-real-rust-contract.md) now closes the tenth
+function. The nine mappings above remain unchanged; all ten IndexingTests and all
+35 compiler/personality functions are mapped. Final acceptance is still separate.
