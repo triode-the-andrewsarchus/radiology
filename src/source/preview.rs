@@ -21,7 +21,7 @@ mod structure;
 pub struct PreviewLine {
     /// One-based source line number.
     pub number: usize,
-    /// Original source text, without newline bytes, bounded at UTF-8 boundaries.
+    /// Bounded source-line display, with omission markers at cropped edges.
     pub text: String,
     /// Indexed occurrence bytes relative to the displayed text, when visible.
     pub emphasis: Option<Range<usize>>,
@@ -299,24 +299,33 @@ pub(crate) fn preview_line(
     number: usize,
     occurrence: &Range<usize>,
 ) -> PreviewLine {
-    const LINE_BYTES: usize = 2048;
+    const LINE_BYTES: usize = 400;
     let line = buffer.line_byte_range(number);
     let focus = if line.contains(&occurrence.start) {
         occurrence.start
     } else {
         line.start
     };
-    let start = buffer.clamp_to_char_boundary(focus.saturating_sub(LINE_BYTES / 4).max(line.start));
-    let end = buffer.clamp_to_char_boundary(start.saturating_add(LINE_BYTES).min(line.end));
+    let (start, end) = if line.len() <= LINE_BYTES {
+        (line.start, line.end)
+    } else {
+        let start =
+            buffer.clamp_to_char_boundary(focus.saturating_sub(LINE_BYTES / 4).max(line.start));
+        // Reserve both markers inside the same display budget. Canonical source
+        // coordinates remain in the query result, outside this display window.
+        let end = buffer.clamp_to_char_boundary((start + LINE_BYTES - 2 * "…".len()).min(line.end));
+        (start, end)
+    };
+    let leading = if start > line.start { "…" } else { "" };
+    let trailing = if end < line.end { "…" } else { "" };
     let overlap = occurrence.start.max(start)..occurrence.end.min(end);
-    let emphasis =
-        (overlap.start < overlap.end).then(|| overlap.start - start..overlap.end - start);
-
+    let emphasis = (overlap.start < overlap.end)
+        .then(|| overlap.start - start + leading.len()..overlap.end - start + leading.len());
     PreviewLine {
         number,
-        text: buffer.text[start..end].to_owned(),
+        text: format!("{leading}{}{trailing}", &buffer.text[start..end]),
         emphasis,
-        clipped: start > line.start || end < line.end,
+        clipped: !leading.is_empty() || !trailing.is_empty(),
     }
 }
 
@@ -632,7 +641,7 @@ mod tests {
         let preview = prepare(&inputs, &position, &AtomicBool::new(false)).unwrap();
         let line = &preview.lines[1];
         assert!(line.clipped);
-        assert!(line.text.len() <= 2048);
+        assert!(line.text.len() <= 400);
         assert_eq!(&line.text[line.emphasis.clone().unwrap()], "café");
         assert!(preview.lines.iter().all(|line| !line.text.contains('\r')));
         let mut invalid = position;
@@ -642,6 +651,83 @@ mod tests {
             prepare(&inputs, &invalid, &AtomicBool::new(false)).is_err(),
             "UTF-16 surrogate halves must not map"
         );
+    }
+
+    #[test]
+    fn swift_unicode_window_preserves_match_navigation_and_explicit_fallback_preview() {
+        use crate::semantic::{
+            index::SemanticSymbolID,
+            reference_results::{query, ReferenceLimits},
+        };
+        let text = format!(
+            "fn a() {{}}\nlet v = {} target(1); // tail\nfn b() {{}}\n",
+            "é🚀x".repeat(30_000)
+        );
+        let mut config = inputs(SourceBuffer::from_str("gen.rs", &text));
+        let position = target(&config.buffer, "target", PreviewKind::Reference);
+        let id = SemanticSymbolID::new("rust-analyzer cargo sample 1 target().", "gen.rs");
+        Arc::make_mut(&mut Arc::get_mut(&mut config).unwrap().index)
+            .references
+            .insert(id.clone(), vec![("gen.rs".into(), position.range.clone())]);
+        let cancel = AtomicBool::new(false);
+        let results = query(&config, &id, ReferenceLimits::default(), &cancel).unwrap();
+        let hit = &results.hits[0];
+        assert_eq!(hit.source_line.number, 2);
+        assert_eq!(&config.buffer.text[hit.byte_range.clone()], "target");
+        assert!(hit.source_line.text.starts_with('…'));
+        assert!(hit.source_line.text.len() <= 403);
+        assert_eq!(
+            &hit.source_line.text[hit.source_line.emphasis.clone().unwrap()],
+            "target"
+        );
+        let context = prepare(&config, &position, &cancel).unwrap();
+        assert_eq!(context.lines[1], hit.source_line);
+        assert!(context
+            .lines
+            .iter()
+            .all(|line| line.text.len() <= 403 && !line.text.contains('\u{fffd}')));
+        let range = config
+            .index
+            .byte_range(&config.buffer, &position.range)
+            .unwrap();
+        let mut definition = position;
+        definition.kind = PreviewKind::Definition;
+        // Swift explicitly supplies no declaration end to its preview constructor.
+        let preview = excerpt(
+            &config.buffer,
+            &definition,
+            &range,
+            None,
+            &cancel,
+            Instant::now() + SOURCE_READ_TIMEOUT,
+        )
+        .unwrap();
+        assert_eq!(preview.lines.len(), 2);
+        assert!(preview.lines[0].text.len() <= 403 && !preview.lines[0].text.contains('\u{fffd}'));
+        assert_eq!(config.buffer.text, text);
+    }
+
+    #[test]
+    fn window_markers_identify_only_omitted_edges_and_leave_short_lines_whole() {
+        for (prefix, suffix, leading, trailing) in [
+            (350, 0, false, false),
+            (0, 800, false, true),
+            (800, 0, true, false),
+            (800, 800, true, true),
+        ] {
+            let text = format!("{}café{}", "x".repeat(prefix), "y".repeat(suffix));
+            let buffer = SourceBuffer::from_str("line.txt", &text);
+            let range = prefix..prefix + "café".len();
+            let line = preview_line(&buffer, 1, &range);
+            assert_eq!(line.text.starts_with('…'), leading);
+            assert_eq!(line.text.ends_with('…'), trailing);
+            assert_eq!(line.clipped, leading || trailing);
+            assert!(line.text.len() <= 400);
+            assert_eq!(&line.text[line.emphasis.clone().unwrap()], "café");
+            if !line.clipped {
+                assert_eq!(line.text, text);
+            }
+        }
     }
 
     #[test]

@@ -123,6 +123,15 @@ mod tests {
 
     #[test]
     fn coverage_and_exact_source_take_precedence_over_replacement_lifecycle() {
+        assert_eq!(
+            SemanticAvailability::FileNotIndexed.header_detail(),
+            Some("File not indexed")
+        );
+        assert_eq!(
+            SemanticAvailability::RepositoryNotIndexed("x").header_detail(),
+            Some("No semantic index")
+        );
+        assert_eq!(SemanticAvailability::Available.explanation(), None);
         let source = SourceBuffer::from_str("a.rs", "fn alpha() {}\n");
         let changed = SourceBuffer::from_str("a.rs", "fn beta() {}\n");
         let other = SourceBuffer::from_str("other.rs", "fn alpha() {}\n");
@@ -195,6 +204,12 @@ mod tests {
         let empty = SemanticIndex::from_scip(ScipIndex::default());
         for index in [None, Some(&empty)] {
             for (cache, import, error, expected) in [
+                (
+                    CacheLoadStatus::Idle,
+                    IndexImportStatus::Idle,
+                    Some("No supported projects."),
+                    "No supported projects.",
+                ),
                 (
                     CacheLoadStatus::Failed("cache broken".into()),
                     IndexImportStatus::Failed("import broken".into()),

@@ -67,3 +67,9 @@ Next: cropped source markers/limits and availability, then remaining reference/
 call-tree/palette and other suite reconciliation plus native/standalone acceptance.
 Known Android/license and parallel-run limitations still apply. Full accessibility
 and actual little-screen-clip adoption are outside the current agreed scope.
+
+The following [excerpt checkpoint](rust-context-window-contracts.md) subsequently
+passes the fresh complete workspace gate for both production changes: 889 app
+tests, binary/font/text checks 2/13/22 and all 66 doctests, with eleven existing
+opt-in ignores. Its coverage reconciliation completes all eighteen ContextModel
+groups; other suites and final acceptance remain open.

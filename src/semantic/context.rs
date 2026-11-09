@@ -96,7 +96,7 @@ pub struct UnderCaretContext {
     pub enclosing_name: Option<String>,
     /// Package and version when no in-repository definition is indexed.
     pub external_package: Option<String>,
-    /// Exact bounded first definition line in the displayed document.
+    /// Bounded first-definition-line display from the captured document.
     pub local_definition_line: Option<PreviewLine>,
 }
 

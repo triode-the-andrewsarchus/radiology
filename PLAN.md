@@ -1,5 +1,11 @@
 # Radiology documentation index and current state
 
+[Context excerpt windows and coverage](plans/rust-context-window-contracts.md)
+now add scalar-safe visible omission markers through the shared snippet path and
+map the last two ContextModel groups. All eighteen have explicit mappings;
+the combined full workspace validation passes. Other suite audits and final
+whole-app/native/standalone acceptance remain open.
+
 Radiology is a native, read-only repository browser for understanding unfamiliar codebases. While the original implementation was written in Swift for macOS, the active focus is the standalone Linux-native rewrite in Rust using EGUI (`eframe` 0.27 / `egui` 0.27).
 
 ## Current accepted state

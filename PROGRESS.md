@@ -1,5 +1,35 @@
 # Progress
 
+## 2026-11-09 — Context excerpt windows and coverage (Codex)
+
+Clipped sidebar excerpts now show omission markers using the existing shared
+preview path. The 400-byte total budget includes markers, UTF-8 scalar boundaries
+remain valid and emphasis accounts for a leading ellipsis. Uncut short lines stay
+whole. Canonical navigation ranges, buffer bytes and source ownership stay exact.
+The exact Swift large-Unicode fixture failed before repair and now passes through
+reference queries, context preparation and explicit no-declaration-end previews.
+
+The existing availability matrix now includes Swift's exact no-project reason,
+header labels and absent available-state explanation. Atomic accepted-source
+publication maps the intermediate coordinate-mapping contract; known provenance
+and Before-revision guards remain. All eighteen ContextModel groups now have
+explicit mappings. Other behavior suites and final integrated acceptance remain.
+
+Focused source-preview/reference-result/availability/renderer checks pass
+(15/9/2/3), plus strict all-target Clippy, normal build and warning-free docs.
+The combined serial workspace gate passes: 889 app tests, eleven existing opt-in
+ignores, binary/font/text checks 2/13/22 and all 66 doctests. This also validates
+the preceding disclosure checkpoint in the complete workspace. Architecture adds 97 NLOC/two test
+functions, no new files/helpers; average/max CCN 3.42/132, 36 hotspots and cycles
+are unchanged. Complete clone multisets stay 125 with zero added/removed.
+[Window/coverage mapping](plans/rust-context-window-contracts.md); logs are in
+`~/.local/state/radiology-qa/context-window-20261109-f7211aa/`.
+
+Next, the call-tree audit found collapse/reopen discards an already loaded caller
+trace, where Swift reuses it. Preserve pending cancellation and ownership retirement
+while repairing that behavior. Remaining reference/call-tree/palette and broader
+source/compiler/inspector audits plus native/standalone gates are still open.
+
 ## 2026-11-09 — Declaration disclosure follows index ownership (Codex)
 
 The real chevron/index-replacement regression failed on a signature left open

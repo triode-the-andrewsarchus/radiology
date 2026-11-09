@@ -1,5 +1,9 @@
 # Rust/Swift parity reconciliation — 2026-11-02
 
+The [window/coverage reconciliation](rust-context-window-contracts.md) brings
+ContextModel to eighteen mapped groups. Its combined workspace gate passes;
+the reference/call-tree and final acceptance gates below remain open.
+
 [Context disclosure/focus](rust-context-disclosure-contracts.md) closes signatures
 on index replacement and verifies independent expansion plus explicit reference
 focus. Sixteen ContextModel groups are mapped; source windowing and coverage remain.
